@@ -1,0 +1,150 @@
+/* ═══ SoundForge — Logic Pro X Design System ═══ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Logic Pro warm grays */
+  --bg-root: #2C2C2C;
+  --bg-surface: #333333;
+  --bg-panel: #3A3A3A;
+  --bg-sidebar: #2F2F2F;
+  --bg-elevated: #404040;
+  --bg-hover: #484848;
+  --bg-active: #505050;
+  --bg-input: #282828;
+  --bg-deep: #1E1E1E;
+  --bg-lcd: #1A1A1A;
+  --bg-toolbar: #383838;
+  --bg-track-hdr: #353535;
+
+  --border: rgba(0, 0, 0, 0.35);
+  --border-light: rgba(255, 255, 255, 0.06);
+  --border-md: rgba(255, 255, 255, 0.08);
+
+  --text-pri: rgba(255, 255, 255, 0.85);
+  --text-sec: rgba(255, 255, 255, 0.55);
+  --text-mut: rgba(255, 255, 255, 0.30);
+  --text-whi: #fff;
+
+  /* Logic Pro track colors — saturated */
+  --trk-1: #5B7FFF;
+  /* Blue */
+  --trk-2: #8B6835;
+  /* Brown/Sienna */
+  --trk-3: #C4A034;
+  /* Gold/Yellow */
+  --trk-4: #6AAB2E;
+  /* Green */
+  --trk-5: #3EB59A;
+  /* Teal */
+  --trk-6: #C74D8F;
+  /* Magenta */
+  --trk-7: #B25CDE;
+  /* Purple */
+  --trk-8: #E06040;
+  /* Orange/Red */
+  --trk-9: #42A5D4;
+  /* Cyan */
+  --trk-10: #E0C040;
+  /* Bright Yellow */
+  --trk-11: #D44E5C;
+  /* Rose */
+  --trk-12: #6C6CE0;
+  /* Indigo */
+  --trk-13: #50B060;
+  /* Forest Green */
+  --trk-14: #D87028;
+  /* Deep Orange */
+
+  --font-ui: 'Inter', -apple-system, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+
+  --transport-h: 52px;
+  --toolbar-h: 28px;
+  --inspector-w: 176px;
+  --th-w: 252px;
+  --track-h: 70px;
+  --editor-h: 0px;
+
+  --r: 4px;
+  --r-sm: 3px;
+  --r-lg: 6px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --fast: 100ms;
+}
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-root);
+  color: var(--text-pri);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  -webkit-font-smoothing: antialiased
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px
+}
+
+::-webkit-scrollbar-track {
+  background: transparent
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 3px
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18)
+}
+
+::selection {
+  background: rgba(91, 127, 255, 0.3);
+  color: #fff
+}
+
+button {
+  font-family: var(--font-ui)
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 1.5px solid var(--trk-1);
+  outline-offset: 1px
+}
+
+.hidden {
+  display: none !important
+}
+
+@keyframes rec-pulse {
+
+  0%,
+  100% {
+    opacity: 1
+  }
+
+  50% {
+    opacity: 0.5
+  }
+}

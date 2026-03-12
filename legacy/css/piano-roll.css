@@ -1,0 +1,211 @@
+/* ═══ Editor Panel — Logic Pro Style ═══ */
+#editor-panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-panel);
+    flex-shrink: 0;
+    overflow: hidden;
+    transition: height 0.2s
+}
+
+#editor-panel.editor-collapsed {
+    height: 0;
+    min-height: 0
+}
+
+#editor-panel.editor-open {
+    height: 260px;
+    min-height: 160px
+}
+
+.editor-tabs {
+    display: flex;
+    background: linear-gradient(180deg, #444, #383838);
+    border-bottom: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0
+}
+
+.ed-tab {
+    padding: 4px 14px;
+    border: none;
+    background: transparent;
+    color: var(--text-mut);
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all var(--fast);
+    text-transform: uppercase;
+    letter-spacing: 0.6px
+}
+
+.ed-tab:hover {
+    color: var(--text-sec);
+    background: rgba(255, 255, 255, 0.02)
+}
+
+.ed-tab.active {
+    color: var(--text-whi);
+    border-bottom-color: #5B7FFF
+}
+
+.ed-panel {
+    display: none;
+    flex: 1;
+    overflow: hidden;
+    flex-direction: column
+}
+
+.ed-panel.active {
+    display: flex
+}
+
+.placeholder-panel {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-mut);
+    font-size: 11px
+}
+
+.pr-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 8px;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0
+}
+
+.pr-tools {
+    display: flex;
+    gap: 1px;
+    background: var(--bg-deep);
+    padding: 2px;
+    border-radius: var(--r);
+    border: 1px solid rgba(0, 0, 0, 0.3)
+}
+
+.pr-btn {
+    width: 22px;
+    height: 18px;
+    border: none;
+    background: linear-gradient(180deg, #4A4A4A, #3A3A3A);
+    color: var(--text-mut);
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--fast);
+    border: 1px solid rgba(0, 0, 0, 0.2)
+}
+
+.pr-btn:hover {
+    color: var(--text-sec)
+}
+
+.pr-btn.active {
+    background: linear-gradient(180deg, #505050, #404040);
+    color: var(--text-whi)
+}
+
+.pr-group {
+    display: flex;
+    align-items: center;
+    gap: 3px
+}
+
+.t-label {
+    font-size: 7px;
+    font-weight: 700;
+    color: var(--text-mut);
+    text-transform: uppercase;
+    letter-spacing: 0.8px
+}
+
+.pr-creative {
+    display: flex;
+    gap: 3px;
+    margin-left: auto
+}
+
+.creative-btn {
+    padding: 2px 6px;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    background: linear-gradient(180deg, #4A4A4A, #3A3A3A);
+    color: var(--text-mut);
+    font-size: 9px;
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    transition: all var(--fast)
+}
+
+.creative-btn:hover {
+    background: linear-gradient(180deg, #555, #444);
+    color: var(--text-sec)
+}
+
+.snap-scale-lbl {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 9px;
+    color: var(--text-sec);
+    cursor: pointer
+}
+
+.snap-scale-lbl input {
+    accent-color: #5B7FFF
+}
+
+.pr-content {
+    flex: 1;
+    display: flex;
+    overflow: hidden
+}
+
+.pr-keys {
+    width: 40px;
+    flex-shrink: 0;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border)
+}
+
+.pr-grid-wrap {
+    flex: 1;
+    overflow: auto;
+    position: relative
+}
+
+.pr-canvas {
+    display: block
+}
+
+.vel-lane {
+    height: 40px;
+    display: flex;
+    border-top: 1px solid var(--border);
+    background: var(--bg-surface);
+    flex-shrink: 0
+}
+
+.vel-label {
+    width: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 7px;
+    font-weight: 800;
+    color: var(--text-mut);
+    letter-spacing: 1px;
+    border-right: 1px solid var(--border)
+}
+
+.vel-canvas {
+    flex: 1
+}

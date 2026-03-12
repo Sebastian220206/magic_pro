@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  username      String?   @unique
+  email         String?   @unique
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  projects      Project[]
+}
+
+model Project {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  tempo             Int       @default(120)
+  timeSignature     String    @default("4/4")
+  keySignature      String    @default("C Maj")
+  projectFormat     String    @default("stereo")
+  surroundFormat    String    @default("5.1 (ITU 775)")
+  spatialAudioMode  String    @default("Off")
+  stateJson         Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  tracks            Track[]
+  buses             Bus[]
+}
+
+model Track {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  type        String   // audio, midi, drum, aux, bus
+  volume      Float    @default(0.8)
+  pan         Float    @default(0.0)
+  muted       Boolean  @default(false)
+  soloed      Boolean  @default(false)
+  color       String   @default("#888888")
+  orderIndex  Int      @default(0)
+  
+  clips       Clip[]
+  plugins     Plugin[]
+  automation  Automation[]
+  sends       Send[]
+}
+
+model Clip {
+  id        String   @id @default(cuid())
+  trackId   String
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  type      String   // audio, midi
+  start     Float    // in beats
+  duration  Float    // in beats
+  name      String
+  color     String
+  fileUrl   String?  // for audio clips
+  
+  notes     Note[]
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  clipId    String
+  clip      Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  pitch     Int
+  velocity  Int
+  start     Float    // relative to clip start, in beats
+  duration  Float    // in beats
+}
+
+model Automation {
+  id        String   @id @default(cuid())
+  trackId   String
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  parameter String   // volume, pan, etc.
+  points    AutomationPoint[]
+}
+
+model AutomationPoint {
+  id           String     @id @default(cuid())
+  automationId String
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  time         Float
+  value        Float
+}
+
+model Plugin {
+  id           String   @id @default(cuid())
+  trackId      String
+  track        Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  name         String
+  slotIndex    Int
+  settingsJson String?  // Stores plugin state
+}
+
+model Bus {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  sends     Send[]
+}
+
+model Send {
+  id      String   @id @default(cuid())
+  trackId String
+  track   Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  busId   String
+  bus     Bus      @relation(fields: [busId], references: [id], onDelete: Cascade)
+  level   Float    @default(0.0)
+}

@@ -1,0 +1,721 @@
+# Cloud-Based Browser DAW — Full Architecture & Implementation Plan
+
+## Overview
+
+Build **SoundForge Studio**, a professional browser-based Digital Audio Workstation where users can create, edit, mix, and collaborate on music projects entirely in the browser. The system must support real-time audio playback, multi-track editing, plugin processing, collaborative sessions, and an AI music assistant.
+
+---
+
+## 1. High-Level Architecture
+
+```mermaid
+graph TB
+    subgraph Client["Browser Client (Next.js + TailwindCSS)"]
+        UI["React UI Layer"]
+        DAW["DAW Editor (Canvas/WebGL)"]
+        AE["Audio Engine (Web Audio API + AudioWorklets)"]
+        COLLAB_C["Collaboration Client (WebSocket)"]
+        IDB["IndexedDB Local Cache"]
+        PLUGIN_H["Plugin Host (WASM Sandbox)"]
+        AI_C["AI Assistant Client"]
+    end
+
+    subgraph API["API Gateway (Node.js / Express)"]
+        AUTH["Auth Service (JWT + OAuth)"]
+        PROJ["Project Service"]
+        STORE["Storage Service"]
+        COLLAB_S["Collaboration Service (WebSocket)"]
+        AI_S["AI Music Service"]
+        PLUGIN_R["Plugin Registry"]
+    end
+
+    subgraph Data["Data Layer"]
+        PG["PostgreSQL (Users, Projects, Metadata)"]
+        REDIS["Redis (Sessions, Pub/Sub, CRDT Sync)"]
+        S3["Object Storage / S3 (Audio Files)"]
+        VECTOR["Vector DB (AI Embeddings)"]
+    end
+
+    UI --> AUTH
+    UI --> PROJ
+    UI --> STORE
+    DAW --> AE
+    DAW --> COLLAB_C
+    COLLAB_C --> COLLAB_S
+    AE --> PLUGIN_H
+    AE --> IDB
+    AI_C --> AI_S
+
+    AUTH --> PG
+    PROJ --> PG
+    STORE --> S3
+    COLLAB_S --> REDIS
+    AI_S --> VECTOR
+```
+
+---
+
+## 2. Technology Stack
+
+| Layer | Technology | Rationale |
+|---|---|---|
+| **Frontend** | Next.js 14 (App Router) | SSR for landing pages, client-side for DAW editor |
+| **Styling** | TailwindCSS 3 | Rapid, consistent UI with dark-mode support |
+| **Audio** | Web Audio API + AudioWorklets | Low-latency, real-time DSP on audio thread |
+| **Rendering** | HTML Canvas (waveforms) + WebGL (spectrogram, meters) | GPU-accelerated visualization |
+| **State** | Zustand | Lightweight, minimal boilerplate for DAW state |
+| **Backend** | Node.js + Express | Non-blocking I/O, WebSocket native support |
+| **Real-time** | Socket.IO (WebSocket) | Built-in rooms, reconnection, fallbacks |
+| **Database** | PostgreSQL (Prisma ORM) | Relational data: users, projects, tracks, permissions |
+| **Cache/PubSub** | Redis | Session store, collaboration pub/sub, rate limiting |
+| **Object Storage** | S3-compatible (AWS S3 / MinIO) | Audio file blobs, stems, exports |
+| **Local Cache** | IndexedDB (via Dexie.js) | Offline project cache, undo history |
+| **AI** | OpenAI API / Replicate (MusicGen) | Chord suggestion, stem separation, generation |
+| **Auth** | NextAuth.js (OAuth + credentials) | Google/GitHub/email login, JWT sessions |
+
+---
+
+## 3. Core Systems Design
+
+### 3.1 Authentication & User Accounts
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant C as Client
+    participant A as Auth Service
+    participant DB as PostgreSQL
+
+    U->>C: Click "Sign in with Google"
+    C->>A: POST /api/auth/signin (OAuth)
+    A->>A: Validate OAuth token
+    A->>DB: Upsert user record
+    A-->>C: JWT access + refresh tokens
+    C->>C: Store JWT in httpOnly cookie
+    C->>A: GET /api/me (with JWT)
+    A-->>C: User profile + subscription tier
+```
+
+**Key decisions:**
+- **NextAuth.js** handles OAuth (Google, GitHub) and email/password
+- JWT stored in `httpOnly` cookies (XSS resistant)
+- Refresh token rotation with 15-min access token TTL
+- Subscription tiers: Free (3 projects, 100 MB), Pro ($12/mo, unlimited), Team ($25/seat/mo)
+
+**Data model:**
+```sql
+CREATE TABLE users (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email         VARCHAR(255) UNIQUE NOT NULL,
+    name          VARCHAR(255),
+    avatar_url    TEXT,
+    password_hash TEXT,  -- NULL for OAuth-only users
+    provider      VARCHAR(50),  -- 'google', 'github', 'credentials'
+    subscription  VARCHAR(20) DEFAULT 'free',
+    storage_used  BIGINT DEFAULT 0,
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+---
+
+### 3.2 Project Management System
+
+**Data model:**
+```sql
+CREATE TABLE projects (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id    UUID REFERENCES users(id),
+    title       VARCHAR(255) NOT NULL,
+    description TEXT,
+    bpm         INT DEFAULT 120,
+    time_sig    VARCHAR(10) DEFAULT '4/4',
+    sample_rate INT DEFAULT 44100,
+    is_public   BOOLEAN DEFAULT FALSE,
+    version     INT DEFAULT 1,
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE tracks (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id  UUID REFERENCES projects(id) ON DELETE CASCADE,
+    name        VARCHAR(255),
+    type        VARCHAR(20),  -- 'audio', 'midi', 'bus', 'master'
+    color       VARCHAR(7),
+    volume      FLOAT DEFAULT 0.8,
+    pan         FLOAT DEFAULT 0.0,
+    muted       BOOLEAN DEFAULT FALSE,
+    solo        BOOLEAN DEFAULT FALSE,
+    sort_order  INT DEFAULT 0,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE clips (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    track_id    UUID REFERENCES tracks(id) ON DELETE CASCADE,
+    name        VARCHAR(255),
+    type        VARCHAR(20),  -- 'audio', 'midi'
+    start_time  FLOAT NOT NULL,  -- in beats
+    duration    FLOAT NOT NULL,  -- in beats
+    offset      FLOAT DEFAULT 0, -- source offset
+    gain        FLOAT DEFAULT 1.0,
+    fade_in     FLOAT DEFAULT 0,
+    fade_out    FLOAT DEFAULT 0,
+    audio_url   TEXT,            -- S3 key for audio clips
+    midi_data   JSONB,           -- note events for MIDI clips
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE project_collaborators (
+    project_id  UUID REFERENCES projects(id) ON DELETE CASCADE,
+    user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
+    role        VARCHAR(20) DEFAULT 'editor',  -- 'viewer', 'editor', 'admin'
+    joined_at   TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (project_id, user_id)
+);
+```
+
+**REST API surface:**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/projects` | List user's projects |
+| `POST` | `/api/projects` | Create new project |
+| `GET` | `/api/projects/:id` | Get project with tracks + clips |
+| `PUT` | `/api/projects/:id` | Update project metadata |
+| `DELETE` | `/api/projects/:id` | Delete project |
+| `POST` | `/api/projects/:id/tracks` | Add track |
+| `PUT` | `/api/projects/:id/tracks/:tid` | Update track |
+| `DELETE` | `/api/projects/:id/tracks/:tid` | Delete track |
+| `POST` | `/api/projects/:id/tracks/:tid/clips` | Add clip |
+| `PUT` | `/api/projects/:id/clips/:cid` | Update clip |
+| `DELETE` | `/api/projects/:id/clips/:cid` | Delete clip |
+| `POST` | `/api/projects/:id/collaborators` | Invite collaborator |
+| `POST` | `/api/projects/:id/export` | Export mixdown |
+
+---
+
+### 3.3 Cloud Storage
+
+```mermaid
+graph LR
+    subgraph Upload Flow
+        C[Client] -->|multipart/form-data| API[API Server]
+        API -->|presigned URL| S3[S3 Bucket]
+        API -->|metadata| PG[PostgreSQL]
+    end
+
+    subgraph Download Flow
+        C2[Client] -->|GET /api/files/:id| API2[API Server]
+        API2 -->|signed URL (1hr TTL)| C2
+        C2 -->|fetch| S3_2[S3 CDN]
+    end
+```
+
+**Strategy:**
+- **Upload:** Client requests a presigned S3 URL from the API; uploads directly to S3 (no server bottleneck)
+- **Download:** API generates signed URLs with 1-hour TTL; streamed via CloudFront CDN
+- **Local cache:** Dexie.js IndexedDB stores recently used audio blobs for offline work
+- **File organization:** `s3://{bucket}/{userId}/{projectId}/{trackId}/{clipId}.wav`
+- **Formats:** Accept WAV, FLAC, MP3, OGG; transcode to WAV internally for editing
+
+**Data model:**
+```sql
+CREATE TABLE audio_files (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID REFERENCES users(id),
+    project_id  UUID REFERENCES projects(id),
+    filename    VARCHAR(255),
+    s3_key      TEXT NOT NULL,
+    size_bytes  BIGINT,
+    duration_ms INT,
+    sample_rate INT,
+    channels    INT,
+    format      VARCHAR(10),
+    waveform    JSONB,  -- pre-computed peaks for rendering
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+---
+
+### 3.4 Browser DAW Editor
+
+The editor is the heart of the application — a Canvas/WebGL rendered multi-track timeline.
+
+```mermaid
+graph TB
+    subgraph Editor Components
+        TL["Timeline (Canvas)"]
+        TR["Track List (React)"]
+        MX["Mixer Panel (React)"]
+        PI["Piano Roll (Canvas)"]
+        TB["Transport Bar (React)"]
+        PL["Plugin Rack (React)"]
+        BR["Browser Panel (React)"]
+    end
+
+    subgraph State Management
+        ZS["Zustand Store"]
+        UH["Undo/Redo History"]
+        IDB["IndexedDB Snapshot"]
+    end
+
+    TL --> ZS
+    TR --> ZS
+    MX --> ZS
+    PI --> ZS
+    TB --> ZS
+    ZS --> UH
+    ZS --> IDB
+```
+
+**Key components:**
+
+| Component | Technology | Responsibility |
+|-----------|-----------|----------------|
+| **Timeline** | HTML Canvas | Waveform rendering, clip placement, selection, scrubbing |
+| **Track List** | React + Tailwind | Track controls: name, color, mute/solo, volume/pan |
+| **Mixer Panel** | React + WebGL meters | Channel strips, VU meters, send routing |
+| **Piano Roll** | HTML Canvas | MIDI note editing, velocity, CC lanes |
+| **Transport Bar** | React | Play/pause/stop/record, BPM, time signature, metronome |
+| **Plugin Rack** | React | Insert/send effects chain per track |
+| **Browser Panel** | React | File browser, sample library, instrument presets |
+
+**State architecture (Zustand store slices):**
+
+```typescript
+interface DAWState {
+  // Transport
+  isPlaying: boolean;
+  isRecording: boolean;
+  currentTime: number;    // in beats
+  bpm: number;
+  timeSignature: [number, number];
+  loopEnabled: boolean;
+  loopStart: number;
+  loopEnd: number;
+
+  // Tracks & Clips
+  tracks: Track[];
+  clips: Clip[];
+  selectedClipIds: string[];
+  selectedTrackId: string | null;
+
+  // Mixer
+  masterVolume: number;
+  soloedTrackIds: string[];
+
+  // Editor
+  zoom: number;           // pixels per beat
+  scrollX: number;
+  scrollY: number;
+  snapToGrid: boolean;
+  gridResolution: number; // 1 = quarter note
+
+  // Undo
+  undoStack: DAWSnapshot[];
+  redoStack: DAWSnapshot[];
+
+  // Actions
+  addTrack: (type: TrackType) => void;
+  removeTrack: (id: string) => void;
+  addClip: (trackId: string, clip: Clip) => void;
+  moveClip: (clipId: string, newStart: number, newTrackId?: string) => void;
+  splitClip: (clipId: string, atTime: number) => void;
+  undo: () => void;
+  redo: () => void;
+}
+```
+
+---
+
+### 3.5 Real-Time Audio Engine
+
+```mermaid
+graph LR
+    subgraph Audio Thread ["Audio Thread (AudioWorklet)"]
+        MIX["Mixer Worklet"]
+        FX1["Effect Worklet (EQ)"]
+        FX2["Effect Worklet (Compressor)"]
+        FX3["Effect Worklet (Reverb)"]
+    end
+
+    subgraph Main Thread
+        SCH["Scheduler"]
+        BUF["Buffer Manager"]
+        DEC["Decoder (OfflineAudioContext)"]
+    end
+
+    SCH -->|schedule clips| MIX
+    BUF -->|decoded PCM| MIX
+    MIX --> FX1 --> FX2 --> FX3
+    FX3 --> OUT["AudioContext.destination"]
+```
+
+**Architecture:**
+
+1. **AudioContext** — Single shared context per project session
+2. **Scheduler** — Lookahead scheduler (25ms intervals, 100ms lookahead) for sample-accurate timing
+3. **Buffer Manager** — Caches decoded `AudioBuffer` objects, lazy-loads from IndexedDB/S3
+4. **AudioWorklet processors:**
+   - `mixer-processor.js` — Summing, panning, gain per track
+   - `metering-processor.js` — RMS/peak level metering at 60fps
+   - `effects/*.js` — EQ, compressor, delay, reverb, chorus
+5. **Clip playback:** `AudioBufferSourceNode` per clip, scheduled via `start(when, offset, duration)`
+
+**Latency targets:**
+- Playback latency: < 20ms (128 sample buffer @ 44.1kHz)
+- Visual sync: requestAnimationFrame tied to `audioContext.currentTime`
+
+**Key code pattern — lookahead scheduler:**
+```typescript
+class AudioScheduler {
+  private scheduleAheadTime = 0.1;  // 100ms
+  private timerInterval = 25;       // ms
+
+  start() {
+    this.timerID = setInterval(() => this.schedule(), this.timerInterval);
+  }
+
+  private schedule() {
+    const currentTime = this.audioContext.currentTime;
+    const lookAhead = currentTime + this.scheduleAheadTime;
+
+    for (const clip of this.activeClips) {
+      const clipStartSec = this.beatsToSeconds(clip.startTime);
+      if (clipStartSec < lookAhead && !clip.isScheduled) {
+        this.scheduleClip(clip, clipStartSec);
+        clip.isScheduled = true;
+      }
+    }
+  }
+}
+```
+
+---
+
+### 3.6 Plugin Architecture
+
+```mermaid
+graph TB
+    subgraph Plugin System
+        PR["Plugin Registry (Server)"]
+        PH["Plugin Host (Client)"]
+        WASM["WASM Sandbox"]
+        AWP["AudioWorklet Processor"]
+        GUI["Plugin GUI (iframe)"]
+    end
+
+    PR -->|manifest.json| PH
+    PH -->|load| WASM
+    PH -->|register| AWP
+    PH -->|render| GUI
+    AWP -->|audio I/O| AE["Audio Engine"]
+```
+
+**Plugin format:** Custom JSON manifest + WASM/JS DSP + React GUI
+
+```json
+{
+  "id": "com.soundforge.eq3band",
+  "name": "3-Band EQ",
+  "version": "1.0.0",
+  "category": "equalizer",
+  "author": "SoundForge",
+  "dsp": "eq3band-processor.wasm",
+  "gui": "eq3band-gui.js",
+  "parameters": [
+    { "id": "lowGain",  "name": "Low",  "min": -24, "max": 24, "default": 0, "unit": "dB" },
+    { "id": "midGain",  "name": "Mid",  "min": -24, "max": 24, "default": 0, "unit": "dB" },
+    { "id": "highGain", "name": "High", "min": -24, "max": 24, "default": 0, "unit": "dB" }
+  ]
+}
+```
+
+**Built-in plugins:**
+- **EQ** (3-band parametric)
+- **Compressor** (threshold, ratio, attack, release, knee)
+- **Reverb** (convolution-based, IR loading)
+- **Delay** (sync to BPM, feedback, mix)
+- **Chorus / Flanger**
+- **Gain / Utility**
+- **Limiter** (on master bus)
+
+**Third-party plugin support:**
+- Sandboxed WASM execution (memory-limited)
+- Plugin GUI rendered in sandboxed `<iframe>`
+- Communication via `MessagePort` (structured clone)
+
+---
+
+### 3.7 Collaboration System
+
+```mermaid
+sequenceDiagram
+    participant A as User A (Editor)
+    participant S as Collaboration Server
+    participant B as User B (Editor)
+
+    A->>S: ws:connect(projectId, token)
+    S->>A: sync:state (full project snapshot)
+    B->>S: ws:connect(projectId, token)
+    S->>B: sync:state (full project snapshot)
+
+    A->>S: op:addClip({trackId, clip})
+    S->>S: Apply CRDT merge
+    S->>B: op:addClip({trackId, clip})
+
+    B->>S: op:moveClip({clipId, newStart})
+    S->>S: Apply CRDT merge
+    S->>A: op:moveClip({clipId, newStart})
+
+    Note over S: Persist merged state to DB every 5s
+```
+
+**Design:**
+- **Transport:** Socket.IO with rooms (one room = one project)
+- **Conflict resolution:** Operation-based CRDT (Yjs library)
+  - Each track/clip/parameter is a Yjs `Y.Map`
+  - Concurrent edits merge automatically
+  - No central locking needed
+- **Awareness:** Cursor positions, selected clips, and user avatars broadcast to all peers
+- **Latency:** Operations broadcast in < 50ms on typical connections
+- **Persistence:** Server saves CRDT document to PostgreSQL every 5 seconds
+
+**Operations envelope:**
+```typescript
+interface CollabOperation {
+  type: 'addTrack' | 'removeTrack' | 'addClip' | 'moveClip'
+       | 'updateParam' | 'splitClip' | 'deleteClip';
+  userId: string;
+  timestamp: number;
+  payload: Record<string, unknown>;
+}
+```
+
+**Presence system:**
+```typescript
+interface UserPresence {
+  userId: string;
+  name: string;
+  avatar: string;
+  color: string;        // assigned collaboration cursor color
+  selectedClipIds: string[];
+  cursorBeat: number;   // position on timeline
+  isOnline: boolean;
+}
+```
+
+---
+
+### 3.8 AI Music Assistant
+
+```mermaid
+graph LR
+    subgraph AI Features
+        CS["Chord Suggestion"]
+        MG["Melody Generation"]
+        SS["Stem Separation"]
+        MX["Auto-Mix"]
+        LY["Lyric Assistant"]
+    end
+
+    subgraph Backend
+        AI_API["AI Service (Node.js)"]
+        OAI["OpenAI API"]
+        REP["Replicate (MusicGen)"]
+        DEMUCS["Demucs (Stem Sep)"]
+    end
+
+    CS --> AI_API --> OAI
+    MG --> AI_API --> REP
+    SS --> AI_API --> DEMUCS
+    MX --> AI_API --> OAI
+    LY --> AI_API --> OAI
+```
+
+**AI features:**
+
+| Feature | Input | Output | Backend |
+|---------|-------|--------|---------|
+| **Chord Suggestion** | Current progression + key | Next chord options | GPT-4 (music theory prompt) |
+| **Melody Generation** | Chord progression + style | MIDI melody clip | MusicGen / custom model |
+| **Stem Separation** | Audio file | 4 stems (vocals, drums, bass, other) | Demucs (server-side) |
+| **Auto-Mix** | Track levels + EQ | Suggested mix settings | GPT-4 (audio analysis) |
+| **Lyric Assistant** | Theme, mood, genre | Lyrics with syllable counts | GPT-4 |
+| **Sound Design** | Text description | Synthesized audio | AudioLDM / MusicGen |
+
+**API endpoints:**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/ai/chords` | Suggest next chords |
+| `POST` | `/api/ai/melody` | Generate melody MIDI |
+| `POST` | `/api/ai/stems` | Separate stems (async job) |
+| `POST` | `/api/ai/mix` | Auto-mix suggestions |
+| `POST` | `/api/ai/lyrics` | Generate lyrics |
+| `GET`  | `/api/ai/jobs/:id` | Poll async job status |
+
+---
+
+## 4. Project Structure
+
+```
+c:\personal\daw\
+├── .env.local                    # Environment variables
+├── .env.example
+├── next.config.js
+├── tailwind.config.js
+├── prisma/
+│   └── schema.prisma             # Database schema
+├── public/
+│   ├── worklets/                  # AudioWorklet processors
+│   │   ├── mixer-processor.js
+│   │   ├── metering-processor.js
+│   │   └── effects/
+│   │       ├── eq-processor.js
+│   │       ├── compressor-processor.js
+│   │       ├── reverb-processor.js
+│   │       └── delay-processor.js
+│   └── samples/                   # Default sample library
+├── src/
+│   ├── app/                       # Next.js App Router
+│   │   ├── layout.tsx
+│   │   ├── page.tsx               # Landing page
+│   │   ├── (auth)/
+│   │   │   ├── login/page.tsx
+│   │   │   └── register/page.tsx
+│   │   ├── dashboard/
+│   │   │   └── page.tsx           # Project listing
+│   │   ├── studio/
+│   │   │   └── [projectId]/
+│   │   │       └── page.tsx       # DAW editor
+│   │   └── api/
+│   │       ├── auth/[...nextauth]/route.ts
+│   │       ├── projects/
+│   │       ├── files/
+│   │       ├── collab/
+│   │       └── ai/
+│   ├── components/
+│   │   ├── ui/                    # Shared UI (buttons, modals, etc.)
+│   │   ├── landing/               # Landing page sections
+│   │   ├── dashboard/             # Dashboard components
+│   │   └── studio/                # DAW editor components
+│   │       ├── Timeline.tsx
+│   │       ├── TrackList.tsx
+│   │       ├── MixerPanel.tsx
+│   │       ├── PianoRoll.tsx
+│   │       ├── TransportBar.tsx
+│   │       ├── PluginRack.tsx
+│   │       ├── BrowserPanel.tsx
+│   │       ├── AIAssistant.tsx
+│   │       └── CollaborationBar.tsx
+│   ├── engine/                    # Audio engine (client-side)
+│   │   ├── AudioEngine.ts
+│   │   ├── Scheduler.ts
+│   │   ├── BufferManager.ts
+│   │   ├── MixerNode.ts
+│   │   ├── PluginHost.ts
+│   │   └── Recorder.ts
+│   ├── collab/                    # Collaboration client
+│   │   ├── CollabProvider.tsx
+│   │   ├── usePresence.ts
+│   │   └── yjsBinding.ts
+│   ├── store/                     # Zustand state
+│   │   ├── useDAWStore.ts
+│   │   ├── useProjectStore.ts
+│   │   └── useUIStore.ts
+│   ├── lib/                       # Utilities
+│   │   ├── db.ts                  # Prisma client
+│   │   ├── s3.ts                  # S3 helpers
+│   │   ├── auth.ts                # Auth config
+│   │   ├── indexeddb.ts           # Dexie.js schema
+│   │   └── utils.ts
+│   ├── hooks/                     # Custom React hooks
+│   │   ├── useAudioEngine.ts
+│   │   ├── useWaveform.ts
+│   │   ├── useKeyboardShortcuts.ts
+│   │   └── useAutoSave.ts
+│   └── types/                     # TypeScript types
+│       ├── project.ts
+│       ├── audio.ts
+│       ├── plugin.ts
+│       └── collab.ts
+├── server/                        # Standalone WebSocket server
+│   ├── index.ts
+│   ├── collabServer.ts
+│   └── aiWorker.ts
+├── package.json
+└── tsconfig.json
+```
+
+---
+
+## 5. Proposed Implementation Phases
+
+### Phase 1 — Scaffold & Core UI
+- Initialize Next.js 14 project with TypeScript + TailwindCSS
+- Set up Prisma schema + PostgreSQL connection
+- Build landing page, auth (NextAuth), and dashboard
+- Create studio layout with placeholder panels
+
+### Phase 2 — Audio Engine & Timeline
+- Implement `AudioEngine`, `Scheduler`, `BufferManager`
+- Build Canvas-based timeline with waveform rendering
+- Implement transport controls (play/pause/stop/seek/loop)
+- Build track list with mute/solo/volume/pan
+
+### Phase 3 — Editing & Plugins
+- Clip operations: move, resize, split, delete, fade
+- MIDI piano roll editor
+- Plugin host + built-in EQ/compressor/reverb
+- Mixer panel with VU meters
+
+### Phase 4 — Cloud & Collaboration
+- S3 presigned upload/download
+- IndexedDB local caching with sync
+- WebSocket collaboration with Yjs CRDT
+- Presence awareness (cursors, selections)
+
+### Phase 5 — AI Assistant & Polish
+- AI chord suggestion & melody generation
+- Stem separation (async job queue)
+- Auto-mix suggestions
+- Export to WAV/MP3
+- Performance optimization & PWA support
+
+---
+
+## 6. User Review Required
+
+> [!IMPORTANT]
+> This is a **large-scale project**. The initial scaffold (Phase 1) can be built and demonstrated immediately. Full implementation of all 5 phases would be an ongoing effort.
+
+**Decisions needing your input:**
+
+1. **Scope for initial build:** Should I scaffold the full project and build Phase 1 (UI + auth + dashboard + studio skeleton), or do you want just the architecture document?
+2. **Database:** Do you have a PostgreSQL instance, or should I configure SQLite for local development?
+3. **AI providers:** Do you have API keys for OpenAI / Replicate, or should I stub those services?
+4. **Object storage:** Set up MinIO locally, or stub the S3 layer?
+
+---
+
+## 7. Verification Plan
+
+### Phase 1 Verification
+- **Dev server:** `npm run dev` — landing page, login, dashboard, and studio routes all load
+- **Browser test:** Navigate through auth flow → dashboard → open studio editor
+- **Visual check:** Dark-themed DAW interface renders with all panel placeholders
+
+### Phase 2 Verification
+- **Audio playback:** Load a test WAV file → press Play → hear audio output
+- **Timeline rendering:** Waveform draws correctly, scrubbing updates playhead
+- **Transport:** Play/pause/stop/loop all function correctly
+
+### Ongoing Verification
+- Unit tests for audio engine (`Scheduler`, `BufferManager`) using Vitest
+- Integration tests for API routes
+- Manual browser testing for canvas interactions

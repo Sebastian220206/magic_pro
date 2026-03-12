@@ -1,0 +1,6 @@
+components/LoopBrowser.tsx(13,58): error TS2339: Property 'selectedTrackId' does not exist on type 'ProjectState'.
+components/LoopBrowser.tsx(67,17): error TS2345: Argument of type '{ id: string; trackId: any; name: any; type: any; start: number; duration: any; color: string; fileUrl: any; offset: number; muted: false; loop: false; qSwing: number; transpose: number; velocityOffset: number; }' is not assignable to parameter of type 'Clip'.
+  Property 'alternativeId' is missing in type '{ id: string; trackId: any; name: any; type: any; start: number; duration: any; color: string; fileUrl: any; offset: number; muted: false; loop: false; qSwing: number; transpose: number; velocityOffset: number; }' but required in type 'Clip'.
+components/Mixer.tsx(13,28): error TS2339: Property 'selectedTrackId' does not exist on type 'ProjectState'.
+components/NotePad.tsx(12,41): error TS2339: Property 'selectedTrackId' does not exist on type 'ProjectState'.
+components/SmartControls.tsx(13,9): error TS2339: Property 'selectedTrackId' does not exist on type 'ProjectState'.

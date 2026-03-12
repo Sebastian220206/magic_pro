@@ -1,0 +1,115 @@
+"use client"
+import { useProjectStore } from "@/store/projectStore"
+import {
+    X, ChevronDown, List,
+    Calendar, Music, Filter,
+    MoreHorizontal, ChevronRight,
+    DivideCircle, LayoutList
+} from "lucide-react"
+import { useState } from "react"
+
+export function ListEditors() {
+    const { showListEditors, toggleListEditors } = useProjectStore()
+    const [activeTab, setActiveTab] = useState<'event' | 'marker' | 'tempo' | 'sig'>('event')
+
+    const events = [
+        { bar: 1, beat: 1, tick: 1, ch: 1, num: 'C3', val: 100, length: '1.0.0' },
+        { bar: 1, beat: 1, tick: 240, ch: 1, num: 'E3', val: 95, length: '0.2.0' },
+        { bar: 1, beat: 2, tick: 1, ch: 1, num: 'G3', val: 105, length: '1.0.0' },
+        { bar: 2, beat: 1, tick: 480, ch: 1, num: 'C4', val: 110, length: '0.1.0' },
+        { bar: 3, beat: 1, tick: 1, ch: 1, num: 'F3', val: 85, length: '2.0.0' },
+    ]
+
+    if (!showListEditors) return null
+
+    return (
+        <div className="w-[340px] h-full bg-[#1a1a1a] border-l border-black flex flex-col shrink-0 z-50 overflow-hidden shadow-2xl select-none text-gray-400">
+            {/* 1. Header Area with Sub-Tab Selector */}
+            <div className="pt-2 px-3 flex flex-col gap-2 shrink-0 border-b border-black pb-3 bg-[#1e1e1e]">
+                <div className="flex items-center justify-between h-8">
+                    <div className="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
+                        <span className="text-[12px] font-black text-white/90">List Editors</span>
+                        <ChevronDown className="w-3.5 h-3.5 text-gray-600" />
+                    </div>
+                    <button onClick={toggleListEditors} className="p-1 hover:bg-white/5 rounded-full transition-colors">
+                        <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                </div>
+
+                {/* Sub-Tabs: Event / Marker / Tempo / Signature */}
+                <div className="flex bg-[#0a0a0a] rounded-lg border border-[#333] p-0.5 h-10">
+                    {['Event', 'Marker', 'Tempo', 'Sig'].map((tab) => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab.toLowerCase() as any)}
+                            className={`flex-1 text-[9px] font-black uppercase transition-all rounded transition-all px-1 tracking-tight ${activeTab === tab.toLowerCase() ? 'text-sky-400 bg-[#333] shadow-md border border-[#444]' : 'text-gray-500 hover:text-gray-300'}`}
+                        >
+                            {tab}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* 2. Numerical Event List */}
+            <div className="flex-1 flex flex-col min-h-0 bg-[#0a0a0a]">
+                <div className="h-6 flex items-center bg-[#252525] border-b border-black text-[8px] font-black text-gray-500 uppercase px-3 gap-0.5 shrink-0">
+                    <div className="w-12">Position</div>
+                    <div className="w-10">Status</div>
+                    <div className="w-8 text-center">Ch</div>
+                    <div className="flex-1">Number/Value</div>
+                    <div className="w-12 text-right pr-2">Length</div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                    {events.map((ev, idx) => (
+                        <div
+                            key={idx}
+                            className={`h-[24px] flex items-center px-3 border-b border-black/10 group cursor-pointer hover:bg-white/5 transition-colors ${idx % 2 === 0 ? 'bg-white/[0.01]' : ''}`}
+                        >
+                            <div className="w-12 text-[10px] font-black text-gray-400 group-hover:text-sky-400 tabular-nums">
+                                {ev.bar}.{ev.beat}.{ev.tick}
+                            </div>
+                            <div className="w-10 text-[9px] font-bold text-gray-600 uppercase">Note</div>
+                            <div className="w-8 text-[10px] font-black text-gray-600 text-center">{ev.ch}</div>
+                            <div className="flex-1 flex items-center gap-2">
+                                <span className="text-[11px] font-black text-gray-300 group-hover:text-white">{ev.num}</span>
+                                <div className="h-1 flex-1 bg-black/40 rounded-full overflow-hidden">
+                                    <div className="h-full bg-sky-500/30" style={{ width: `${ev.val}%` }}></div>
+                                </div>
+                                <span className="text-[10px] font-black text-sky-400/60 tabular-nums">{ev.val}</span>
+                            </div>
+                            <div className="w-12 text-[10px] font-black text-gray-600 text-right pr-2 tabular-nums">{ev.length}</div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* 3. Footer Filter Area */}
+            <div className="h-[44px] bg-[#1a1a1a] border-t border-black px-4 flex items-center justify-between shrink-0 shadow-inner">
+                <div className="flex items-center gap-3">
+                    <button className="flex items-center gap-1.5 px-2 h-6 bg-[#0a0a0a] border border-[#333] rounded text-[9px] font-black uppercase text-gray-500 hover:text-white">
+                        <Filter className="w-2.5 h-2.5" /> Filter
+                    </button>
+                    <div className="flex gap-0.5">
+                        {[...Array(4)].map((_, i) => <div key={i} className={`w-3 h-3 rounded-full border border-white/5 bg-sky-500/${(i + 1) * 20}`}></div>)}
+                    </div>
+                </div>
+                <button className="p-2 text-gray-500 hover:text-white transition-all"><MoreHorizontal className="w-4 h-4" /></button>
+            </div>
+
+            <style jsx>{`
+                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+            `}</style>
+        </div>
+    )
+}
+
+function ChevronDownSmall({ className }: { className?: string }) {
+    return (
+        <svg viewBox="0 0 100 100" className={className} fill="currentColor">
+            <polygon points="20,40 80,40 50,70" />
+        </svg>
+    )
+}
