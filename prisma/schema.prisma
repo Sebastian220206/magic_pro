@@ -9,17 +9,18 @@ datasource db {
 
 model User {
   id            String    @id @default(cuid())
-  username      String?   @unique
-  email         String?   @unique
-  passwordHash  String?
+  email         String    @unique
+  passwordHash  String
+  name          String?
   createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   projects      Project[]
 }
 
 model Project {
-  id            String    @id @default(cuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name              String
   tempo             Int       @default(120)
   timeSignature     String    @default("4/4")
@@ -28,6 +29,10 @@ model Project {
   surroundFormat    String    @default("5.1 (ITU 775)")
   spatialAudioMode  String    @default("Off")
   stateJson         Json?
+  shareId         String?   @unique
+  isPublic        Boolean   @default(false)
+  shareCreatedAt  DateTime?
+  lastOpenedAt    DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   tracks            Track[]

@@ -5,6 +5,7 @@ export interface Note {
     pitch: number; // MIDI note number
     velocity: number;
     start: number; // in beats (relative to clip start)
+    startBeat?: number;
     duration: number; // in beats
     articulationId?: number;
 }
@@ -19,8 +20,18 @@ export interface Clip {
 
     // --- Timeline Placement ---
     start: number; // total beats from start of timeline
+    startBeat?: number; // total beats from start of timeline (alias for start)
+    startTime: number; // alias for start (engine compatibility)
     duration: number; // total beats
     offset: number; // in beats (for audio starting late)
+
+    // --- Engine compatibility ---
+    fadeIn: { duration: number; curve: 'linear' | 'exponential' | 'scurve' | 'logarithmic'; gain: number };
+    fadeOut: { duration: number; curve: 'linear' | 'exponential' | 'scurve' | 'logarithmic'; gain: number };
+    playbackRate: number;
+    pitchOffset: number;
+    stretchMode: 'none' | 'time' | 'pitch' | 'both';
+    bufferId?: string;
 
     // --- Take Folders ---
     isTakeFolder?: boolean;
@@ -51,6 +62,17 @@ export interface Clip {
     aliasName?: string; // display name for alias differs from original
 
     // --- Media / Data ---
-    fileUrl?: string; // For Audio
+    fileUrl?: string; // For Audio (blob URL, may not survive reload)
+    sampleId?: string;
+    storageKey?: string; // IndexedDB storage key for audio file persistence
+    originalName?: string; // Original filename
     notes?: Note[]; // For MIDI
+
+    // --- Waveform Visualisation ---
+    waveformPeaks?: {
+        channels: Array<{ min: Float32Array; max: Float32Array }>;
+        resolution: number;
+        durationSeconds: number;
+        numChannels: number;
+    };
 }

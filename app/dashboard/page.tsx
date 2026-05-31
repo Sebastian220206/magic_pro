@@ -2,137 +2,180 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Plus, User, LogOut } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Plus, User, LogOut, Music, Loader2, RefreshCw } from "lucide-react";
 import { signOut } from "next-auth/react";
-import { ProjectChooser } from "@/components/ProjectChooser";
-import { useProjectStore } from "@/store/projectStore";
+import { NewProjectScreen } from "@/components/NewProjectScreen";
+import { ProjectCard } from "@/components/ProjectCard";
+import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
+import { onboardingStore } from "@/store/onboardingStore";
+
+interface ProjectSummary {
+  id: string;
+  name: string;
+  tempo: number;
+  timeSignature?: string;
+  keySignature?: string;
+  updatedAt: string;
+  lastOpenedAt?: string | null;
+  isPublic?: boolean;
+  shareId?: string | null;
+}
+
+function SkeletonCard() {
+  return (
+    <div className="bg-daw-panel border border-daw-border rounded-xl overflow-hidden animate-pulse">
+      <div className="h-40 bg-gray-800/50" />
+      <div className="p-4 space-y-2">
+        <div className="h-4 bg-gray-700/50 rounded w-3/4" />
+        <div className="h-3 bg-gray-700/30 rounded w-1/2" />
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
-    const sessionData = useSession() || {};
-    const session = sessionData.data;
-    const status = sessionData.status || "unauthenticated";
-    const router = useRouter();
-    const [showProjectChooser, setShowProjectChooser] = useState(false);
-    const { initializeProject, openProject } = useProjectStore();
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-    useEffect(() => {
-        if (status === "unauthenticated") {
-            router.push("/login");
-        }
-    }, [status, router]);
+  const fetchProjects = useCallback(() => {
+    setLoadingProjects(true);
+    fetch("/api/projects")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setProjects(data); })
+      .catch((e) => console.error('[Dashboard] Failed to fetch projects:', e))
+      .finally(() => setLoadingProjects(false));
+  }, [status]);
 
-    const handleNewProject = () => {
-        setShowProjectChooser(true);
+  useEffect(fetchProjects, [fetchProjects]);
+
+  const handleRename = useCallback(async (id: string, name: string) => {
+    const res = await fetch(`/api/project/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      setProjects((prev) => prev.map((p) => p.id === id ? { ...p, name } : p));
     }
+  }, []);
 
-    const handleChooseProject = (settings: any) => {
-        const isValidTempo = Number.isFinite(settings.tempo) && settings.tempo >= 20 && settings.tempo <= 300;
-        const validFormats = ['stereo', 'surround', 'dolby-atmos'];
-        const validSpatial = ['Off', 'Dolby Atmos'];
-
-        if (!isValidTempo || !settings.keySignature || !settings.timeSignature || !validFormats.includes(settings.projectFormat) || !validSpatial.includes(settings.spatialAudioMode)) {
-            alert('Please complete all required project settings (tempo, key signature, time signature, format, spatial audio).');
-            return;
-        }
-
-        console.log('Creating project with settings:', settings);
-        initializeProject({
-            tempo: Number(settings.tempo),
-            keySignature: settings.keySignature,
-            timeSignature: settings.timeSignature,
-            projectFormat: settings.projectFormat,
-            surroundFormat: settings.surroundFormat,
-            spatialAudioMode: settings.spatialAudioMode
-        });
-
-        setShowProjectChooser(false);
-        // Redirect to a dynamically generated project ID
-        router.push('/project/new-project');
+  const handleDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const res = await fetch(`/api/project/${deleteTarget.id}`, { method: "DELETE" });
+    if (res.ok) {
+      setProjects((prev) => prev.filter((p) => p.id !== deleteTarget.id));
     }
+    setDeleting(false);
+    setDeleteTarget(null);
+  }, [deleteTarget]);
 
-    const handleOpenProject = async (id: string) => {
-        console.log("Opening project:", id);
-        await openProject(id);
-        setShowProjectChooser(false);
-        router.push(`/project/${id}`);
-    }
-
-    if (status === "loading" || !session) {
-        return (
-            <div className="h-screen w-full flex items-center justify-center bg-daw-bg text-gray-400">
-                Loading...
-            </div>
-        );
-    }
-
+  if (status === "loading" || !session) {
     return (
-        <div className="min-h-screen p-8 max-w-6xl mx-auto overflow-y-auto">
-            {showProjectChooser && (
-                <ProjectChooser
-                    onClose={() => setShowProjectChooser(false)}
-                    onChoose={handleChooseProject}
-                    onOpenProject={handleOpenProject}
-                />
-            )}
+      <div className="h-screen w-full flex items-center justify-center bg-daw-bg text-gray-400">
+        Loading...
+      </div>
+    );
+  }
 
-            <header className="flex justify-between items-center mb-12 py-4 border-b border-daw-border">
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-daw-surface flex items-center justify-center">
-                        <User className="text-gray-300 w-5 h-5" />
-                    </div>
-                    <div>
-                        <h1 className="text-lg font-bold text-white leading-tight">{session.user?.name}</h1>
-                        <p className="text-xs text-gray-500">{session.user?.email}</p>
-                    </div>
-                </div>
-                <button
-                    onClick={() => signOut({ callbackUrl: "/login" })}
-                    className="text-gray-400 hover:text-white transition flex items-center gap-2 text-sm"
-                >
-                    <LogOut className="w-4 h-4" />
-                    Sign Out
-                </button>
-            </header>
+  return (
+    <div className="min-h-screen p-8 max-w-6xl mx-auto overflow-y-auto">
+      {showNewProject && (
+        <NewProjectScreen onClose={() => setShowNewProject(false)} />
+      )}
 
-            <div className="flex justify-between items-end mb-8">
-                <h2 className="text-2xl font-bold text-white">Recent Projects</h2>
-                <button
-                    onClick={handleNewProject}
-                    className="bg-daw-primary px-5 py-2.5 rounded-lg text-white font-medium hover:bg-blue-600 transition flex items-center gap-2 shadow-lg shadow-blue-500/20"
-                >
-                    <Plus className="w-4 h-4" />
-                    New Project
-                </button>
-            </div>
+      <DeleteConfirmModal
+        open={!!deleteTarget}
+        projectName={deleteTarget?.name ?? ""}
+        deleting={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {/* Mock Project */}
-                <Link href="/project/demo-1" className="block p-5 rounded-xl bg-daw-panel border border-daw-border hover:border-gray-500 transition cursor-pointer group shadow-sm">
-                    <div className="h-40 rounded-lg bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border border-daw-border mb-4 flex items-center justify-center object-cover group-hover:brightness-110 transition overflow-hidden relative">
-                        {/* Abstract preview graphic */}
-                        <div className="absolute inset-x-0 bottom-0 h-16 flex items-end gap-1 px-4 opacity-50">
-                            {[...Array(12)].map((_, i) => (
-                                <div key={i} className="flex-1 bg-daw-primary rounded-t-sm" style={{ height: `${Math.random() * 80 + 20}%` }}></div>
-                            ))}
-                        </div>
-                    </div>
-                    <h3 className="text-lg text-white font-semibold group-hover:text-daw-primary transition">Neon Sunset</h3>
-                    <p className="text-gray-400 text-xs mt-1">Edited 2 hours ago</p>
-                </Link>
-
-                {/* Mock Project 2 */}
-                <Link href="/project/demo-2" className="block p-5 rounded-xl bg-daw-panel border border-daw-border hover:border-gray-500 transition cursor-pointer group shadow-sm">
-                    <div className="h-40 rounded-lg bg-gradient-to-br from-emerald-900/40 to-teal-900/40 border border-daw-border mb-4 flex items-center justify-center object-cover group-hover:brightness-110 transition overflow-hidden relative">
-                        <div className="absolute inset-x-0 top-1/2 flex items-center px-4 opacity-50 space-x-1">
-                            <div className="w-full h-px bg-emerald-500"></div>
-                        </div>
-                    </div>
-                    <h3 className="text-lg text-white font-semibold group-hover:text-daw-primary transition">Acoustic Idea</h3>
-                    <p className="text-gray-400 text-xs mt-1">Edited yesterday</p>
-                </Link>
-            </div>
+      <header className="flex justify-between items-center mb-12 py-4 border-b border-daw-border">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-daw-surface flex items-center justify-center">
+            <User className="text-gray-300 w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-white leading-tight">{session?.user?.name || 'Demo User'}</h1>
+            <p className="text-xs text-gray-500">{session?.user?.email || 'demo@magicpro.app'}</p>
+          </div>
         </div>
-    )
+        <nav className="flex items-center gap-4">
+          <button
+            onClick={() => { onboardingStore.reset(); router.push('/welcome'); }}
+            className="text-gray-500 hover:text-white transition flex items-center gap-2 text-sm"
+            title="Show onboarding again"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Onboarding
+          </button>
+          {session && (
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="text-gray-400 hover:text-white transition flex items-center gap-2 text-sm"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </button>
+          )}
+        </nav>
+      </header>
+
+      <div className="flex justify-between items-end mb-8">
+        <h2 className="text-2xl font-bold text-white">Recent Projects</h2>
+        <button
+          onClick={() => setShowNewProject(true)}
+          className="bg-daw-primary px-5 py-2.5 rounded-lg text-white font-medium hover:bg-blue-600 transition flex items-center gap-2 shadow-lg shadow-blue-500/20"
+        >
+          <Plus className="w-4 h-4" />
+          New Project
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {loadingProjects && (
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
+        )}
+
+        {!loadingProjects && projects.length === 0 && (
+          <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-400">
+            <Music className="w-12 h-12 mb-4 opacity-20" />
+            <p className="text-lg mb-1">No projects yet</p>
+            <p className="text-sm mb-6">Click &quot;New Project&quot; to create your first one</p>
+            <button
+              onClick={() => setShowNewProject(true)}
+              className="bg-daw-primary px-5 py-2.5 rounded-lg text-white font-medium hover:bg-blue-600 transition"
+            >
+              Create Your First Beat
+            </button>
+          </div>
+        )}
+
+        {projects.map((proj) => (
+          <ProjectCard
+            key={proj.id}
+            project={proj}
+            onRename={handleRename}
+            onDelete={(id) => {
+              const p = projects.find((x) => x.id === id);
+              if (p) setDeleteTarget({ id: p.id, name: p.name });
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }

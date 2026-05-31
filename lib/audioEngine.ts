@@ -152,7 +152,7 @@ class AudioEngine {
             for (let input of midiAccess.inputs.values()) {
                 input.onmidimessage = (msg: any) => this.handleMidiMessage(msg);
             }
-        }).catch(() => { });
+        }).catch((e: any) => console.error('[AudioEngine] MIDI init failed:', e));
     }
 
     private handleMidiMessage(message: any) {

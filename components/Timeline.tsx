@@ -345,20 +345,23 @@ export function Timeline() {
                 trackId: trackId,
                 name: 'Audio 2: Comp B',
                 type: 'audio',
-                color: '#84cc16', // limeish green like logic pro take
+                color: '#84cc16',
                 alternativeId: store.tracks[0].activeAlternativeId,
                 start: 1,
+                startTime: 1,
                 duration: 6,
                 offset: 0,
                 isTakeFolder: true,
                 isTakeFolderOpen: false,
                 quickSwipeComping: true,
-                activeTakeIndex: 1, // Comp B -> index 1
+                activeTakeIndex: 1,
                 muted: false, loop: false, qSwing: 0, transpose: 0, velocityOffset: 0,
-                takes: [
-                    { id: 'take-1-1', type: 'audio', color: '#65a30d', name: 'Take 1', start: 1, duration: 6, trackId, alternativeId: store.tracks[0].activeAlternativeId, muted: false, loop: false, qSwing: 0, transpose: 0, velocityOffset: 0 } as any,
-                    { id: 'take-1-2', type: 'audio', color: '#84cc16', name: 'Take 2', start: 1, duration: 6, trackId, alternativeId: store.tracks[0].activeAlternativeId, muted: false, loop: false, qSwing: 0, transpose: 0, velocityOffset: 0 } as any,
-                ]
+                fadeIn: { duration: 0, curve: 'linear', gain: 1 },
+                fadeOut: { duration: 0, curve: 'linear', gain: 1 },
+                playbackRate: 1,
+                pitchOffset: 0,
+                stretchMode: 'none',
+                takes: [] as any,
             });
         }
     }, [tracks.length]);
@@ -764,7 +767,7 @@ export function Timeline() {
                                                     {/* Media Content Visualization */}
                                                     <div className="absolute inset-x-0 bottom-0 top-[18px] opacity-70 pointer-events-none">
                                                         {clip.type === 'audio' ? (
-                                                            <div className="absolute inset-x-0 inset-y-1"><WaveformSVG color="black" /></div>
+                                                            <div className="absolute inset-x-0 inset-y-1"><WaveformSVG color="black" peaks={clip.waveformPeaks} /></div>
                                                         ) : (
                                                             <div className="absolute inset-0 px-2 py-1"><MIDIPoints clip={clip} /></div>
                                                         )}
@@ -789,7 +792,7 @@ export function Timeline() {
                                                                         Take {tIdx + 1}
                                                                     </div>
                                                                     <div className="absolute inset-x-0 bottom-0 top-[18px] opacity-70 pointer-events-none">
-                                                                        <WaveformSVG color="black" />
+                                                                        <WaveformSVG color="black" peaks={take.waveformPeaks} />
                                                                     </div>
                                                                 </div>
                                                             </div>

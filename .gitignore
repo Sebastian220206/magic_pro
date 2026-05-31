@@ -3,12 +3,12 @@ node_modules/
 .pnp
 .pnp.js
 
-# Next.js
+# Next.js build output
 .next/
 out/
 build/
 
-# env files — NEVER commit these
+# environment files
 .env
 .env.local
 .env.development.local
@@ -25,7 +25,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
 
@@ -37,12 +37,6 @@ Thumbs.db
 *.njsproj
 *.sln
 
-# binaries — this is what caught aider-install.exe
-*.exe
-*.dmg
-*.pkg
-*.deb
-
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
@@ -53,3 +47,43 @@ next-env.d.ts
 # Supabase local
 supabase/.branches
 supabase/.temp
+
+# Aider AI assistant artifacts
+.aider*
+Aider-AI-aider-a4be6cc/
+
+# Continue AI assistant artifacts
+.continue/
+
+# Temporary exports, renders, and cache
+tmp/
+public/temp/
+output.txt
+refactor_transport.js
+migrate.js
+
+# Binary executables
+*.exe
+*.dmg
+*.pkg
+*.deb
+
+# Debug error logs
+ts_errors.txt
+tsc-errors.txt
+
+# Test fixtures and scratch
+scratch/
+
+# Next.js build cache
+.next/
+out/
+
+# Editor swap / temp files
+*.swp
+*.swo
+*~
+
+# Generated wasm
+*.wasm
+!public/wasm/**/*.wasm

@@ -39,9 +39,9 @@ export function GlobalTracks() {
         if (!clip) return 0;
         if (selectedNoteId && clip.notes) {
             const note = clip.notes.find(n => n.id === selectedNoteId);
-            if (note) return clip.start + note.start;
+            if (note) return (clip.startBeat ?? clip.start) + note.start;
         }
-        return clip.start;
+        return clip.startBeat ?? clip.start;
     };
 
     const handleBeatMappingClick = (e: React.MouseEvent<HTMLDivElement>) => {

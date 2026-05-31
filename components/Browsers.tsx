@@ -2,11 +2,10 @@
 import { useState, useRef, useMemo, useEffect } from "react"
 import { useProjectStore } from "@/store/projectStore"
 import {
-    X, ChevronDown, FolderOpen, Folder,
-    FileAudio, File, ChevronRight,
-    Search, Filter, HardDrive, Music,
-    LayoutGrid, List, FileText, Settings,
-    Activity
+    Search, File, Folder, Music, Image, Video, 
+    MoreHorizontal, Filter, Grid, List, LayoutGrid,
+    ChevronRight, ChevronDown, Download, Trash,
+    PlusCircle, X, ExternalLink, HardDrive, FileAudio, FileText, Settings
 } from "lucide-react"
 
 export function Browsers() {
@@ -15,10 +14,11 @@ export function Browsers() {
     const [searchQuery, setSearchQuery] = useState('')
     const [allFilesLocation, setAllFilesLocation] = useState<'Computer' | 'Home' | 'Project'>('Project')
     const [viewMode, setViewMode] = useState<'list' | 'column'>('list')
-    const [importedFiles, setImportedFiles] = useState<Array<{id:string,name:string,size:string,type:'audio'|'midi'|'file',file?:File,fileUrl?:string}>>([])
+    const [importedFiles, setImportedFiles] = useState<Array<{id:string,name:string,size:number,date:string,type:'audio'|'midi'|'file',file?:File,fileUrl?:string}>>([])
     const [recentSearchTerms, setRecentSearchTerms] = useState<string[]>([])
     const [showRecentSearch, setShowRecentSearch] = useState(false)
     const [searchConditions, setSearchConditions] = useState<Array<{id:string, field:'Name'|'File Type'|'Format'|'Size'|'Modified Date', operator:string, value:string}>>([])
+    const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
@@ -37,7 +37,17 @@ export function Browsers() {
         })).filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
     }, [clips, searchQuery])
 
-    const allFilesBase = [
+    interface BrowserFile {
+    id: string;
+    name: string;
+    type: string;
+    size: string;
+    date: string;
+    file?: globalThis.File;
+    fileUrl?: string;
+  }
+
+  const allFilesBase: BrowserFile[] = [
         { id: 'fs-desktop', name: 'Desktop', type: 'folder', size: '', date: '' },
         { id: 'fs-documents', name: 'Documents', type: 'folder', size: '', date: '' },
         { id: 'fs-music', name: 'Music Library', type: 'folder', size: '', date: '' },
@@ -45,10 +55,15 @@ export function Browsers() {
         { id: 'fs-volumes', name: 'External Volumes', type: 'drive', size: '', date: '' },
     ]
 
-    const allFiles = [
-        ...allFilesBase,
-        ...importedFiles.map((f) => ({ id: f.id, name: f.name, type: f.type, size: f.size, date: new Date().toLocaleDateString(), file: f.file, fileUrl: f.fileUrl }))
-    ]
+    const allFiles: BrowserFile[] = [...allFilesBase, ...importedFiles.map(f => ({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        size: (f.size / 1024).toFixed(1) + ' KB',
+        date: new Date(f.date).toLocaleDateString(),
+        file: f.file,
+        fileUrl: f.fileUrl
+    }))]
 
     const filteredAllFiles = allFiles
         .filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -70,14 +85,15 @@ export function Browsers() {
         const files = event.target.files
         if (!files) return
 
-        const newImports: Array<{id:string,name:string,size:string,type:'audio'|'midi'|'file',file?:File,fileUrl?:string}> = []
+        const newImports: Array<{id:string,name:string,size:number,date:string,type:'audio'|'midi'|'file',file?:File,fileUrl?:string}> = []
         Array.from(files).forEach(file => {
             const fileExt = file.name.split('.').pop()?.toLowerCase() || ''
             const isMidi = fileExt === 'mid' || fileExt === 'midi'
             const type = isMidi ? 'midi' : (file.type.startsWith('audio') ? 'audio' : 'file') as 'audio'|'midi'|'file'
             const fileUrl = URL.createObjectURL(file)
 
-            newImports.push({ id: `import-${Date.now()}-${file.name}`, name: file.name, size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`, type, file, fileUrl})
+            newImports.push({ id: `import-${Date.now()}-${file.name}`, name: file.name, size: file.size, date: new Date().toISOString(), type, file, fileUrl})
+            
             addMediaFile(file, focusedTrackId || undefined)
         })
 
@@ -99,19 +115,10 @@ export function Browsers() {
         }
     }
 
-    const addSearchCondition = () => {
-        setSearchConditions(prev => [...prev, { id: Date.now().toString(), field: 'Name', operator: 'contains', value: '' }])
-    }
-
-    const removeSearchCondition = (id: string) => {
-        setSearchConditions(prev => prev.filter(c => c.id !== id))
-    }
-
     if (!showBrowsers) return null
 
     return (
         <div className="w-[340px] h-full bg-[#1a1a1a] border-l border-black flex flex-col shrink-0 z-50 overflow-hidden shadow-[-30px_0_60px_rgba(0,0,0,0.6)] select-none text-gray-400">
-            {/* 1. Header with Multi-Tab Desktop Selector */}
             <div className="pt-2 px-3 flex flex-col gap-2 shrink-0 border-b border-black pb-3 bg-[#1e1e1e]">
                 <div className="flex items-center justify-between h-8">
                     <div className="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors group">
@@ -123,7 +130,6 @@ export function Browsers() {
                     </button>
                 </div>
 
-                {/* Logic Pro Tab Pill Selector */}
                 <div className="flex bg-[#0a0a0a] rounded-lg border border-[#333] p-0.5 h-8 shadow-inner">
                     <button
                         onClick={() => setActiveTab('project')}
@@ -168,7 +174,7 @@ export function Browsers() {
                 </div>
             </div>
 
-            {/* 2. Content List with Table Headers (Logic Pro Look) */}
+            {/* 2. Content List with Table Headers (Magic Pro Look) */}
             <div className="flex-1 flex flex-col min-h-0 bg-[#0c0c0c]">
                 <div className="h-6 flex items-center bg-[#252525] border-b border-black text-[9px] font-black text-gray-600 uppercase px-3 gap-2 shrink-0 sticky top-0 z-10">
                     <div className="w-6"></div>
@@ -188,7 +194,7 @@ export function Browsers() {
                                         if (clipFromProject) {
                                             const targetTrackId = focusedTrackId || tracks.find(t => t.type === 'audio')?.id
                                             if (targetTrackId) {
-                                                addClip({ ...clipFromProject, id: `clip-${Date.now()}`, trackId: targetTrackId, start: 0 })
+                                                addClip({ ...clipFromProject, id: `clip-${Date.now()}`, trackId: targetTrackId, startBeat: 0 })
                                             }
                                         }
                                     }}

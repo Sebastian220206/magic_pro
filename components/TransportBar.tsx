@@ -18,8 +18,10 @@ import { GiantDisplay } from "./GiantDisplay"
 import { MIDIActivity } from "./MIDIActivity"
 
 export function TransportBar() {
+    const [editingTempo, setEditingTempo] = useState(false);
+    const [tempoInput, setTempoInput] = useState('');
     const {
-        playing, play, stop, tempo, playhead,
+        playing, play, stop, tempo, playhead, setTempo,
         showLibrary, toggleLibrary,
         showInspector, toggleInspector,
         showToolbar, toggleToolbar,
@@ -135,11 +137,49 @@ export function TransportBar() {
         </div>
     );
 
+    const renderTempoValue = (className: string) => {
+        if (editingTempo) {
+            return (
+                <input
+                    autoFocus
+                    className={`${className} bg-transparent outline-none border-b border-sky-500 w-14 text-center`}
+                    type="number"
+                    min={20}
+                    max={300}
+                    step={1}
+                    value={tempoInput}
+                    onChange={(e) => setTempoInput(e.target.value)}
+                    onBlur={() => {
+                        const v = parseInt(tempoInput);
+                        if (!isNaN(v) && v >= 1) setTempo(v);
+                        setEditingTempo(false);
+                    }}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            const v = parseInt(tempoInput);
+                            if (!isNaN(v) && v >= 1) setTempo(v);
+                            setEditingTempo(false);
+                        }
+                        if (e.key === 'Escape') setEditingTempo(false);
+                    }}
+                />
+            );
+        }
+        return (
+            <span
+                className={className + ' cursor-pointer hover:text-sky-400'}
+                onClick={() => { setTempoInput(String(tempo)); setEditingTempo(true); }}
+            >
+                {tempo}
+            </span>
+        );
+    };
+
     const renderProjectInfo = () => (
         <div className="flex-1 flex justify-around px-2 border-l border-white/5 ml-2">
             <div className="flex flex-col items-center min-w-[32px]">
                 <span className="text-[8px] font-black text-gray-600 uppercase tracking-widest leading-none mb-1">Tempo</span>
-                <span className="text-[13px] font-black text-gray-300 tabular-nums">{tempo}</span>
+                {renderTempoValue('text-[13px] font-black text-gray-300 tabular-nums')}
             </div>
             <div className="flex flex-col items-center min-w-[32px]">
                 <span className="text-[8px] font-black text-gray-600 uppercase tracking-widest leading-none mb-1">Signature</span>
@@ -201,7 +241,7 @@ export function TransportBar() {
                         <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                                 <span className="text-[7px] text-gray-600 font-bold uppercase">Temp</span>
-                                <span className="text-[11px] text-gray-300 font-black">{tempo}</span>
+                                {renderTempoValue('text-[11px] text-gray-300 font-black')}
                             </div>
                             <div className="flex items-center gap-2">
                                 <span className="text-[7px] text-gray-600 font-bold uppercase">Key</span>

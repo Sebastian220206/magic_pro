@@ -1,6 +1,6 @@
 "use client"
 import { useProjectStore } from "@/store/projectStore"
-import { audioEngine } from "@/engine/audioEngine"
+import { audioEngine } from "@/engine/AudioEngineAdapter"
 import {
     ChevronDown, Settings,
     Maximize2, MoreHorizontal,
@@ -104,7 +104,7 @@ export function SmartControls() {
                                         value={knob.field === 'volume' ? track.volume : 0.5}
                                         onChange={(v) => handleParamChange(knob.field, v)}
                                     />
-                                    {/* Neon Indicator (Logic Pro signature) */}
+                                    {/* Neon Indicator (Magic Pro signature) */}
                                     {track.id === focusedTrackId && (
                                         <div className="absolute -inset-1 rounded-full bg-sky-500/0 group-hover:bg-sky-500/10 blur-xl transition-all duration-700"></div>
                                     )}

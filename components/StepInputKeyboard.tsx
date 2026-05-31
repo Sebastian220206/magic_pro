@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react"
 import { useProjectStore } from "@/store/projectStore"
 import { Clip } from "@/models/Clip"
 import { X, Music, Type, Check, ChevronDown, Piano } from "lucide-react"
-import { audioEngine } from "@/engine/audioEngine"
+import { audioEngine } from "@/engine/AudioEngineAdapter"
 
 export function StepInputKeyboard() {
     const { 
@@ -101,7 +101,9 @@ export function StepInputKeyboard() {
             type: 'midi',
             name: 'Step Input Region',
             alternativeId: 'alt-1',
+            startBeat: Math.floor(playhead),
             start: Math.floor(playhead),
+            startTime: Math.floor(playhead),
             duration: 4,
             offset: 0,
             muted: false,
@@ -110,7 +112,12 @@ export function StepInputKeyboard() {
             velocityOffset: 0,
             qSwing: 0,
             color: focusedTrack?.color || '#66FFA9',
-            notes: []
+            notes: [],
+            fadeIn: { duration: 0, curve: 'linear', gain: 1 },
+            fadeOut: { duration: 0, curve: 'linear', gain: 1 },
+            playbackRate: 1,
+            pitchOffset: 0,
+            stretchMode: 'none',
         }
 
         addClip(newClip)
@@ -322,7 +329,7 @@ export function StepInputKeyboard() {
 
                     <div className="text-[10px] font-black uppercase text-gray-400">Clip Event List</div>
                     <div className="max-h-44 overflow-y-auto bg-[#090909] border border-white/10 rounded text-xs">
-                        {(activeClip?.notes || []).sort((a,b)=>a.start-b.start).map(note => (
+                        {(activeClip?.notes || []).sort((a, b) => (a.startBeat ?? a.start) - (b.startBeat ?? b.start)).map(note => (
                             <div 
                                 key={note.id} 
                                 onClick={() => selectNote(note.id)}

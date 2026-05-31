@@ -1,7 +1,10 @@
 "use client"
-import { useState } from "react"
+import { useState, useRef, useEffect, memo, useCallback } from "react"
 import { useProjectStore } from "@/store/projectStore"
 import { Track } from "@/models/Track"
+import { audioEngine2 } from "@/engine/AudioEngineAdapter"
+import { audioEngine } from "@/engine/AudioEngineAdapter"
+import { VerticalMeter } from "./VerticalMeter"
 import {
     ChevronDown, Filter, MoreHorizontal,
     Settings2, Sliders, LayoutList,
@@ -10,10 +13,31 @@ import {
 } from "lucide-react"
 
 export function Mixer() {
-    const {
-        showMixer, tracks, focusedTrackId,
-        selectTrack, updateTrack, addPlugin, togglePlugin
-    } = useProjectStore()
+    const showMixer = useProjectStore(s => s.showMixer);
+    const tracks = useProjectStore(s => s.tracks);
+    const focusedTrackId = useProjectStore(s => s.focusedTrackId);
+    const settings = useProjectStore(s => s.settings);
+    // Actions are stable references — safe to extract individually
+    const selectTrack = useProjectStore(s => s.selectTrack);
+    const updateTrack = useProjectStore(s => s.updateTrack);
+    const addPlugin = useProjectStore(s => s.addPlugin);
+    const togglePlugin = useProjectStore(s => s.togglePlugin);
+    const updateProjectSettings = useProjectStore(s => s.updateProjectSettings);
+    const setOpenPluginEditor = useProjectStore(s => s.setOpenPluginEditor);
+    const saveHistorySnapshot = useProjectStore(s => s.saveHistorySnapshot);
+
+    const noop = useCallback(() => {}, []);
+    const onMasterUpdate = useCallback((updates: Partial<Track>) => {
+        if (updates.volume !== undefined) {
+            updateProjectSettings({ masterVolume: updates.volume });
+        }
+        if (updates.pan !== undefined) {
+            updateProjectSettings({ masterPan: updates.pan });
+        }
+        if (updates.muted !== undefined) {
+            updateProjectSettings({ masterMuted: updates.muted });
+        }
+    }, [updateProjectSettings]);
 
     const [mixerMode, setMixerMode] = useState<'single' | 'tracks' | 'all'>('all')
     const [trackTypeFilter, setTrackTypeFilter] = useState<'All' | 'Audio' | 'Inst' | 'Aux' | 'Bus' | 'VCA' | 'Output' | 'Master'>('All')
@@ -44,6 +68,10 @@ export function Mixer() {
         if (trackTypeFilter !== 'All' && trackType !== trackTypeFilter) return false
         return true
     })
+
+    const handleAction = (field: keyof Track, value: any, e: React.MouseEvent) => {
+        e.stopPropagation();
+    }
 
     return (
         <div className="h-full flex flex-col bg-[#1a1a1a] select-none text-gray-400 border-t border-black shadow-[0_-10px_30px_rgba(0,0,0,0.3)]">
@@ -127,14 +155,11 @@ export function Mixer() {
 
                 {/* Dynamic Channel Strips */}
                 {filteredTracks.map(track => (
-                    <MixerChannelStrip
+                    <TrackMixerChannelStrip
                         key={track.id}
                         track={track}
                         isSelected={track.id === focusedTrackId}
-                        onSelect={() => selectTrack(track.id)}
-                        onUpdate={(updates) => updateTrack(track.id, updates)}
-                        onAddPlugin={(type) => addPlugin(track.id, type)}
-                        onTogglePlugin={(pid) => togglePlugin(track.id, pid)}
+                        focusedTrackId={focusedTrackId}
                     />
                 ))}
 
@@ -143,10 +168,15 @@ export function Mixer() {
                     track={null}
                     isMaster
                     isSelected={false}
-                    onSelect={() => { }}
-                    onUpdate={() => { }}
-                    onAddPlugin={() => { }}
-                    onTogglePlugin={() => { }}
+                    onSelect={noop}
+                    onUpdate={onMasterUpdate}
+                    onAddPlugin={noop}
+                    onTogglePlugin={noop}
+                    setOpenPluginEditor={setOpenPluginEditor}
+                    saveHistorySnapshot={saveHistorySnapshot}
+                    masterVolume={settings.masterVolume}
+                    masterPan={settings.masterPan}
+                    masterMuted={settings.masterMuted}
                 />
             </div>
 
@@ -169,27 +199,25 @@ function LabelRow({ label }: { label: string }) {
 
 function ChannelStripSettingButton({ track, isMaster }: { track: Track | null; isMaster?: boolean }) {
     const [open, setOpen] = useState(false);
-    const {
-        channelStripSettings,
-        channelStripCopyBuffer,
-        loadChannelStripSetting,
-        chooseNextChannelStripSetting,
-        choosePreviousChannelStripSetting,
-        copyChannelStripSetting,
-        pasteChannelStripSetting,
-        pasteChannelStripPluginsOnly,
-        pasteChannelStripSendsOnly,
-        removeAllChannelStripPlugins,
-        removeEmptyInsertSlots,
-        removeBypassedPlugins,
-        removeAllChannelStripSends,
-        resetChannelStrip,
-        saveChannelStripSetting,
-        deleteChannelStripSetting,
-        saveChannelStripPerformance,
-        channelStripPerformances,
-        loadChannelStripPerformance
-    } = useProjectStore();
+    const channelStripSettings = useProjectStore(s => s.channelStripSettings);
+    const channelStripCopyBuffer = useProjectStore(s => s.channelStripCopyBuffer);
+    const channelStripPerformances = useProjectStore(s => s.channelStripPerformances);
+    const loadChannelStripSetting = useProjectStore(s => s.loadChannelStripSetting);
+    const chooseNextChannelStripSetting = useProjectStore(s => s.chooseNextChannelStripSetting);
+    const choosePreviousChannelStripSetting = useProjectStore(s => s.choosePreviousChannelStripSetting);
+    const copyChannelStripSetting = useProjectStore(s => s.copyChannelStripSetting);
+    const pasteChannelStripSetting = useProjectStore(s => s.pasteChannelStripSetting);
+    const pasteChannelStripPluginsOnly = useProjectStore(s => s.pasteChannelStripPluginsOnly);
+    const pasteChannelStripSendsOnly = useProjectStore(s => s.pasteChannelStripSendsOnly);
+    const removeAllChannelStripPlugins = useProjectStore(s => s.removeAllChannelStripPlugins);
+    const removeEmptyInsertSlots = useProjectStore(s => s.removeEmptyInsertSlots);
+    const removeBypassedPlugins = useProjectStore(s => s.removeBypassedPlugins);
+    const removeAllChannelStripSends = useProjectStore(s => s.removeAllChannelStripSends);
+    const resetChannelStrip = useProjectStore(s => s.resetChannelStrip);
+    const saveChannelStripSetting = useProjectStore(s => s.saveChannelStripSetting);
+    const deleteChannelStripSetting = useProjectStore(s => s.deleteChannelStripSetting);
+    const saveChannelStripPerformance = useProjectStore(s => s.saveChannelStripPerformance);
+    const loadChannelStripPerformance = useProjectStore(s => s.loadChannelStripPerformance);
 
     const trackType = track ? (track.type === 'audio' ? 'audio' : (track.type === 'bus' || track.type === 'output' ? 'output' : 'instrument')) : 'output';
     const settingsForTrack = channelStripSettings.filter(s => s.type === trackType);
@@ -224,7 +252,7 @@ function ChannelStripSettingButton({ track, isMaster }: { track: Track | null; i
             >
                 {isMaster ? 'Stereo Out' : track?.name || 'Empty'}
             </button>
-            {open && !isMaster && (
+            {open && !isMaster && track && (
                 <div className="absolute z-50 left-0 top-full mt-1 w-[220px] bg-[#111] border border-[#444] rounded shadow-lg p-2 text-xs">
                     <div className="flex flex-col gap-1">
                         <button className="text-left px-2 py-1 hover:bg-white/10 rounded" onClick={(e) => { e.stopPropagation(); setOpen(false); handleSaveSetting(); }}>Save Setting</button>
@@ -247,7 +275,7 @@ function ChannelStripSettingButton({ track, isMaster }: { track: Track | null; i
                             <div className="text-[8px] uppercase text-gray-500 mb-1">Saved Settings</div>
                             {settingsForTrack.map(s => (
                                 <div key={s.id} className="flex justify-between items-center px-1 py-0.5"> 
-                                    <button className="text-[9px] text-gray-300 hover:text-white truncate" onClick={(e) => { e.stopPropagation(); setOpen(false); loadChannelStripSetting(track!.id, s.id); }}>{s.name}</button>
+                                    <button className="text-[9px] text-gray-300 hover:text-white truncate" onClick={(e) => { e.stopPropagation(); setOpen(false); loadChannelStripSetting(track.id, s.id); }}>{s.name}</button>
                                     <button className="text-[8px] text-red-400" onClick={(e) => { e.stopPropagation(); deleteChannelStripSetting(s.id); }}>Del</button>
                                 </div>
                             ))}
@@ -259,7 +287,7 @@ function ChannelStripSettingButton({ track, isMaster }: { track: Track | null; i
                             <div className="text-[8px] uppercase text-gray-500 mb-1">Performances</div>
                             {currentPerf.map(p => (
                                 <div key={p.id} className="flex justify-between items-center px-1 py-0.5">
-                                    <button className="text-[9px] text-gray-300 hover:text-white truncate" onClick={(e) => { e.stopPropagation(); setOpen(false); loadChannelStripPerformance(track!.id, p.program); }}>PC {p.program} - {p.name}</button>
+                                    <button className="text-[9px] text-gray-300 hover:text-white truncate" onClick={(e) => { e.stopPropagation(); setOpen(false); loadChannelStripPerformance(track.id, p.program); }}>PC {p.program} - {p.name}</button>
                                 </div>
                             ))}
                         </div>
@@ -267,6 +295,7 @@ function ChannelStripSettingButton({ track, isMaster }: { track: Track | null; i
 
                 </div>
             )}
+
         </div>
     );
 }
@@ -274,14 +303,65 @@ function ChannelStripSettingButton({ track, isMaster }: { track: Track | null; i
 interface MixerChannelStripProps {
     track: Track | null;
     isSelected: boolean;
-    onSelect: () => void;
+    onSelect: (e?: React.MouseEvent) => void;
     onUpdate: (updates: Partial<Track>) => void;
     onAddPlugin: (type: 'comp' | 'eq' | 'reverb' | 'delay') => void;
     onTogglePlugin: (pid: string) => void;
+    setOpenPluginEditor: (editor: { trackId: string, pluginId: string } | null) => void;
+    saveHistorySnapshot: () => void;
     isMaster?: boolean;
+    masterVolume?: number;
+    masterPan?: number;
+    masterMuted?: boolean;
+    toggleTrackFreeze?: (trackId: string) => void;
+    handleAction?: (field: keyof Track, value: any, e: React.MouseEvent) => void;
 }
 
-function MixerChannelStrip({ track, isSelected, onSelect, onUpdate, onAddPlugin, onTogglePlugin, isMaster = false }: MixerChannelStripProps) {
+function TrackMixerChannelStrip({ track, isSelected, focusedTrackId }: { track: Track; isSelected: boolean; focusedTrackId: string | null }) {
+    const selectTrack = useProjectStore(s => s.selectTrack);
+    const updateTrack = useProjectStore(s => s.updateTrack);
+    const addPlugin = useProjectStore(s => s.addPlugin);
+    const togglePlugin = useProjectStore(s => s.togglePlugin);
+    const setOpenPluginEditor = useProjectStore(s => s.setOpenPluginEditor);
+    const saveHistorySnapshot = useProjectStore(s => s.saveHistorySnapshot);
+
+    const onSelect = useCallback((e?: React.MouseEvent) => selectTrack(track.id, e?.metaKey || e?.ctrlKey, e?.shiftKey), [track.id, selectTrack]);
+    const onUpdate = useCallback((updates: Partial<Track>) => updateTrack(track.id, updates), [track.id, updateTrack]);
+    const onAddPluginFn = useCallback((type: 'comp' | 'eq' | 'reverb' | 'delay') => addPlugin(track.id, type), [track.id, addPlugin]);
+    const onTogglePluginFn = useCallback((pid: string) => togglePlugin(track.id, pid), [track.id, togglePlugin]);
+
+    return (
+        <MixerChannelStrip
+            track={track}
+            isSelected={isSelected}
+            onSelect={onSelect}
+            onUpdate={onUpdate}
+            onAddPlugin={onAddPluginFn}
+            onTogglePlugin={onTogglePluginFn}
+            setOpenPluginEditor={setOpenPluginEditor}
+            saveHistorySnapshot={saveHistorySnapshot}
+        />
+    );
+}
+
+const MixerChannelStrip = memo(function MixerChannelStrip({ 
+    track, isSelected, onSelect, onUpdate, onAddPlugin, onTogglePlugin, setOpenPluginEditor,
+    saveHistorySnapshot,
+    isMaster = false, masterVolume = 0.8, masterPan = 0, masterMuted = false,
+    toggleTrackFreeze, handleAction
+}: MixerChannelStripProps) {
+    const faderCapRef = useRef<HTMLDivElement>(null);
+    const initialVolume = isMaster ? masterVolume : (track?.volume || 0.8);
+    const initialPan = isMaster ? masterPan : (track?.pan || 0);
+    const initialMuted = isMaster ? masterMuted : (track?.muted || false);
+    const isDraggingRef = useRef(false);
+    
+    useEffect(() => {
+        if (!isDraggingRef.current && faderCapRef.current) {
+            faderCapRef.current.style.bottom = `${initialVolume * 100}%`;
+        }
+    }, [initialVolume]);
+
     return (
         <div
             onClick={onSelect}
@@ -313,21 +393,21 @@ function MixerChannelStrip({ track, isSelected, onSelect, onUpdate, onAddPlugin,
                     {track?.plugins.map((p: any) => (
                         <div
                             key={p.id}
-                            onClick={(e) => { e.stopPropagation(); onTogglePlugin(p.id); }}
+                            onClick={(e) => { e.stopPropagation(); setOpenPluginEditor({ trackId: track.id, pluginId: p.id }); }}
                             className={`h-5 rounded-sm flex items-center px-2 text-[9px] font-black shadow-sm border-t border-white/10 cursor-pointer hover:brightness-125 transition-all ${p.enabled ? (p.name.includes('EQ') ? 'bg-sky-500 text-white shadow-[0_0_10px_rgba(14,165,233,0.3)]' : 'bg-sky-600 text-white') : 'bg-gray-800 text-gray-500 opacity-60'}`}
                         >
-                            <Power className={`w-2 h-2 mr-1.5 ${p.enabled ? 'text-white' : 'text-gray-600'}`} fill="currentColor" />
+                            <div 
+                                onClick={(e) => { e.stopPropagation(); onTogglePlugin(p.id); }}
+                                className="mr-1.5 p-0.5 hover:bg-white/10 rounded"
+                            >
+                                <Power className={`w-2 h-2 ${p.enabled ? 'text-white' : 'text-gray-600'}`} fill="currentColor" />
+                            </div>
                             <span className="truncate">{p.name}</span>
                         </div>
                     ))}
 
                     {track && track.plugins.length < 5 && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onAddPlugin('comp'); }}
-                            className="h-5 bg-black/20 rounded-sm border border-white/5 text-[8px] font-black text-gray-700 hover:text-gray-400 uppercase flex items-center justify-center transition-colors"
-                        >
-                            Audio FX
-                        </button>
+                        <PluginMenu onSelect={(type) => onAddPlugin(type)} />
                     )}
                 </div>
 
@@ -353,19 +433,53 @@ function MixerChannelStrip({ track, isSelected, onSelect, onUpdate, onAddPlugin,
                 {/* Fader & Metering Area */}
                 <div className="flex-1 flex flex-col items-center justify-end pb-4 gap-3">
                     {/* Pan Knob */}
-                    <div className="relative group/pan cursor-pointer">
+                    <div 
+                        className="relative group/pan cursor-pointer"
+                        onMouseDown={(e) => {
+                            e.stopPropagation();
+                            const startY = e.clientY;
+                            const startPan = initialPan;
+                            const onMove = (me: MouseEvent) => {
+                                const delta = (startY - me.clientY) / 100;
+                                let newPan = Math.max(-1, Math.min(1, startPan + delta));
+                                // Snap to center
+                                if (Math.abs(newPan) < 0.05) newPan = 0;
+                                
+                                onUpdate({ pan: newPan });
+                                if (isMaster) {
+                                    audioEngine2.setMasterPan(newPan);
+                                } else if (track) {
+                                    audioEngine2.setTrackPan(track.id, newPan);
+                                }
+                            };
+                            const onUp = () => {
+                                saveHistorySnapshot();
+                                window.removeEventListener('mousemove', onMove);
+                                window.removeEventListener('mouseup', onUp);
+                            };
+                            window.addEventListener('mousemove', onMove);
+                            window.addEventListener('mouseup', onUp);
+                        }}
+                    >
                         <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#111] via-[#222] to-[#3a3a3a] border border-[#333] shadow-xl relative ring-1 ring-black/50">
-                            <div className="absolute top-1 left-[16.5px] w-[2px] h-3 bg-gray-500 rounded-full origin-bottom rotate-0 transition-transform duration-200"></div>
+                            <div 
+                                className="absolute top-1 left-[16.5px] w-[2px] h-3 bg-gray-500 rounded-full origin-bottom transition-transform duration-75" 
+                                style={{ transform: `rotate(${initialPan * 45}deg)` }}
+                            ></div>
                         </div>
-                        <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] font-black text-gray-600 group-hover/pan:text-sky-400 uppercase">Pan</span>
+                        <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] font-black text-gray-600 group-hover/pan:text-sky-400 uppercase">
+                            {initialPan === 0 ? 'Center' : (initialPan < 0 ? `L${Math.abs(Math.round(initialPan * 64))}` : `R${Math.round(initialPan * 64)}`)}
+                        </span>
                     </div>
 
                     {/* Fader Stack */}
                     <div className="flex gap-2 items-end h-[180px]">
-                        {/* Peak Meter (Left) */}
-                        <div className="h-full w-2 bg-black/80 rounded border border-white/5 relative overflow-hidden group-hover:border-white/10">
-                            <div className="absolute bottom-0 w-full bg-gradient-to-t from-green-500 via-green-400 to-yellow-400 shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all duration-75" style={{ height: isMaster ? '75%' : '45%' }}></div>
-                            <div className="absolute top-0 w-full h-px bg-red-500/50 opacity-20"></div>
+                        <div className="h-full w-2 relative flex flex-col justify-end">
+                            <VerticalMeter 
+                                analyzer={isMaster ? audioEngine.getMasterAnalyzer() : (track ? (audioEngine.getTrackNodes(track.id)?.analyzer || null) : null)} 
+                                side="L" 
+                                className="w-full h-full"
+                            />
                         </div>
 
                         {/* Fader Track */}
@@ -377,18 +491,58 @@ function MixerChannelStrip({ track, isSelected, onSelect, onUpdate, onAddPlugin,
 
                             {/* Fader Cap */}
                             <div
+                                ref={faderCapRef}
                                 className="absolute -left-1 w-8 h-4 bg-gradient-to-b from-[#444] to-[#222] border border-[#555] rounded shadow-[0_4px_10px_rgba(0,0,0,0.8)] z-20 flex items-center justify-center"
-                                style={{ bottom: `${(track?.volume || 0.8) * 100}%` }}
                                 onMouseDown={(e) => {
                                     e.stopPropagation();
+                                    isDraggingRef.current = true;
                                     const startY = e.clientY;
-                                    const startVol = track?.volume || 0.8;
+                                    const startVol = isMaster ? masterVolume : (track?.volume || 0.8);
+                                    let lastFlushedVol = startVol;
+
+                                    // Audio updated on EVERY mousemove (no throttle) — O(1) Web Audio API call
                                     const onMove = (me: MouseEvent) => {
-                                        const delta = (startY - me.clientY) / 200;
-                                        onUpdate({ volume: Math.max(0, Math.min(1, startVol + delta)) });
-                                    }
-                                    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
-                                    window.addEventListener('mousemove', onMove);
+                                        let newVol = Math.max(0, Math.min(1.2, startVol + (startY - me.clientY) / 180));
+                                        if (Math.abs(newVol - 0.8) < 0.02) newVol = 0.8;
+                                        lastFlushedVol = newVol;
+                                        if (isMaster) {
+                                            audioEngine2.setMasterVolume(newVol);
+                                        } else if (track) {
+                                            audioEngine2.setTrackVolume(track.id, newVol);
+                                        }
+                                    };
+
+                                    // Visual updates batched via RAF
+                                    let rafId: number | null = null;
+                                    const onRafMove = (me: MouseEvent) => {
+                                        onMove(me);
+                                        if (rafId === null && faderCapRef.current) {
+                                            rafId = requestAnimationFrame(() => {
+                                                rafId = null;
+                                                if (faderCapRef.current) {
+                                                    faderCapRef.current.style.bottom = `${Math.min(100, lastFlushedVol * 100)}%`;
+                                                }
+                                            });
+                                        }
+                                    };
+
+                                    const onUp = () => {
+                                        isDraggingRef.current = false;
+                                        if (rafId !== null) cancelAnimationFrame(rafId);
+                                        if (faderCapRef.current) {
+                                            faderCapRef.current.style.bottom = `${Math.min(100, lastFlushedVol * 100)}%`;
+                                        }
+                                        if (isMaster) {
+                                            audioEngine2.setMasterVolume(lastFlushedVol);
+                                        } else if (track) {
+                                            audioEngine2.setTrackVolume(track.id, lastFlushedVol);
+                                        }
+                                        saveHistorySnapshot(); 
+                                        window.removeEventListener('mousemove', onRafMove);
+                                        window.removeEventListener('mouseup', onUp);
+                                        onUpdate({ volume: lastFlushedVol });
+                                    };
+                                    window.addEventListener('mousemove', onRafMove);
                                     window.addEventListener('mouseup', onUp);
                                 }}
                             >
@@ -396,20 +550,45 @@ function MixerChannelStrip({ track, isSelected, onSelect, onUpdate, onAddPlugin,
                             </div>
                         </div>
 
-                        {/* Peak Meter (Right) */}
-                        <div className="h-full w-2 bg-black/80 rounded border border-white/5 relative overflow-hidden group-hover:border-white/10">
-                            <div className="absolute bottom-0 w-full bg-gradient-to-t from-green-500 via-green-400 to-yellow-400 shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all duration-75" style={{ height: isMaster ? '74%' : '44%' }}></div>
+                        <div className="h-full w-2 relative flex flex-col justify-end">
+                            <VerticalMeter 
+                                analyzer={isMaster ? audioEngine.getMasterAnalyzer() : (track ? (audioEngine.getTrackNodes(track.id)?.analyzer || null) : null)} 
+                                side="R" 
+                                className="w-full h-full"
+                            />
                         </div>
                     </div>
 
                     {/* M/S Commands */}
                     <div className="flex gap-1.5 h-7 w-full px-2">
                         <button
-                            onClick={(e) => { e.stopPropagation(); onUpdate({ muted: !track?.muted }); }}
-                            className={`flex-1 border rounded-md text-[10px] font-black transition-all transform active:scale-95 ${track?.muted ? 'bg-red-500/20 border-red-500 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-[#1a1a1a] border-[#333] text-gray-600 hover:text-gray-400 group-hover:border-gray-700'}`}
+                            id={track ? `mixer-mute-${track.id}` : 'mixer-mute-master'}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const nextMuted = !initialMuted;
+                                onUpdate({ muted: nextMuted });
+                                // Drive Web Audio mute bus immediately.
+                                if (isMaster) {
+                                    audioEngine2.setMasterMuted(nextMuted);
+                                } else if (track) {
+                                    if (nextMuted) audioEngine2.muteTrack(track.id);
+                                    else           audioEngine2.unmuteTrack(track.id);
+                                }
+                            }}
+                            className={`flex-1 border rounded-md text-[10px] font-black transition-all transform active:scale-95 ${initialMuted ? 'bg-red-500/20 border-red-500 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-[#1a1a1a] border-[#333] text-gray-600 hover:text-gray-400 group-hover:border-gray-700'}`}
                         >M</button>
                         <button
-                            onClick={(e) => { e.stopPropagation(); onUpdate({ soloed: !track?.soloed }); }}
+                            id={track ? `mixer-solo-${track.id}` : 'mixer-solo-master'}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (isMaster) return; // Master usually doesn't have a solo button
+                                if (!track) return;
+                                const nextSoloed = !track.soloed;
+                                onUpdate({ soloed: nextSoloed });
+                                // Drive Web Audio solo group immediately.
+                                if (nextSoloed) audioEngine2.soloTrack(track.id);
+                                else            audioEngine2.unsoloTrack(track.id);
+                            }}
                             className={`flex-1 border rounded-md text-[10px] font-black transition-all transform active:scale-95 ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500] shadow-[0_0_10px_rgba(255,197,0,0.3)]' : 'bg-[#1a1a1a] border-[#333] text-gray-600 hover:text-gray-400 group-hover:border-gray-700'}`}
                         >S</button>
                     </div>
@@ -439,6 +618,74 @@ function MixerChannelStrip({ track, isSelected, onSelect, onUpdate, onAddPlugin,
             `}</style>
         </div>
     )
+})
+
+function PluginMenu({ onSelect }: { onSelect: (type: 'comp' | 'eq' | 'reverb' | 'delay') => void }) {
+    const [open, setOpen] = useState(false);
+    const [coords, setCoords] = useState({ top: 0, left: 0 });
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const handleClick = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node) && buttonRef.current && !buttonRef.current.contains(e.target as Node)) {
+                setOpen(false);
+            }
+        };
+        window.addEventListener('mousedown', handleClick);
+        return () => window.removeEventListener('mousedown', handleClick);
+    }, [open]);
+
+    const handleToggle = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setCoords({ top: rect.bottom + 2, left: rect.left });
+        }
+        setOpen(!open);
+    };
+
+    const plugins = [
+        { id: 'comp', name: 'Compressor', category: 'Dynamics' },
+        { id: 'eq', name: 'Channel EQ', category: 'EQ' },
+        { id: 'reverb', name: 'ChromaVerb', category: 'Reverb' },
+        { id: 'delay', name: 'Delay Designer', category: 'Delay' },
+    ];
+
+    return (
+        <div className="relative w-full">
+            <button
+                ref={buttonRef}
+                onClick={handleToggle}
+                className="h-5 bg-black/20 rounded-sm border border-white/5 text-[8px] font-black text-gray-700 hover:text-gray-400 hover:bg-white/5 uppercase flex items-center justify-center transition-all w-full"
+            >
+                Audio FX
+            </button>
+            {open && (
+                <div 
+                    ref={menuRef}
+                    style={{ top: coords.top, left: coords.left }}
+                    className="fixed z-[999] w-[180px] bg-[#1a1a1a] border border-[#444] rounded shadow-[0_15px_50px_rgba(0,0,0,1)] p-1 overflow-hidden"
+                >
+                    <div className="text-[7px] uppercase text-gray-600 font-black px-2 py-1 border-b border-white/5 mb-1 tracking-widest">Plug-ins</div>
+                    {plugins.map(p => (
+                        <button
+                            key={p.id}
+                            onClick={(e) => { e.stopPropagation(); onSelect(p.id as any); setOpen(false); }}
+                            className="w-full text-left px-3 py-1.5 hover:bg-sky-500 hover:text-white text-[10px] font-black text-gray-300 transition-colors flex items-center justify-between group"
+                        >
+                            <span>{p.name}</span>
+                            <span className="text-[8px] text-gray-600 group-hover:text-sky-200">{p.category}</span>
+                        </button>
+                    ))}
+                    <div className="mt-1 pt-1 border-t border-white/5">
+                        <button className="w-full text-left px-3 py-1 hover:bg-white/5 text-[9px] font-bold text-gray-500 uppercase italic">Show All...</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }
 
 function ChevronDownSmall({ className }: { className?: string }) {

@@ -1,113 +1,74 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
-export async function POST(request: Request) {
-    if (!process.env.DATABASE_URL) {
-        return NextResponse.json({ error: "Database configuration missing (DATABASE_URL)" }, { status: 503 });
-    }
+export async function POST(req: Request) {
+  try {
+    const session = await getSession();
+    const sessionUserId = session?.user?.id;
 
-    try {
-        const body = await request.json();
-        const { id, userId, name, tempo, timeSignature, keySignature, projectFormat, surroundFormat, spatialAudioMode, tracks, globalTracks, settings, currentAlternativeId, alternatives, globalSettings, environment } = body;
+    const body = await req.json();
 
-        // Using a transaction for atomic project saving
-        const savedProject = await prisma.$transaction(async (tx) => {
-            // 1. Update project root
-            const project = await tx.project.upsert({
-                where: { id: id || "temp-id" },
-                update: {
-                    name,
-                    tempo,
-                    timeSignature,
-                    keySignature,
-                    projectFormat,
-                    surroundFormat,
-                    spatialAudioMode,
-                    stateJson: {
-                        tracks,
-                        globalTracks,
-                        settings,
-                        currentAlternativeId,
-                        alternatives,
-                        globalSettings,
-                        environment
-                    }
-                },
-                create: {
-                    userId,
-                    name,
-                    tempo,
-                    timeSignature,
-                    keySignature,
-                    projectFormat,
-                    surroundFormat,
-                    spatialAudioMode,
-                    stateJson: {
-                        tracks,
-                        globalTracks,
-                        settings,
-                        currentAlternativeId,
-                        alternatives,
-                        globalSettings,
-                        environment
-                    }
-                },
-            });
+    console.log("[SAVE REQUEST]");
+    console.log("id:", body.id);
+    console.log("name:", body.name);
+    console.log("payload:", Math.round(JSON.stringify(body).length / 1024), "KB");
+    console.log("sessionUserId:", sessionUserId);
+    console.log("body.userId:", body.userId);
+    console.log("match:", sessionUserId === body.userId);
 
-            // 2. Clear old data for simple "full-replace" re-serialization
-            // In a production app, we would use a more granular sync or patch system
-            await tx.track.deleteMany({ where: { projectId: project.id } });
+    const { id, name, tempo, timeSignature, keySignature, projectFormat, surroundFormat, spatialAudioMode, tracks, globalTracks, settings, currentAlternativeId, alternatives, globalSettings, environment } = body;
 
-            // 3. Re-create the entire project graph
-            // This is a naive implementation for demonstration
-            for (const t of tracks) {
-                const createdTrack = await tx.track.create({
-                    data: {
-                        projectId: project.id,
-                        name: t.name,
-                        type: t.type,
-                        volume: t.volume,
-                        pan: t.pan,
-                        muted: t.muted,
-                        soloed: t.soloed,
-                        color: t.color,
-                        orderIndex: t.orderIndex || 0,
-                    },
-                });
+    // Use server-side session userId — NOT the body value — to stay in sync
+    // with the projects list route which also uses getSession()
+    const userId = sessionUserId || 'user-1';
 
-                if (t.clips) {
-                    for (const c of t.clips) {
-                        const createdClip = await tx.clip.create({
-                            data: {
-                                trackId: createdTrack.id,
-                                type: c.type,
-                                start: c.start,
-                                duration: c.duration,
-                                name: c.name,
-                                color: c.color,
-                            },
-                        });
+    // Generate an ID if the frontend doesn't have one yet
+    const projectId = id || `proj-${Date.now()}`;
 
-                        if (c.notes) {
-                            await tx.note.createMany({
-                                data: c.notes.map((n: any) => ({
-                                    clipId: createdClip.id,
-                                    pitch: n.pitch,
-                                    velocity: n.velocity,
-                                    start: n.start,
-                                    duration: n.duration,
-                                })),
-                            });
-                        }
-                    }
-                }
-            }
-            return project;
-        });
+    // Ensure the user exists
+    await prisma.user.upsert({
+      where: { id: userId },
+      update: {},
+      create: { id: userId, email: `${userId}@magicpro.app`, passwordHash: 'demo', name: 'Demo User' },
+    });
 
-        return NextResponse.json(savedProject);
-    } catch (error) {
-        console.error("Error saving project:", error);
-        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-    }
+    // Store the full DAW state as a single JSON blob in stateJson
+    const savedProject = await prisma.project.upsert({
+      where: { id: projectId },
+      update: {
+        name: name || 'Untitled',
+        tempo: tempo || 120,
+        timeSignature: timeSignature || '4/4',
+        keySignature: keySignature || 'C Maj',
+        projectFormat: projectFormat || 'stereo',
+        surroundFormat: surroundFormat || '5.1 (ITU 775)',
+        spatialAudioMode: spatialAudioMode || 'Off',
+        stateJson: { tracks, globalTracks, settings, currentAlternativeId, alternatives, globalSettings, environment },
+      },
+      create: {
+        id: projectId,
+        userId,
+        name: name || 'Untitled',
+        tempo: tempo || 120,
+        timeSignature: timeSignature || '4/4',
+        keySignature: keySignature || 'C Maj',
+        projectFormat: projectFormat || 'stereo',
+        surroundFormat: surroundFormat || '5.1 (ITU 775)',
+        spatialAudioMode: spatialAudioMode || 'Off',
+        stateJson: { tracks, globalTracks, settings, currentAlternativeId, alternatives, globalSettings, environment },
+      },
+    });
+
+    console.log("[SAVE OK] projectId:", savedProject.id);
+    return NextResponse.json({ id: savedProject.id, success: true });
+
+  } catch (err) {
+    console.error("[SAVE ROUTE FAILED]");
+    console.error(err);
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.stack : String(err) },
+      { status: 500 }
+    );
+  }
 }

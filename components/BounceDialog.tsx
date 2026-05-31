@@ -33,7 +33,7 @@ export function BounceDialog({ onClose }: { onClose: () => void }) {
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="w-[520px] bg-[#1a1a1a] border border-black shadow-[0_25px_100px_rgba(0,0,0,1)] rounded-lg overflow-hidden flex flex-col">
 
-                {/* Logic Pro Signature Header */}
+                {/* Magic Pro Signature Header */}
                 <div className="h-10 bg-gradient-to-b from-[#333] to-[#222] border-b border-black flex items-center px-4 justify-between">
                     <div className="flex items-center gap-2">
                         <Download className="w-4 h-4 text-sky-500" />

@@ -14,7 +14,8 @@ export const libraryData: Category[] = [
     {
         name: "Software Instruments",
         presets: [
-            { id: "grand_piano", name: "Grand Piano", type: "instrument", category: "Software Instruments" },
+            { id: "nylon_guitar", name: "Nylon Guitar", type: "instrument", category: "Software Instruments" },
+            { id: "steinway_piano", name: "Steinway Grand Piano", type: "instrument", category: "Software Instruments" },
             { id: "e_piano", name: "Electric Piano", type: "instrument", category: "Software Instruments" },
             { id: "analog_pad", name: "Analog Pad", type: "instrument", category: "Software Instruments" },
         ]

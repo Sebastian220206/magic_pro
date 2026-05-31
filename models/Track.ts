@@ -1,3 +1,5 @@
+import type { Clip } from './Clip';
+
 export type TrackType = 'audio' | 'midi' | 'software-instrument' | 'drummer' | 'external-midi' | 'folder' | 'bus' | 'output';
 
 export interface AutomationPoint {
@@ -45,6 +47,10 @@ export interface Track {
     activeAlternativeId: string;
     showInactiveAlternatives: boolean;
 
+    // --- Track Instrument (for MIDI/software-instrument tracks) ---
+    instrument?: string; // e.g., "Grand Piano", "Deep Bass", "Trap Drum Kit"
+    instrumentLoaded?: boolean;
+
     // --- Track Inspector Parameters (Logic Pro) ---
     icon?: string;
     channel?: string; // e.g. "Inst 1"
@@ -73,6 +79,9 @@ export interface Track {
     channelStripId?: string; // used for multiple tracks sharing the same mixer channel
     defaultRegionType?: 'midi' | 'pattern' | 'session-player';
     zoom: number; // individual vertical zoom factor
+
+    // --- Clips ---
+    clips?: Clip[];
 
     // --- Track Stacks & Automation (Professional Features) ---
     parentId?: string;

@@ -15,7 +15,7 @@ export function ColorPalette() {
     if (!showColorPalette) return null
 
     const colors = [
-        // Logic Pro inspired color grid (High Saturated & Professional)
+        // Magic Pro inspired color grid (High Saturated & Professional)
         ['#ff3b30', '#ff9500', '#ffcc00', '#4cd964', '#5ac8fa', '#007aff', '#5856d6', '#ff2d55', '#a2845e', '#8e8e93'],
         ['#c62828', '#ef6c00', '#f9a825', '#2e7d32', '#0277bd', '#1565c0', '#4527a0', '#ad1457', '#6d4c41', '#37474f'],
         ['#ef9a9a', '#ffcc80', '#fff59d', '#a5d6a7', '#81d4fa', '#90caf9', '#b39ddb', '#f48fb1', '#bcaaa4', '#b0bec5'],

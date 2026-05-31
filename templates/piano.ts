@@ -1,0 +1,70 @@
+import { ProjectTemplate } from './types';
+
+export const pianoSketchTemplate: ProjectTemplate = {
+  id: 'piano-sketch',
+  name: 'Piano Sketch',
+  description: 'A Steinway grand piano with a beautiful chord progression.',
+  category: 'Keys',
+  genre: 'Classical / Pop',
+  difficulty: 'Beginner',
+  bpm: 80,
+  timeSignature: '4/4',
+  keySignature: 'C Major',
+  accentColor: '#34d399',
+  previewIcon: 'music',
+  tracks: [
+    {
+      name: 'Steinway Piano',
+      type: 'instrument',
+      instrument: 'piano',
+      color: '#34d399',
+      volume: 0.85,
+      pan: 0,
+      muted: false,
+      soloed: false,
+      icon: 'music',
+    },
+  ],
+  clips: [
+    {
+      trackIndex: 0,
+      type: 'midi',
+      name: 'Chord Progression',
+      startBeat: 0,
+      duration: 8,
+      color: '#34d399',
+      notes: [
+        // C Major (C4-E4-G4)
+        { pitch: 60, velocity: 90, start: 0, duration: 3.5 },
+        { pitch: 64, velocity: 85, start: 0, duration: 3.5 },
+        { pitch: 67, velocity: 85, start: 0, duration: 3.5 },
+        // F Major (F3-A3-C4)
+        { pitch: 53, velocity: 85, start: 4, duration: 3.5 },
+        { pitch: 57, velocity: 80, start: 4, duration: 3.5 },
+        { pitch: 60, velocity: 80, start: 4, duration: 3.5 },
+      ],
+    },
+    {
+      trackIndex: 0,
+      type: 'midi',
+      name: 'Melody',
+      startBeat: 0,
+      duration: 8,
+      color: '#6ee7b7',
+      notes: [
+        { pitch: 72, velocity: 80, start: 0.5, duration: 0.5 },
+        { pitch: 76, velocity: 75, start: 1, duration: 0.5 },
+        { pitch: 79, velocity: 80, start: 1.5, duration: 0.5 },
+        { pitch: 76, velocity: 70, start: 2, duration: 0.5 },
+        { pitch: 72, velocity: 85, start: 2.5, duration: 1 },
+        { pitch: 71, velocity: 75, start: 3.5, duration: 0.5 },
+        { pitch: 72, velocity: 80, start: 4, duration: 0.5 },
+        { pitch: 76, velocity: 75, start: 4.5, duration: 0.5 },
+        { pitch: 79, velocity: 85, start: 5, duration: 1 },
+        { pitch: 81, velocity: 80, start: 6, duration: 0.5 },
+        { pitch: 79, velocity: 75, start: 6.5, duration: 0.5 },
+        { pitch: 76, velocity: 85, start: 7, duration: 1 },
+      ],
+    },
+  ],
+};

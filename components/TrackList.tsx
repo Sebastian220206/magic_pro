@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { useProjectStore } from "@/store/projectStore"
+import { useShallow } from 'zustand/react/shallow'
 import { CreateNewTrackUsingDialog } from "./CreateNewTrackUsingDialog"
 import { Track } from "@/models/Track"
 import { Clip } from "@/models/Clip"
@@ -14,11 +15,59 @@ import {
     Layers, ChevronUp, GripVertical, X,
     Search, Copy, Palette, Lock, Snowflake, ArrowUp, Trash2, Check, Star
 } from "lucide-react"
+import { TrackLevelMeter } from "./TrackLevelMeter"
+import { HorizontalMeter } from "./HorizontalMeter"
+import { audioEngine } from "@/engine/AudioEngineAdapter"
 
 export function TrackList() {
+    const store = useProjectStore(useShallow(s => ({
+        tracks: s.tracks, updateTrack: s.updateTrack, trackHeight: s.trackHeight,
+        selectedTrackIds: s.selectedTrackIds, focusedTrackId: s.focusedTrackId,
+        selectTrack: s.selectTrack, addTrack: s.addTrack, showAutomation: s.showAutomation,
+        clips: s.clips, recording: s.recording,
+        toggleNewTrackDialog: s.toggleNewTrackDialog,
+        toggleCreateTrackUsing: s.toggleCreateTrackUsing,
+        showCreateTrackUsing: s.showCreateTrackUsing,
+        addClip: s.addClip,
+        setDragPosition: s.setDragPosition,
+        setDropTargetTrackId: s.setDropTargetTrackId,
+        dropTargetTrackId: s.dropTargetTrackId,
+        duplicateTracks: s.duplicateTracks,
+        createTrackForOverlappedRegions: s.createTrackForOverlappedRegions,
+        createTrackForSelectedRegions: s.createTrackForSelectedRegions,
+        reorderTracks: s.reorderTracks,
+        updateTrackZoom: s.updateTrackZoom,
+        resetAllTrackZoom: s.resetAllTrackZoom,
+        sortTracks: s.sortTracks, toggleColorPalette: s.toggleColorPalette,
+        toggleIconBrowser: s.toggleIconBrowser, toggleDrumReplacement: s.toggleDrumReplacement,
+        trackHeaderConfig: s.trackHeaderConfig,
+        trackHeaderWidth: s.trackHeaderWidth,
+        setTrackHeaderWidth: s.setTrackHeaderWidth,
+        toggleTrackHeaderConfig: s.toggleTrackHeaderConfig,
+        updateTrackParameter: s.updateTrackParameter,
+        renameAlternative: s.renameAlternative,
+        swapWithActiveAlternative: s.swapWithActiveAlternative,
+        setActiveAlternative: s.setActiveAlternative,
+        toggleInactiveAlternatives: s.toggleInactiveAlternatives,
+        deleteInactiveAlternatives: s.deleteInactiveAlternatives,
+        addTrackAlternative: s.addTrackAlternative,
+        hideViewActive: s.hideViewActive,
+        toggleHideView: s.toggleHideView,
+        setTrackHidden: s.setTrackHidden,
+        unhideAllTracks: s.unhideAllTracks,
+        createTrackStack: s.createTrackStack, flattenStack: s.flattenStack,
+        toggleStackCollapse: s.toggleStackCollapse, convertStackType: s.convertStackType,
+        setGrooveTrack: s.setGrooveTrack, toggleMatchGroove: s.toggleMatchGroove,
+        toggleArticulationEditor: s.toggleArticulationEditor,
+        addArticulationSet: s.addArticulationSet, articulationSets: s.articulationSets,
+        toggleBounceTrackDialog: s.toggleBounceTrackDialog,
+        toggleBounceRegionsDialog: s.toggleBounceRegionsDialog,
+        selectedClipIds: s.selectedClipIds,
+        saveHistorySnapshot: s.saveHistorySnapshot,
+    })));
     const {
         tracks, updateTrack, trackHeight, selectedTrackIds, focusedTrackId,
-        selectTrack, addTrack, showAutomation, clips,
+        selectTrack, addTrack, showAutomation, clips, recording,
         toggleNewTrackDialog,
         toggleCreateTrackUsing,
         showCreateTrackUsing,
@@ -47,8 +96,9 @@ export function TrackList() {
         createTrackStack, flattenStack, toggleStackCollapse, convertStackType,
         setGrooveTrack, toggleMatchGroove,
         toggleArticulationEditor, addArticulationSet, articulationSets,
-        toggleBounceTrackDialog, toggleBounceRegionsDialog, selectedClipIds
-    } = useProjectStore()
+        toggleBounceTrackDialog, toggleBounceRegionsDialog, selectedClipIds,
+        saveHistorySnapshot
+    } = store
 
     const [showTrackMenu, setShowTrackMenu] = useState(false)
     const [draggedTrackIndex, setDraggedTrackIndex] = useState<number | null>(null)
@@ -225,7 +275,7 @@ export function TrackList() {
                 className="absolute top-0 right-0 w-1 h-full cursor-col-resize z-50 hover:bg-sky-500/50 transition-colors"
                 onMouseDown={() => setResizingHeader(true)}
             />
-            {/* Logic Pro Signature Tracks Header */}
+            {/* Magic Pro Signature Tracks Header */}
             <div className="h-9 border-b border-black bg-[#1a1a1a] flex items-center px-4 justify-between shrink-0 sticky top-0 z-30 shadow-sm">
                 <div className="flex items-center gap-2">
                     <div className="flex bg-[#000] rounded-sm border border-[#333] p-0.5 h-6">
@@ -481,7 +531,7 @@ export function TrackList() {
                                     setTrackContextMenu({ id: track.id, x: e.clientX, y: e.clientY });
                                     selectTrack(track.id);
                                 }}
-                                className={`track-row group relative border-b border-black transition-all cursor-default flex ${isSelected ? 'bg-gradient-to-r from-sky-950/40 via-sky-900/40 to-black z-10 shadow-[inset_0_0_20px_rgba(14,165,233,0.1)]' : 'bg-[#111] hover:bg-[#161616]'} ${dropTargetTrackId === track.id ? 'ring-2 ring-sky-500 ring-inset bg-sky-900/20' : ''} ${isFocused ? 'brightness-110' : ''} ${draggedTrackIndex === trackIdx ? 'opacity-50 grayscale scale-[0.98]' : ''}`}
+                                className={`track-row group relative border-b border-black transition-all cursor-default flex ${isSelected ? 'bg-gradient-to-r from-sky-950/40 via-sky-900/40 to-black z-10 shadow-[inset_0_0_20px_rgba(14,165,233,0.1)]' : 'bg-[#111] hover:bg-[#161616]'} ${dropTargetTrackId === track.id ? 'ring-2 ring-sky-500 ring-inset bg-sky-900/20' : ''} ${isFocused ? 'brightness-110' : ''} ${draggedTrackIndex === trackIdx ? 'opacity-50 grayscale scale-[0.98]' : ''} ${recording && track.recordEnabled ? 'ring-inset ring-1 ring-red-500/60 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]' : ''}`}
                                 style={{ height: `${currentHeight}px` }}
                             >
                                 <div className="flex shrink-0 h-full overflow-hidden">
@@ -645,7 +695,10 @@ export function TrackList() {
                                             {trackHeaderConfig.showRecord && (
                                                 <button
                                                     onMouseDown={(e) => handleTrackAction('recordEnabled', !track.recordEnabled, e)}
-                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all flex items-center justify-center ${track.recordEnabled ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : (isFocused && !tracks.some(t => t.recordEnabled)) ? 'text-red-500' : 'text-gray-500 hover:text-red-400'}`}
+                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all flex items-center justify-center 
+                                                        ${track.recordEnabled ? (recording ? 'bg-red-500 animate-pulse text-white' : 'bg-red-500 text-white shadow-lg shadow-red-500/20') : 
+                                                          (isFocused && !tracks.some(t => t.recordEnabled)) ? 'text-red-500' : 
+                                                          'text-gray-500 hover:text-red-400'}`}
                                                 >R</button>
                                             )}
                                             {trackHeaderConfig.showInput && (
@@ -692,14 +745,30 @@ export function TrackList() {
                                                                     const delta = (me.clientX - startX) / 100;
                                                                     updateTrack(track.id, { volume: Math.max(0, Math.min(1.5, startVol + delta)) });
                                                                 };
-                                                                const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+                                                                const up = () => { 
+                                                                    saveHistorySnapshot();
+                                                                    window.removeEventListener('mousemove', move); 
+                                                                    window.removeEventListener('mouseup', up); 
+                                                                };
                                                                 window.addEventListener('mousemove', move);
                                                                 window.addEventListener('mouseup', up);
                                                             }}
                                                         >
+                                                            <div className="absolute inset-0 z-0">
+                                                                <HorizontalMeter 
+                                                                    analyzer={audioEngine.getTrackNodes(track.id)?.analyzer || null} 
+                                                                    backgroundColor="transparent"
+                                                                    meterColor="rgba(34,197,94,0.3)"
+                                                                    sensitivity={1.5}
+                                                                />
+                                                            </div>
                                                             <div
-                                                                className="h-full bg-gradient-to-r from-green-600 to-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)] transition-all"
+                                                                className="h-full bg-gradient-to-r from-green-600 to-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)] transition-all opacity-40 group-hover/vol:opacity-100 z-10"
                                                                 style={{ width: `${((track.volume || 0.8) / 1.5) * 100}%` }}
+                                                            />
+                                                            <TrackLevelMeter 
+                                                                trackId={track.id} 
+                                                                isArmed={track.recordEnabled || track.inputMonitoring} 
                                                             />
                                                         </div>
                                                     </div>
@@ -719,7 +788,11 @@ export function TrackList() {
                                                                 const delta = (startY - me.clientY) / 50;
                                                                 updateTrack(track.id, { pan: Math.max(-1, Math.min(1, startPan + delta)) });
                                                             };
-                                                            const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+                                                            const up = () => { 
+                                                                saveHistorySnapshot();
+                                                                window.removeEventListener('mousemove', move); 
+                                                                window.removeEventListener('mouseup', up); 
+                                                            };
                                                             window.addEventListener('mousemove', move);
                                                             window.addEventListener('mouseup', up);
                                                         }}

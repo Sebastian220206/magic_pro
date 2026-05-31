@@ -1,4 +1,6 @@
 "use client"
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import { useProjectStore } from "@/store/projectStore"
 import {
     ChevronDown, Save, Share,
@@ -12,8 +14,13 @@ import { BounceDialog } from "./BounceDialog"
 import { ProjectInfoDialog } from "./ProjectInfoDialog"
 import { ImportProjectDialog } from "./ImportProjectDialog"
 import { SaveDialog, SaveData } from "./SaveDialog"
+import { renderSongOffline } from "@/engine/export/OfflineRenderer"
+import { encodeWav } from "@/engine/export/wavEncoder"
 
 export function ProjectManager() {
+    const { data: session } = useSession()
+    const currentUserId = session?.user?.id || 'user-1'
+
     const {
         name, alternatives, currentAlternativeId,
         addAlternative, switchToAlternative,
@@ -26,20 +33,31 @@ export function ProjectManager() {
     const [showSaveAs, setShowSaveAs] = useState(false)
     const [showProjectInfo, setShowProjectInfo] = useState(false)
     const [showImport, setShowImport] = useState(false)
+    const [exporting, setExporting] = useState(false)
+    const [exportProgress, setExportProgress] = useState('')
     const [saveMode, setSaveMode] = useState<'SaveAs' | 'SaveCopy'>('SaveAs')
+    const router = useRouter()
 
     const handleCreateAlternative = () => {
         const altName = prompt("Alternative Name:", `Alt ${alternatives.length + 1}`);
         if (altName) addAlternative(altName);
     }
 
-    const onSaveDialogSubmit = (data: SaveData) => {
-        if (saveMode === 'SaveAs') {
-            saveAs(data);
-        } else {
-            saveCopyAs(data);
+    const onSaveDialogSubmit = async (data: SaveData) => {
+        try {
+            if (saveMode === 'SaveAs') {
+                await saveAs(data, currentUserId);
+                setShowSaveAs(false);
+                const newId = useProjectStore.getState().id;
+                if (newId) router.push(`/project/${newId}`);
+            } else {
+                await saveCopyAs(data, currentUserId);
+                setShowSaveAs(false);
+            }
+        } catch (e) {
+            console.error('Save failed:', e);
+            alert('Failed to save project. Check console for details.');
         }
-        setShowSaveAs(false);
     }
 
     const handleSaveAsTemplate = () => {
@@ -47,10 +65,96 @@ export function ProjectManager() {
         if (templateName) saveAsTemplate(templateName);
     }
 
+    const handleExportWav = async () => {
+        setExporting(true);
+        setExportProgress('Preparing export...');
+        setShowMenu(false);
+
+        // Yield to event loop so the loading UI renders before heavy work
+        await new Promise(r => setTimeout(r, 50));
+
+        try {
+            const state = useProjectStore.getState();
+            const { tempo, tracks, clips, name } = state;
+
+            if (!tempo || tempo <= 0) {
+                throw new Error('Invalid project tempo');
+            }
+
+            setExportProgress('Mapping tracks and clips...');
+            await new Promise(r => setTimeout(r, 10));
+
+            const exportClips = clips.map(c => ({
+                id: c.id,
+                trackId: c.trackId,
+                startBeat: c.startBeat ?? c.start,
+                duration: c.duration,
+                type: c.type as 'audio' | 'midi',
+                offset: c.offset || 0,
+                muted: c.muted || false,
+                sampleId: c.sampleId,
+                fileUrl: c.fileUrl,
+                storageKey: (c as any).storageKey,
+                playbackRate: c.playbackRate || 1,
+                fadeIn: c.fadeIn ? { duration: c.fadeIn.duration } : undefined,
+                fadeOut: c.fadeOut ? { duration: c.fadeOut.duration } : undefined,
+                notes: c.notes,
+            }));
+            const exportTracks = tracks.map(t => ({
+                id: t.id,
+                name: t.name,
+                volume: t.volume,
+                pan: t.pan,
+                muted: t.muted,
+                soloed: t.soloed,
+                instrument: t.instrument,
+            }));
+
+            setExportProgress('Rendering audio (this may take a moment)...');
+            // Yield again so the progress message renders
+            await new Promise(r => setTimeout(r, 10));
+
+            console.time('[Export] Total render');
+            const rendered = await renderSongOffline(exportClips, exportTracks, tempo);
+            console.timeEnd('[Export] Total render');
+
+            setExportProgress(`Rendered ${rendered.duration.toFixed(1)}s audio, encoding WAV...`);
+            await new Promise(r => setTimeout(r, 10));
+
+            console.log('[Export] Encoding WAV:', {
+              channels: rendered.numberOfChannels,
+              sampleRate: rendered.sampleRate,
+              frames: rendered.length.toLocaleString(),
+              duration: rendered.duration.toFixed(2),
+            });
+            console.time('[Export] WAV encode');
+            const wavBlob = await encodeWav(rendered);
+            console.timeEnd('[Export] WAV encode');
+            const safeName = (name || 'export').replace(/[^a-zA-Z0-9]/g, '_');
+            const url = URL.createObjectURL(wavBlob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${safeName}.wav`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            console.log('[EXPORT DOWNLOAD]', `${safeName}.wav`);
+        } catch (e) {
+            console.error('[Export] Failed:', e);
+            alert('Export failed. Check console for details.');
+        } finally {
+            setExporting(false);
+            setExportProgress('');
+        }
+    };
+
     const handleCloseProject = () => {
         if (isDirty) {
             if (confirm("You have unsaved changes. Save before closing?")) {
-                saveProject('user-1');
+                saveProject(currentUserId);
             }
         }
         closeProject();
@@ -58,26 +162,26 @@ export function ProjectManager() {
     }
 
     return (
-        <div className="relative">
-            {/* Desktop Project Name LCD Area */}
+        <div className="relative group/proj">
+            {/* Desktop Project Name LCD Area - Integrated Style */}
             <div
-                className="flex items-center gap-3 px-4 py-1.5 bg-[#000] border border-[#333] rounded-md shadow-inner cursor-pointer hover:border-sky-500/40 group active:scale-95 transition-all"
+                className="flex flex-col justify-center px-3 h-full border-r border-white/10 cursor-pointer hover:bg-white/[0.03] transition-colors"
                 onClick={() => setShowMenu(!showMenu)}
             >
-                <div className="flex flex-col">
-                    <span className="text-[11px] font-black text-white/90 group-hover:text-white uppercase tracking-wider truncate max-w-[120px]">
+                <div className="flex flex-col -gap-0.5">
+                    <span className="text-[10px] font-black text-white/90 group-hover/proj:text-sky-400 uppercase tracking-widest truncate max-w-[140px]">
                         {name}{isDirty ? '*' : ''}
                     </span>
-                    <div className="flex items-center gap-1">
-                        <span className="text-[8px] font-black text-sky-500/80 uppercase tracking-tighter">
+                    <div className="flex items-center gap-1 opacity-60">
+                        <span className="text-[7px] font-bold text-gray-400 uppercase tracking-wider">
                             {alternatives.find(a => a.id === currentAlternativeId)?.name || 'Main'}
                         </span>
-                        <ChevronDown className="w-2.5 h-2.5 text-gray-700" />
+                        <ChevronDown className="w-2 h-2 text-gray-600" />
                     </div>
                 </div>
             </div>
 
-            {/* Logic Professional Alternatives & Project Menu */}
+            {/* Magic Professional Alternatives & Project Menu */}
             {showMenu && (
                 <div className="absolute top-full left-0 mt-2 w-[240px] bg-[#1a1a1a] border border-black shadow-[0_20px_50px_rgba(0,0,0,0.8)] rounded-md overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2 duration-150">
                     {/* Alternatives Section */}
@@ -109,7 +213,7 @@ export function ProjectManager() {
 
                     {/* Project Management Section */}
                     <div className="p-1">
-                        <button onClick={() => { saveProject('user-1'); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-gray-400 hover:text-white hover:bg-white/5 rounded transition-all group">
+                        <button onClick={() => { saveProject(currentUserId); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-gray-400 hover:text-white hover:bg-white/5 rounded transition-all group">
                             <Save className="w-3.5 h-3.5 text-gray-600 group-hover:text-green-500" />
                             <span>Save Project</span>
                         </button>
@@ -122,6 +226,11 @@ export function ProjectManager() {
                         <button onClick={() => { setSaveMode('SaveCopy'); setShowSaveAs(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-gray-400 hover:text-white hover:bg-white/5 rounded transition-all group">
                             <Copy className="w-3.5 h-3.5 text-gray-600 group-hover:text-sky-500" />
                             <span>Save a Copy As...</span>
+                        </button>
+
+                        <button onClick={handleExportWav} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-gray-400 hover:text-white hover:bg-white/5 rounded transition-all group">
+                            <Download className="w-3.5 h-3.5 text-gray-600 group-hover:text-amber-500" />
+                            <span>Export as WAV...</span>
                         </button>
 
                         <button onClick={() => { handleSaveAsTemplate(); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-gray-400 hover:text-white hover:bg-white/5 rounded transition-all group">
@@ -185,6 +294,17 @@ export function ProjectManager() {
             )}
             {showProjectInfo && <ProjectInfoDialog onClose={() => setShowProjectInfo(false)} />}
             {showImport && <ImportProjectDialog onClose={() => setShowImport(false)} />}
+
+            {/* Export progress overlay */}
+            {exporting && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
+                    <div className="bg-[#1a1a1a] border border-black rounded-lg p-8 flex flex-col items-center gap-4 shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+                        <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+                        <span className="text-sm font-bold text-gray-200">{exportProgress || 'Exporting...'}</span>
+                        <span className="text-[10px] text-gray-500">Please wait, this may take a moment</span>
+                    </div>
+                </div>
+            )}
 
             <style jsx>{`
                 .custom-scrollbar-v::-webkit-scrollbar { width: 4px; }

@@ -2,13 +2,13 @@
 
 import React, { useState } from 'react'
 import { useProjectStore } from '@/store/projectStore'
-import { X, Settings, Activity, Circle, Timer, Music, FileText, Share2, Headphones, Layers, FolderHeart, Keyboard, SlidersHorizontal } from 'lucide-react'
+import { X, Settings, Activity, Music, Keyboard, SlidersHorizontal } from 'lucide-react'
 import { KeyCommandsManager } from './KeyCommandsManager'
 interface ProjectSettingsDialogProps {
     onClose: () => void
 }
 
-type MainTab = 'General' | 'Audio' | 'Recording' | 'Smart Tempo' | 'MIDI' | 'Score' | 'Movie' | 'Sync' | 'Metronome' | 'Tuning' | 'Assets' | 'Control Surfaces' | 'Key Commands'
+type MainTab = 'General' | 'Audio' | 'MIDI' | 'Control Surfaces' | 'Key Commands'
 type GeneralSubTab = 'General' | 'Project'
 type MidiSubTab = 'General' | 'Input Filter' | 'Chase' | 'Clip Length'
 
@@ -17,7 +17,7 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
         settings, updateProjectSettings,
         projectFormat, surroundFormat, spatialAudioMode,
         globalSettings, updateGlobalSettings,
-        assignKeyCommand, removeKeyCommand, resetKeyCommands, exportKeyCommands,
+        assignKeyCommand, removeKeyCommand, resetKeyCommands, exportKeyCommands, importKeyCommands,
         addControlSurface, updateControlSurface, removeControlSurface,
         addControlSurfaceAssignment, updateControlSurfaceAssignment, removeControlSurfaceAssignment,
         toggleControlSurfacesBypass,
@@ -93,15 +93,7 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                         {[
                             { name: 'General', icon: Settings },
                             { name: 'Audio', icon: Activity },
-                            { name: 'Recording', icon: Circle },
-                            { name: 'Smart Tempo', icon: Timer },
                             { name: 'MIDI', icon: Music },
-                            { name: 'Score', icon: FileText },
-                            { name: 'Movie', icon: Headphones },
-                            { name: 'Sync', icon: Share2 },
-                            { name: 'Metronome', icon: Layers },
-                            { name: 'Tuning', icon: Timer },
-                            { name: 'Assets', icon: FolderHeart },
                             { name: 'Control Surfaces', icon: SlidersHorizontal },
                             { name: 'Key Commands', icon: Keyboard },
                         ].map((t) => (
@@ -194,11 +186,11 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
 
                             <div className="p-3 border border-[#d1d1d6] rounded-md bg-white">
                                 <h4 className="text-[13px] font-semibold mb-2">Project Audio (override when project enabled)</h4>
-                                {renderField('Project Format', projectFormat, (v) => updateProjectSettings({ projectFormat: v as any }), 'select', ['stereo', 'surround', 'dolby-atmos'], !isProjectMode)}
-                                {renderField('Surround Format', surroundFormat, (v) => updateProjectSettings({ surroundFormat: v as any }), 'select', ['Quadraphonic', 'LCR (Pro Logic)', '5.1 (ITU 775)', '6.1 (ES/EX)', '7.1', '7.1 (SDDS)', '5.1.2', '5.1.4', '7.1.2', '7.1.4'], !isProjectMode)}
-                                {renderField('Spatial Audio Mode', spatialAudioMode, (v) => updateProjectSettings({ spatialAudioMode: v as any }), 'select', ['Off', 'Dolby Atmos'], !isProjectMode)}
-                                {renderField('Sample Rate', settings.sampleRate, (v) => updateProjectSettings({ sampleRate: v as any }), 'select', [44100, 48000, 88200, 96000], !isProjectMode)}
-                                {renderField('Frame Rate', settings.frameRate, (v) => updateProjectSettings({ frameRate: v }), 'number', undefined, !isProjectMode)}
+                                {renderField('Project Format', projectFormat, (v) => updateProjectSettings({ projectFormat: v } as any), 'select', ['stereo', 'surround', 'dolby-atmos'], !isProjectMode)}
+                                {renderField('Surround Format', surroundFormat, (v) => updateProjectSettings({ surroundFormat: v } as any), 'select', ['Quadraphonic', 'LCR (Pro Logic)', '5.1 (ITU 775)', '6.1 (ES/EX)', '7.1', '7.1 (SDDS)', '5.1.2', '5.1.4', '7.1.2', '7.1.4'], !isProjectMode)}
+                                {renderField('Spatial Audio Mode', spatialAudioMode, (v) => updateProjectSettings({ spatialAudioMode: v } as any), 'select', ['Off', 'Dolby Atmos'], !isProjectMode)}
+                                {renderField('Sample Rate', settings.sampleRate, (v) => updateProjectSettings({ sampleRate: v } as any), 'select', [44100, 48000, 88200, 96000], !isProjectMode)}
+                                {renderField('Frame Rate', settings.frameRate, (v) => updateProjectSettings({ frameRate: v } as any), 'number', undefined, !isProjectMode)}
                             </div>
 
                             <div className="p-3 border border-[#d1d1d6] rounded-md bg-white">
@@ -269,11 +261,11 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                             <h3 className="text-[14px] font-bold border-b border-black/5 pb-1 mb-2">Control Surfaces</h3>
                             <p className="text-[12px] text-gray-600 mb-3">Add hardware devices and map their MIDI/OSC messages to existing commands.</p>
                             <label className="flex items-center gap-2 mb-2 cursor-pointer">
-                                <input type="checkbox" checked={globalSettings.controlSurfacesBypassed} onChange={() => toggleControlSurfacesBypass()} className="w-4 h-4" />
+                                <input type="checkbox" checked={globalSettings.controlSurfaces.bypassed} onChange={() => toggleControlSurfacesBypass()} className="w-4 h-4" />
                                 <span className="text-[13px] font-medium">Bypass Control Surfaces</span>
                             </label>
                             <div className="space-y-2">
-                                {globalSettings.controlSurfaces.map(device => (
+                                {globalSettings.controlSurfaces.devices.map((device) => (
                                     <div key={device.id} className="flex flex-col gap-1 py-1 text-[13px] border-b last:border-b-0">
                                         <div className="flex items-center gap-2">
                                             <input
@@ -284,7 +276,7 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                                             <select
                                                 className="text-[12px]"
                                                 value={device.type}
-                                                onChange={e => updateControlSurface(device.id, { type: e.target.value as any })}
+                                                onChange={e => updateControlSurface(device.id, { type: e.target.value as 'MIDI' | 'OSC' | 'Generic' })}
                                             >
                                                 <option value="MIDI">MIDI</option>
                                                 <option value="OSC">OSC</option>
@@ -325,7 +317,7 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
 
                             <h4 className="text-[13px] font-bold pt-4">Assignments</h4>
                             <div className="overflow-y-auto max-h-[200px] border border-[#d1d1d6] rounded-md bg-white p-2">
-                                {globalSettings.controlSurfaceAssignments.map(assn => (
+                                {globalSettings.controlSurfaces.assignments.map((assn) => (
                                     <div key={assn.id} className="flex flex-col gap-1 py-1 border-b last:border-b-0">
                                         <div className="flex items-center gap-2">
                                             <select
@@ -334,7 +326,7 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                                                 onChange={e => updateControlSurfaceAssignment(assn.id, { deviceId: e.target.value || undefined })}
                                             >
                                                 <option value="">Any</option>
-                                                {globalSettings.controlSurfaces.map(cs => (
+                                                {globalSettings.controlSurfaces.devices.map((cs) => (
                                                     <option key={cs.id} value={cs.id}>{cs.name}</option>
                                                 ))}
                                             </select>
@@ -342,7 +334,7 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                                             <input className="w-8 text-[12px]" value={assn.channel} onChange={e => updateControlSurfaceAssignment(assn.id, { channel: Number(e.target.value) })} placeholder="ch" />
                                             <input className="w-8 text-[12px]" value={assn.data1} onChange={e => updateControlSurfaceAssignment(assn.id, { data1: Number(e.target.value) })} placeholder="d1" />
                                             <input className="w-8 text-[12px]" value={assn.data2 || ''} onChange={e => updateControlSurfaceAssignment(assn.id, { data2: e.target.value === '' ? undefined : Number(e.target.value) })} placeholder="d2" />
-                                            <select className="text-[12px]" value={assn.mode} onChange={e => updateControlSurfaceAssignment(assn.id, { mode: e.target.value as any })}>
+                                            <select className="text-[12px]" value={assn.mode} onChange={e => updateControlSurfaceAssignment(assn.id, { mode: e.target.value as 'direct' | 'toggle' | 'relative' })}>
                                                 <option value="direct">Direct</option>
                                                 <option value="toggle">Toggle</option>
                                                 <option value="relative">Relative</option>
@@ -410,10 +402,10 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                         </div>
                     )}
 
-                    {activeTab !== 'MIDI' && activeTab !== 'Key Commands' && (
+                    {activeTab !== 'General' && activeTab !== 'Audio' && activeTab !== 'MIDI' && activeTab !== 'Key Commands' && activeTab !== 'Control Surfaces' && (
                         <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-4">
                             <Settings className="w-12 h-12 opacity-10" />
-                            <span className="text-sm font-medium italic">Settings for {activeTab} coming soon...</span>
+                            <span className="text-sm font-medium">"{activeTab}" settings are not available in this version.</span>
                         </div>
                     )}
                 </div>

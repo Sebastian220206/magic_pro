@@ -25,8 +25,8 @@ export interface SaveData {
 
 export function SaveDialog({ projectName, onClose, onSave }: SaveDialogProps) {
     const [name, setName] = useState(() => {
-        const baseName = projectName || "Logic Pro Project";
-        return baseName.endsWith('.logicx') ? baseName : `${baseName}.logicx`;
+        const baseName = projectName || "Magic Pro Project";
+        return baseName.endsWith('.magicx') ? baseName : `${baseName}.magicx`;
     })
     const [organization, setOrganization] = useState<'Package' | 'Folder'>('Package')
     const [assets, setAssets] = useState({
@@ -66,6 +66,7 @@ export function SaveDialog({ projectName, onClose, onSave }: SaveDialogProps) {
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
+                                autoFocus
                                 className="flex-1 bg-white border border-[#D1D1D6] rounded-md px-3 py-1.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
                             />
                         </div>

@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useProjectStore } from "@/store/projectStore";
-import { audioEngine } from "@/engine/audioEngine";
+import { audioEngine } from "@/engine/AudioEngineAdapter";
 import { PlayCircle, PauseCircle, RotateCcw, LayoutGrid } from "lucide-react";
 
 const DEFAULT_SCENES = 8;

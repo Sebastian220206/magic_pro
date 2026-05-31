@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useProjectStore } from '@/store/projectStore'
 import {
     X, Music, Mic, Drum, Keyboard,
@@ -28,10 +28,22 @@ export function NewTrackDialog({ onClose }: NewTrackDialogProps) {
         setNewTrackDefaults
     } = useProjectStore();
 
+    // Initialize trackCount independently from store to avoid resets
+    const [trackCount, setTrackCount] = useState(1);
     const [mainCategory, setMainCategory] = useState<MainCategory>(newTrackDefaults.mainCategory);
     const [subOption, setSubOption] = useState<SubOption>(newTrackDefaults.subOption as SubOption);
-    const [trackCount, setTrackCount] = useState(1);
     const [detailsOpen, setDetailsOpen] = useState(true);
+
+    // Audio Routing State
+    const [audioInput, setAudioInput] = useState('Input 1');
+    const [audioOutput, setAudioOutput] = useState('Output 1 + 2');
+    const [inputMonitoring, setInputMonitoring] = useState(false);
+    const [recordEnable, setRecordEnable] = useState(true);
+    const [ascending, setAscending] = useState(false);
+
+    const { globalSettings } = useProjectStore();
+    const inputDeviceLabel = globalSettings.audio.inputDevice === 'default' ? 'System Setting' : (globalSettings.audio.inputDevice || 'None');
+    const outputDeviceLabel = globalSettings.audio.outputDevice === 'default' ? 'System Setting' : (globalSettings.audio.outputDevice || 'None');
 
     const handleCategoryClick = (cat: MainCategory, opt: SubOption) => {
         setMainCategory(cat);
@@ -67,7 +79,12 @@ export function NewTrackDialog({ onClose }: NewTrackDialogProps) {
                 name: `${name} ${i + 1}`,
                 type: trackType,
                 color: color,
-                icon: icon as any
+                icon: icon as any,
+                recordEnabled: mainCategory === 'Audio' ? recordEnable : false,
+                inputMonitoring: mainCategory === 'Audio' ? inputMonitoring : false,
+                instrument: trackType === 'midi' || trackType === 'software-instrument' || trackType === 'drummer'
+                    ? 'Steinway Piano'
+                    : undefined,
             });
         }
         onClose();
@@ -158,61 +175,170 @@ export function NewTrackDialog({ onClose }: NewTrackDialogProps) {
                         </button>
 
                         {detailsOpen && (
-                            <div className="grid grid-cols-2 gap-x-20 gap-y-6 mt-6 pb-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="text-[12px] font-black text-gray-500 block mb-2">{subOption} Style:</label>
-                                        <div className="relative">
-                                            <select className="w-full bg-white border border-[#d1d1d6] rounded px-3 py-1.5 text-[13px] font-bold text-gray-800 appearance-none outline-none focus:ring-2 focus:ring-sky-500/30">
-                                                <option>Freely</option>
-                                                <option>Modern Pop</option>
-                                                <option>Vintage Soul</option>
-                                                <option>Electronic</option>
-                                            </select>
-                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                                                <div className="bg-sky-500 rounded p-0.5 text-white">
-                                                    <ChevronDownSmall className="w-4 h-4" />
+                            <div className="grid grid-cols-2 gap-x-12 gap-y-6 mt-6 pb-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                                {mainCategory === 'Audio' ? (
+                                    <>
+                                        {/* Audio Input Column */}
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="text-[12px] font-black text-gray-500 block mb-2 uppercase tracking-tight">Audio Input:</label>
+                                                <div className="relative">
+                                                    <select 
+                                                        value={audioInput}
+                                                        onChange={(e) => setAudioInput(e.target.value)}
+                                                        className="w-full bg-[#d1d1d6]/30 border border-[#d1d1d6] rounded px-3 py-1.5 text-[13px] font-bold text-gray-800 appearance-none outline-none focus:ring-2 focus:ring-sky-500/30"
+                                                    >
+                                                        <option>Input 1</option>
+                                                        <option>Input 2</option>
+                                                        <option>Input 1 + 2</option>
+                                                    </select>
+                                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                                                        <div className="bg-[#007aff] rounded p-0.5 text-white">
+                                                            <ChevronDownSmall className="w-3.5 h-3.5" />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <label className="flex items-center gap-2 cursor-pointer group">
-                                            <div className="w-4 h-4 rounded-sm border border-[#d1d1d6] bg-white flex items-center justify-center group-hover:border-sky-500">
-                                                <Check className="w-3 h-3 text-sky-500" />
+                                            
+                                            <div className="space-y-2.5">
+                                                <label className="flex items-center gap-2 cursor-pointer group">
+                                                    <div className="w-4 h-4 rounded-sm border border-[#d1d1d6] bg-white flex items-center justify-center group-hover:border-sky-500 shadow-inner">
+                                                        {/* Unchecked */}
+                                                    </div>
+                                                    <span className="text-[12px] font-bold text-gray-700">Ascending</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer group">
+                                                    <div className="w-4 h-4 rounded-sm border border-[#d1d1d6] bg-white flex items-center justify-center group-hover:border-sky-500 shadow-inner">
+                                                        {/* Unchecked */}
+                                                    </div>
+                                                    <span className="text-[12px] font-bold text-gray-700">Load Default Patch</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer group">
+                                                    <div className="w-4 h-4 rounded-sm border border-sky-500 bg-white flex items-center justify-center shadow-inner">
+                                                        <Check className="w-3 h-3 text-sky-500" strokeWidth={4} />
+                                                    </div>
+                                                    <span className="text-[12px] font-bold text-gray-700">Open Library</span>
+                                                </label>
                                             </div>
-                                            <span className="text-[13px] font-bold text-gray-700">Use Default Chord Progression for New Regions</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer group">
-                                            <div className="w-4 h-4 rounded-sm border border-[#d1d1d6] bg-white flex items-center justify-center group-hover:border-sky-500">
-                                                {/* Hidden check */}
-                                            </div>
-                                            <span className="text-[13px] font-bold text-gray-700">Open Library</span>
-                                        </label>
-                                    </div>
-                                </div>
 
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="text-[12px] font-black text-gray-500 block mb-2">Audio Output:</label>
-                                        <div className="relative">
-                                            <select className="w-full bg-white border border-[#d1d1d6] rounded px-3 py-1.5 text-[13px] font-bold text-gray-800 appearance-none outline-none focus:ring-2 focus:ring-sky-500/30">
-                                                <option>Output 1 + 2</option>
-                                                <option>Output 3 + 4</option>
-                                                <option>Bus 1 (Surround)</option>
-                                            </select>
-                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                                                <div className="bg-sky-500 rounded p-0.5 text-white">
-                                                    <ChevronDownSmall className="w-4 h-4" />
+                                            <div className="flex items-center gap-1.5 pt-2">
+                                                <span className="text-[11px] font-bold text-gray-500 truncate max-w-[140px]">Device: {inputDeviceLabel}</span>
+                                                <div 
+                                                    onClick={() => useProjectStore.getState().setShowSettingsDialog(true, 'Audio', 'Devices')}
+                                                    className="w-3.5 h-3.5 rounded-full border border-gray-400 flex items-center justify-center cursor-pointer hover:bg-gray-200"
+                                                >
+                                                    <ChevronDownSmall className="w-2.5 h-2.5 rotate-[-90deg] text-gray-500" />
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-[12px] font-bold text-gray-500">
-                                        Device: MacBook Pro Speakers
-                                        <Settings2 className="w-3.5 h-3.5 cursor-pointer hover:text-gray-800" />
-                                    </div>
-                                </div>
+
+                                        {/* Audio Output Column */}
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="text-[12px] font-black text-gray-500 block mb-2 uppercase tracking-tight">Audio Output:</label>
+                                                <div className="relative">
+                                                    <select className="w-full bg-[#d1d1d6]/30 border border-[#d1d1d6] rounded px-3 py-1.5 text-[13px] font-bold text-gray-800 appearance-none outline-none focus:ring-2 focus:ring-sky-500/30">
+                                                        <option>Output 1 + 2</option>
+                                                        <option>Output 3 + 4</option>
+                                                    </select>
+                                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                                                        <div className="bg-[#007aff] rounded p-0.5 text-white">
+                                                            <ChevronDownSmall className="w-3.5 h-3.5" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-2.5">
+                                                <label className="flex items-center gap-2 cursor-pointer group" onClick={() => setAscending(!ascending)}>
+                                                    <div className={`w-4 h-4 rounded-sm border border-[#d1d1d6] flex items-center justify-center shadow-inner transition-colors ${ascending ? 'bg-sky-500 border-sky-600' : 'bg-white'}`}>
+                                                        {ascending && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
+                                                    </div>
+                                                    <span className="text-[12px] font-bold text-gray-700">Ascending</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer group" onClick={() => setInputMonitoring(!inputMonitoring)}>
+                                                    <div className={`w-4 h-4 rounded-sm border border-[#d1d1d6] flex items-center justify-center shadow-inner transition-colors ${inputMonitoring ? 'bg-orange-500 border-orange-600' : 'bg-white'}`}>
+                                                        {inputMonitoring && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
+                                                    </div>
+                                                    <span className="text-[12px] font-bold text-gray-700">Input Monitoring</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer group" onClick={() => setRecordEnable(!recordEnable)}>
+                                                    <div className={`w-4 h-4 rounded-sm border border-[#d1d1d6] flex items-center justify-center shadow-inner transition-colors ${recordEnable ? 'bg-red-500 border-red-600' : 'bg-white'}`}>
+                                                        {recordEnable && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
+                                                    </div>
+                                                    <span className="text-[12px] font-bold text-gray-700">Record Enable</span>
+                                                </label>
+                                            </div>
+
+                                            <div className="flex items-center gap-1.5 pt-2">
+                                                <span className="text-[11px] font-bold text-gray-500 truncate max-w-[140px]">Device: {outputDeviceLabel}</span>
+                                                <div 
+                                                    onClick={() => useProjectStore.getState().setShowSettingsDialog(true, 'Audio', 'Devices')}
+                                                    className="w-3.5 h-3.5 rounded-full border border-gray-400 flex items-center justify-center cursor-pointer hover:bg-gray-200"
+                                                >
+                                                    <ChevronDownSmall className="w-2.5 h-2.5 rotate-[-90deg] text-gray-500" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* Software Instrument / Pattern Details (Original Layout) */}
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="text-[12px] font-black text-gray-500 block mb-2">{subOption} Style:</label>
+                                                <div className="relative">
+                                                    <select className="w-full bg-white border border-[#d1d1d6] rounded px-3 py-1.5 text-[13px] font-bold text-gray-800 appearance-none outline-none focus:ring-2 focus:ring-sky-500/30">
+                                                        <option>Freely</option>
+                                                        <option>Modern Pop</option>
+                                                        <option>Vintage Soul</option>
+                                                        <option>Electronic</option>
+                                                    </select>
+                                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                                                        <div className="bg-sky-500 rounded p-0.5 text-white">
+                                                            <ChevronDownSmall className="w-4 h-4" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <label className="flex items-center gap-2 cursor-pointer group">
+                                                    <div className="w-4 h-4 rounded-sm border border-[#d1d1d6] bg-white flex items-center justify-center group-hover:border-sky-500">
+                                                        <Check className="w-3 h-3 text-sky-500" />
+                                                    </div>
+                                                    <span className="text-[13px] font-bold text-gray-700">Use Default Chord Progression</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer group">
+                                                    <div className="w-4 h-4 rounded-sm border border-[#d1d1d6] bg-white flex items-center justify-center group-hover:border-sky-500">
+                                                    </div>
+                                                    <span className="text-[13px] font-bold text-gray-700">Open Library</span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="text-[12px] font-black text-gray-500 block mb-2">Audio Output:</label>
+                                                <div className="relative">
+                                                    <select className="w-full bg-white border border-[#d1d1d6] rounded px-3 py-1.5 text-[13px] font-bold text-gray-800 appearance-none outline-none focus:ring-2 focus:ring-sky-500/30">
+                                                        <option>Output 1 + 2</option>
+                                                        <option>Output 3 + 4</option>
+                                                        <option>Bus 1 (Surround)</option>
+                                                    </select>
+                                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                                                        <div className="bg-sky-500 rounded p-0.5 text-white">
+                                                            <ChevronDownSmall className="w-4 h-4" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[12px] font-bold text-gray-500">
+                                                Device: MacBook Pro Speakers
+                                                <Settings2 className="w-3.5 h-3.5 cursor-pointer hover:text-gray-800" />
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
@@ -227,10 +353,29 @@ export function NewTrackDialog({ onClose }: NewTrackDialogProps) {
                     <div className="flex items-center gap-2">
                         <span className="text-[13px] font-bold text-gray-600">Number of tracks to create:</span>
                         <input
-                            type="text"
+                            type="number"
+                            min={1}
+                            max={99}
                             className="w-14 bg-white border border-[#d1d1d6] rounded px-2 py-1 text-center font-bold text-[13px] outline-none"
                             value={trackCount}
-                            onChange={(e) => setTrackCount(parseInt(e.target.value) || 1)}
+                            onChange={(e) => {
+                                const value = e.target.value
+
+                                if (value === "") {
+                                    setTrackCount("" as any)
+                                    return
+                                }
+
+                                const num = Number(value)
+                                if (!isNaN(num)) {
+                                    setTrackCount(num)
+                                }
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    handleCreate()
+                                }
+                            }}
                         />
                     </div>
 

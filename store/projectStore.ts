@@ -1,8 +1,13 @@
 import { create } from 'zustand';
-import { audioEngine } from '@/engine/audioEngine';
+import { audioEngine } from '@/engine/AudioEngineAdapter';
 import { Track, TrackAlternative, PluginSetting } from '@/models/Track';
 import { Clip, Note, ClipType } from '@/models/Clip';
 import { ArticulationSet, Articulation } from '@/models/Articulation';
+import { serializeStoreState, deserializeState, saveToIndexedDB, loadFromIndexedDB, CURRENT_SCHEMA_VERSION } from '@/engine/persistence/projectPersistence';
+import { rebuildEngine } from '@/engine/persistence/engineRebuilder';
+import { storeAudioFile } from '@/engine/persistence/audioFileStore';
+import { extractPeaksAsync } from '@/engine/waveform';
+import { bufferCacheManager } from '@/engine/audioEngine/bufferCache';
 
 interface GlobalTrackPoint {
     time: number; // beats
@@ -75,6 +80,8 @@ interface ProjectSettings {
     projectEnd: number;   // in beats
     autoProjectEnd: boolean;
     masterVolume: number; // 0.0 to 1.0 (or dB based)
+    masterPan: number;
+    masterMuted: boolean;
     midi: {
         chase: {
             notes: boolean;
@@ -187,19 +194,43 @@ interface GlobalSettings {
     autoBackupCount: number;
     recentItemsLimit: number;
     includeInstrumentSettingsInReset: boolean;
-    audio: {
-        coreAudioEnabled: boolean;
-        inputDevice: string;
-        outputDevice: string;
-        ioBufferSize: number;
-        sampleAccurateAutomation: 'Off' | 'VolumePanSends' | 'All';
-        softwareMonitoring: boolean;
-        lowLatencyMonitoring: boolean;
-        lowLatencyLimitMs: number;
+    audio: Record<string, any>;
+    recording: Record<string, any>;
+    midi: Record<string, any>;
+    score: Record<string, any>;
+    movie: Record<string, any>;
+    automation: Record<string, any>;
+    general: Record<string, any>;
+    view: Record<string, any>;
+    advanced: Record<string, any>;
+    myInfo: Record<string, any>;
+    controlSurfaces: {
+        bypassWhileInBackground: boolean;
+        resolutionOfRelativeControls: number;
+        maxMidiBandwidth: number;
+        touchingFaderSelectsTrack: boolean;
+        followTrackSelection: boolean;
+        openPluginWindowOnSelection: boolean;
+        jogResolutionDependsOnZoom: boolean;
+        pickupMode: boolean;
+        flashMuteSoloButtons: boolean;
+        multipleControlsPerParameter: number;
+        longerLabelsOnlyIfFit: boolean;
+        showValueUnitsForInstrument: boolean;
+        showValueUnitsForVolume: boolean;
+        helpTags: {
+            parameterName: boolean;
+            parameterValue: boolean;
+            displayDuration: number;
+            showInfoMultiple: boolean;
+            showInfoTrackSelection: boolean;
+            showInfoVolume: boolean;
+        };
+        usbMidiControllers: any[];
+        devices: ControlSurfaceDevice[];
+        assignments: ControlSurfaceAssignment[];
+        bypassed: boolean;
     };
-    controlSurfaces: ControlSurfaceDevice[];
-    controlSurfaceAssignments: ControlSurfaceAssignment[];
-    controlSurfacesBypassed: boolean;
     keyCommands: GlobalKeyCommand[];
     useProjectSettings: boolean; // if false, global settings are enforced and project settings are read-only
 }
@@ -207,7 +238,10 @@ interface GlobalSettings {
 interface ProjectState {
     id: string | null;
     name: string;
+    schemaVersion: number;
     tempo: number;
+    timeSignature: string;
+    keySignature: string;
     playing: boolean;
     playhead: number;
     tracks: Track[];
@@ -261,6 +295,7 @@ interface ProjectState {
     surroundFormat: 'Quadraphonic' | 'LCR (Pro Logic)' | '5.1 (ITU 775)' | '6.1 (ES/EX)' | '7.1' | '7.1 (SDDS)' | '5.1.2' | '5.1.4' | '7.1.2' | '7.1.4';
     spatialAudioMode: 'Off' | 'Dolby Atmos';
     bottomPanel: 'mixer' | 'pianoroll' | 'smartcontrols';
+    bottomPanelHeight: number;
     pianoRollLinkMode: 'single' | 'selected' | 'folder' | 'project';
     pianoRollFocusClipId: string | null;
 
@@ -313,6 +348,9 @@ interface ProjectState {
     showBounceRegionsDialog: string[] | null;
     showBounceAllTracksDialog: boolean;
     showExportDialog: 'track' | 'all' | 'regions' | null;
+    showSettingsDialog: boolean;
+    settingsActiveTab: string;
+    settingsActiveSubTab: string;
     showShareDialog: boolean;
     showVirtualKeyboard: boolean;
     virtualKeyboardMode: 'musical-typing' | 'piano-keyboard';
@@ -323,6 +361,8 @@ interface ProjectState {
     virtualKeyboardSustain: boolean;
     showTrackHeaderConfig: boolean;
     trackHeaderWidth: number;
+    openPluginEditor: { trackId: string; pluginId: string } | null;
+    hoveredHelpId: string | null;
     trackHeaderConfig: {
         showMute: boolean;
         showSolo: boolean;
@@ -447,8 +487,8 @@ interface ProjectState {
     toggleCreateTrackUsing: (show: boolean, items?: any[]) => void;
     createTrackFromSamplerType: (type: 'Quick Sampler (Original)' | 'Quick Sampler (Optimized)' | 'Drum Machine Designer' | 'Sample Alchemy' | 'Sampler (Zone Per Note)', items: any[]) => void;
     saveProject: (userId: string) => Promise<void>;
-    saveAs: (data: any) => Promise<void>;
-    saveCopyAs: (data: any) => Promise<void>;
+    saveAs: (data: any, userId?: string) => Promise<void>;
+    saveCopyAs: (data: any, userId?: string) => Promise<void>;
     saveAsTemplate: (name: string) => Promise<void>;
     revertTo: (version?: string) => void;
     loadProject: (projectId: string) => Promise<void>;
@@ -512,6 +552,27 @@ interface ProjectState {
     addPlugin: (trackId: string, pluginType: 'comp' | 'eq' | 'reverb' | 'delay') => void;
     togglePlugin: (trackId: string, pluginId: string) => void;
     addClip: (clip: Clip) => void;
+    currentTool: 'select' | 'split' | 'draw' | 'erase' | 'zoom' | 'mute';
+    setCurrentTool: (tool: 'select' | 'split' | 'draw' | 'erase' | 'zoom' | 'mute') => void;
+    contextMenu: { visible: boolean; x: number; y: number; clipId: string | null };
+    showContextMenu: (x: number, y: number, clipId: string) => void;
+    hideContextMenu: () => void;
+    selectClip: (id: string | null) => void;
+    deselectClip: (clipId: string) => void;
+    deselectAllClips: () => void;
+    toggleClipSelection: (clipId: string) => void;
+    moveClip: (clipId: string, newStartTime: number, newTrackId?: string) => void;
+    moveSelectedClips: (deltaBeats: number, deltaTrackIndex?: number, trackIds?: string[]) => void;
+    splitClip: (clipId: string, splitBeat: number) => void;
+    duplicateSelectedClips: (offsetBeats?: number) => void;
+    updateClipFade: (clipId: string, fadeType: 'in' | 'out', settings: any) => void;
+    stretchClip: (clipId: string, newDuration: number, newPlaybackRate: number) => void;
+    setClipPlaybackRate: (clipId: string, playbackRate: number) => void;
+    setClipPitch: (clipId: string, pitchOffset: number) => void;
+    reverseClip: (clipId: string) => void;
+    renameClip: (clipId: string, newName: string) => void;
+    setClipColor: (clipId: string, color: string) => void;
+    toggleClipMute: (clipId: string) => void;
     duplicateClip: (clipId: string) => void;
     addMediaFile: (file: File, trackId?: string) => void;
     makeAlias: (sourceClipId: string, trackId: string, start: number, aliasName?: string) => void;
@@ -558,6 +619,9 @@ interface ProjectState {
     setTrackHeight: (height: number) => void;
     setSnap: (snap: ProjectState['snap']) => void;
     toggleAutomation: () => void;
+    addAutomationPoint: (trackId: string, parameter: string, time: number, value: number) => void;
+    updateAutomationPoint: (trackId: string, laneIndex: number, pointIndex: number, updatedPoint: any) => void;
+    deleteAutomationPoint: (trackId: string, laneIndex: number, pointIndex: number) => void;
     toggleLibrary: () => void;
     toggleInspector: () => void;
     toggleToolbar: () => void;
@@ -568,6 +632,8 @@ interface ProjectState {
     toggleNotePad: () => void;
     toggleLoopBrowser: () => void;
     toggleBrowsers: () => void;
+    toggleLiveLoops: () => void;
+    toggleTracksArea: () => void;
     toggleGlobalTracks: () => void;
     toggleHideView: () => void;
     setTrackHidden: (trackId: string, hidden: boolean) => void;
@@ -575,8 +641,14 @@ interface ProjectState {
     showSearchAndSelect: boolean;
     toggleSearchAndSelect: (show: boolean) => void;
     setBottomPanel: (panel: 'mixer' | 'pianoroll' | 'smartcontrols') => void;
+    setBottomPanelHeight: (height: number) => void;
     setPianoRollLinkMode: (mode: 'single' | 'selected' | 'folder' | 'project') => void;
     setPianoRollFocusClipId: (clipId: string | null) => void;
+    toggleBeatMapping: () => void;
+    addBeatMappingEntry: (clipId: string, sourceTime: number, targetTime: number, noteId?: string) => void;
+    removeBeatMappingEntry: (entryId: string) => void;
+    clearBeatMapping: () => void;
+    applyBeatMappingToTempo: () => void;
     toggleMetronome: () => void;
     toggleCountIn: () => void;
     setCountInBars: (bars: number) => void;
@@ -613,7 +685,6 @@ interface ProjectState {
     toggleInactiveAlternatives: (trackId: string) => void;
     renameAlternative: (trackId: string, alternativeId: string, name: string) => void;
     swapWithActiveAlternative: (trackId: string, inactiveId: string) => void;
-    selectClip: (id: string | null) => void;
     selectNote: (id: string | null) => void;
     toggleCycle: () => void;
     toggleSkipCycle: () => void;
@@ -637,12 +708,6 @@ interface ProjectState {
     updateControlSurfaceAssignment: (id: string, updates: Partial<ControlSurfaceAssignment>) => void;
     removeControlSurfaceAssignment: (id: string) => void;
     toggleControlSurfacesBypass: () => void;
-
-    assignKeyCommand: (commandId: string, shortcut: string) => void;
-    removeKeyCommand: (commandId: string) => void;
-    resetKeyCommands: () => void;
-    importKeyCommands: (payload: GlobalKeyCommand[]) => void;
-    exportKeyCommands: () => string;
 
     assignProjectKeyCommand: (commandId: string, shortcut: string) => void;
     removeProjectKeyCommand: (commandId: string) => void;
@@ -677,7 +742,8 @@ interface ProjectState {
     setMarqueeSelection: (selection: ProjectState['marqueeSelection']) => void;
     applySelectionBasedProcessing: () => void;
     addPluginToSBP: (set: 'A' | 'B', pluginType: string) => void;
-    removePluginFromSBP: (set: 'A' | 'B', pluginId: string) => void;
+    removePluginFromSBP: (setSide: 'A' | 'B', pluginId: string) => void;
+    updatePluginParams: (trackId: string, pluginId: string, params: Record<string, number>) => void;
 
     // Stacks & Groove
     toggleStackCollapse: (trackId: string, recursive?: boolean) => void;
@@ -693,9 +759,11 @@ interface ProjectState {
     bounceRegionsInPlace: (clipIds: string[], settings: any) => void;
     bounceReplaceAllTracks: (settings: any) => void;
     toggleExportDialog: (type: ProjectState['showExportDialog']) => void;
+    setShowSettingsDialog: (show: boolean, tab?: string, subTab?: string) => void;
     exportAsAudioFiles: (settings: any) => void;
     toggleShareDialog: (show?: boolean) => void;
     shareProject: (options: { format: 'project' | 'song' | 'aaf' | 'xml' | 'musicxml'; destination: 'download' | 'web-share'; includeAssets: boolean; compress: boolean; customName: string}) => Promise<void>;
+    setOpenPluginEditor: (editor: { trackId: string; pluginId: string } | null) => void;
     toggleVirtualKeyboard: (show?: boolean) => void;
     setVirtualKeyboardMode: (mode: ProjectState['virtualKeyboardMode']) => void;
     updateVirtualKeyboardParams: (updates: Partial<{ octave: number, velocity: number, pitchBend: number, modulation: number, sustain: boolean }>) => void;
@@ -715,10 +783,142 @@ interface ProjectState {
     setMidiOutToTrackSlot: (trackId: string, slotIndex: number) => void;
 }
 
+const MAX_HISTORY = 50;
+const MAX_SNAPSHOT_SIZE = 1024 * 1024; // 1MB
+
+function estimatedSize(obj: unknown): number {
+    const seen = new WeakSet();
+    function size(v: unknown): number {
+        if (typeof v === 'string') return v.length * 2;
+        if (typeof v === 'number' || typeof v === 'boolean') return 8;
+        if (v === null || v === undefined) return 0;
+        if (typeof v === 'object') {
+            if (seen.has(v as object)) return 0;
+            seen.add(v as object);
+            if (Array.isArray(v)) return v.reduce((s, x) => s + size(x), 0);
+            return Object.values(v as Record<string, unknown>).reduce((s, x) => s + size(x), 0);
+        }
+        return 0;
+    }
+    return size(obj);
+}
+
+function createHistorySnapshot(state: ProjectState): Partial<ProjectState> {
+    return {
+        id: state.id,
+        name: state.name,
+        schemaVersion: state.schemaVersion,
+        tempo: state.tempo,
+        timeSignature: state.timeSignature,
+        keySignature: state.keySignature,
+        tracks: state.tracks.map(t => ({ ...t })),
+        clips: state.clips.map(c => ({ ...c })),
+        alternatives: state.alternatives ? state.alternatives.map(a => ({ ...a, tracks: a.tracks.map(t => ({ ...t })), clips: a.clips.map(c => ({ ...c })) })) : undefined,
+        currentAlternativeId: state.currentAlternativeId,
+        globalTracks: state.globalTracks ? JSON.parse(JSON.stringify(state.globalTracks)) : undefined,
+        settings: state.settings ? { ...state.settings } : undefined,
+        globalSettings: undefined,
+        environment: state.environment ? { ...state.environment, layers: state.environment.layers.map(l => ({ ...l })), objects: state.environment.objects.map(o => ({ ...o })) } : undefined,
+        projectKeyCommands: state.projectKeyCommands ? state.projectKeyCommands.map(k => ({ ...k })) : undefined,
+        zoom: state.zoom,
+        trackHeight: state.trackHeight,
+        snap: state.snap,
+        controlBarSettings: state.controlBarSettings ? { ...state.controlBarSettings } : undefined,
+        isDirty: state.isDirty,
+        showAutomation: state.showAutomation,
+        showLibrary: state.showLibrary,
+        showInspector: state.showInspector,
+        showToolbar: state.showToolbar,
+        showSmartControls: state.showSmartControls,
+        showMixer: state.showMixer,
+        showEditors: state.showEditors,
+        showListEditors: state.showListEditors,
+        showNotePad: state.showNotePad,
+        showLoopBrowser: state.showLoopBrowser,
+        showBrowsers: state.showBrowsers,
+        showLiveLoopsGrid: state.showLiveLoopsGrid,
+        showTracksArea: state.showTracksArea,
+        showGlobalTracks: state.showGlobalTracks,
+        beatMappingMode: state.beatMappingMode,
+        metronomeEnabled: state.metronomeEnabled,
+        countInEnabled: state.countInEnabled,
+        countInBars: state.countInBars,
+        hideViewActive: state.hideViewActive,
+        selectedTrackIds: state.selectedTrackIds ? [...state.selectedTrackIds] : undefined,
+        focusedTrackId: state.focusedTrackId,
+        selectedClipId: state.selectedClipId,
+        selectedClipIds: state.selectedClipIds ? [...state.selectedClipIds] : undefined,
+        regionClipboard: state.regionClipboard ? state.regionClipboard.map(c => ({ ...c })) : undefined,
+        selectedNoteId: state.selectedNoteId,
+        projectFormat: state.projectFormat,
+        surroundFormat: state.surroundFormat,
+        spatialAudioMode: state.spatialAudioMode,
+        bottomPanel: state.bottomPanel,
+        bottomPanelHeight: state.bottomPanelHeight,
+        pianoRollLinkMode: state.pianoRollLinkMode,
+        pianoRollFocusClipId: state.pianoRollFocusClipId,
+        showSelectionBasedProcessing: state.showSelectionBasedProcessing,
+        marqueeSelection: state.marqueeSelection ? { ...state.marqueeSelection } : undefined,
+        sbpState: state.sbpState ? { ...state.sbpState } : undefined,
+        cycleEnabled: state.cycleEnabled,
+        skipCycleEnabled: state.skipCycleEnabled,
+        locatorLeft: state.locatorLeft,
+        locatorRight: state.locatorRight,
+        autoSetLocators: state.autoSetLocators,
+        showNewTrackDialog: state.showNewTrackDialog,
+        showCreateTrackUsing: state.showCreateTrackUsing,
+        showColorPalette: state.showColorPalette,
+        showIconBrowser: state.showIconBrowser,
+        showDrumReplacement: state.showDrumReplacement,
+        drumReplacementTargetId: state.drumReplacementTargetId,
+        showBounceTrackDialog: state.showBounceTrackDialog,
+        showBounceRegionsDialog: state.showBounceRegionsDialog,
+        showBounceAllTracksDialog: state.showBounceAllTracksDialog,
+        showExportDialog: state.showExportDialog,
+        showSettingsDialog: state.showSettingsDialog,
+        settingsActiveTab: state.settingsActiveTab,
+        settingsActiveSubTab: state.settingsActiveSubTab,
+        showShareDialog: state.showShareDialog,
+        showVirtualKeyboard: state.showVirtualKeyboard,
+        virtualKeyboardMode: state.virtualKeyboardMode,
+        virtualKeyboardOctave: state.virtualKeyboardOctave,
+        virtualKeyboardVelocity: state.virtualKeyboardVelocity,
+        virtualKeyboardPitchBend: state.virtualKeyboardPitchBend,
+        virtualKeyboardModulation: state.virtualKeyboardModulation,
+        virtualKeyboardSustain: state.virtualKeyboardSustain,
+        showTrackHeaderConfig: state.showTrackHeaderConfig,
+        trackHeaderWidth: state.trackHeaderWidth,
+        openPluginEditor: state.openPluginEditor ? { ...state.openPluginEditor } : undefined,
+        hoveredHelpId: state.hoveredHelpId,
+        trackHeaderConfig: state.trackHeaderConfig ? { ...state.trackHeaderConfig } : undefined,
+        showNoteRepeatDialog: state.showNoteRepeatDialog,
+        showSpotEraseDialog: state.showSpotEraseDialog,
+        noteRepeatSettings: state.noteRepeatSettings ? { ...state.noteRepeatSettings } : undefined,
+        spotEraseSettings: state.spotEraseSettings ? { ...state.spotEraseSettings } : undefined,
+        showStepInputKeyboard: state.showStepInputKeyboard,
+        stepInputSettings: state.stepInputSettings ? { ...state.stepInputSettings } : undefined,
+        channelStripSettings: state.channelStripSettings ? state.channelStripSettings.map(c => ({ ...c, settings: { ...c.settings, plugins: c.settings.plugins.map(p => ({ ...p })), sends: c.settings.sends.map(s => ({ ...s })) } })) : undefined,
+        channelStripCopyBuffer: state.channelStripCopyBuffer ? { ...state.channelStripCopyBuffer, plugins: state.channelStripCopyBuffer.plugins.map(p => ({ ...p })), sends: state.channelStripCopyBuffer.sends.map(s => ({ ...s })) } : undefined,
+        channelStripPerformances: state.channelStripPerformances ? state.channelStripPerformances.map(p => ({ ...p, settings: { ...p.settings, plugins: p.settings.plugins.map(p2 => ({ ...p2 })), sends: p.settings.sends.map(s => ({ ...s })) } })) : undefined,
+        librarySearchQuery: state.librarySearchQuery,
+        libraryPatchMerging: state.libraryPatchMerging,
+        libraryMergingOptions: state.libraryMergingOptions ? { ...state.libraryMergingOptions } : undefined,
+        librarySelectedPresetId: state.librarySelectedPresetId,
+        articulationSets: state.articulationSets ? state.articulationSets.map(a => ({ ...a })) : undefined,
+        showArticulationEditor: state.showArticulationEditor,
+        editingArticulationSetId: state.editingArticulationSetId,
+        recentProjects: state.recentProjects ? state.recentProjects.map(r => ({ ...r })) : undefined,
+        demoProjects: state.demoProjects ? state.demoProjects.map(d => ({ ...d })) : undefined,
+    };
+}
+
 export const useProjectStore = create<ProjectState>((set, get) => ({
     id: null,
     name: "Logic Pro Project",
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     tempo: 120,
+    timeSignature: '4/4',
+    keySignature: 'C major',
     playing: false,
     playhead: 0,
     tracks: [],
@@ -729,7 +929,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         tempo: [{ time: 0, value: 120, type: 'jump' }],
         markers: [],
         signature: [{ time: 0, numerator: 4, denominator: 4 }],
-        key: [{ time: 0, root: 'C', mode: 'major' }]
+        key: [{ time: 0, root: 'C', mode: 'major' }],
+        beatMapping: []
     },
     settings: {
         sampleRate: 48000,
@@ -743,6 +944,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectEnd: 128,
         autoProjectEnd: true,
         masterVolume: 0.8,
+        masterPan: 0,
+        masterMuted: false,
         midi: {
             chase: {
                 notes: true, sustained: true, inNoTransposeInstruments: false, programChange: true, pitchBend: true,
@@ -760,19 +963,43 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         autoBackupCount: 5,
         recentItemsLimit: 10,
         includeInstrumentSettingsInReset: true,
-        audio: {
-            coreAudioEnabled: true,
-            inputDevice: 'default',
-            outputDevice: 'default',
-            ioBufferSize: 256,
-            sampleAccurateAutomation: 'All',
-            softwareMonitoring: true,
-            lowLatencyMonitoring: false,
-            lowLatencyLimitMs: 10,
+        audio: {},
+        recording: {},
+        midi: {},
+        score: {},
+        movie: {},
+        automation: {},
+        general: {},
+        view: {},
+        advanced: {},
+        myInfo: {},
+        controlSurfaces: {
+            bypassWhileInBackground: false,
+            resolutionOfRelativeControls: 0,
+            maxMidiBandwidth: 100,
+            touchingFaderSelectsTrack: false,
+            followTrackSelection: true,
+            openPluginWindowOnSelection: true,
+            jogResolutionDependsOnZoom: false,
+            pickupMode: true,
+            flashMuteSoloButtons: true,
+            multipleControlsPerParameter: 0,
+            longerLabelsOnlyIfFit: false,
+            showValueUnitsForInstrument: true,
+            showValueUnitsForVolume: true,
+            helpTags: {
+                parameterName: true,
+                parameterValue: true,
+                displayDuration: 3,
+                showInfoMultiple: true,
+                showInfoTrackSelection: true,
+                showInfoVolume: true,
+            },
+            usbMidiControllers: [],
+            devices: [],
+            assignments: [],
+            bypassed: false,
         },
-        controlSurfaces: [],
-        controlSurfaceAssignments: [],
-        controlSurfacesBypassed: false,
         useProjectSettings: true,
         keyCommands: [
             { id: 'play_stop', name: 'Play/Stop', description: 'Start/stop playback', shortcut: 'Space', defaultShortcut: 'Space', isCustom: false },
@@ -972,8 +1199,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     focusedTrackId: null,
     selectedClipId: null,
     selectedClipIds: [],
+    regionClipboard: [],
     selectedNoteId: null,
+    currentTool: 'select',
+    contextMenu: { visible: false, x: 0, y: 0, clipId: null },
     bottomPanel: 'mixer',
+    bottomPanelHeight: 320,
     showSearchAndSelect: false,
     cycleEnabled: false,
     skipCycleEnabled: false,
@@ -1012,6 +1243,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     showBounceRegionsDialog: null,
     showBounceAllTracksDialog: false,
     showExportDialog: null,
+    showSettingsDialog: false,
+    settingsActiveTab: '',
+    settingsActiveSubTab: '',
     showShareDialog: false,
     showNoteRepeatDialog: false,
     showSpotEraseDialog: false,
@@ -1046,6 +1280,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     virtualKeyboardSustain: false,
     showTrackHeaderConfig: false,
     trackHeaderWidth: 280,
+    openPluginEditor: null,
+    hoveredHelpId: null,
     trackHeaderConfig: {
         showMute: true,
         showSolo: true,
@@ -1162,7 +1398,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         });
 
         if (playhead > 0) get().chaseEvents(playhead);
+        // Audio clips are scheduled by useAudioPlayer hook via advancedScheduler.
+        // Only schedule MIDI clips here since the scheduler doesn't handle MIDI notes.
         clips.forEach(clip => {
+            if (clip.type !== 'midi') return;
             const track = tracks.find(t => t.id === clip.trackId);
             if (!track) return;
             const isMuted = track.muted || (anySolo && !track.soloed);
@@ -1194,9 +1433,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             const increment = (currentTempo / 60 / 60);
             let nextPlayhead = playhead + increment;
             
+            const wrapped = (skipCycleEnabled && nextPlayhead >= locatorLeft && playhead < locatorLeft) || (cycleEnabled && !skipCycleEnabled && nextPlayhead >= locatorRight);
             if (skipCycleEnabled && nextPlayhead >= locatorLeft && playhead < locatorLeft) nextPlayhead = locatorRight;
             else if (cycleEnabled && !skipCycleEnabled && nextPlayhead >= locatorRight) nextPlayhead = locatorLeft;
-            
+
+            if (wrapped) {
+                audioEngine.seekTo(nextPlayhead);
+            }
+
             set({ playhead: nextPlayhead });
             if (recording && nextPlayhead < playhead) {
                 set({ liveRecordingClips: {} });
@@ -1334,13 +1578,24 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }
         if (s.playing) { 
             set({ playing: false, recording: false, recordingStartTime: null, liveRecordingClips: {} }); 
-            audioEngine.stop(); 
+            audioEngine.stopAll(); 
         }
         else { set({ playhead: 0 }); }
     },
 
     setTempo: (bpm) => {
-        set(s => ({ tempo: bpm, globalTracks: { ...s.globalTracks, tempo: [{ time: 0, value: bpm, type: 'jump' }] } }));
+        set(s => {
+            const existing = s.globalTracks?.tempo ?? [];
+            const idx = existing.reduce((p, c, i) => c.time <= s.playhead ? i : p, 0);
+            const updated = [...existing];
+            if (updated[idx] && updated[idx].time <= s.playhead) {
+                updated[idx] = { ...updated[idx], value: bpm };
+            } else {
+                updated.push({ time: s.playhead, value: bpm, type: 'jump' });
+                updated.sort((a, b) => a.time - b.time);
+            }
+            return { tempo: bpm, globalTracks: { ...s.globalTracks, tempo: updated } };
+        });
         audioEngine.setTempo(bpm);
     },
 
@@ -1448,10 +1703,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     },
 
     saveProject: async (userId) => {
-        const { id, name, tempo, tracks, clips, globalTracks, settings, currentAlternativeId, alternatives, globalSettings, environment, projectFormat, surroundFormat, spatialAudioMode, timeSignature, keySignature } = get();
+        const state = get();
+        const { id, name, tempo, tracks, clips, globalTracks, settings, currentAlternativeId, alternatives, globalSettings, environment, projectFormat, surroundFormat, spatialAudioMode, timeSignature, keySignature } = state;
+
+        // Local save to IndexedDB first (fast, offline-capable)
+        if (id && typeof window !== 'undefined') {
+            try {
+                const serialized = serializeStoreState(get);
+                await saveToIndexedDB(id, serialized);
+            } catch (e) {
+                console.warn('[Persistence] Local save failed:', e);
+            }
+        }
+
+        // Remote save to server API
         try {
             const nestedTracks = tracks.map(t => ({ ...t, clips: clips.filter(c => c.trackId === t.id) }));
-            await fetch("/api/project/save", {
+            const res = await fetch("/api/project/save", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -1473,16 +1741,30 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                     environment
                 })
             });
-        } catch (error) { console.error(error); }
+            if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+            const apiResponse = await res.json();
+            set({ id: apiResponse.id, isDirty: false });
+        } catch (error) { console.error(error); throw error; }
     },
 
     saveAs: async (data) => {
-        const { tempo, tracks, clips, globalTracks, settings, currentAlternativeId, alternatives, globalSettings, environment, projectFormat, surroundFormat, spatialAudioMode, timeSignature, keySignature } = get();
+        const state = get();
+        const { tempo, tracks, clips, globalTracks, settings, currentAlternativeId, alternatives, globalSettings, environment, projectFormat, surroundFormat, spatialAudioMode, timeSignature, keySignature } = state;
         try {
             const newId = `proj-${Date.now()}`;
             const nestedTracks = tracks.map(t => ({ ...t, clips: clips.filter(c => c.trackId === t.id) }));
             set({ id: newId, name: data.name });
-            await fetch("/api/project/save", {
+
+            // Local save first
+            if (typeof window !== 'undefined') {
+                const serialized = serializeStoreState(get);
+                saveToIndexedDB(newId, serialized).catch((e: any) =>
+                    console.warn('[Persistence] Local saveAs failed:', e)
+                );
+            }
+
+            // Remote save
+            const res = await fetch("/api/project/save", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -1504,14 +1786,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                     environment
                 })
             });
-        } catch (error) { console.error(error); }
+            if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+            const result = await res.json();
+            set({ id: result.id, isDirty: false });
+        } catch (error) { console.error(error); throw error; }
     },
 
     saveCopyAs: async (data) => {
-        const { tempo, tracks, clips, globalTracks, settings, currentAlternativeId, alternatives, globalSettings, environment, projectFormat, surroundFormat, spatialAudioMode, timeSignature, keySignature } = get();
+        const state = get();
+        const { tempo, tracks, clips, globalTracks, settings, currentAlternativeId, alternatives, globalSettings, environment, projectFormat, surroundFormat, spatialAudioMode, timeSignature, keySignature } = state;
         try {
             const copyId = `copy-${Date.now()}`;
             const nestedTracks = tracks.map(t => ({ ...t, clips: clips.filter(c => c.trackId === t.id) }));
+
+            // Local save
+            if (typeof window !== 'undefined') {
+                const tempState = { ...serializeStoreState(get), id: copyId, name: data.name };
+                await saveToIndexedDB(copyId, tempState);
+            }
+
             await fetch("/api/project/save", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -1543,52 +1836,118 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     revertTo: (version) => { console.log("Reverting..."); },
 
     loadProject: async (projectId) => {
-        // Ensure global defaults are loaded first, then project settings override.
         get().loadGlobalSettings();
+        let loaded = false;
 
-        try {
-            const resp = await fetch(`/api/project/${projectId}`);
-            if (resp.ok) {
-                const data = await resp.json();
-                const tracks = data.tracks || [];
-                const clips = tracks.flatMap((t: any) => (t.clips || []).map((c: any) => ({ ...c, trackId: t.id })));
+        // Try IndexedDB first (fast, offline-capable)
+        if (typeof window !== 'undefined') {
+            try {
+                const persisted = await loadFromIndexedDB(projectId);
+                if (persisted && persisted.state) {
+                    const restored = deserializeState(persisted.state);
+                    set({ globalSettings: { ...get().globalSettings, ...restored.globalSettings } });
+                    set(restored);
 
-                if (data.globalSettings) {
-                    set({ globalSettings: { ...get().globalSettings, ...data.globalSettings } });
+                    const result = await rebuildEngine({
+                        tracks: restored.tracks || [],
+                        clips: restored.clips || [],
+                        tempo: restored.tempo || 120,
+                        projectFormat: restored.projectFormat,
+                        surroundFormat: restored.surroundFormat,
+                        spatialAudioMode: restored.spatialAudioMode,
+                    });
+
+                    if (!result.success) {
+                        console.warn('[Persistence] Engine rebuild had issues:', result.errors);
+                    }
+                    loaded = true;
+                    console.log(`[Persistence] Loaded project from IndexedDB: ${projectId}`);
                 }
-
-                set({
-                    id: data.id,
-                    name: data.name,
-                    tempo: data.tempo,
-                    projectFormat: data.projectFormat || get().projectFormat,
-                    surroundFormat: data.surroundFormat || get().surroundFormat,
-                    spatialAudioMode: data.spatialAudioMode || get().spatialAudioMode,
-                    tracks: tracks.map((t: any) => { const { clips, ...trackData } = t; return trackData; }),
-                    clips,
-                    globalTracks: data.globalTracks || get().globalTracks,
-                    settings: data.settings || get().settings,
-                    globalSettings: data.globalSettings || get().globalSettings,
-                    environment: data.environment || get().environment,
-                    alternatives: data.alternatives || [],
-                    currentAlternativeId: data.currentAlternativeId || null
-                });
-                audioEngine.setTempo(data.tempo);
-                audioEngine.configureAudioFormat(data.projectFormat || get().projectFormat, data.surroundFormat || get().surroundFormat, data.spatialAudioMode || get().spatialAudioMode);
+            } catch (e) {
+                console.warn('[Persistence] IndexedDB load failed, falling back to API:', e);
             }
-        } catch (e) {
-            console.error(e);
+        }
+
+        // Fallback to server API
+        if (!loaded) {
+            try {
+                const resp = await fetch(`/api/project/${projectId}`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const tracks = data.tracks || [];
+                    const clips = tracks.flatMap((t: any) => (t.clips || []).map((c: any) => ({ ...c, trackId: t.id })));
+
+                    if (data.globalSettings) {
+                        set({ globalSettings: { ...get().globalSettings, ...data.globalSettings } });
+                    }
+
+                    set({
+                        id: data.id,
+                        name: data.name,
+                        tempo: data.tempo,
+                        projectFormat: data.projectFormat || get().projectFormat,
+                        surroundFormat: data.surroundFormat || get().surroundFormat,
+                        spatialAudioMode: data.spatialAudioMode || get().spatialAudioMode,
+                        tracks: tracks.map((t: any) => { const { clips, ...trackData } = t; return trackData; }),
+                        clips,
+                        globalTracks: data.globalTracks || get().globalTracks,
+                        settings: data.settings || get().settings,
+                        globalSettings: data.globalSettings || get().globalSettings,
+                        environment: data.environment || get().environment,
+                        alternatives: data.alternatives || [],
+                        currentAlternativeId: data.currentAlternativeId || null
+                    });
+
+                    const result = await rebuildEngine({
+                        tracks: tracks.map((t: any) => { const { clips, ...trackData } = t; return trackData; }),
+                        clips,
+                        tempo: data.tempo || 120,
+                        projectFormat: data.projectFormat,
+                        surroundFormat: data.surroundFormat,
+                        spatialAudioMode: data.spatialAudioMode,
+                    });
+
+                    if (!result.success) {
+                        console.warn('[Persistence] Engine rebuild had issues:', result.errors);
+                    }
+                    loaded = true;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        if (!loaded) {
+            console.warn(`[Persistence] Failed to load project: ${projectId}`);
         }
     },
 
-    closeProject: () => set({ id: null, name: 'Untitled Project', tracks: [], clips: [], isDirty: false, playing: false, playhead: 0, history: [], future: [] }),
+    closeProject: () => {
+        const s = get();
+        // Save to IndexedDB before closing if dirty
+        if (s.id && s.isDirty && typeof window !== 'undefined') {
+            const serialized = serializeStoreState(get);
+            saveToIndexedDB(s.id, serialized).catch((e: any) =>
+                console.warn('[Persistence] Close save failed:', e)
+            );
+        }
+        set({ id: null, name: 'Untitled Project', tracks: [], clips: [], isDirty: false, playing: false, playhead: 0, history: [], future: [] });
+    },
 
     setDirty: (dirty) => set({ isDirty: dirty }),
 
     saveHistorySnapshot: () => {
-        const snapshot = JSON.parse(JSON.stringify(get()));
+        const state = get();
+        const snapshot = createHistorySnapshot(state);
+        const size = estimatedSize(snapshot);
+        if (size > MAX_SNAPSHOT_SIZE) {
+            console.warn('[History] Snapshot too large, skipping:', (size / 1024).toFixed(1) + 'KB');
+            return;
+        }
         set(s => {
             const nextHistory = [...(s.history || []), snapshot];
+            if (nextHistory.length > MAX_HISTORY) nextHistory.shift();
+            console.debug('[History] snapshot', (size / 1024).toFixed(1) + 'KB', 'history:', nextHistory.length);
             return { history: nextHistory, future: [] };
         });
     },
@@ -1598,7 +1957,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         if (!history || history.length === 0) return;
         const lastState = history[history.length - 1];
         const prevHistory = history.slice(0, -1);
-        set({ ...lastState, history: prevHistory, future: [...(future || []), JSON.parse(JSON.stringify(get()))] });
+        const currentSnapshot = createHistorySnapshot(get());
+        set({ ...lastState, history: prevHistory, future: [...(future || []), currentSnapshot] });
     },
 
     redo: () => {
@@ -1606,7 +1966,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         if (!future || future.length === 0) return;
         const nextState = future[future.length - 1];
         const nextFuture = future.slice(0, -1);
-        set({ ...nextState, history: [...(history || []), JSON.parse(JSON.stringify(get()))], future: nextFuture });
+        const currentSnapshot = createHistorySnapshot(get());
+        const nextHistory = [...(history || []), currentSnapshot];
+        if (nextHistory.length > MAX_HISTORY) nextHistory.shift();
+        set({ ...nextState, history: nextHistory, future: nextFuture });
     },
 
     importLegacyProject: (legacyData) => {
@@ -1733,7 +2096,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })),
 
     updateTrack: (id, updates) => {
-        get().saveHistorySnapshot();
         set(s => ({ tracks: s.tracks.map(t => t.id === id ? { ...t, ...updates } : t), isDirty: true }));
         const t = get().tracks.find(t => t.id === id);
         if (t) audioEngine.updateTrackParams(id, t.volume, t.pan);
@@ -1741,6 +2103,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     deleteTrack: (id) => {
         get().saveHistorySnapshot();
+        audioEngine.removeTrack(id);
         set(s => ({ tracks: s.tracks.filter(t => t.id !== id), clips: s.clips.filter(c => c.trackId !== id), isDirty: true }));
     },
 
@@ -1889,7 +2252,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const newSetting = {
             id: newSettingId,
             name,
-            type: track.type === 'audio' ? 'audio' : (track.type === 'bus' || track.type === 'output' ? 'output' : 'instrument'),
+            type: (track.type === 'audio' ? 'audio' : (track.type === 'bus' || track.type === 'output' ? 'output' : 'instrument')) as 'audio' | 'output' | 'instrument',
             settings: {
                 plugins: track.plugins.map(p => ({ ...p })),
                 sends: track.sends.map(s => ({ ...s })),
@@ -1964,7 +2327,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             flexTimeFactor: 1,
             flexPitchOffset: 0,
         };
-        return { clips: [...s.clips, { ...defaultClip, ...clip }] };
+        return { clips: [...s.clips, { ...defaultClip, ...clip, startBeat: clip.startBeat ?? clip.start, startTime: clip.startTime ?? clip.start } as Clip] };
     }),
 
     makeAlias: (sourceClipId, trackId, start, aliasName) => {
@@ -2131,7 +2494,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     trimClip: (clipId, trimLeft, trimRight) => {
         const s = get();
         const clip = s.clips.find(c => c.id === clipId);
-        if (!clip || clip.type !== 'audio') return;
+        if (!clip) return;
 
         const newStart = clip.start + Math.max(0, trimLeft);
         const newDuration = Math.max(0.1, clip.duration - Math.max(0, trimLeft) - Math.max(0, trimRight));
@@ -2198,10 +2561,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         stems.forEach((stem, idx) => {
             const trackId = `track-${Date.now()}-${Math.random().toString(36).slice(2, 5)}-${idx}`;
             const trackColor = ['#fb7185', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'][idx % 6];
-            const stemTrack = {
+            const stemTrack: Track = {
                 id: trackId,
                 name: `${clip.name} - ${stem}`,
-                type: 'audio' as const,
+                type: 'audio',
                 color: trackColor,
                 icon: 'mic',
                 orderIndex: newTrackOrderBase + idx,
@@ -2211,7 +2574,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 pan: 0,
                 protected: false,
                 frozen: false,
+                freezeMode: 'Source Only',
                 enabled: true,
+                recordEnabled: false,
+                inputMonitoring: false,
                 alternatives: [{ id: 'alt-1', name: 'A' }],
                 activeAlternativeId: 'alt-1',
                 showInactiveAlternatives: false,
@@ -2243,10 +2609,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
         if (includeSubmix) {
             const submixTrackId = `track-${Date.now()}-submix`;
-            const submixTrack = {
+            const submixTrack: Track = {
                 id: submixTrackId,
                 name: `${clip.name} - Submix`,
-                type: 'audio' as const,
+                type: 'audio',
                 color: '#9ca3af',
                 icon: 'mic',
                 orderIndex: newTrackOrderBase + stems.length,
@@ -2256,7 +2622,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 pan: 0,
                 protected: false,
                 frozen: false,
+                freezeMode: 'Source Only',
                 enabled: true,
+                recordEnabled: false,
+                inputMonitoring: false,
                 alternatives: [{ id: 'alt-1', name: 'A' }],
                 activeAlternativeId: 'alt-1',
                 showInactiveAlternatives: false,
@@ -2291,8 +2660,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         });
     },
 
-    addMediaFile: (file, trackId) => {
-        const { addTrack, addClip, tracks, focusedTrackId } = get();
+    addMediaFile: async (file, trackId) => {
+        const { addTrack, addClip, tracks, focusedTrackId, playhead, globalTracks } = get();
         let assignedTrackId = trackId || focusedTrackId || tracks.find(t => t.type === 'audio')?.id;
 
         if (!assignedTrackId) {
@@ -2302,20 +2671,100 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
         const fileExt = (file.name.split('.').pop() || '').toLowerCase();
         const isMidi = fileExt === 'mid' || fileExt === 'midi';
-        const clipType: 'audio' | 'midi' = isMidi ? 'midi' : 'audio';
 
-        const fileUrl = URL.createObjectURL(file);
+        if (isMidi) {
+            const fileUrl = URL.createObjectURL(file);
+            addClip({
+                id: `clip-${Date.now()}`,
+                trackId: assignedTrackId,
+                name: file.name,
+                type: 'midi',
+                alternativeId: 'alt-1',
+                start: playhead || 0,
+                startBeat: playhead || 0,
+                startTime: playhead || 0,
+                duration: 8,
+                color: '#66FFA9',
+                fileUrl,
+                offset: 0,
+                muted: false,
+                loop: false,
+                qSwing: 0,
+                transpose: 0,
+                velocityOffset: 0,
+            } as any);
+            return;
+        }
+
+        // Store audio file in IndexedDB for persistence across reloads
+        let storageKey: string | undefined;
+        try {
+            const record = await storeAudioFile(file, file.name);
+            storageKey = record.storageKey;
+        } catch (e) {
+            console.warn('[Persistence] Failed to store audio file in IndexedDB, falling back to blob URL:', e);
+        }
+
+        // Decode audio to get real duration, cache the buffer, and generate waveform peaks
+        const clipId = `clip-${Date.now()}`;
+        let audioBuffer: AudioBuffer | null = null;
+        let durationBeats = 8;
+        let waveformPeaks: Clip['waveformPeaks'] = undefined;
+        let fileUrl: string | undefined;
+
+        try {
+            const ctx = audioEngine.getContext();
+            if (!ctx) {
+                console.warn('[Import] No AudioContext available, using defaults');
+                throw new Error('no context');
+            }
+            const arrayBuffer = await file.arrayBuffer();
+            audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+
+            // Calculate duration in beats from real time
+            const tempo = globalTracks?.tempo?.[0]?.value ?? 120;
+            durationBeats = (audioBuffer.duration / 60) * tempo;
+
+            // Generate waveform peaks
+            const peaks = await extractPeaksAsync(audioBuffer);
+            waveformPeaks = {
+                channels: peaks.channels.map(ch => ({
+                    min: ch.min,
+                    max: ch.max,
+                })),
+                resolution: peaks.resolution,
+                durationSeconds: peaks.durationSeconds,
+                numChannels: peaks.numChannels,
+            };
+
+            // Cache the AudioBuffer keyed by clip ID for scheduler lookup
+            bufferCacheManager.addBuffer(clipId, audioBuffer, file.name);
+
+            // Create blob URL for waveform preview / fallback decode
+            fileUrl = URL.createObjectURL(file);
+        } catch (e) {
+            console.warn('[Import] Failed to decode audio, falling back to defaults:', e);
+            fileUrl = storageKey ? undefined : URL.createObjectURL(file);
+        }
+
+        const startBeat = playhead || 0;
 
         addClip({
-            id: `clip-${Date.now()}`,
+            id: clipId,
             trackId: assignedTrackId,
             name: file.name,
-            type: clipType,
+            type: 'audio',
             alternativeId: 'alt-1',
-            start: 0,
-            duration: 8,
-            color: clipType === 'audio' ? '#64D2FF' : '#66FFA9',
+            start: startBeat,
+            startBeat,
+            startTime: startBeat,
+            duration: durationBeats,
+            color: '#64D2FF',
             fileUrl,
+            storageKey,
+            bufferId: audioBuffer ? clipId : undefined,
+            originalName: file.name,
+            waveformPeaks,
             offset: 0,
             muted: false,
             loop: false,
@@ -2361,6 +2810,91 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         clips: s.clips
             .filter(c => c.id !== id)
             .map(c => c.aliasOf === id ? { ...c, /* orphan alias remains, can be converted using helper */ } : c)
+    })),
+    setCurrentTool: (tool) => set({ currentTool: tool }),
+    showContextMenu: (x, y, clipId) => set({ contextMenu: { visible: true, x, y, clipId } }),
+    hideContextMenu: () => set({ contextMenu: { visible: false, x: 0, y: 0, clipId: null } }),
+    deselectClip: (clipId) => set(s => ({
+        selectedClipIds: s.selectedClipIds.filter(id => id !== clipId),
+        selectedClipId: s.selectedClipId === clipId ? null : s.selectedClipId,
+    })),
+    deselectAllClips: () => set({ selectedClipIds: [], selectedClipId: null }),
+    toggleClipSelection: (clipId) => set(s => {
+        const exists = s.selectedClipIds.includes(clipId);
+        const ids = exists ? s.selectedClipIds.filter(id => id !== clipId) : [...s.selectedClipIds, clipId];
+        return { selectedClipIds: ids, selectedClipId: ids.length > 0 ? ids[ids.length - 1] : null };
+    }),
+    moveClip: (clipId, newStartTime, newTrackId) => set(s => ({
+        clips: s.clips.map(c => c.id === clipId ? { ...c, startBeat: newStartTime, start: newStartTime, startTime: newStartTime, trackId: newTrackId ?? c.trackId } : c),
+        isDirty: true,
+    })),
+    moveSelectedClips: (deltaBeats, deltaTrackIndex, trackIds) => set(s => ({
+        clips: s.clips.map(c => {
+            if (!s.selectedClipIds.includes(c.id)) return c;
+            return { ...c, startBeat: (c.startBeat ?? c.start) + deltaBeats, start: c.start + deltaBeats, startTime: (c.startTime ?? c.start) + deltaBeats };
+        }),
+        isDirty: true,
+    })),
+    splitClip: (clipId, splitBeat) => set(s => {
+        const clip = s.clips.find(c => c.id === clipId);
+        if (!clip) return {};
+        const secondHalf: Clip = {
+            ...clip,
+            id: `clip-${Date.now()}`,
+            start: splitBeat,
+            startBeat: splitBeat,
+            startTime: splitBeat,
+            name: `${clip.name} (Part 2)`,
+        };
+        const firstHalf = {
+            ...clip,
+            duration: splitBeat - (clip.startBeat ?? clip.start),
+        };
+        return {
+            clips: [...s.clips.filter(c => c.id !== clipId), firstHalf, secondHalf],
+            selectedClipIds: [firstHalf.id, secondHalf.id],
+            isDirty: true,
+        };
+    }),
+    duplicateSelectedClips: (offsetBeats) => set(s => {
+        const dups = s.clips.filter(c => s.selectedClipIds.includes(c.id)).map(c => ({
+            ...c,
+            id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            start: c.start + (offsetBeats ?? c.duration),
+            startBeat: (c.startBeat ?? c.start) + (offsetBeats ?? c.duration),
+            startTime: c.startTime + (offsetBeats ?? c.duration),
+        }));
+        return { clips: [...s.clips, ...dups], selectedClipIds: dups.map(d => d.id), isDirty: true };
+    }),
+    updateClipFade: (clipId, fadeType, settings) => set(s => ({
+        clips: s.clips.map(c => c.id === clipId ? { ...c, [fadeType === 'in' ? 'fadeIn' : 'fadeOut']: settings } : c),
+        isDirty: true,
+    })),
+    stretchClip: (clipId, newDuration, newPlaybackRate) => set(s => ({
+        clips: s.clips.map(c => c.id === clipId ? { ...c, duration: newDuration, flexTimeFactor: newPlaybackRate } : c),
+        isDirty: true,
+    })),
+    setClipPlaybackRate: (clipId, playbackRate) => set(s => ({
+        clips: s.clips.map(c => c.id === clipId ? { ...c, flexTimeFactor: playbackRate } : c),
+        isDirty: true,
+    })),
+    setClipPitch: (clipId, pitchOffset) => set(s => ({
+        clips: s.clips.map(c => c.id === clipId ? { ...c, flexPitchOffset: pitchOffset, transpose: pitchOffset } : c),
+        isDirty: true,
+    })),
+    reverseClip: (clipId) => set(s => ({
+        clips: s.clips.map(c => c.id === clipId ? { ...c, name: `${c.name} (Rev)` } : c),
+        isDirty: true,
+    })),
+    renameClip: (clipId, newName) => set(s => ({
+        clips: s.clips.map(c => c.id === clipId ? { ...c, name: newName } : c),
+    })),
+    setClipColor: (clipId, color) => set(s => ({
+        clips: s.clips.map(c => c.id === clipId ? { ...c, color } : c),
+    })),
+    toggleClipMute: (clipId) => set(s => ({
+        clips: s.clips.map(c => c.id === clipId ? { ...c, muted: !c.muted } : c),
+        isDirty: true,
     })),
 
     addNote: (clipId, note) => set(s => ({ clips: s.clips.map(c => c.id === clipId ? { ...c, notes: [...(c.notes || []), note] } : c) })),
@@ -2435,6 +2969,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             type: 'audio',
             name: `${newTrack.name} Region`,
             start: minStart,
+            startTime: minStart,
             duration: maxEnd - minStart,
             offset: 0,
             color: track.color,
@@ -2442,7 +2977,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             loop: false,
             qSwing: 0,
             transpose: 0,
-            velocityOffset: 0
+            velocityOffset: 0,
+            fadeIn: { duration: 0, curve: 'linear', gain: 1 },
+            fadeOut: { duration: 0, curve: 'linear', gain: 1 },
+            playbackRate: 1,
+            pitchOffset: 0,
+            stretchMode: 'none'
         };
 
         return {
@@ -2542,6 +3082,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                     type: 'audio',
                     name: `${t.name}_bip region`,
                     start: minStart,
+                    startTime: minStart,
                     duration: maxEnd - minStart,
                     offset: 0,
                     color: t.color,
@@ -2549,7 +3090,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                     loop: false,
                     qSwing: 0,
                     transpose: 0,
-                    velocityOffset: 0
+                    velocityOffset: 0,
+                    fadeIn: { duration: 0, curve: 'linear', gain: 1 },
+                    fadeOut: { duration: 0, curve: 'linear', gain: 1 },
+                    playbackRate: 1,
+                    pitchOffset: 0,
+                    stretchMode: 'none'
                 });
             }
         });
@@ -2563,6 +3109,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }),
 
     toggleExportDialog: (type) => set({ showExportDialog: type }),
+    setShowSettingsDialog: (show, tab, subTab) => set({
+        showSettingsDialog: show,
+        settingsActiveTab: tab ?? '',
+        settingsActiveSubTab: subTab ?? '',
+    }),
+    updatePluginParams: (trackId, pluginId, params) => {
+        audioEngine.updatePluginParams(trackId, pluginId, params);
+        set({ isDirty: true });
+    },
     exportAsAudioFiles: (settings) => {
         console.log('Exporting with settings:', settings);
         // In a real app, this would trigger a series of downloads or a zip creation
@@ -2625,6 +3180,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     toggleVirtualKeyboard: (show) => set(s => ({ showVirtualKeyboard: show !== undefined ? show : !s.showVirtualKeyboard })),
     setVirtualKeyboardMode: (mode) => set({ virtualKeyboardMode: mode }),
+    setOpenPluginEditor: (editor) => set({ openPluginEditor: editor }),
     updateVirtualKeyboardParams: (updates) => set(s => ({
         virtualKeyboardOctave: updates.octave !== undefined ? updates.octave : s.virtualKeyboardOctave,
         virtualKeyboardVelocity: updates.velocity !== undefined ? updates.velocity : s.virtualKeyboardVelocity,
@@ -2683,6 +3239,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                         name: 'Step Recording',
                         alternativeId: targetTrack.activeAlternativeId || 'default',
                         start: Math.floor(playhead),
+                        startTime: Math.floor(playhead),
                         duration: 8,
                         offset: 0,
                         muted: false,
@@ -2691,7 +3248,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                         velocityOffset: 0,
                         qSwing: 0,
                         color: targetTrack.color || '#5dd3ff',
-                        notes: []
+                        notes: [],
+                        fadeIn: { duration: 0, curve: 'linear', gain: 1 },
+                        fadeOut: { duration: 0, curve: 'linear', gain: 1 },
+                        playbackRate: 1,
+                        pitchOffset: 0,
+                        stretchMode: 'none'
                     };
                     set(s => ({ clips: [...s.clips, newClip] }));
                     clip = newClip;
@@ -2791,6 +3353,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                     name: `MIDI Tape ${pitch}`,
                     alternativeId: targetTrack.activeAlternativeId || 'default',
                     start: playhead,
+                    startTime: playhead,
                     duration: 1, 
                     offset: 0,
                     muted: false,
@@ -2799,7 +3362,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                     velocityOffset: 0,
                     qSwing: 0,
                     color: targetTrack.color || '#5dd3ff',
-                    notes: []
+                    notes: [],
+                    fadeIn: { duration: 0, curve: 'linear', gain: 1 },
+                    fadeOut: { duration: 0, curve: 'linear', gain: 1 },
+                    playbackRate: 1,
+                    pitchOffset: 0,
+                    stretchMode: 'none'
                 };
                 set(s => ({ 
                     clips: [...s.clips, newClip],
@@ -2940,6 +3508,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })),
     toggleSearchAndSelect: (show) => set({ showSearchAndSelect: show }),
     setBottomPanel: (p) => set({ bottomPanel: p }),
+    setBottomPanelHeight: (height) => set({ bottomPanelHeight: height }),
     setPianoRollLinkMode: (mode) => set({ pianoRollLinkMode: mode }),
     setPianoRollFocusClipId: (clipId) => set({ pianoRollFocusClipId: clipId }),
     toggleMetronome: () => set(s => {
@@ -3531,18 +4100,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         };
     }),
 
-    initializeProject: (settings) => {
+    initializeProject: (settings: { tempo: number; timeSignature: string; keySignature: string; projectFormat?: string; surroundFormat?: string; spatialAudioMode?: string }) => {
         const [num, den] = settings.timeSignature.split('/').map(Number);
         const [root, mode] = settings.keySignature.split(' ');
+        const newId = `proj-${Date.now()}`;
         set({
-            id: `proj-${Date.now()}`,
+            id: newId,
             name: "New Project",
             tempo: settings.tempo,
             tracks: [],
             clips: [],
-            projectFormat: settings.projectFormat || 'stereo',
-            surroundFormat: settings.surroundFormat || '5.1 (ITU 775)',
-            spatialAudioMode: settings.spatialAudioMode || 'Off',
+            projectFormat: (settings.projectFormat || 'stereo') as 'stereo' | 'surround' | 'dolby-atmos',
+            surroundFormat: (settings.surroundFormat || '5.1 (ITU 775)') as 'Quadraphonic' | 'LCR (Pro Logic)' | '5.1 (ITU 775)' | '6.1 (ES/EX)' | '7.1' | '7.1 (SDDS)' | '5.1.2' | '5.1.4' | '7.1.2' | '7.1.4',
+            spatialAudioMode: (settings.spatialAudioMode || 'Off') as 'Off' | 'Dolby Atmos',
             globalTracks: {
                 tempo: [{ time: 0, value: settings.tempo, type: 'jump' }],
                 markers: [],
@@ -3553,11 +4123,24 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         });
         audioEngine.setTempo(settings.tempo);
         audioEngine.configureAudioFormat(settings.projectFormat || 'stereo', settings.surroundFormat || '5.1 (ITU 775)', settings.spatialAudioMode || 'Off');
+
+        // Save new project to IndexedDB immediately
+        if (typeof window !== 'undefined') {
+            const serialized = serializeStoreState(get);
+            saveToIndexedDB(newId, serialized).catch((e: any) =>
+                console.warn('[Persistence] Failed to save initial project:', e)
+            );
+        }
     },
 
     openProject: async (id) => {
         await get().loadProject(id);
         set(s => ({ recentProjects: s.recentProjects.map(p => p.id === id ? { ...p, lastOpened: Date.now() } : p) }));
+        // Ensure engine state is synced after open
+        const state = get();
+        state.tracks.forEach(t => {
+            audioEngine.updateTrackParams(t.id, t.volume, t.pan);
+        });
     },
 
     updateProjectSettings: (updates) => set(s => {
@@ -3762,57 +4345,75 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }
     })),
 
-    addControlSurface: (device) => set(s => {
-        const next = {
+    addControlSurface: (device) => set(s => ({
+        globalSettings: {
             ...s.globalSettings,
-            controlSurfaces: [...s.globalSettings.controlSurfaces, device]
-        };
-        if (typeof window !== 'undefined') localStorage.setItem('logicDawGlobalSettings', JSON.stringify(next));
-        return { globalSettings: next };
-    }),
+            controlSurfaces: {
+                ...s.globalSettings.controlSurfaces,
+                devices: [...s.globalSettings.controlSurfaces.devices, device]
+            }
+        }
+    })),
 
-    updateControlSurface: (id, updates) => set(s => {
-        const controlSurfaces = s.globalSettings.controlSurfaces.map(cs => cs.id === id ? { ...cs, ...updates } : cs);
-        const next = { ...s.globalSettings, controlSurfaces };
-        if (typeof window !== 'undefined') localStorage.setItem('logicDawGlobalSettings', JSON.stringify(next));
-        return { globalSettings: next };
-    }),
-
-    removeControlSurface: (id) => set(s => {
-        const controlSurfaces = s.globalSettings.controlSurfaces.filter(cs => cs.id !== id);
-        const next = { ...s.globalSettings, controlSurfaces };
-        if (typeof window !== 'undefined') localStorage.setItem('logicDawGlobalSettings', JSON.stringify(next));
-        return { globalSettings: next };
-    }),
-
-    addControlSurfaceAssignment: (assignment) => set(s => {
-        const next = {
+    updateControlSurface: (id, updates) => set(s => ({
+        globalSettings: {
             ...s.globalSettings,
-            controlSurfaceAssignments: [...s.globalSettings.controlSurfaceAssignments, assignment]
-        };
-        if (typeof window !== 'undefined') localStorage.setItem('logicDawGlobalSettings', JSON.stringify(next));
-        return { globalSettings: next };
-    }),
+            controlSurfaces: {
+                ...s.globalSettings.controlSurfaces,
+                devices: s.globalSettings.controlSurfaces.devices.map(cs => cs.id === id ? { ...cs, ...updates } : cs)
+            }
+        }
+    })),
 
-    updateControlSurfaceAssignment: (id, updates) => set(s => {
-        const controlSurfaceAssignments = s.globalSettings.controlSurfaceAssignments.map(a => a.id === id ? { ...a, ...updates } : a);
-        const next = { ...s.globalSettings, controlSurfaceAssignments };
-        if (typeof window !== 'undefined') localStorage.setItem('logicDawGlobalSettings', JSON.stringify(next));
-        return { globalSettings: next };
-    }),
+    removeControlSurface: (id) => set(s => ({
+        globalSettings: {
+            ...s.globalSettings,
+            controlSurfaces: {
+                ...s.globalSettings.controlSurfaces,
+                devices: s.globalSettings.controlSurfaces.devices.filter(cs => cs.id !== id)
+            }
+        }
+    })),
 
-    removeControlSurfaceAssignment: (id) => set(s => {
-        const controlSurfaceAssignments = s.globalSettings.controlSurfaceAssignments.filter(a => a.id !== id);
-        const next = { ...s.globalSettings, controlSurfaceAssignments };
-        if (typeof window !== 'undefined') localStorage.setItem('logicDawGlobalSettings', JSON.stringify(next));
-        return { globalSettings: next };
-    }),
+    addControlSurfaceAssignment: (assignment) => set(s => ({
+        globalSettings: {
+            ...s.globalSettings,
+            controlSurfaces: {
+                ...s.globalSettings.controlSurfaces,
+                assignments: [...s.globalSettings.controlSurfaces.assignments, assignment]
+            }
+        }
+    })),
 
-    toggleControlSurfacesBypass: () => set(s => {
-        const next = { ...s.globalSettings, controlSurfacesBypassed: !s.globalSettings.controlSurfacesBypassed };
-        if (typeof window !== 'undefined') localStorage.setItem('logicDawGlobalSettings', JSON.stringify(next));
-        return { globalSettings: next };
-    }),
+    updateControlSurfaceAssignment: (id, updates) => set(s => ({
+        globalSettings: {
+            ...s.globalSettings,
+            controlSurfaces: {
+                ...s.globalSettings.controlSurfaces,
+                assignments: s.globalSettings.controlSurfaces.assignments.map(a => a.id === id ? { ...a, ...updates } : a)
+            }
+        }
+    })),
+
+    removeControlSurfaceAssignment: (id) => set(s => ({
+        globalSettings: {
+            ...s.globalSettings,
+            controlSurfaces: {
+                ...s.globalSettings.controlSurfaces,
+                assignments: s.globalSettings.controlSurfaces.assignments.filter(a => a.id !== id)
+            }
+        }
+    })),
+
+    toggleControlSurfacesBypass: () => set(s => ({
+        globalSettings: {
+            ...s.globalSettings,
+            controlSurfaces: {
+                ...s.globalSettings.controlSurfaces,
+                bypassed: !s.globalSettings.controlSurfaces.bypassed
+            }
+        }
+    })),
 
     toggleSelectionBasedProcessing: (show) => set(s => ({ showSelectionBasedProcessing: show !== undefined ? show : !s.showSelectionBasedProcessing })),
 
@@ -4115,8 +4716,22 @@ if (typeof window !== 'undefined') {
         try {
             let parsed = JSON.parse(raw) as GlobalSettings;
             // ensure new fields exist
-            if (!parsed.controlSurfaces) parsed.controlSurfaces = [];
-            if (!parsed.controlSurfaceAssignments) parsed.controlSurfaceAssignments = [];
+            if (!parsed.controlSurfaces || Array.isArray(parsed.controlSurfaces)) {
+                parsed.controlSurfaces = {
+                    bypassWhileInBackground: false, resolutionOfRelativeControls: 0,
+                    maxMidiBandwidth: 100, touchingFaderSelectsTrack: false,
+                    followTrackSelection: true, openPluginWindowOnSelection: true,
+                    jogResolutionDependsOnZoom: false, pickupMode: true,
+                    flashMuteSoloButtons: true, multipleControlsPerParameter: 0,
+                    longerLabelsOnlyIfFit: false, showValueUnitsForInstrument: true,
+                    showValueUnitsForVolume: true,
+                    helpTags: { parameterName: true, parameterValue: true, displayDuration: 3, showInfoMultiple: true, showInfoTrackSelection: true, showInfoVolume: true },
+                    usbMidiControllers: [],
+                    devices: parsed.controlSurfaces && Array.isArray(parsed.controlSurfaces) ? parsed.controlSurfaces : [],
+                    assignments: (parsed as any).controlSurfaceAssignments || [],
+                    bypassed: (parsed as any).controlSurfacesBypassed || false,
+                };
+            }
             useProjectStore.setState({ globalSettings: parsed });
         } catch (e) {
             console.warn('Failed to parse global settings payload', e);

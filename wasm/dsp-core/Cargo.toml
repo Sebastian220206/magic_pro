@@ -1,0 +1,15 @@
+[package]
+name = "magic-dsp-core"
+version = "0.1.0"
+edition = "2021"
+description = "WebAssembly SIMD DSP Core for Magic Pro DAW"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = true

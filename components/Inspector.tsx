@@ -1,6 +1,8 @@
 "use client"
-import { useState } from "react"
+import { useState, useRef, useEffect, useCallback, memo } from "react"
 import { useProjectStore } from "@/store/projectStore"
+import { audioEngine } from "@/engine/AudioEngineAdapter"
+import { VerticalMeter } from "./VerticalMeter"
 import {
     ChevronDown, ChevronRight,
     ChevronUp, Settings2, Sliders,
@@ -27,9 +29,9 @@ export function Inspector() {
         return (
             <div className="w-[280px] bg-[#1a1a1a] border-r border-black flex flex-col items-center justify-center text-gray-700 shrink-0 z-40">
                 <span className="text-[10px] uppercase font-black tracking-widest">No Track Selected</span>
-            </div>
-        )
-    }
+        </div>
+    )
+}
 
     const handleTrackUpdate = (field: keyof Track, value: any) => {
         if (!focusedTrackId) return
@@ -127,8 +129,6 @@ export function Inspector() {
                                 {track.type === 'midi' ? <Keyboard className="w-6 h-6 text-[#63ed63] opacity-80" /> : <Mic className="w-6 h-6 text-sky-400 opacity-80" />}
                             </div>
                         </InspectorField>
-                        <InspectorField label="Channel" value={track.channel || "Inst 1"} hasChevron />
-                        <InspectorField label="MIDI Input" value={track.midiInput || "All"} hasChevron />
                         <InspectorField label="Channel" value={track.channel || "Inst 1"} hasChevron />
                         <InspectorField label="MIDI Input" value={track.midiInput || "All"} hasChevron />
                         
@@ -265,15 +265,41 @@ function InspectorField({ label, value, children, hasChevron, type = 'text', che
 
 import { Track } from "@/models/Track";
 
-function InspectorChannelStrip({ track, isOutput = false }: { track: Track | null, isOutput?: boolean }) {
-    const { updateTrack, addPlugin, togglePlugin, focusedTrackId } = useProjectStore()
+const InspectorChannelStrip = memo(function InspectorChannelStrip({ track, isOutput = false }: { track: Track | null, isOutput?: boolean }) {
+    const { 
+        addPlugin, togglePlugin, focusedTrackId, 
+        setOpenPluginEditor, settings, updateProjectSettings, saveHistorySnapshot
+    } = useProjectStore()
+    const updateTrack = useProjectStore(s => s.updateTrack)
+    const faderCapRef = useRef<HTMLDivElement>(null);
+    const isDraggingRef = useRef(false);
 
-    const handleTrackUpdate = (field: keyof Track, value: any) => {
-        if (focusedTrackId) updateTrack(focusedTrackId, { [field]: value });
-    };
+    const currentVolume = isOutput ? settings.masterVolume : (track?.volume || 0.8);
+    const currentPan = isOutput ? settings.masterPan : (track?.pan || 0);
 
-    const handleLevelChange = (v: number) => handleTrackUpdate('volume', v);
-    const handlePanChange = (v: number) => handleTrackUpdate('pan', v);
+    useEffect(() => {
+        if (!isDraggingRef.current && faderCapRef.current) {
+            faderCapRef.current.style.bottom = `${(currentVolume / 1.5) * 100}%`;
+        }
+    }, [currentVolume]);
+
+    const handleLevelChange = (v: number) => {
+        if (isOutput) {
+            audioEngine.setMasterVolume(v);
+        } else if (track) {
+            audioEngine.setTrackVolume(track.id, v);
+        }
+    }
+    const handlePanChange = (v: number) => {
+        if (isOutput) {
+            updateProjectSettings({ masterPan: v });
+            audioEngine.setMasterPan(v);
+        } else if (track) {
+            updateTrack(track.id, { pan: v });
+        }
+    }
+
+    const analyzer = (isOutput ? audioEngine.getMasterAnalyzer() : (track ? audioEngine.getTrackNodes(track.id)?.analyzer : null)) || null;
 
     return (
         <div className={`flex-1 flex flex-col border-r border-black/40 ${isOutput ? 'bg-[#1e1e1e]' : 'bg-[#1a1a1a]'}`}>
@@ -317,20 +343,23 @@ function InspectorChannelStrip({ track, isOutput = false }: { track: Track | nul
                     {track?.plugins.map((p: any) => (
                         <div
                             key={p.id}
-                            onClick={() => togglePlugin(track.id, p.id)}
+                            onClick={() => setOpenPluginEditor({ trackId: track.id, pluginId: p.id })}
                             className={`h-5 rounded-sm flex items-center px-1 text-[9px] font-black shadow-sm border-t border-white/10 cursor-pointer hover:brightness-110 transition-all ${p.enabled ? (p.name.includes('EQ') ? 'bg-sky-500 text-white' : 'bg-sky-600 text-white') : 'bg-gray-800 text-gray-500 opacity-60'}`}
                         >
-                            {p.name}
+                            <div 
+                                onClick={(e) => { e.stopPropagation(); togglePlugin(track.id, p.id); }}
+                                className="mr-1 p-0.5 hover:bg-white/10 rounded cursor-pointer"
+                            >
+                                <Circle className={`w-1.5 h-1.5 ${p.enabled ? 'fill-white text-white' : 'text-gray-600'}`} />
+                            </div>
+                            <span className="truncate">{p.name}</span>
                         </div>
                     ))}
 
                     {track && track.plugins.length < 5 && (
-                        <button
-                            onClick={() => addPlugin(track.id, 'comp')}
-                            className="h-5 bg-black/20 rounded-sm border border-white/5 text-[8px] font-black text-gray-700 hover:text-gray-400 uppercase flex items-center justify-center"
-                        >
-                            Audio FX
-                        </button>
+                        <div className="relative">
+                            <PluginMenu onSelect={(type) => addPlugin(track.id, type)} />
+                        </div>
                     )}
                 </div>
 
@@ -346,37 +375,102 @@ function InspectorChannelStrip({ track, isOutput = false }: { track: Track | nul
                 <div className="h-6 bg-black/40 rounded-sm flex items-center justify-center text-[9px] font-black text-[#1ed760] uppercase mb-1 border border-white/5">Read</div>
 
                 {/* Control Group: Pan & Fader Area */}
-                <div className="flex-1 flex flex-col items-center justify-end pb-4 gap-2">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#111] to-[#2a2a2a] border border-[#333] relative shadow-2xl">
-                        <div className="absolute top-1 left-[16px] w-[2px] h-2.5 bg-gray-500 rounded-full origin-bottom rotate-0 shadow-lg"></div>
+                <div className="flex-1 flex flex-col items-center justify-end pb-4 gap-3 relative">
+                    <div className="flex flex-col items-center gap-1 group">
+                        <PanKnob 
+                            value={currentPan} 
+                            onChange={handlePanChange} 
+                            isOutput={false} // Now making it a functional knob even for master
+                        />
+                        <span className="text-[8px] font-black text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">PAN</span>
                     </div>
 
-                    <div className="flex gap-2 items-end">
-                        <div className="h-32 w-1.5 bg-black/60 rounded-full border border-white/5 relative overflow-hidden"><div className="absolute bottom-0 w-full h-[65%] bg-green-500"></div></div>
-                        <div className="h-32 w-4 bg-black/40 rounded-sm border border-[#222] relative group">
-                            <div className="absolute inset-y-1 inset-x-0.5 flex flex-col justify-between opacity-10">{[...Array(12)].map((_, i) => <div key={i} className="w-full h-px bg-white"></div>)}</div>
+                    <div className="flex gap-2 items-end relative h-40">
+                        <VerticalMeter analyzer={analyzer} side="L" />
+                        
+                        <div className="h-40 w-5 bg-[#0a0a0a] rounded-sm border border-[#222]/50 relative group shadow-inner">
+                            {/* Fader Track Details (Ticks) */}
+                            <div className="absolute inset-y-2 left-[45%] w-[1px] bg-white/5 flex flex-col justify-between opacity-30">
+                                {[...Array(11)].map((_, i) => (
+                                    <div key={i} className={`h-[1px] bg-white/40 ${i % 5 === 0 ? 'w-2 -ml-1' : 'w-1'}`}></div>
+                                ))}
+                            </div>
+
+                            {/* Fader Handle (Premium Visuals) */}
                             <div
-                                className="absolute -left-1 w-6 h-3 bg-[#333] border border-[#444] rounded shadow-2xl z-20 transition-all cursor-ns-resize"
-                                style={{ bottom: `${(track?.volume || 0.8) * 100}%` }}
+                                ref={faderCapRef}
+                                className="absolute -left-1.5 w-8 h-4 cursor-ns-resize z-20 group-hover:brightness-125 transition-all outline-none"
+                                style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))' }}
                                 onMouseDown={(e) => {
+                                    isDraggingRef.current = true;
                                     const startY = e.clientY;
-                                    const startVol = track?.volume || 0.8;
+                                    const startVol = currentVolume;
+                                    let lastFlushedVol = startVol;
+
                                     const onMove = (me: MouseEvent) => {
-                                        const delta = (startY - me.clientY) / 100;
-                                        handleLevelChange(Math.max(0, Math.min(1, startVol + delta)));
-                                    }
-                                    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
-                                    window.addEventListener('mousemove', onMove);
+                                        const delta = (startY - me.clientY) / 150;
+                                        const newVol = Math.max(0, Math.min(1.5, startVol + delta));
+                                        lastFlushedVol = newVol;
+                                        handleLevelChange(newVol);
+                                    };
+
+                                    let rafId: number | null = null;
+                                    const onRafMove = (me: MouseEvent) => {
+                                        onMove(me);
+                                        if (rafId === null && faderCapRef.current) {
+                                            rafId = requestAnimationFrame(() => {
+                                                rafId = null;
+                                                if (faderCapRef.current) {
+                                                    faderCapRef.current.style.bottom = `${Math.min(100, (lastFlushedVol / 1.5) * 100)}%`;
+                                                }
+                                            });
+                                        }
+                                    };
+
+                                    const onUp = () => {
+                                        isDraggingRef.current = false;
+                                        if (rafId !== null) cancelAnimationFrame(rafId);
+                                        if (faderCapRef.current) {
+                                            faderCapRef.current.style.bottom = `${Math.min(100, (lastFlushedVol / 1.5) * 100)}%`;
+                                        }
+                                        if (isOutput) {
+                                            updateProjectSettings({ masterVolume: lastFlushedVol });
+                                            audioEngine.setMasterVolume(lastFlushedVol);
+                                        } else if (track) {
+                                            updateTrack(track.id, { volume: lastFlushedVol });
+                                            audioEngine.setTrackVolume(track.id, lastFlushedVol);
+                                        }
+                                        saveHistorySnapshot();
+                                        window.removeEventListener('mousemove', onRafMove);
+                                        window.removeEventListener('mouseup', onUp);
+                                    };
+                                    window.addEventListener('mousemove', onRafMove);
                                     window.addEventListener('mouseup', onUp);
                                 }}
-                            ></div>
+                            >
+                                <div className="w-full h-full bg-gradient-to-b from-[#444] via-[#222] to-[#111] border border-[#555] rounded shadow-xl relative overflow-hidden">
+                                    <div className="absolute top-[50%] left-0 right-0 h-[1x] bg-white/20 shadow-[0_0_2px_rgba(255,255,255,0.5)]"></div>
+                                    <div className="absolute top-0 left-[2px] right-[2px] h-[1px] bg-white/10"></div>
+                                </div>
+                            </div>
                         </div>
-                        <div className="h-32 w-1.5 bg-black/60 rounded-full border border-white/5 relative overflow-hidden"><div className="absolute bottom-0 w-full h-[60%] bg-green-500"></div></div>
+
+                        <VerticalMeter analyzer={analyzer} side="R" />
                     </div>
 
                     <div className="flex gap-1 h-6 w-full px-1 pt-2">
-                        <button className={`flex-1 border rounded-sm text-[10px] font-black transition-colors ${track?.muted ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-[#1a1a1a] border-[#333] text-gray-500'}`} onClick={() => handleTrackUpdate('muted', !track?.muted)}>M</button>
-                        <button className={`flex-1 border rounded-sm text-[10px] font-black transition-colors ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500]' : 'bg-[#1a1a1a] border-[#333] text-gray-500'}`} onClick={() => handleTrackUpdate('soloed', !track?.soloed)}>S</button>
+                        <button 
+                            className={`flex-1 border rounded-sm text-[10px] font-black transition-colors ${track?.muted ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-[#1a1a1a] border-[#333] text-gray-500'}`} 
+                            onClick={() => track && updateTrack(track.id, { muted: !track.muted })}
+                        >
+                            M
+                        </button>
+                        <button 
+                            className={`flex-1 border rounded-sm text-[10px] font-black transition-colors ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500]' : 'bg-[#1a1a1a] border-[#333] text-gray-500'}`} 
+                            onClick={() => track && updateTrack(track.id, { soloed: !track.soloed })}
+                        >
+                            S
+                        </button>
                     </div>
                 </div>
             </div>
@@ -388,9 +482,111 @@ function InspectorChannelStrip({ track, isOutput = false }: { track: Track | nul
             </div>
         </div>
     )
+})
+
+function PluginMenu({ onSelect }: { onSelect: (type: 'comp' | 'eq' | 'reverb' | 'delay') => void }) {
+    const [open, setOpen] = useState(false);
+    const [coords, setCoords] = useState({ top: 0, left: 0 });
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const handleClick = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node) && buttonRef.current && !buttonRef.current.contains(e.target as Node)) {
+                setOpen(false);
+            }
+        };
+        window.addEventListener('mousedown', handleClick);
+        return () => window.removeEventListener('mousedown', handleClick);
+    }, [open]);
+
+    const handleToggle = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setCoords({ top: rect.bottom + 2, left: rect.left });
+        }
+        setOpen(!open);
+    };
+
+    const plugins = [
+        { id: 'comp', name: 'Compressor', category: 'Dynamics' },
+        { id: 'eq', name: 'Channel EQ', category: 'EQ' },
+        { id: 'reverb', name: 'ChromaVerb', category: 'Reverb' },
+        { id: 'delay', name: 'Delay Designer', category: 'Delay' },
+    ];
+
+    return (
+        <div className="relative w-full">
+            <button
+                ref={buttonRef}
+                onClick={handleToggle}
+                className="h-5 bg-black/20 rounded-sm border border-white/5 text-[8px] font-black text-gray-700 hover:text-gray-400 hover:bg-white/5 uppercase flex items-center justify-center transition-all w-full"
+            >
+                Audio FX
+            </button>
+            {open && (
+                <div 
+                    ref={menuRef}
+                    style={{ top: coords.top, left: coords.left }}
+                    className="fixed z-[999] w-[180px] bg-[#1a1a1a] border border-[#444] rounded shadow-[0_15px_50px_rgba(0,0,0,1)] p-1 overflow-hidden"
+                >
+                    <div className="text-[7px] uppercase text-gray-600 font-black px-2 py-1 border-b border-white/5 mb-1 tracking-widest">Plug-ins</div>
+                    {plugins.map(p => (
+                        <button
+                            key={p.id}
+                            onClick={(e) => { e.stopPropagation(); onSelect(p.id as any); setOpen(false); }}
+                            className="w-full text-left px-3 py-1.5 hover:bg-sky-500 hover:text-white text-[10px] font-black text-gray-300 transition-colors flex items-center justify-between group"
+                        >
+                            <span>{p.name}</span>
+                            <span className="text-[8px] text-gray-600 group-hover:text-sky-200">{p.category}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
 }
 
-function ChevronUpSmall({ className }: { className?: string }) {
+function PanKnob({ value, onChange, isOutput }: { value: number, onChange: (v: number) => void, isOutput?: boolean }) {
+    if (isOutput) {
+        return (
+             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#111] to-[#222] border border-white/5 relative shadow-inner flex items-center justify-center">
+                 <div className="w-7 h-7 rounded-full bg-[#111] border border-black flex items-center justify-center text-[7px] font-black text-gray-700 uppercase">Mst</div>
+        </div>
+    )
+}
+
+    const rotation = value * 135; // Pan -1 to 1 maps to -135 to 135 degrees
+
+    return (
+        <div 
+            className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#000] to-[#333] border border-[#444] relative shadow-2xl cursor-pointer group active:scale-95 transition-transform"
+            onMouseDown={(e) => {
+                const startY = e.clientY;
+                const startVal = value;
+                const onMove = (me: MouseEvent) => {
+                    const delta = (startY - me.clientY) / 100;
+                    onChange(Math.max(-1, Math.min(1, startVal + delta)));
+                }
+                const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+            }}
+        >
+            <div className="absolute inset-1 rounded-full border border-black/40 shadow-inner bg-gradient-to-tr from-[#111] via-[#222] to-[#2a2a2a]"></div>
+            <div 
+                className="absolute top-1.5 left-[17px] w-[2px] h-3 bg-sky-400 rounded-full origin-[1px_16.5px] transition-transform duration-100 ease-out"
+                style={{ transform: `rotate(${rotation}deg)` }}
+            >
+                <div className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-sky-400/20 blur-sm rounded-full"></div>
+            </div>
+        </div>
+    )
+}
+
+ function ChevronUpSmall({ className }: { className?: string }) {
     return (
         <svg viewBox="0 0 100 100" className={className} fill="currentColor"><polygon points="50,30 80,60 20,60" /></svg>
     )

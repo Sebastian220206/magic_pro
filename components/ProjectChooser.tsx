@@ -3,7 +3,8 @@
 import React, { useState } from 'react'
 import {
     Plus, Clock, Grid, Folder, FileType, User, ChevronRight, ChevronDown,
-    Settings, Play, Mic, Speaker, Music, Activity, Layers, Download
+    Settings, Play, Mic, Speaker, Music, Activity, Layers, Download,
+    Waves, Sliders, Clapperboard, Music2, Zap, LayoutGrid
 } from 'lucide-react'
 import { useProjectStore } from '@/store/projectStore'
 
@@ -45,7 +46,7 @@ export function ProjectChooser({ onClose, onChoose, onOpenProject }: ProjectChoo
         { id: 'My Templates', icon: User, label: 'My Templates' },
     ]
 
-    const templates = [
+    const newProjectTemplates = [
         {
             id: 'Empty Project', label: 'Empty Project', description: 'Create an empty project', icon: (
                 <div className="relative w-full h-full bg-[#8E8E93] rounded-md flex flex-col gap-[2px] p-2">
@@ -72,6 +73,111 @@ export function ProjectChooser({ onClose, onChoose, onOpenProject }: ProjectChoo
         },
     ]
 
+    const projectTemplates = [
+        {
+            id: 'Hip Hop', label: 'Hip Hop', description: 'Create a Hip Hop project with drum pads and bass', icon: (
+                <div className="w-full h-full bg-[#5A5A5A] flex items-center justify-center">
+                    <div className="w-16 h-12 bg-[#D1D1D6]/20 rounded border border-white/30 p-1.5 flex flex-col gap-1">
+                        <div className="flex gap-1">
+                            <div className="w-3 h-2 bg-white/80 rounded-[1px]"></div>
+                            <div className="w-full h-2 bg-white/20 rounded-[1px]"></div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1 flex-1">
+                            {[...Array(9)].map((_, i) => (
+                                <div key={i} className="bg-white/90 rounded-[1px]"></div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )
+        },
+        {
+            id: 'Electronic', label: 'Electronic', description: 'Create an Electronic music project', icon: (
+                <div className="w-full h-full bg-[#5A5A5A] flex items-center justify-center">
+                    <div className="w-20 h-12 flex items-center justify-center">
+                        <svg viewBox="0 0 100 40" className="w-full h-full text-white/90" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M0 20 L20 20 L25 10 L30 30 L35 5 L40 35 L50 20 L100 20" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                    </div>
+                </div>
+            )
+        },
+        {
+            id: 'Songwriter', label: 'Songwriter', description: 'Create a Songwriter project for acoustic recordings', icon: (
+                <div className="w-full h-full bg-[#5A5A5A] flex items-center justify-center overflow-hidden">
+                    <div className="relative flex items-center justify-center">
+                        {/* Guitar Silhouette */}
+                        <div className="w-10 h-16 bg-white/90 rounded-[40%] relative">
+                            <div className="absolute top-[-5px] left-1/2 -translate-x-1/2 w-4 h-6 bg-white/90 rounded-sm"></div>
+                            <div className="absolute top-[20%] left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#5A5A5A]"></div>
+                        </div>
+                        {/* Fingerboard Lines */}
+                        <div className="absolute flex flex-col gap-1.5 opacity-30">
+                            {[...Array(4)].map((_, i) => (
+                                <div key={i} className="w-20 h-[1px] bg-black"></div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )
+        },
+        {
+            id: 'Orchestral', label: 'Orchestral', description: 'Create an Orchestral project with classical arrangements', icon: (
+                <div className="w-full h-full bg-[#5A5A5A] flex items-center justify-center gap-2">
+                    <div className="w-8 h-16 bg-white/90 rounded-full relative">
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-4 bg-white/90 rounded-sm"></div>
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 w-[1px] h-full bg-black/20"></div>
+                    </div>
+                    <div className="w-8 h-10 border-2 border-white/60 flex flex-col p-1 gap-1">
+                        <div className="w-full h-[1px] bg-white/40"></div>
+                        <div className="w-full h-[1px] bg-white/40"></div>
+                        <div className="w-full h-[1px] bg-white/40"></div>
+                    </div>
+                </div>
+            )
+        },
+        {
+            id: 'Multi-Track', label: 'Multi-Track', description: 'Create a Multi-Track recording project', icon: (
+                <div className="w-full h-full bg-[#5A5A5A] flex items-center justify-center">
+                    <div className="w-20 h-14 bg-black/20 rounded border border-white/20 p-2 flex gap-1.5">
+                        {[...Array(4)].map((_, i) => (
+                            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                                <div className="w-[1px] h-full bg-white/20"></div>
+                                <div className={`w-3 h-4 bg-white/90 rounded-sm ${i % 2 === 0 ? 'mt-2' : 'mb-2'}`}></div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )
+        },
+        {
+            id: 'Music For Picture', label: 'Music For Picture', description: 'Compose music for film and video', icon: (
+                <div className="w-full h-full bg-[#5A5A5A] flex items-center justify-center">
+                    <div className="w-16 h-12 bg-white/90 rounded-sm relative overflow-hidden flex flex-col">
+                        <div className="h-4 bg-black/80 flex gap-1 p-0.5">
+                            {[...Array(4)].map((_, i) => (
+                                <div key={i} className="flex-1 bg-white skew-x-[-20deg]"></div>
+                            ))}
+                        </div>
+                        <div className="flex-1 flex flex-col gap-1 p-2">
+                            <div className="w-full h-[1px] bg-black/20"></div>
+                            <div className="w-full h-[1px] bg-black/20"></div>
+                            <div className="w-full h-[1px] bg-black/20"></div>
+                        </div>
+                    </div>
+                </div>
+            )
+        },
+    ]
+
+    const getCurrentTemplates = () => {
+        switch (selectedCategory) {
+            case 'New Project': return newProjectTemplates;
+            case 'Project Templates': return projectTemplates;
+            default: return [];
+        }
+    }
+
     const handleCategoryClick = (catId: string) => {
         setSelectedCategory(catId)
         if (catId === 'Recent' && recentProjects.length > 0) {
@@ -80,6 +186,9 @@ export function ProjectChooser({ onClose, onChoose, onOpenProject }: ProjectChoo
             setSelectedProjectId(demoProjects[0].id)
         } else {
             setSelectedProjectId(null)
+            // Set default template for category
+            if (catId === 'New Project') setSelectedTemplate('Empty Project')
+            else if (catId === 'Project Templates') setSelectedTemplate('Hip Hop')
         }
     }
 
@@ -142,26 +251,38 @@ export function ProjectChooser({ onClose, onChoose, onOpenProject }: ProjectChoo
             )
         }
 
-        // Default Template View
+        // Template View
+        const activeTemplates = getCurrentTemplates();
+        
         return (
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-8">
-                {templates.map((tpl) => (
+            <div className={`grid gap-x-8 gap-y-10 ${selectedCategory === 'Project Templates' ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2 lg:grid-cols-3'}`}>
+                {activeTemplates.map((tpl) => (
                     <div key={tpl.id} className="flex flex-col items-center gap-3">
                         <button
                             onClick={() => setSelectedTemplate(tpl.id)}
-                            className={`w-32 h-24 rounded-lg overflow-hidden transition-all ring-offset-2 ${selectedTemplate === tpl.id
-                                ? 'ring-2 ring-[#007AFF] ring-offset-2'
-                                : 'hover:opacity-80'
+                            className={`rounded-lg overflow-hidden transition-all shadow-md group ${
+                                selectedCategory === 'Project Templates' ? 'w-full aspect-[4/3]' : 'w-32 h-24'
+                            } ${selectedTemplate === tpl.id
+                                ? 'ring-[3px] ring-[#007AFF] ring-offset-1 scale-[1.02]'
+                                : 'hover:scale-[1.02] hover:shadow-lg'
                                 }`}
                         >
                             {tpl.icon}
                         </button>
-                        <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-md ${selectedTemplate === tpl.id ? 'bg-[#007AFF] text-white' : 'text-[#1C1C1E]'
+                        <span className={`text-[13px] font-bold px-3 py-1 rounded-full transition-all ${selectedTemplate === tpl.id
+                            ? 'bg-[#007AFF] text-white'
+                            : 'text-[#1C1C1E]'
                             }`}>
                             {tpl.label}
                         </span>
                     </div>
                 ))}
+                {activeTemplates.length === 0 && (
+                    <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-400">
+                        <FileType className="w-12 h-12 mb-4 opacity-20" />
+                        <p>No templates available in this category</p>
+                    </div>
+                )}
             </div>
         )
     }
@@ -228,7 +349,7 @@ export function ProjectChooser({ onClose, onChoose, onOpenProject }: ProjectChoo
                                     <span className="text-[11px] font-bold text-[#8E8E93] uppercase tracking-wider">Details</span>
                                     <div className="flex-1 flex justify-center">
                                         <span className="text-[11px] text-[#8E8E93] italic">
-                                            {templates.find(t => t.id === selectedTemplate)?.description}
+                                            {getCurrentTemplates().find(t => t.id === selectedTemplate)?.description}
                                         </span>
                                     </div>
                                 </button>
@@ -377,12 +498,9 @@ export function ProjectChooser({ onClose, onChoose, onOpenProject }: ProjectChoo
 
                 {/* Footer */}
                 <div className="h-14 bg-[#F2F2F7] border-t border-[#AEAEB2] px-4 flex items-center justify-between">
-                    <button
-                        onClick={() => { }} // Open existing project logic
-                        className="px-3 py-1.5 rounded-md border border-[#D1D1D6] bg-white text-[13px] hover:bg-gray-50 transition-colors"
-                    >
-                        Open an existing project...
-                    </button>
+                    <div className="px-3 py-1.5 rounded-md border border-[#D1D1D6] bg-gray-100 text-[13px] text-gray-400 cursor-not-allowed">
+                        Open an existing project... <span className="text-[10px] ml-1">(use dashboard)</span>
+                    </div>
 
                     <div className="flex items-center gap-3">
                         <button

@@ -1,0 +1,133 @@
+"use client";
+
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Music, Mic, Zap, Plus, Drum, Piano, X, Loader2 } from 'lucide-react';
+import { templateCatalog, createProjectFromTemplate } from '@/templates';
+import { useProjectStore } from '@/store/projectStore';
+import { audioEngine } from '@/engine/AudioEngineAdapter';
+
+const templateIcons: Record<string, React.ReactNode> = {
+  'lo-fi': <Music className="w-8 h-8 text-purple-300" />,
+  'podcast': <Mic className="w-8 h-8 text-orange-300" />,
+  'edm': <Zap className="w-8 h-8 text-cyan-300" />,
+  'hip-hop': <Drum className="w-8 h-8 text-amber-300" />,
+  'piano-sketch': <Piano className="w-8 h-8 text-emerald-300" />,
+};
+
+const templateGradients: Record<string, string> = {
+  'lo-fi': 'from-purple-900/30 to-indigo-900/30',
+  'podcast': 'from-orange-900/30 to-amber-900/30',
+  'edm': 'from-cyan-900/30 to-blue-900/30',
+  'hip-hop': 'from-amber-900/30 to-orange-900/30',
+  'piano-sketch': 'from-emerald-900/30 to-teal-900/30',
+};
+
+const starterTemplates = templateCatalog.filter(t => t.id !== 'podcast');
+
+interface NewProjectScreenProps {
+  onClose?: () => void;
+}
+
+export function NewProjectScreen({ onClose }: NewProjectScreenProps) {
+  const router = useRouter();
+  const [creating, setCreating] = useState(false);
+
+  const handleSelectTemplate = async (templateId: string) => {
+    setCreating(true);
+    try {
+      await audioEngine.waitForReady();
+      const template = templateCatalog.find(t => t.id === templateId);
+      if (!template) return;
+      const proj = await createProjectFromTemplate(template);
+      router.push(`/project/${proj.id}`);
+    } catch (e) {
+      console.error('[NewProjectScreen] Template creation failed:', e);
+      setCreating(false);
+    }
+  };
+
+  const handleBlankProject = async () => {
+    setCreating(true);
+    try {
+      await audioEngine.waitForReady();
+      useProjectStore.getState().initializeProject({
+        tempo: 90,
+        keySignature: 'C Major',
+        timeSignature: '4/4',
+      });
+      const store = useProjectStore.getState();
+      const drumTrackId = `track-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const pianoTrackId = `track-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      store.addTrack({ id: drumTrackId, name: 'Drums', type: 'drummer', color: '#f59e0b' } as any);
+      store.addTrack({ id: pianoTrackId, name: 'Piano', type: 'software-instrument', color: '#34d399', instrument: 'piano' } as any);
+      router.push(`/project/${useProjectStore.getState().id}`);
+    } catch (e) {
+      console.error('[NewProjectScreen] Blank project creation failed:', e);
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm">
+      <div className="min-h-screen flex flex-col items-center justify-center p-8 relative">
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="absolute top-6 right-6 p-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all active:scale-90 z-10"
+            aria-label="Close"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        )}
+
+        <div className="max-w-4xl w-full">
+          <div className="text-center mb-12">
+            <h1 className="text-3xl font-bold text-white mb-2">New Project</h1>
+            <p className="text-gray-400">Choose a template to get started, or create a blank project</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {creating && (
+              <div className="col-span-full flex items-center justify-center py-20 text-gray-400">
+                <Loader2 className="w-6 h-6 animate-spin mr-3" />
+                Initializing audio engine...
+              </div>
+            )}
+
+            {!creating && starterTemplates.map(tpl => (
+              <button
+                key={tpl.id}
+                disabled={creating}
+                onClick={() => handleSelectTemplate(tpl.id)}
+                className="group relative bg-daw-panel border border-daw-border rounded-xl p-6 hover:border-gray-500 transition-all hover:scale-[1.02] text-left disabled:opacity-50 disabled:pointer-events-none"
+              >
+                <div className={`h-32 rounded-lg bg-gradient-to-br ${templateGradients[tpl.id] || 'from-gray-800 to-gray-900'} border border-daw-border mb-4 flex items-center justify-center`}>
+                  {templateIcons[tpl.id] || <Music className="w-8 h-8 text-gray-400" />}
+                </div>
+                <h3 className="text-lg text-white font-semibold group-hover:text-daw-primary transition-colors">{tpl.name}</h3>
+                <p className="text-gray-400 text-sm mt-1">{tpl.description}</p>
+                <div className="flex gap-2 mt-3">
+                  <span className="text-xs bg-daw-surface text-gray-300 px-2 py-0.5 rounded">{tpl.bpm} BPM</span>
+                  <span className="text-xs bg-daw-surface text-gray-300 px-2 py-0.5 rounded">{tpl.tracks.length} Track{tpl.tracks.length !== 1 ? 's' : ''}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="text-center">
+            <button
+              onClick={handleBlankProject}
+              disabled={creating}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-dashed border-daw-border text-gray-400 hover:text-white hover:border-gray-500 transition-colors text-sm disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {creating && <Loader2 className="w-4 h-4 animate-spin" />}
+              {creating ? "Initializing..." : <Plus className="w-4 h-4" />}
+              Blank Project (starts with Drums + Piano)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
