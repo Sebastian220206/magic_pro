@@ -87,3 +87,8 @@ out/
 # Generated wasm
 *.wasm
 !public/wasm/**/*.wasm
+
+# Local extra directories
+vst/
+sound\ sample/
+
