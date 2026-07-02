@@ -1,0 +1,149 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - generic [ref=f3e3]:
+      - img [ref=f3e6]
+      - generic [ref=f3e8]:
+        - generic:
+          - generic [ref=f3e9]: File
+          - generic [ref=f3e10]: Edit
+          - generic [ref=f3e11]: Track
+          - generic [ref=f3e12]: Navigate
+          - generic [ref=f3e13]: Record
+        - generic [ref=f3e14]: Magic Pro
+        - generic:
+          - generic [ref=f3e15]: Setting
+          - generic [ref=f3e16]: Mix
+          - generic [ref=f3e17]: View
+          - generic [ref=f3e18]: Window
+          - generic [ref=f3e19]: Help
+      - generic [ref=f3e20]:
+        - generic "Connected" [ref=f3e21]:
+          - img [ref=f3e22]
+        - generic "98% (charging)" [ref=f3e2963]:
+          - img [ref=f3e2964]
+        - generic [ref=f3e30]: Wed, Jul 1 9:32 PM
+    - generic [ref=f3e31]:
+      - generic [ref=f3e32]:
+        - button [ref=f3e33] [cursor=pointer]:
+          - img [ref=f3e34]
+        - button [ref=f3e36] [cursor=pointer]:
+          - img [ref=f3e37]
+        - button [ref=f3e39] [cursor=pointer]:
+          - img [ref=f3e40]
+        - button [ref=f3e44] [cursor=pointer]:
+          - img [ref=f3e45]
+        - button [ref=f3e47] [cursor=pointer]:
+          - img [ref=f3e48]
+        - button [ref=f3e49] [cursor=pointer]:
+          - img [ref=f3e50]
+        - button [ref=f3e53] [cursor=pointer]:
+          - img [ref=f3e54]
+      - generic [ref=f3e56]:
+        - generic [ref=f3e57]:
+          - button [ref=f3e58] [cursor=pointer]
+          - button [ref=f3e61] [cursor=pointer]
+        - generic [ref=f3e64]:
+          - button [ref=f3e65] [cursor=pointer]
+          - button [ref=f3e68] [cursor=pointer]
+        - button "Record (R)" [ref=f3e71] [cursor=pointer]:
+          - img [ref=f3e72]
+        - button "RPT" [ref=f3e74] [cursor=pointer]
+        - button "FB" [ref=f3e75] [cursor=pointer]
+        - button "CLR" [ref=f3e76] [cursor=pointer]
+        - button "REPLACE" [ref=f3e78] [cursor=pointer]
+        - button [ref=f3e80] [cursor=pointer]:
+          - img [ref=f3e81]
+      - generic [ref=f3e86]:
+        - generic [ref=f3e90] [cursor=pointer]:
+          - generic [ref=f3e91]: Logic Pro Project*
+          - generic [ref=f3e92]
+        - generic [ref=f3e98] [cursor=pointer]:
+          - generic [ref=f3e99]
+          - generic [ref=f3e106]
+        - img [ref=f3e125]
+      - generic [ref=f3e127]:
+        - button "TUNER" [ref=f3e128] [cursor=pointer]
+        - button [ref=f3e129] [cursor=pointer]:
+          - img [ref=f3e130]
+        - button [ref=f3e134] [cursor=pointer]:
+          - img [ref=f3e135]
+        - button "1 2 3 4" [ref=f3e140] [cursor=pointer]
+        - generic [ref=f3e194]:
+          - button [ref=f3e195] [cursor=pointer]
+          - button [ref=f3e198] [cursor=pointer]
+          - button [ref=f3e202] [cursor=pointer]
+    - generic [ref=f3e205]:
+      - generic "Click to open Tools Menu (T)" [ref=f3e206] [cursor=pointer]:
+        - button "pointer (A)" [ref=f3e207]:
+          - img [ref=f3e208]
+        - button "scissors (S)" [ref=f3e210]:
+          - img [ref=f3e211]
+        - button "erase (E)" [ref=f3e217]:
+          - img [ref=f3e218]
+        - button "zoom (Z)" [ref=f3e221]:
+          - img [ref=f3e222]
+        - button "text (T)" [ref=f3e225]:
+          - img [ref=f3e226]
+        - button "pencil (P)" [ref=f3e228]:
+          - img [ref=f3e229]
+        - button "marquee (R)" [ref=f3e232]:
+          - img [ref=f3e233]
+      - generic [ref=f3e236]:
+        - button "Capture Recording" [ref=f3e237] [cursor=pointer]
+        - button "Quantize" [ref=f3e238] [cursor=pointer]
+        - button "Note Repeat" [ref=f3e240] [cursor=pointer]:
+          - img [ref=f3e241]
+          - generic [ref=f3e246]: Note Repeat
+        - button "Spot Erase" [ref=f3e247] [cursor=pointer]:
+          - img [ref=f3e248]
+          - generic [ref=f3e251]: Spot Erase
+        - button "Step Input" [ref=f3e252] [cursor=pointer]:
+          - img [ref=f3e253]
+          - generic [ref=f3e256]: Step Input
+        - generic [ref=f3e258]:
+          - button "Replace" [ref=f3e259] [cursor=pointer]
+          - combobox [ref=f3e266]
+        - generic [ref=f3e267]:
+          - generic [ref=f3e268]: "Overlap:"
+          - combobox [ref=f3e269]
+      - generic [ref=f3e271]:
+        - generic [ref=f3e272]: "Snap:"
+        - generic [ref=f3e273]: Smart
+        - img [ref=f3e274]
+    - generic [ref=f3e276]:
+      - generic [ref=f3e277]:
+        - generic [ref=f3e278]:
+          - generic [ref=f3e279] [cursor=pointer]
+          - generic [ref=f3e287]
+          - generic [ref=f3e296]
+        - generic [ref=f3e304]:
+          - generic [ref=f3e305]
+          - generic [ref=f3e2974] [cursor=pointer]: SoundFont Instrument
+        - generic [ref=f3e367]:
+          - generic [ref=f3e368]
+          - generic [ref=f3e378]
+      - generic [ref=f3e392]:
+        - generic [ref=f3e394]: No Track Selected
+        - generic [ref=f3e395]:
+          - generic [ref=f3e396]
+          - generic [ref=f3e478]
+    - generic [ref=f3e2931]:
+      - generic [ref=f3e2932]:
+        - button "Browser (Library)" [ref=f3e2933] [cursor=pointer]:
+          - img [ref=f3e2934]
+        - button "Inspector" [ref=f3e2939] [cursor=pointer]:
+          - img [ref=f3e2940]
+        - button "Automation" [ref=f3e2941] [cursor=pointer]
+      - generic [ref=f3e2943]:
+        - button "Editors" [ref=f3e2944] [cursor=pointer]:
+          - img [ref=f3e2945]
+        - button "Plug-ins" [ref=f3e2948] [cursor=pointer]:
+          - img [ref=f3e2949]
+        - button "Mixer" [ref=f3e2955] [cursor=pointer]:
+          - img [ref=f3e2956]
+      - generic [ref=f3e2957]:
+        - button "Enter Fullscreen (F11)" [ref=f3e2966] [cursor=pointer]:
+          - img [ref=f3e2967]
+        - button "Play Surfaces" [ref=f3e2958] [cursor=pointer]:
+          - img [ref=f3e2959]
+  - alert [ref=f3e2972]

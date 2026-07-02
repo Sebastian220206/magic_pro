@@ -1,0 +1,28 @@
+{
+  "project": {
+    "name": "Magic Pro",
+    "description": "Browser-based DAW — free music production for anyone with a browser",
+    "stack": [
+      "TypeScript",
+      "React",
+      "Next.js",
+      "Zustand",
+      "Prisma",
+      "Supabase",
+      "Web Audio API",
+      "AudioWorklet",
+      "SharedArrayBuffer",
+      "WebAssembly"
+    ]
+  },
+  "agent": {
+    "model": "claude-sonnet-4-6",
+    "maxTokens": 8096,
+    "systemPromptFile": ".opencode/system-prompt.md"
+  },
+  "tools": {
+    "filesystem": true,
+    "terminal": true,
+    "search": true
+  }
+}

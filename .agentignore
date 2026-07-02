@@ -1,0 +1,10 @@
+# .agentignore
+# No agent may edit these files without explicit orchestrator approval
+
+.env
+.env.local
+.env.production
+node_modules/
+.next/
+.git/
+prisma/migrations/  # DB Agent only, with orchestrator approval

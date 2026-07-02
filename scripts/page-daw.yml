@@ -1,0 +1,710 @@
+- generic [active] [ref=f6e1]:
+  - generic [ref=f6e2]:
+    - generic [ref=f6e2964]:
+      - heading "Project Not Found" [level=2] [ref=f6e2965]
+      - paragraph [ref=f6e2966]: Project "test" not found. It may have been deleted.
+      - link "Go to Dashboard" [ref=f6e2967] [cursor=pointer]:
+        - /url: /dashboard
+    - generic [ref=f6e3]:
+      - img [ref=f6e6]
+      - generic [ref=f6e8]:
+        - generic:
+          - generic [ref=f6e9]: File
+          - generic [ref=f6e10]: Edit
+          - generic [ref=f6e11]: Track
+          - generic [ref=f6e12]: Navigate
+          - generic [ref=f6e13]: Record
+        - generic [ref=f6e14]: Magic Pro
+        - generic:
+          - generic [ref=f6e15]: Setting
+          - generic [ref=f6e16]: Mix
+          - generic [ref=f6e17]: View
+          - generic [ref=f6e18]: Window
+          - generic [ref=f6e19]: Help
+      - generic [ref=f6e20]:
+        - generic "Connected" [ref=f6e21]:
+          - img [ref=f6e22]
+        - generic "100% (charging)" [ref=f6e2968]:
+          - img [ref=f6e2969]
+        - generic [ref=f6e30]: Wed, Jul 1 9:03 PM
+    - generic [ref=f6e31]:
+      - generic [ref=f6e32]:
+        - button [ref=f6e33] [cursor=pointer]:
+          - img [ref=f6e34]
+        - button [ref=f6e36] [cursor=pointer]:
+          - img [ref=f6e37]
+        - button [ref=f6e39] [cursor=pointer]:
+          - img [ref=f6e40]
+        - button [ref=f6e44] [cursor=pointer]:
+          - img [ref=f6e45]
+        - button [ref=f6e47] [cursor=pointer]:
+          - img [ref=f6e48]
+        - button [ref=f6e49] [cursor=pointer]:
+          - img [ref=f6e50]
+        - button [ref=f6e53] [cursor=pointer]:
+          - img [ref=f6e54]
+      - generic [ref=f6e56]:
+        - generic [ref=f6e57]:
+          - button [ref=f6e58] [cursor=pointer]:
+            - img [ref=f6e59]
+          - button [ref=f6e61] [cursor=pointer]:
+            - img [ref=f6e62]
+        - generic [ref=f6e64]:
+          - button [ref=f6e65] [cursor=pointer]:
+            - img [ref=f6e66]
+          - button [ref=f6e68] [cursor=pointer]:
+            - img [ref=f6e69]
+        - button "Record (R)" [ref=f6e71] [cursor=pointer]:
+          - img [ref=f6e72]
+        - button "RPT" [ref=f6e74] [cursor=pointer]
+        - button "FB" [ref=f6e75] [cursor=pointer]
+        - button "CLR" [ref=f6e76] [cursor=pointer]
+        - button "REPLACE" [ref=f6e78] [cursor=pointer]
+        - button [ref=f6e80] [cursor=pointer]:
+          - img [ref=f6e81]
+      - generic [ref=f6e86]:
+        - generic [ref=f6e90] [cursor=pointer]:
+          - generic [ref=f6e91]: Logic Pro Project
+          - generic [ref=f6e92]:
+            - generic [ref=f6e93]: Main
+            - img [ref=f6e94]
+        - generic [ref=f6e98] [cursor=pointer]:
+          - generic [ref=f6e99]:
+            - generic [ref=f6e100]: Position
+            - generic [ref=f6e101]:
+              - generic [ref=f6e102]: "1"
+              - generic [ref=f6e103]: "1"
+              - generic [ref=f6e104]: "1"
+              - generic [ref=f6e105]: "000"
+          - generic [ref=f6e106]:
+            - generic [ref=f6e107]:
+              - generic [ref=f6e108]: Tempo
+              - generic [ref=f6e109]: "120"
+            - generic [ref=f6e110]:
+              - generic [ref=f6e111]: Signature
+              - generic [ref=f6e112]: 4/4
+            - generic [ref=f6e113]:
+              - generic [ref=f6e114]: Key
+              - generic [ref=f6e115]: C maj
+        - img [ref=f6e125]
+      - generic [ref=f6e127]:
+        - button "TUNER" [ref=f6e128] [cursor=pointer]
+        - button [ref=f6e129] [cursor=pointer]:
+          - img [ref=f6e130]
+        - button [ref=f6e134] [cursor=pointer]:
+          - img [ref=f6e135]
+        - button "1 2 3 4" [ref=f6e140] [cursor=pointer]
+        - generic [ref=f6e194]:
+          - button [ref=f6e195] [cursor=pointer]:
+            - img [ref=f6e196]
+          - button [ref=f6e198] [cursor=pointer]:
+            - img [ref=f6e199]
+          - button [ref=f6e202] [cursor=pointer]:
+            - img [ref=f6e203]
+    - generic [ref=f6e205]:
+      - generic "Click to open Tools Menu (T)" [ref=f6e206] [cursor=pointer]:
+        - button "pointer (A)" [ref=f6e207]:
+          - img [ref=f6e208]
+        - button "scissors (S)" [ref=f6e210]:
+          - img [ref=f6e211]
+        - button "erase (E)" [ref=f6e217]:
+          - img [ref=f6e218]
+        - button "zoom (Z)" [ref=f6e221]:
+          - img [ref=f6e222]
+        - button "text (T)" [ref=f6e225]:
+          - img [ref=f6e226]
+        - button "pencil (P)" [ref=f6e228]:
+          - img [ref=f6e229]
+        - button "marquee (R)" [ref=f6e232]:
+          - img [ref=f6e233]
+      - generic [ref=f6e236]:
+        - button "Capture Recording" [ref=f6e237] [cursor=pointer]
+        - button "Quantize" [ref=f6e238] [cursor=pointer]
+        - button "Note Repeat" [ref=f6e240] [cursor=pointer]:
+          - img [ref=f6e241]
+          - generic [ref=f6e246]: Note Repeat
+        - button "Spot Erase" [ref=f6e247] [cursor=pointer]:
+          - img [ref=f6e248]
+          - generic [ref=f6e251]: Spot Erase
+        - button "Step Input" [ref=f6e252] [cursor=pointer]:
+          - img [ref=f6e253]
+          - generic [ref=f6e256]: Step Input
+        - generic [ref=f6e258]:
+          - button "Replace" [ref=f6e259] [cursor=pointer]:
+            - img [ref=f6e260]
+            - generic [ref=f6e265]: Replace
+          - combobox [ref=f6e266]:
+            - option "Region Erase" [selected]
+            - option "Region Punch"
+            - option "Content Erase"
+            - option "Content Punch"
+        - generic [ref=f6e267]:
+          - generic [ref=f6e268]: "Overlap:"
+          - combobox [ref=f6e269]:
+            - option "Create Take Folder" [selected]
+            - option "Merge"
+            - option "Create Tracks"
+            - option "Create Tracks and Mute"
+      - generic [ref=f6e271]:
+        - generic [ref=f6e272]: "Snap:"
+        - generic [ref=f6e273]: Smart
+        - img [ref=f6e274]
+    - generic [ref=f6e276]:
+      - generic [ref=f6e277]:
+        - generic [ref=f6e278]:
+          - generic [ref=f6e279] [cursor=pointer]:
+            - generic [ref=f6e280]: Library
+            - generic [ref=f6e281]: All Sounds
+            - generic [ref=f6e282]:
+              - img [ref=f6e283]
+              - img [ref=f6e285]
+          - generic [ref=f6e287]:
+            - img [ref=f6e290]
+            - generic [ref=f6e295]: Analog Deep Bass
+          - generic [ref=f6e296]:
+            - generic [ref=f6e297]:
+              - img [ref=f6e298]
+              - img [ref=f6e301]
+            - textbox "Search Sounds" [ref=f6e303]
+        - generic [ref=f6e304]:
+          - generic [ref=f6e305]:
+            - generic [ref=f6e306] [cursor=pointer]:
+              - generic [ref=f6e307]:
+                - generic [ref=f6e308]: "01"
+                - generic [ref=f6e309]: Pianos & Keys
+              - img [ref=f6e310]
+            - generic [ref=f6e312] [cursor=pointer]:
+              - generic [ref=f6e313]:
+                - generic [ref=f6e314]: "02"
+                - generic [ref=f6e315]: Synthesizers
+              - img [ref=f6e316]
+            - generic [ref=f6e318] [cursor=pointer]:
+              - generic [ref=f6e319]:
+                - generic [ref=f6e320]: "03"
+                - generic [ref=f6e321]: Orchestral
+              - img [ref=f6e322]
+            - generic [ref=f6e324] [cursor=pointer]:
+              - generic [ref=f6e325]:
+                - generic [ref=f6e326]: "04"
+                - generic [ref=f6e327]: Drum Kits
+              - img [ref=f6e328]
+            - generic [ref=f6e330] [cursor=pointer]:
+              - generic [ref=f6e331]:
+                - generic [ref=f6e332]: "05"
+                - generic [ref=f6e333]: SoundFont Instruments
+              - img [ref=f6e334]
+            - generic [ref=f6e336] [cursor=pointer]:
+              - generic [ref=f6e337]:
+                - generic [ref=f6e338]: "06"
+                - generic [ref=f6e339]: Audio Effects
+              - img [ref=f6e340]
+          - generic [ref=f6e342]:
+            - generic [ref=f6e344] [cursor=pointer]: Analog Pad
+            - generic [ref=f6e346] [cursor=pointer]: Lead Synth
+            - generic [ref=f6e348] [cursor=pointer]: Warm Strings
+            - generic [ref=f6e350] [cursor=pointer]: Deep Bass
+            - generic [ref=f6e352] [cursor=pointer]: Pluck Synth
+            - generic [ref=f6e354] [cursor=pointer]: Brass Section
+            - generic [ref=f6e356] [cursor=pointer]: Bell Tone
+            - generic [ref=f6e358] [cursor=pointer]: Ambient Pad
+            - generic [ref=f6e360] [cursor=pointer]: Arp Synth
+            - generic [ref=f6e362] [cursor=pointer]: Wobble Bass
+            - generic [ref=f6e364] [cursor=pointer]: FX Noise
+            - generic [ref=f6e366] [cursor=pointer]: Sub Drop
+        - generic [ref=f6e367]:
+          - generic [ref=f6e368]:
+            - generic [ref=f6e369] [cursor=pointer]: Legacy
+            - img [ref=f6e370]
+            - generic [ref=f6e372] [cursor=pointer]: Logic
+            - img [ref=f6e373]
+            - generic [ref=f6e375]: Synthesizers
+            - img [ref=f6e376]
+          - generic [ref=f6e378]:
+            - generic [ref=f6e379]:
+              - button [ref=f6e381] [cursor=pointer]:
+                - img [ref=f6e382]
+                - img [ref=f6e386]
+              - button "Revert" [ref=f6e388] [cursor=pointer]
+            - generic [ref=f6e389]:
+              - button "Delete" [ref=f6e390] [cursor=pointer]
+              - button "Save..." [ref=f6e391] [cursor=pointer]
+      - generic [ref=f6e392]:
+        - generic [ref=f6e394]: No Track Selected
+        - generic [ref=f6e395]:
+          - generic [ref=f6e396]:
+            - generic [ref=f6e397]:
+              - button [ref=f6e398] [cursor=pointer]:
+                - img [ref=f6e399]
+              - generic [ref=f6e404]:
+                - button [ref=f6e405] [cursor=pointer]:
+                  - img [ref=f6e406]
+                - button [ref=f6e411] [cursor=pointer]:
+                  - img [ref=f6e412]
+                - button [ref=f6e415] [cursor=pointer]:
+                  - img [ref=f6e416]
+            - generic [ref=f6e420] [cursor=pointer]:
+              - img [ref=f6e421]
+              - img [ref=f6e423]
+            - generic [ref=f6e425]:
+              - generic [ref=f6e426]:
+                - generic [ref=f6e427]: "Snap:"
+                - generic [ref=f6e428] [cursor=pointer]:
+                  - generic [ref=f6e429]: Smart
+                  - generic [ref=f6e430]:
+                    - img [ref=f6e431]
+                    - img [ref=f6e433]
+              - generic [ref=f6e435]:
+                - generic [ref=f6e436]: "Drag:"
+                - generic [ref=f6e437] [cursor=pointer]:
+                  - generic [ref=f6e438]: No Overlap
+                  - generic [ref=f6e439]:
+                    - img [ref=f6e440]
+                    - img [ref=f6e442]
+              - button [ref=f6e446] [cursor=pointer]:
+                - img [ref=f6e447]
+              - generic [ref=f6e451]:
+                - generic "Vertical Zoom" [ref=f6e452]:
+                  - img [ref=f6e453]
+                - generic "Horizontal Zoom" [ref=f6e464]:
+                  - img [ref=f6e465]
+          - generic [ref=f6e478]:
+            - generic [ref=f6e479]:
+              - generic [ref=f6e481]:
+                - generic [ref=f6e483]:
+                  - button "New Track..." [ref=f6e484] [cursor=pointer]:
+                    - img [ref=f6e485]
+                  - button "Duplicate Track" [ref=f6e487] [cursor=pointer]:
+                    - img [ref=f6e488]
+                  - button [ref=f6e493] [cursor=pointer]:
+                    - img [ref=f6e494]
+                - generic [ref=f6e496]:
+                  - button [ref=f6e497] [cursor=pointer]:
+                    - img [ref=f6e498]
+                  - button [ref=f6e504] [cursor=pointer]:
+                    - img [ref=f6e505]
+                  - button "H" [ref=f6e507] [cursor=pointer]:
+                    - generic [ref=f6e508]: H
+                  - button [ref=f6e509] [cursor=pointer]:
+                    - img [ref=f6e510]
+              - generic [ref=f6e515]: Drop to Create Track
+            - generic [ref=f6e519] [cursor=pointer]:
+              - generic [ref=f6e521]: "1"
+              - generic [ref=f6e527]: "2"
+              - generic [ref=f6e533]: "3"
+              - generic [ref=f6e539]: "4"
+              - generic [ref=f6e545]: "5"
+              - generic [ref=f6e551]: "6"
+              - generic [ref=f6e557]: "7"
+              - generic [ref=f6e563]: "8"
+              - generic [ref=f6e569]: "9"
+              - generic [ref=f6e575]: "10"
+              - generic [ref=f6e581]: "11"
+              - generic [ref=f6e587]: "12"
+              - generic [ref=f6e593]: "13"
+              - generic [ref=f6e599]: "14"
+              - generic [ref=f6e605]: "15"
+              - generic [ref=f6e611]: "16"
+              - generic [ref=f6e617]: "17"
+              - generic [ref=f6e623]: "18"
+              - generic [ref=f6e629]: "19"
+              - generic [ref=f6e635]: "20"
+              - generic [ref=f6e641]: "21"
+              - generic [ref=f6e647]: "22"
+              - generic [ref=f6e653]: "23"
+              - generic [ref=f6e659]: "24"
+              - generic [ref=f6e665]: "25"
+              - generic [ref=f6e671]: "26"
+              - generic [ref=f6e677]: "27"
+              - generic [ref=f6e683]: "28"
+              - generic [ref=f6e689]: "29"
+              - generic [ref=f6e695]: "30"
+              - generic [ref=f6e701]: "31"
+              - generic [ref=f6e707]: "32"
+              - generic [ref=f6e713]: "33"
+              - generic [ref=f6e719]: "34"
+              - generic [ref=f6e725]: "35"
+              - generic [ref=f6e731]: "36"
+              - generic [ref=f6e737]: "37"
+              - generic [ref=f6e743]: "38"
+              - generic [ref=f6e749]: "39"
+              - generic [ref=f6e755]: "40"
+              - generic [ref=f6e761]: "41"
+              - generic [ref=f6e767]: "42"
+              - generic [ref=f6e773]: "43"
+              - generic [ref=f6e779]: "44"
+              - generic [ref=f6e785]: "45"
+              - generic [ref=f6e791]: "46"
+              - generic [ref=f6e797]: "47"
+              - generic [ref=f6e803]: "48"
+              - generic [ref=f6e809]: "49"
+              - generic [ref=f6e815]: "50"
+              - generic [ref=f6e821]: "51"
+              - generic [ref=f6e827]: "52"
+              - generic [ref=f6e833]: "53"
+              - generic [ref=f6e839]: "54"
+              - generic [ref=f6e845]: "55"
+              - generic [ref=f6e851]: "56"
+              - generic [ref=f6e857]: "57"
+              - generic [ref=f6e863]: "58"
+              - generic [ref=f6e869]: "59"
+              - generic [ref=f6e875]: "60"
+              - generic [ref=f6e881]: "61"
+              - generic [ref=f6e887]: "62"
+              - generic [ref=f6e893]: "63"
+              - generic [ref=f6e899]: "64"
+              - generic [ref=f6e905]: "65"
+              - generic [ref=f6e911]: "66"
+              - generic [ref=f6e917]: "67"
+              - generic [ref=f6e923]: "68"
+              - generic [ref=f6e929]: "69"
+              - generic [ref=f6e935]: "70"
+              - generic [ref=f6e941]: "71"
+              - generic [ref=f6e947]: "72"
+              - generic [ref=f6e953]: "73"
+              - generic [ref=f6e959]: "74"
+              - generic [ref=f6e965]: "75"
+              - generic [ref=f6e971]: "76"
+              - generic [ref=f6e977]: "77"
+              - generic [ref=f6e983]: "78"
+              - generic [ref=f6e989]: "79"
+              - generic [ref=f6e995]: "80"
+              - generic [ref=f6e1001]: "81"
+              - generic [ref=f6e1007]: "82"
+              - generic [ref=f6e1013]: "83"
+              - generic [ref=f6e1019]: "84"
+              - generic [ref=f6e1025]: "85"
+              - generic [ref=f6e1031]: "86"
+              - generic [ref=f6e1037]: "87"
+              - generic [ref=f6e1043]: "88"
+              - generic [ref=f6e1049]: "89"
+              - generic [ref=f6e1055]: "90"
+              - generic [ref=f6e1061]: "91"
+              - generic [ref=f6e1067]: "92"
+              - generic [ref=f6e1073]: "93"
+              - generic [ref=f6e1079]: "94"
+              - generic [ref=f6e1085]: "95"
+              - generic [ref=f6e1091]: "96"
+              - generic [ref=f6e1097]: "97"
+              - generic [ref=f6e1103]: "98"
+              - generic [ref=f6e1109]: "99"
+              - generic [ref=f6e1115]: "100"
+              - generic [ref=f6e1121]: "101"
+              - generic [ref=f6e1127]: "102"
+              - generic [ref=f6e1133]: "103"
+              - generic [ref=f6e1139]: "104"
+              - generic [ref=f6e1145]: "105"
+              - generic [ref=f6e1151]: "106"
+              - generic [ref=f6e1157]: "107"
+              - generic [ref=f6e1163]: "108"
+              - generic [ref=f6e1169]: "109"
+              - generic [ref=f6e1175]: "110"
+              - generic [ref=f6e1181]: "111"
+              - generic [ref=f6e1187]: "112"
+              - generic [ref=f6e1193]: "113"
+              - generic [ref=f6e1199]: "114"
+              - generic [ref=f6e1205]: "115"
+              - generic [ref=f6e1211]: "116"
+              - generic [ref=f6e1217]: "117"
+              - generic [ref=f6e1223]: "118"
+              - generic [ref=f6e1229]: "119"
+              - generic [ref=f6e1235]: "120"
+              - generic [ref=f6e1241]: "121"
+              - generic [ref=f6e1247]: "122"
+              - generic [ref=f6e1253]: "123"
+              - generic [ref=f6e1259]: "124"
+              - generic [ref=f6e1265]: "125"
+              - generic [ref=f6e1271]: "126"
+              - generic [ref=f6e1277]: "127"
+              - generic [ref=f6e1283]: "128"
+              - generic [ref=f6e1289]: "129"
+              - generic [ref=f6e1295]: "130"
+              - generic [ref=f6e1301]: "131"
+              - generic [ref=f6e1307]: "132"
+              - generic [ref=f6e1313]: "133"
+              - generic [ref=f6e1319]: "134"
+              - generic [ref=f6e1325]: "135"
+              - generic [ref=f6e1331]: "136"
+              - generic [ref=f6e1337]: "137"
+              - generic [ref=f6e1343]: "138"
+              - generic [ref=f6e1349]: "139"
+              - generic [ref=f6e1355]: "140"
+              - generic [ref=f6e1361]: "141"
+              - generic [ref=f6e1367]: "142"
+              - generic [ref=f6e1373]: "143"
+              - generic [ref=f6e1379]: "144"
+              - generic [ref=f6e1385]: "145"
+              - generic [ref=f6e1391]: "146"
+              - generic [ref=f6e1397]: "147"
+              - generic [ref=f6e1403]: "148"
+              - generic [ref=f6e1409]: "149"
+              - generic [ref=f6e1415]: "150"
+              - generic [ref=f6e1421]: "151"
+              - generic [ref=f6e1427]: "152"
+              - generic [ref=f6e1433]: "153"
+              - generic [ref=f6e1439]: "154"
+              - generic [ref=f6e1445]: "155"
+              - generic [ref=f6e1451]: "156"
+              - generic [ref=f6e1457]: "157"
+              - generic [ref=f6e1463]: "158"
+              - generic [ref=f6e1469]: "159"
+              - generic [ref=f6e1475]: "160"
+              - generic [ref=f6e1481]: "161"
+              - generic [ref=f6e1487]: "162"
+              - generic [ref=f6e1493]: "163"
+              - generic [ref=f6e1499]: "164"
+              - generic [ref=f6e1505]: "165"
+              - generic [ref=f6e1511]: "166"
+              - generic [ref=f6e1517]: "167"
+              - generic [ref=f6e1523]: "168"
+              - generic [ref=f6e1529]: "169"
+              - generic [ref=f6e1535]: "170"
+              - generic [ref=f6e1541]: "171"
+              - generic [ref=f6e1547]: "172"
+              - generic [ref=f6e1553]: "173"
+              - generic [ref=f6e1559]: "174"
+              - generic [ref=f6e1565]: "175"
+              - generic [ref=f6e1571]: "176"
+              - generic [ref=f6e1577]: "177"
+              - generic [ref=f6e1583]: "178"
+              - generic [ref=f6e1589]: "179"
+              - generic [ref=f6e1595]: "180"
+              - generic [ref=f6e1601]: "181"
+              - generic [ref=f6e1607]: "182"
+              - generic [ref=f6e1613]: "183"
+              - generic [ref=f6e1619]: "184"
+              - generic [ref=f6e1625]: "185"
+              - generic [ref=f6e1631]: "186"
+              - generic [ref=f6e1637]: "187"
+              - generic [ref=f6e1643]: "188"
+              - generic [ref=f6e1649]: "189"
+              - generic [ref=f6e1655]: "190"
+              - generic [ref=f6e1661]: "191"
+              - generic [ref=f6e1667]: "192"
+              - generic [ref=f6e1673]: "193"
+              - generic [ref=f6e1679]: "194"
+              - generic [ref=f6e1685]: "195"
+              - generic [ref=f6e1691]: "196"
+              - generic [ref=f6e1697]: "197"
+              - generic [ref=f6e1703]: "198"
+              - generic [ref=f6e1709]: "199"
+              - generic [ref=f6e1715]: "200"
+              - generic [ref=f6e1721]: "201"
+              - generic [ref=f6e1727]: "202"
+              - generic [ref=f6e1733]: "203"
+              - generic [ref=f6e1739]: "204"
+              - generic [ref=f6e1745]: "205"
+              - generic [ref=f6e1751]: "206"
+              - generic [ref=f6e1757]: "207"
+              - generic [ref=f6e1763]: "208"
+              - generic [ref=f6e1769]: "209"
+              - generic [ref=f6e1775]: "210"
+              - generic [ref=f6e1781]: "211"
+              - generic [ref=f6e1787]: "212"
+              - generic [ref=f6e1793]: "213"
+              - generic [ref=f6e1799]: "214"
+              - generic [ref=f6e1805]: "215"
+              - generic [ref=f6e1811]: "216"
+              - generic [ref=f6e1817]: "217"
+              - generic [ref=f6e1823]: "218"
+              - generic [ref=f6e1829]: "219"
+              - generic [ref=f6e1835]: "220"
+              - generic [ref=f6e1841]: "221"
+              - generic [ref=f6e1847]: "222"
+              - generic [ref=f6e1853]: "223"
+              - generic [ref=f6e1859]: "224"
+              - generic [ref=f6e1865]: "225"
+              - generic [ref=f6e1871]: "226"
+              - generic [ref=f6e1877]: "227"
+              - generic [ref=f6e1883]: "228"
+              - generic [ref=f6e1889]: "229"
+              - generic [ref=f6e1895]: "230"
+              - generic [ref=f6e1901]: "231"
+              - generic [ref=f6e1907]: "232"
+              - generic [ref=f6e1913]: "233"
+              - generic [ref=f6e1919]: "234"
+              - generic [ref=f6e1925]: "235"
+              - generic [ref=f6e1931]: "236"
+              - generic [ref=f6e1937]: "237"
+              - generic [ref=f6e1943]: "238"
+              - generic [ref=f6e1949]: "239"
+              - generic [ref=f6e1955]: "240"
+              - generic [ref=f6e1961]: "241"
+              - generic [ref=f6e1967]: "242"
+              - generic [ref=f6e1973]: "243"
+              - generic [ref=f6e1979]: "244"
+              - generic [ref=f6e1985]: "245"
+              - generic [ref=f6e1991]: "246"
+              - generic [ref=f6e1997]: "247"
+              - generic [ref=f6e2003]: "248"
+              - generic [ref=f6e2009]: "249"
+              - generic [ref=f6e2015]: "250"
+              - generic [ref=f6e2021]: "251"
+              - generic [ref=f6e2027]: "252"
+              - generic [ref=f6e2033]: "253"
+              - generic [ref=f6e2039]: "254"
+              - generic [ref=f6e2045]: "255"
+              - generic [ref=f6e2051]: "256"
+              - generic [ref=f6e2057]: "257"
+              - generic [ref=f6e2063]: "258"
+              - generic [ref=f6e2069]: "259"
+              - generic [ref=f6e2075]: "260"
+              - generic [ref=f6e2081]: "261"
+              - generic [ref=f6e2087]: "262"
+              - generic [ref=f6e2093]: "263"
+              - generic [ref=f6e2099]: "264"
+              - generic [ref=f6e2105]: "265"
+              - generic [ref=f6e2111]: "266"
+              - generic [ref=f6e2117]: "267"
+              - generic [ref=f6e2123]: "268"
+              - generic [ref=f6e2129]: "269"
+              - generic [ref=f6e2135]: "270"
+              - generic [ref=f6e2141]: "271"
+              - generic [ref=f6e2147]: "272"
+              - generic [ref=f6e2153]: "273"
+              - generic [ref=f6e2159]: "274"
+              - generic [ref=f6e2165]: "275"
+              - generic [ref=f6e2171]: "276"
+              - generic [ref=f6e2177]: "277"
+              - generic [ref=f6e2183]: "278"
+              - generic [ref=f6e2189]: "279"
+              - generic [ref=f6e2195]: "280"
+              - generic [ref=f6e2201]: "281"
+              - generic [ref=f6e2207]: "282"
+              - generic [ref=f6e2213]: "283"
+              - generic [ref=f6e2219]: "284"
+              - generic [ref=f6e2225]: "285"
+              - generic [ref=f6e2231]: "286"
+              - generic [ref=f6e2237]: "287"
+              - generic [ref=f6e2243]: "288"
+              - generic [ref=f6e2249]: "289"
+              - generic [ref=f6e2255]: "290"
+              - generic [ref=f6e2261]: "291"
+              - generic [ref=f6e2267]: "292"
+              - generic [ref=f6e2273]: "293"
+              - generic [ref=f6e2279]: "294"
+              - generic [ref=f6e2285]: "295"
+              - generic [ref=f6e2291]: "296"
+              - generic [ref=f6e2297]: "297"
+              - generic [ref=f6e2303]: "298"
+              - generic [ref=f6e2309]: "299"
+              - generic [ref=f6e2315]: "300"
+              - generic [ref=f6e2321]: "301"
+              - generic [ref=f6e2327]: "302"
+              - generic [ref=f6e2333]: "303"
+              - generic [ref=f6e2339]: "304"
+              - generic [ref=f6e2345]: "305"
+              - generic [ref=f6e2351]: "306"
+              - generic [ref=f6e2357]: "307"
+              - generic [ref=f6e2363]: "308"
+              - generic [ref=f6e2369]: "309"
+              - generic [ref=f6e2375]: "310"
+              - generic [ref=f6e2381]: "311"
+              - generic [ref=f6e2387]: "312"
+              - generic [ref=f6e2393]: "313"
+              - generic [ref=f6e2399]: "314"
+              - generic [ref=f6e2405]: "315"
+              - generic [ref=f6e2411]: "316"
+              - generic [ref=f6e2417]: "317"
+              - generic [ref=f6e2423]: "318"
+              - generic [ref=f6e2429]: "319"
+              - generic [ref=f6e2435]: "320"
+              - generic [ref=f6e2441]: "321"
+              - generic [ref=f6e2447]: "322"
+              - generic [ref=f6e2453]: "323"
+              - generic [ref=f6e2459]: "324"
+              - generic [ref=f6e2465]: "325"
+              - generic [ref=f6e2471]: "326"
+              - generic [ref=f6e2477]: "327"
+              - generic [ref=f6e2483]: "328"
+              - generic [ref=f6e2489]: "329"
+              - generic [ref=f6e2495]: "330"
+              - generic [ref=f6e2501]: "331"
+              - generic [ref=f6e2507]: "332"
+              - generic [ref=f6e2513]: "333"
+              - generic [ref=f6e2519]: "334"
+              - generic [ref=f6e2525]: "335"
+              - generic [ref=f6e2531]: "336"
+              - generic [ref=f6e2537]: "337"
+              - generic [ref=f6e2543]: "338"
+              - generic [ref=f6e2549]: "339"
+              - generic [ref=f6e2555]: "340"
+              - generic [ref=f6e2561]: "341"
+              - generic [ref=f6e2567]: "342"
+              - generic [ref=f6e2573]: "343"
+              - generic [ref=f6e2579]: "344"
+              - generic [ref=f6e2585]: "345"
+              - generic [ref=f6e2591]: "346"
+              - generic [ref=f6e2597]: "347"
+              - generic [ref=f6e2603]: "348"
+              - generic [ref=f6e2609]: "349"
+              - generic [ref=f6e2615]: "350"
+              - generic [ref=f6e2621]: "351"
+              - generic [ref=f6e2627]: "352"
+              - generic [ref=f6e2633]: "353"
+              - generic [ref=f6e2639]: "354"
+              - generic [ref=f6e2645]: "355"
+              - generic [ref=f6e2651]: "356"
+              - generic [ref=f6e2657]: "357"
+              - generic [ref=f6e2663]: "358"
+              - generic [ref=f6e2669]: "359"
+              - generic [ref=f6e2675]: "360"
+              - generic [ref=f6e2681]: "361"
+              - generic [ref=f6e2687]: "362"
+              - generic [ref=f6e2693]: "363"
+              - generic [ref=f6e2699]: "364"
+              - generic [ref=f6e2705]: "365"
+              - generic [ref=f6e2711]: "366"
+              - generic [ref=f6e2717]: "367"
+              - generic [ref=f6e2723]: "368"
+              - generic [ref=f6e2729]: "369"
+              - generic [ref=f6e2735]: "370"
+              - generic [ref=f6e2741]: "371"
+              - generic [ref=f6e2747]: "372"
+              - generic [ref=f6e2753]: "373"
+              - generic [ref=f6e2759]: "374"
+              - generic [ref=f6e2765]: "375"
+              - generic [ref=f6e2771]: "376"
+              - generic [ref=f6e2777]: "377"
+              - generic [ref=f6e2783]: "378"
+              - generic [ref=f6e2789]: "379"
+              - generic [ref=f6e2795]: "380"
+              - generic [ref=f6e2801]: "381"
+              - generic [ref=f6e2807]: "382"
+              - generic [ref=f6e2813]: "383"
+              - generic [ref=f6e2819]: "384"
+              - generic [ref=f6e2825]: "385"
+              - generic [ref=f6e2831]: "386"
+              - generic [ref=f6e2837]: "387"
+              - generic [ref=f6e2843]: "388"
+              - generic [ref=f6e2849]: "389"
+              - generic [ref=f6e2855]: "390"
+              - generic [ref=f6e2861]: "391"
+              - generic [ref=f6e2867]: "392"
+              - generic [ref=f6e2873]: "393"
+              - generic [ref=f6e2879]: "394"
+              - generic [ref=f6e2885]: "395"
+              - generic [ref=f6e2891]: "396"
+              - generic [ref=f6e2897]: "397"
+              - generic [ref=f6e2903]: "398"
+              - generic [ref=f6e2909]: "399"
+              - generic [ref=f6e2915]: "400"
+    - generic [ref=f6e2931]:
+      - generic [ref=f6e2932]:
+        - button "Browser (Library)" [ref=f6e2933] [cursor=pointer]:
+          - img [ref=f6e2934]
+        - button "Inspector" [ref=f6e2939] [cursor=pointer]:
+          - img [ref=f6e2940]
+        - button "Automation" [ref=f6e2941] [cursor=pointer]
+      - generic [ref=f6e2943]:
+        - button "Editors" [ref=f6e2944] [cursor=pointer]:
+          - img [ref=f6e2945]
+        - button "Plug-ins" [ref=f6e2948] [cursor=pointer]:
+          - img [ref=f6e2949]
+        - button "Mixer" [ref=f6e2955] [cursor=pointer]:
+          - img [ref=f6e2956]
+      - generic [ref=f6e2957]:
+        - button "Enter Fullscreen (F11)" [ref=f6e2971] [cursor=pointer]:
+          - img [ref=f6e2972]
+        - button "Play Surfaces" [ref=f6e2958] [cursor=pointer]:
+          - img [ref=f6e2959]
+  - alert [ref=f6e2977]
