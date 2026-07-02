@@ -88,7 +88,12 @@ out/
 *.wasm
 !public/wasm/**/*.wasm
 
-# Local extra directories
-vst/
-sound\ sample/
+# Large binaries in history (to be purged from git)
+*.pdf
+*.node
+
+# Playwright MCP test artifacts
+.playwright-mcp/
+playwright-report/
+test-results/
 
