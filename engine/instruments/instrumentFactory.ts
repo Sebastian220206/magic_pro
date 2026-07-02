@@ -11,8 +11,9 @@ import {
 import { PolyphonicSynth } from './synthEngine';
 import { Sampler } from './samplerEngine';
 import { DrumMachine } from './drumMachine';
+import { SoundFontInstrument } from './soundfont/SoundFontInstrument';
 
-export type InstrumentType = 'synth' | 'sampler' | 'drumkit';
+export type InstrumentType = 'synth' | 'sampler' | 'drumkit' | 'soundfont';
 
 // Interface for all instrument types
 export interface Instrument {
@@ -72,6 +73,11 @@ export class InstrumentFactory {
         (instrument as DrumMachine).loadSamples().then(() => {
           console.log(`Drum kit ${name} loaded`);
         });
+        break;
+
+      case 'soundfont':
+        instrument = new SoundFontInstrument(this.ctx);
+        console.log(`SoundFont ${name} created (awaiting font file load)`);
         break;
 
       default:

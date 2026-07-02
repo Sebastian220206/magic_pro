@@ -8,8 +8,31 @@
  * - Validate project data
  */
 
-import { Track, Clip, MidiClip } from '../timeline/types';
-import { MixerState } from '../audioEngine/channelStrip';
+import type { Clip as ModelClip } from '@/models/Clip';
+import type { Track as ModelTrack } from '@/models/Track';
+
+// Local type aliases for the serializer's internal use
+type Track = ModelTrack;
+type Clip = ModelClip;
+interface MidiClip {
+  id: string;
+  trackId: string;
+  startBeat: number;
+  durationBeats: number;
+  notes: Array<{ id: string; pitch: number; velocity: number; startBeat: number; duration: number; channel?: number; selected?: boolean }>;
+  color?: string;
+  name?: string;
+}
+interface MixerState {
+  tracks: Record<string, any>;
+  masterBus: any;
+  sendBuses: any[];
+  selectedTrackId: string | null;
+  pluginRegistry: Map<string, any>;
+  isMixerVisible: boolean;
+  meterRefreshRate: number;
+  isInitialized: boolean;
+}
 
 // =============================================================================
 // Serialized Project Types
@@ -252,7 +275,7 @@ export class ProjectSerializer {
     return tracks.map(track => ({
       id: track.id,
       name: track.name,
-      type: track.type,
+      type: (track.type === 'audio' || track.type === 'midi' ? track.type : 'midi') as 'audio' | 'midi',
       color: track.color || '#3B82F6',
       muted: track.muted || false,
       soloed: track.soloed || false,
@@ -267,13 +290,13 @@ export class ProjectSerializer {
   private serializeClip(clip: Clip): SerializedClip {
     return {
       id: clip.id,
-      startBeat: clip.startBeat,
+      startBeat: clip.startBeat ?? 0,
       duration: clip.duration,
-      assetId: clip.assetId || '',
+      assetId: clip.sampleId || clip.storageKey || '',
       offset: clip.offset,
-      fadeIn: clip.fadeIn,
-      fadeOut: clip.fadeOut,
-      gain: clip.gain,
+      fadeIn: clip.fadeIn.duration,
+      fadeOut: clip.fadeOut.duration,
+      gain: 1,
     };
   }
 
@@ -282,7 +305,7 @@ export class ProjectSerializer {
       id: clip.id,
       trackId: clip.trackId,
       startBeat: clip.startBeat,
-      length: clip.length || clip.duration,
+      length: clip.durationBeats,
       notes: clip.notes.map(note => ({
         id: note.id,
         pitch: note.pitch,
@@ -318,17 +341,40 @@ export class ProjectSerializer {
   // =============================================================================
 
   private deserializeTracks(serializedTracks: SerializedTrack[]): Track[] {
-    return serializedTracks.map(t => ({
-      id: t.id,
-      name: t.name,
-      type: t.type,
-      color: t.color,
-      muted: t.muted,
-      soloed: t.soloed,
-      volume: t.volume,
-      pan: t.pan,
-      clips: [], // Clips are loaded separately
-    }));
+    const result: Track[] = [];
+    for (const t of serializedTracks) {
+      const track: Track = {
+        id: t.id,
+        name: t.name,
+        type: t.type === 'audio' ? 'audio' : 'midi',
+        color: t.color,
+        muted: t.muted,
+        soloed: t.soloed,
+        volume: t.volume,
+        pan: t.pan,
+        orderIndex: 0,
+        recordEnabled: false,
+        inputMonitoring: false,
+        protected: false,
+        frozen: false,
+        enabled: true,
+        freezeMode: 'Source Only',
+        alternatives: [],
+        activeAlternativeId: 'default',
+        showInactiveAlternatives: false,
+        transpose: 0,
+        velocityOffset: 0,
+        delay: 0,
+        plugins: [],
+        sends: [],
+        outputBusId: 'stereo-out',
+        zoom: 1,
+        hidden: false,
+        clips: [],
+      };
+      result.push(track);
+    }
+    return result;
   }
 
   private deserializeClips(serializedTracks: SerializedTrack[]): Clip[] {
@@ -340,14 +386,25 @@ export class ProjectSerializer {
           id: clip.id,
           trackId: track.id,
           type: 'audio',
+          name: 'Audio Clip',
+          color: '#3b82f6',
+          alternativeId: 'default',
+          start: clip.startBeat,
           startBeat: clip.startBeat,
+          startTime: clip.startBeat,
           duration: clip.duration,
           offset: clip.offset || 0,
-          assetId: clip.assetId,
-          fadeIn: clip.fadeIn,
-          fadeOut: clip.fadeOut,
-          gain: clip.gain || 1,
-        });
+          fadeIn: { duration: clip.fadeIn ?? 0, curve: 'linear', gain: 1 },
+          fadeOut: { duration: clip.fadeOut ?? 0, curve: 'linear', gain: 1 },
+          playbackRate: 1,
+          pitchOffset: 0,
+          stretchMode: 'none',
+          muted: false,
+          loop: false,
+          qSwing: 0,
+          transpose: 0,
+          velocityOffset: 0,
+        } as Clip);
       }
     }
 
@@ -359,8 +416,8 @@ export class ProjectSerializer {
       id: c.id,
       trackId: c.trackId,
       startBeat: c.startBeat,
-      length: c.length,
-      duration: c.length,
+      durationBeats: c.length,
+      chunks: [],
       notes: c.notes.map(n => ({
         id: n.id,
         pitch: n.pitch,

@@ -7,12 +7,19 @@
  */
 
 // Core engine modules
-export { audioContextManager } from './audioContext';
-export { advancedScheduler } from './scheduler';
-export { recordingEngine } from './recordingEngine';
-export { routingEngine } from './routingEngine';
-export { bufferCacheManager } from './bufferCache';
-export { bounceEngine } from './bounceEngine';
+import { audioContextManager, initializeAudio as initAudioContext, getCurrentTime as getAudioCurrentTime, getSampleRate as getAudioSampleRate } from './audioContext';
+import { advancedScheduler } from './scheduler';
+import { recordingEngine } from './recordingEngine';
+import { routingEngine } from './routingEngine';
+import { bufferCacheManager } from './bufferCache';
+import { bounceEngine } from './bounceEngine';
+
+export { audioContextManager, initAudioContext, getAudioCurrentTime, getAudioSampleRate };
+export { advancedScheduler };
+export { recordingEngine };
+export { routingEngine };
+export { bufferCacheManager };
+export { bounceEngine };
 
 // Mixer modules
 export { ChannelStrip, createChannelStrip, dbToGain, gainToDb } from './channelStrip';
@@ -21,8 +28,16 @@ export type { ChannelStripConfig, ChannelStripState, InsertSlot, SendState } fro
 export { AudioMeter, createAudioMeter } from './audioMeter';
 export type { MeterData, MeterOptions } from './audioMeter';
 
+export { LoudnessMeter } from './loudnessMeter';
+export type { LoudnessData } from './loudnessMeter';
+
 export { MasterBus, createMasterBus } from './masterBus';
 export type { MasterBusState, LimiterOptions } from './masterBus';
+
+export { MasteringChain, PRESETS, DEFAULT_MASTERING_STATE } from './masteringChain';
+export type { MasteringPresetId, MasteringChainState, MasteringLimiterConfig, MasteringEQConfig, MasteringMultibandConfig } from './masteringChain';
+
+export { MasteringProcessor, createMasteringProcessor } from './masteringProcessor';
 
 // Types
 export * from './types';
@@ -62,7 +77,14 @@ export const getBuffer = (id: string) => bufferCacheManager.getBuffer(id);
 export const clearCache = () => bufferCacheManager.clearCache();
 
 // Bounce/export control
-export const bounceProject = (clips: any[], tracks: any[], startBeat: number, endBeat: number, tempo: number, config?: any) => 
+export const bounceProject: (
+    clips: any[], 
+    tracks: any[], 
+    startBeat: number, 
+    endBeat: number, 
+    tempo: number, 
+    config?: any
+) => Promise<{ url: string; size: number }> = (clips, tracks, startBeat, endBeat, tempo, config) => 
     bounceEngine.bounceProject(clips, tracks, startBeat, endBeat, tempo, config);
 
 // Engine initialization

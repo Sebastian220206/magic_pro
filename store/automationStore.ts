@@ -61,6 +61,11 @@ export interface AutomationState {
   isRecording: boolean;
   automationModes: Map<string, AutomationModeState>; // key: "trackId.parameter"
   
+  // Automation Curve Tool state
+  selectedAutomationSegmentId: string | null;
+  hoveredAutomationSegmentId: string | null;
+  curveDragAmount: number;
+
   // Editor options
   snapToGrid: boolean;
   gridDivision: number;  // beats per division
@@ -121,6 +126,11 @@ export interface AutomationActions {
   
   // Curve editing
   setCurveShape: (laneId: string, pointAId: string, pointBId: string, curve: CurveType) => void;
+
+  // Automation Curve Tool
+  selectAutomationSegment: (segmentId: string | null) => void;
+  setHoveredAutomationSegment: (segmentId: string | null) => void;
+  setCurveDragAmount: (amount: number) => void;
   
   // Value at position
   getValueAtBeat: (laneId: string, beat: number) => number;
@@ -196,6 +206,9 @@ const initialState: AutomationState = {
   },
   isRecording: false,
   automationModes: new Map(),
+  selectedAutomationSegmentId: null,
+  hoveredAutomationSegmentId: null,
+  curveDragAmount: 0,
   snapToGrid: true,
   gridDivision: 0.25, // 1/16th notes
   showValues: true,
@@ -668,6 +681,28 @@ export const useAutomationStore = create<AutomationState & AutomationActions>()(
               pointA.curve = curve;
             }
           }
+        });
+      },
+
+      // =========================================================================
+      // Automation Curve Tool
+      // =========================================================================
+
+      selectAutomationSegment: (segmentId: string | null) => {
+        set((state) => {
+          state.selectedAutomationSegmentId = segmentId;
+        });
+      },
+
+      setHoveredAutomationSegment: (segmentId: string | null) => {
+        set((state) => {
+          state.hoveredAutomationSegmentId = segmentId;
+        });
+      },
+
+      setCurveDragAmount: (amount: number) => {
+        set((state) => {
+          state.curveDragAmount = Math.max(-1, Math.min(1, amount));
         });
       },
 

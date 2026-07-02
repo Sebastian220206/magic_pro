@@ -1,4 +1,4 @@
-export type ClipType = 'audio' | 'midi';
+export type ClipType = 'audio' | 'midi' | 'video';
 
 export interface Note {
     id: string;
@@ -75,4 +75,12 @@ export interface Clip {
         durationSeconds: number;
         numChannels: number;
     };
+
+    // --- Video Properties ---
+    videoUrl?: string;
+    videoWidth?: number;
+    videoHeight?: number;
+    videoFps?: number;
+    videoOffset?: number;
+    thumbnailUri?: string;
 }

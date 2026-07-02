@@ -140,13 +140,17 @@ export function addClipToTimeline(clip: RecordingClip): void {
   });
 
   const waveformPeaks = {
-    channels: waveformChannels,
+    channels: waveformChannels.map(ch => ({
+      min: new Float32Array(ch.min),
+      max: new Float32Array(ch.max),
+    })),
     resolution: RESOLUTION,
     durationSeconds: clip.audioBuffer.duration,
     numChannels,
   };
 
-  // Convert recording clip to track clip
+  const fadeIn = typeof clip.fadeIn === 'number' ? { duration: clip.fadeIn, curve: 'linear' as const, gain: 1 } : clip.fadeIn;
+  const fadeOut = typeof clip.fadeOut === 'number' ? { duration: clip.fadeOut, curve: 'linear' as const, gain: 1 } : clip.fadeOut;
   const trackClip: Clip = {
     id: clip.id,
     trackId: clip.trackId,
@@ -154,8 +158,8 @@ export function addClipToTimeline(clip: RecordingClip): void {
     name: clip.name || 'Audio Recording',
     color: track.color || '#3b82f6',
     alternativeId: track.activeAlternativeId || 'default',
-    start: clip.start,
-    startTime: clip.start,
+    start: clip.startTime,
+    startTime: clip.startTime,
     duration: durationInBeats,
     offset: 0,
     muted: false,
@@ -166,11 +170,11 @@ export function addClipToTimeline(clip: RecordingClip): void {
     fileUrl: undefined,
     sampleId: clip.id,
     waveformPeaks,
-    fadeIn: { duration: 0, curve: 'linear', gain: 1 },
-    fadeOut: { duration: 0, curve: 'linear', gain: 1 },
+    fadeIn: fadeIn ?? { duration: 0, curve: 'linear', gain: 1 },
+    fadeOut: fadeOut ?? { duration: 0, curve: 'linear', gain: 1 },
     playbackRate: 1,
     pitchOffset: 0,
-    stretchMode: 'off',
+    stretchMode: 'none',
   };
 
   // 1. Add to track's own clips array (for persistence/track management)
@@ -218,7 +222,7 @@ export function updateClip(clipId: string, updates: Partial<RecordingClip>): voi
   const updatedClip = {
     ...track.clips[clipIndex],
     ...updates,
-  };
+  } as Clip;
 
   const updatedClips = [...(track.clips || [])];
   updatedClips[clipIndex] = updatedClip;

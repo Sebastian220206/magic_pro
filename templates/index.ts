@@ -99,7 +99,7 @@ function buildClip(cd: TemplateClipDef, tracks: Track[], template: ProjectTempla
     fadeOut: { duration: 0, curve: 'linear', gain: 1 },
     playbackRate: 1,
     pitchOffset: 0,
-    stretchMode: 'off',
+    stretchMode: 'none',
   };
 }
 

@@ -25,8 +25,8 @@ export class InstrumentAdapter implements MidiInstrument {
    * Trigger a note (called by MIDI scheduler)
    */
   trigger(pitch: number, time: number, duration: number, velocity: number): void {
-    // Convert velocity (0-127) to our scale (0-127)
-    const vel = Math.max(0, Math.min(127, velocity));
+    // Velocity range 0-300 (extended beyond standard MIDI 127 for boost)
+    const vel = Math.max(0, velocity);
 
     // Note on at the specified time
     this.instrument.noteOn(pitch, vel, time);

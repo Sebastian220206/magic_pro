@@ -6,14 +6,16 @@ export const timelineNavigation = new NavigationLoop({
   startBeat: 0,
   pixelsPerBeat: 20,
   maxVisiblePitch: 127,
-  pixelsPerPitch: 12
+  pixelsPerPitch: 12,
+  zoomY: 1
 });
 
 export const pianoRollNavigation = new NavigationLoop({
   startBeat: 0,
   pixelsPerBeat: 40,
   maxVisiblePitch: 100,
-  pixelsPerPitch: 16
+  pixelsPerPitch: 16,
+  zoomY: 1
 });
 
 // Link Viewports horizontally

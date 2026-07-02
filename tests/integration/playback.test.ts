@@ -31,7 +31,7 @@ describe('Playback Integration Flow', () => {
     const store = useProjectStore.getState();
     
     // 1. Trigger Play
-    await store.transport.play();
+    store.play();
     
     // Verify engine was called
     expect(audioEngine.play).toHaveBeenCalled();
@@ -43,6 +43,6 @@ describe('Playback Integration Flow', () => {
     }
 
     // 3. Verify store state updated
-    expect(useProjectStore.getState().transport.playhead).toBe(1.0);
+    expect((useProjectStore.getState() as any).currentBeat).toBe(1.0);
   });
 });

@@ -7,6 +7,8 @@
 export { PolyphonicSynth, type SynthPreset, type ADSREnvelope } from './synthEngine';
 export { Sampler, type SampleZone, type SampleMap } from './samplerEngine';
 export { DrumMachine, type DrumPad, type DrumKit } from './drumMachine';
+export { SoundFontInstrument } from './soundfont/SoundFontInstrument';
+export type { SoundFontInstrumentConfig } from './soundfont/SoundFontInstrument';
 
 // Factory and registry
 export {

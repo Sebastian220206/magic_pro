@@ -46,17 +46,6 @@ export interface SendState {
   enabled: boolean;
 }
 
-export interface MeterData {
-  peakLeft: number;
-  peakRight: number;
-  rmsLeft: number;
-  rmsRight: number;
-  peakHoldLeft: number;
-  peakHoldRight: number;
-  clipLeft: boolean;
-  clipRight: boolean;
-}
-
 // =============================================================================
 // Utilities
 // =============================================================================

@@ -175,7 +175,10 @@ class SynthVoice {
 
     start(time: number, velocity: number) {
         const { envelope } = this.preset;
-        const velScale = velocity / 127;
+        // Clamp velocity to MIDI range (0-127) to prevent
+        // gain > 1.0 that could clip or silence the output
+        const clampedVel = Math.max(0, Math.min(127, velocity));
+        const velScale = clampedVel / 127;
 
         // Apply Envelope - Attack and Decay
         this.gain.gain.cancelScheduledValues(time);
@@ -218,21 +221,39 @@ export class SynthEngine {
     private ctx: AudioContext;
     private activeVoices: Map<number, SynthVoice> = new Map();
     private targetNode: AudioNode;
+    /** Master gain for real-time volume control (between voices and target) */
+    private masterGain: GainNode;
 
     constructor(ctx: AudioContext, target: AudioNode) {
         this.ctx = ctx;
         this.targetNode = target;
+
+        // Insert a master gain node so the Volume slider works in real-time
+        this.masterGain = ctx.createGain();
+        this.masterGain.gain.value = 1.0;
+        this.masterGain.connect(target);
+    }
+
+    /** Set master volume in real-time (0.0 - 1.0, clamped) */
+    setVolume(volume: number): void {
+        const clamped = Math.max(0, Math.min(1, volume));
+        this.masterGain.gain.setTargetAtTime(clamped, this.ctx.currentTime, 0.05);
+    }
+
+    /** Get the master gain input node (voices connect here instead of targetNode) */
+    getInput(): AudioNode {
+        return this.masterGain;
     }
 
     noteOn(note: number, velocity: number, presetId: string = 'piano') {
         const preset = SYNTH_PRESETS[presetId] || SYNTH_PRESETS.piano;
-        
+
         // Handle overlap (monophonic behavior per note number)
         if (this.activeVoices.has(note)) {
             this.noteOff(note);
         }
 
-        const voice = new SynthVoice(this.ctx, preset, note, this.targetNode);
+        const voice = new SynthVoice(this.ctx, preset, note, this.masterGain);
         voice.start(this.ctx.currentTime, velocity);
         this.activeVoices.set(note, voice);
     }

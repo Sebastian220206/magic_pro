@@ -12,7 +12,7 @@
 // Curve Types
 // =============================================================================
 
-export type CurveType = 'linear' | 'exponential' | 'logarithmic' | 'bezier' | 'hold';
+export type CurveType = 'linear' | 'exponential' | 'logarithmic' | 'bezier' | 'hold' | 'sCurve' | 'equalPower';
 
 // =============================================================================
 // Automation Point
@@ -184,6 +184,64 @@ export interface SerializedAutomationPoint {
   value: number;
   curve: CurveType;
   curveAmount?: number;
+}
+
+// =============================================================================
+// Automation Segment (computed from consecutive point pairs)
+// =============================================================================
+
+export interface AutomationSegment {
+  id: string;
+  laneId: string;
+  startPointId: string;
+  endPointId: string;
+  startBeat: number;
+  endBeat: number;
+  startValue: number;
+  endValue: number;
+  curveType: CurveType;
+  curveAmount: number;
+}
+
+export function createSegmentFromPoints(
+  laneId: string,
+  pointA: AutomationPoint,
+  pointB: AutomationPoint
+): AutomationSegment {
+  return {
+    id: `seg-${pointA.id}-${pointB.id}`,
+    laneId,
+    startPointId: pointA.id,
+    endPointId: pointB.id,
+    startBeat: pointA.beat,
+    endBeat: pointB.beat,
+    startValue: pointA.value,
+    endValue: pointB.value,
+    curveType: pointA.curve || 'linear',
+    curveAmount: pointA.curveAmount ?? 0,
+  };
+}
+
+export function getAllSegments(lane: AutomationLane): AutomationSegment[] {
+  const segments: AutomationSegment[] = [];
+  for (let i = 0; i < lane.points.length - 1; i++) {
+    segments.push(createSegmentFromPoints(lane.id, lane.points[i], lane.points[i + 1]));
+  }
+  return segments;
+}
+
+export function findSegmentAtBeat(lane: AutomationLane, beat: number): AutomationSegment | null {
+  const segments = getAllSegments(lane);
+  for (const seg of segments) {
+    if (beat >= seg.startBeat && beat <= seg.endBeat) {
+      return seg;
+    }
+  }
+  return null;
+}
+
+export function getSegmentById(lane: AutomationLane, segmentId: string): AutomationSegment | null {
+  return getAllSegments(lane).find(s => s.id === segmentId) || null;
 }
 
 // =============================================================================

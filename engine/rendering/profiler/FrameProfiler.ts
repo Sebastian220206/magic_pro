@@ -30,7 +30,7 @@ export class FrameProfiler {
     }
   }
 
-  public increment(key: keyof Pick<RenderMetrics, 'viewportTransactionCount' | 'orphanedSnapshots' | 'transactionRollbacks' | 'dirtyRegionCount' | 'overlayCount' | 'activeRendererCount'>) {
+  public increment(key: keyof Pick<RenderMetrics, 'droppedFrames' | 'viewportTransactionCount' | 'orphanedSnapshots' | 'transactionRollbacks' | 'dirtyRegionCount' | 'overlayCount' | 'activeRendererCount'>) {
     this.currentMetrics[key]++;
   }
 

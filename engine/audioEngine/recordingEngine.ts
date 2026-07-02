@@ -318,7 +318,8 @@ class RecordingEngine {
             this.emitEvent({
                 type: 'recordingData',
                 sessionId: this.currentSession.id,
-                peaks: data.peaks, // Send pre-calculated peaks for smooth UI
+                data: data.buffers[0], // Use first channel for visualization
+                peaks: data.peaks,
                 time: audioContextManager.getCurrentTime()
             });
         }

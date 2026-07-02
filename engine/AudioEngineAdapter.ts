@@ -16,6 +16,7 @@ import { bounceEngine } from './audioEngine/bounceEngine';
 import { SynthEngine } from "./SynthEngine";
 import { MultiSamplerEngine, createSamplerInstrument } from "./instruments/multiSamplerEngine";
 import { AudioTrack, AudioClip } from './audioEngine/types';
+import { SoundFontManager } from '@/lib/soundfontStore';
 
 interface MidiInputEvent {
     message: MIDIMessageEvent;
@@ -33,10 +34,12 @@ interface LegacyTrackNodes {
     }>;
 }
 
+import type { ClipType } from '../models/Clip';
+
 interface RegionPlaybackClip {
     id: string;
     trackId: string;
-    type: 'audio' | 'midi';
+    type: ClipType;
     name: string;
     startBeat?: number;
     start?: number;
@@ -68,6 +71,8 @@ const DEFAULT_AUDIO_TRACK: Omit<AudioTrack, 'id'> = {
 
 export class AudioEngineAdapter {
     private synthEngines: Map<string, SynthEngine> = new Map();
+    /** Per-track synth volume (0-1), separate from track volume */
+    private synthVolumes: Map<string, number> = new Map();
     private samplerEngines: Map<string, MultiSamplerEngine> = new Map();
     private samplerLoading: Set<string> = new Set();
     private midiListeners: Set<(event: MidiInputEvent) => void> = new Set();
@@ -451,6 +456,44 @@ export class AudioEngineAdapter {
         }
     }
 
+    /** Control the SynthEngine's master volume in real-time (0.0 - 1.0) */
+    setSynthVolume(trackId: string, volume: number): void {
+        const clamped = Math.max(0, Math.min(3, volume));
+        this.synthVolumes.set(trackId, clamped);
+        const engine = this.synthEngines.get(trackId);
+        if (engine) {
+            engine.setVolume(clamped);
+        }
+
+        // Also update SoundFont instrument volume if active
+        const sfManager = SoundFontManager.getInstance();
+        let sfSelection = sfManager.getSelection(trackId);
+        if (!sfSelection) {
+            sfSelection = sfManager.getSelection('_global_');
+        }
+        if (sfSelection) {
+            const sfInstrument = sfManager.getInstrument(sfSelection.fontId);
+            if (sfInstrument) {
+                sfInstrument.setVolume(clamped);
+            }
+        }
+    }
+
+    /** Get or create a SynthEngine for a track (used by both triggerNote and setSynthVolume) */
+    private getOrCreateSynth(trackId: string, ctx: AudioContext, targetNode: AudioNode): SynthEngine {
+        let engine = this.synthEngines.get(trackId);
+        if (!engine) {
+            engine = new SynthEngine(ctx, targetNode);
+            this.synthEngines.set(trackId, engine);
+            // Restore saved volume
+            const saved = this.synthVolumes.get(trackId);
+            if (saved !== undefined) {
+                engine.setVolume(saved);
+            }
+        }
+        return engine;
+    }
+
     // ─── MIDI & Synthesis ────────────────────────────────────────────────────────
 
     triggerNote(trackId: string, pitch: number, velocity: number, repeatRate?: string, instrument?: string) {
@@ -475,7 +518,30 @@ export class AudioEngineAdapter {
             'Steinway Piano': '/sound_sample/piano/Piano.dspreset'
         };
 
-        // 1. If sampler is already loaded, use it directly — no synth fallback needed
+        // 1. Check SoundFontManager for this track (or globally if track lacks it)
+        const sfManager = SoundFontManager.getInstance();
+        let sfSelection = sfManager.getSelection(trackId);
+        if (!sfSelection) {
+            sfSelection = sfManager.getSelection('_global_');
+        }
+        if (sfSelection) {
+            const sfInstrument = sfManager.getInstrument(sfSelection.fontId);
+            if (sfInstrument && sfInstrument.isLoaded) {
+                if (sfInstrument.currentPresetIndex !== sfSelection.presetIndex) {
+                    sfInstrument.selectPreset(sfSelection.presetIndex);
+                }
+                const connectTarget: AudioNode = channel.inputGain || channel.mainGain!;
+                try {
+                    sfInstrument.getOutput().connect(connectTarget);
+                } catch (e) {
+                    // Already connected or cross-context — ignore
+                }
+                sfInstrument.noteOn(pitch, velocity);
+                return;
+            }
+        }
+
+        // 2. If sampler is already loaded, use it directly — no synth fallback needed
         if (instrument && samplerPresets[instrument]) {
             const sampler = this.samplerEngines.get(trackId);
             if (sampler) {
@@ -484,13 +550,9 @@ export class AudioEngineAdapter {
             }
         }
 
-        // 2. Fall back to SynthEngine for instant sound (sampler not yet loaded)
+        // 3. Fall back to SynthEngine for instant sound (sampler not yet loaded)
         const targetNode: AudioNode = channel.inputGain || channel.mainGain!;
-        let engine = this.synthEngines.get(trackId);
-        if (!engine) {
-            engine = new SynthEngine(ctx, targetNode);
-            this.synthEngines.set(trackId, engine);
-        }
+        const engine = this.getOrCreateSynth(trackId, ctx, targetNode);
         engine.noteOn(pitch, velocity, instrument || 'piano');
 
         // 3. Fire-and-forget: load sampler in background, replaces synth when ready
@@ -604,6 +666,18 @@ export class AudioEngineAdapter {
     releaseNote(trackId: string, pitch: number) {
         this.synthEngines.get(trackId)?.noteOff(pitch);
         this.samplerEngines.get(trackId)?.noteOff(pitch);
+
+        const sfManager = SoundFontManager.getInstance();
+        let sfSelection = sfManager.getSelection(trackId);
+        if (!sfSelection) {
+            sfSelection = sfManager.getSelection('_global_');
+        }
+        if (sfSelection) {
+            const sfInstrument = sfManager.getInstrument(sfSelection.fontId);
+            if (sfInstrument && sfInstrument.isLoaded) {
+                sfInstrument.noteOff(pitch);
+            }
+        }
     }
 
     setPitchBend(trackId: string, cents: number) {
@@ -686,9 +760,9 @@ export class AudioEngineAdapter {
 
     private normalizeTrack(track: Partial<AudioTrack> & Pick<AudioTrack, 'id'>): AudioTrack {
         return {
-            id: track.id,
             ...DEFAULT_AUDIO_TRACK,
             ...track,
+            id: track.id,
             effects: track.effects ?? [],
             sends: track.sends ?? [],
         };

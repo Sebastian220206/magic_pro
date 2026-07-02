@@ -123,7 +123,7 @@ export class MidiSynth {
 
         // Route into the track's gain node if it exists, otherwise fall back to destination
         if (channel) {
-            envGain.connect(channel.gain);
+            envGain.connect((channel as any).gain);
         } else {
             envGain.connect(ctx.destination);
         }
@@ -206,7 +206,7 @@ export class MidiSynth {
              audioEngine2.createTrack(trackId);
              const channel = audioEngine2.getChannel(trackId);
              if (channel) {
-                 engine.getOutput().connect(channel.gain);
+                 engine.getOutput().connect((channel as any).gain);
              } else {
                  engine.getOutput().connect(ctx.destination);
              }

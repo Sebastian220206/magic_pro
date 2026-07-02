@@ -1,5 +1,5 @@
-import { RenderableOverlay } from '../../../rendering/overlay/OverlayRenderer';
-import { ViewportState } from '../../../navigation/types';
+import { RenderableOverlay } from '../../rendering/overlay/OverlayRenderer';
+import { ViewportState } from '../../navigation/types';
 
 export class CurveHandleOverlay implements RenderableOverlay {
   public id = 'SYS_CURVE_HANDLE_OVERLAY';

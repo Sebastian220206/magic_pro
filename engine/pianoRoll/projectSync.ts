@@ -212,14 +212,15 @@ export function loadFromProjectStore(
       id: mergedClipId,
       trackId: primaryClip.trackId,
       startBeat: 0,
-      length: Math.max(...clipsToLoad.map(c => c.clip.startBeat + c.clip.duration)),
+      durationBeats: Math.max(...clipsToLoad.map(c => (c.clip.startBeat ?? 0) + c.clip.duration)),
+      chunks: [],
       notes: allNotes,
       color: primaryClip.clip.color || '#3B82F6',
       name: clipsToLoad.length === 1 
         ? primaryClip.clip.name 
         : `${clipsToLoad.length} Regions`,
       isModified: false,
-    };
+    } as any;
 
     midiStore.clips.set(mergedClipId, virtualClip);
     midiStore.currentClipId = mergedClipId;

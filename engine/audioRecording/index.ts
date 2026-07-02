@@ -6,7 +6,6 @@
 // Core recording components
 export {
   AudioRecorder,
-  createAudioRecorder,
   getAudioRecorder,
   type RecordingConfig,
   type RecordingResult,

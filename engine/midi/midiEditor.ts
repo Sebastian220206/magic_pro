@@ -599,14 +599,15 @@ export function getNoteAtPosition(
 export function createMidiClip(
   trackId: string,
   startBeat: number,
-  length: number,
+  durationBeats: number,
   name?: string
 ): MidiClip {
   return {
     id: `clip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     trackId,
     startBeat,
-    length,
+    durationBeats,
+    chunks: [],
     notes: [],
     name: name || 'MIDI Clip',
     color: '#3B82F6',
@@ -641,7 +642,7 @@ export function splitClip(clip: MidiClip, splitBeat: number): [MidiClip, MidiCli
   
   const clip1: MidiClip = {
     ...clip,
-    length: relativeSplit,
+    durationBeats: relativeSplit,
     notes: notes1,
   };
   
@@ -649,7 +650,7 @@ export function splitClip(clip: MidiClip, splitBeat: number): [MidiClip, MidiCli
     ...clip,
     id: `clip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     startBeat: splitBeat,
-    length: clipDuration - relativeSplit,
+    durationBeats: clipDuration - relativeSplit,
     notes: notes2,
   };
   
@@ -684,11 +685,11 @@ export function mergeClips(clips: MidiClip[]): MidiClip | null {
   
   // Calculate total length
   const last = sorted[sorted.length - 1];
-  const totalLength = last.startBeat + last.length - first.startBeat;
+  const totalLength = last.startBeat + last.durationBeats - first.startBeat;
   
   return {
     ...first,
-    length: totalLength,
+    durationBeats: totalLength,
     notes: allNotes,
   };
 }
@@ -699,10 +700,10 @@ export function mergeClips(clips: MidiClip[]): MidiClip | null {
 export function cropClip(
   clip: MidiClip,
   newStartBeat: number,
-  newLength: number
+  newDurationBeats: number
 ): MidiClip {
   const relativeStart = newStartBeat - clip.startBeat;
-  const relativeEnd = relativeStart + newLength;
+  const relativeEnd = relativeStart + newDurationBeats;
   
   const croppedNotes = clip.notes
     .filter(n => {
@@ -736,7 +737,7 @@ export function cropClip(
   return {
     ...clip,
     startBeat: newStartBeat,
-    length: newLength,
+    durationBeats: newDurationBeats,
     notes: croppedNotes,
   };
 }

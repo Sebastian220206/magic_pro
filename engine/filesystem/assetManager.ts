@@ -293,7 +293,7 @@ export class AssetManager {
    */
   async getAsset(assetId: string): Promise<Asset | null> {
     const assetData = await this.db.loadAsset(assetId);
-    return assetData?.metadata || null;
+    return (assetData?.metadata as Asset) || null;
   }
 
   /**
@@ -315,14 +315,14 @@ export class AssetManager {
    * List all assets
    */
   async listAssets(): Promise<Asset[]> {
-    return this.db.listAssets();
+    return this.db.listAssets() as Promise<Asset[]>;
   }
 
   /**
    * Find duplicate assets by hash
    */
   async findDuplicate(hash: string): Promise<Asset | null> {
-    return this.db.findAssetByHash(hash);
+    return this.db.findAssetByHash(hash) as Promise<Asset | null>;
   }
 
   /**

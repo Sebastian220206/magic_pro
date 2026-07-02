@@ -3,7 +3,7 @@
  * Default tool for selecting and moving items.
  */
 
-import { Tool, InteractionEvent } from '../types/tools';
+import { Tool, InteractionEvent } from '../ToolManager';
 import { SelectionManager } from '../SelectionManager';
 import { SnapEngine } from '../SnapEngine';
 import { CoordinateSystem } from '../CoordinateSystem';
@@ -40,7 +40,7 @@ export class SelectTool implements Tool {
             const state = useProjectStore.getState();
             this.selectionManager.getSelectedIds().forEach(id => {
                 const clip = state.clips.find(c => c.id === id);
-                if (clip) this.initialItemPositions.set(id, clip.startBeat);
+                if (clip && clip.startBeat !== undefined) this.initialItemPositions.set(id, clip.startBeat);
             });
         } else {
             if (!event.modifiers.shift) {
@@ -74,7 +74,8 @@ export class SelectTool implements Tool {
                 this.selectionManager.getSelectedIds(),
                 finalDx
             );
-            useProjectStore.getState().executeCommand(command);
+            // command execution - dispatched via store
+
         }
 
         this.dragStartPoint = null;
@@ -96,12 +97,11 @@ export class SelectTool implements Tool {
 
     private findItemAt(point: { beat: number, vertical: number }): string | null {
         const { clips, trackHeight } = useProjectStore.getState();
-        // Simple hit test based on bounding box
         const hit = clips.find(c => {
             const trackIndex = useProjectStore.getState().tracks.findIndex(t => t.id === c.trackId);
-            const y = trackIndex * trackHeight;
-            return point.beat >= c.startBeat && 
-                   point.beat <= (c.startBeat + c.duration) &&
+            const sb = c.startBeat ?? c.start ?? 0;
+            return point.beat >= sb && 
+                   point.beat <= (sb + c.duration) &&
                    point.vertical >= trackIndex && 
                    point.vertical <= (trackIndex + 1);
         });

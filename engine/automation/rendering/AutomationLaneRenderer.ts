@@ -17,20 +17,20 @@ export class AutomationLaneRenderer implements RendererContract {
     const endBeat = viewport.startBeat + (ctx.canvas.width / viewport.pixelsPerBeat);
 
     for (const track of store.tracks) {
-      if (!track.automationLanes || track.automationLanes.length === 0) continue;
+      if (!track.automation || track.automation.length === 0) continue;
 
       const trackIndex = store.tracks.findIndex(t => t.id === track.id);
       const laneHeight = 60; // Configurable
       const trackBaseY = trackIndex * store.trackHeight;
 
-      for (let i = 0; i < track.automationLanes.length; i++) {
-        const lane = track.automationLanes[i];
+      for (let i = 0; i < track.automation.length; i++) {
+        const lane = track.automation[i];
         const laneY = trackBaseY + store.trackHeight + (i * laneHeight);
 
-        globalAutomationCache.buildCache(lane.points);
+        globalAutomationCache.buildCache(lane.points as any);
         const visiblePoints = globalAutomationCache.getPointsInRange(viewport.startBeat, endBeat);
 
-        this.drawLane(ctx, visiblePoints, viewport, laneY, laneHeight, lane.color || '#F59E0B');
+        this.drawLane(ctx, visiblePoints, viewport, laneY, laneHeight, (lane as any).color || '#F59E0B');
       }
     }
   }
@@ -43,14 +43,14 @@ export class AutomationLaneRenderer implements RendererContract {
     const endBeat = viewport.startBeat + ((region.x + region.width) / viewport.pixelsPerBeat);
 
     for (const track of store.tracks) {
-      if (!track.automationLanes) continue;
+      if (!track.automation) continue;
 
       const trackIndex = store.tracks.findIndex(t => t.id === track.id);
       const laneHeight = 60; 
       const trackBaseY = trackIndex * store.trackHeight;
 
-      for (let i = 0; i < track.automationLanes.length; i++) {
-        const lane = track.automationLanes[i];
+      for (let i = 0; i < track.automation.length; i++) {
+        const lane = track.automation[i];
         const laneY = trackBaseY + store.trackHeight + (i * laneHeight);
 
         // Vertical cull check: does the dirty region intersect this specific automation lane?
@@ -59,7 +59,7 @@ export class AutomationLaneRenderer implements RendererContract {
         }
 
         const regionPoints = globalAutomationCache.getPointsInRange(startBeat, endBeat);
-        this.drawLane(ctx, regionPoints, viewport, laneY, laneHeight, lane.color || '#F59E0B');
+        this.drawLane(ctx, regionPoints, viewport, laneY, laneHeight, (lane as any).color || '#F59E0B');
       }
     }
   }

@@ -143,8 +143,8 @@ export class MasterBus {
   }
 
   public getLimiterReduction(): number {
-    // reduction is an AudioParam, read its current value
-    return this.limiterNode.reduction.value;
+    // reduction is a readonly number on DynamicsCompressorNode
+    return this.limiterNode.reduction;
   }
 
   // =============================================================================

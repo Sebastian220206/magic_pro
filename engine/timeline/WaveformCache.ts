@@ -9,7 +9,7 @@ export class WaveformCache {
     }
 
     getWaveform(clip: Clip, width: number, height: number, color: string): HTMLCanvasElement {
-        const key = `${clip.id}-${width}-${height}-${color}-${clip.waveformPeaks?.resolution}`;
+        const key = `${clip.id}-${width}-${height}-${color}-${clip.waveformPeaks?.resolution ?? ''}`;
         if (this.cache.has(key)) {
             return this.cache.get(key)!;
         }
@@ -31,7 +31,7 @@ export class WaveformCache {
         // Limit cache size
         if (this.cache.size > 100) {
             const firstKey = this.cache.keys().next().value;
-            this.cache.delete(firstKey);
+            if (firstKey !== undefined) this.cache.delete(firstKey);
         }
 
         return canvas;

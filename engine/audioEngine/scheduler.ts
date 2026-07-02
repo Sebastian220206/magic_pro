@@ -355,9 +355,20 @@ class AdvancedScheduler {
         });
     }
 
+    private createTimerWorker(): Worker | null {
+        if (typeof Worker === 'undefined') return null;
+        try {
+            const url = new Function('return new URL("./scheduler.worker.ts", import.meta.url)')();
+            return new Worker(url);
+        } catch {
+            return null;
+        }
+    }
+
     private startSchedulingLoop(clips: AudioClip[], tracks: AudioTrack[]): void {
         if (!this.timerWorker) {
-            this.timerWorker = new Worker(new URL('./scheduler.worker.ts', import.meta.url));
+            this.timerWorker = this.createTimerWorker();
+            if (!this.timerWorker) return;
             this.timerWorker.onmessage = (e) => {
                 if (e.data === 'tick') {
                     this.tick(clips, tracks);

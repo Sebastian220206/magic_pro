@@ -1,6 +1,6 @@
 import type { Clip } from './Clip';
 
-export type TrackType = 'audio' | 'midi' | 'software-instrument' | 'drummer' | 'external-midi' | 'folder' | 'bus' | 'output';
+export type TrackType = 'audio' | 'midi' | 'software-instrument' | 'drummer' | 'external-midi' | 'folder' | 'bus' | 'output' | 'video';
 
 export interface AutomationPoint {
     time: number;

@@ -181,8 +181,8 @@ export type AudioEngineEvent =
     | { type: 'clipScheduled'; clipId: string; startTime: number }
     | { type: 'clipFinished'; clipId: string; endTime: number }
     | { type: 'recordingStarted'; sessionId: string; trackId: string }
-    | { type: 'recordingStopped'; sessionId: string; duration: number }
-    | { type: 'recordingData'; sessionId: string; data: Float32Array }
+    | { type: 'recordingStopped'; sessionId: string; duration: number; latencyOffset?: number }
+    | { type: 'recordingData'; sessionId: string; data: Float32Array; peaks?: number[]; time?: number }
     | { type: 'bufferLoaded'; bufferId: string; size: number }
     | { type: 'bufferEvicted'; bufferId: string; reason: string }
     | { type: 'bounceStarted'; config: BounceConfig }

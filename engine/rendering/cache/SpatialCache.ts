@@ -14,8 +14,9 @@ export class SpatialCache {
     this.buckets.clear();
     
     for (const clip of clips) {
-      const startBucket = Math.floor(clip.startBeat / this.BUCKET_SIZE_BEATS);
-      const endBucket = Math.floor((clip.startBeat + clip.duration) / this.BUCKET_SIZE_BEATS);
+      const sb = clip.startBeat ?? clip.start ?? 0;
+      const startBucket = Math.floor(sb / this.BUCKET_SIZE_BEATS);
+      const endBucket = Math.floor((sb + clip.duration) / this.BUCKET_SIZE_BEATS);
 
       for (let i = startBucket; i <= endBucket; i++) {
         let bucket = this.buckets.get(i);
@@ -39,7 +40,8 @@ export class SpatialCache {
       if (bucket) {
         for (const clip of bucket.clips) {
           // Double check exact intersection
-          if (clip.startBeat < endBeat && clip.startBeat + clip.duration > startBeat) {
+          const sb2 = clip.startBeat ?? clip.start ?? 0;
+          if (sb2 < endBeat && sb2 + clip.duration > startBeat) {
             resultSet.add(clip);
           }
         }

@@ -14,6 +14,7 @@
 export type {
   AutomationPoint,
   AutomationLane,
+  AutomationSegment,
   CurveType,
   ParameterTarget,
   ParameterPath,
@@ -41,6 +42,10 @@ export {
   clampValue,
   createAutomationPoint,
   createAutomationLane,
+  createSegmentFromPoints,
+  getAllSegments,
+  findSegmentAtBeat,
+  getSegmentById,
 } from './types';
 
 // Curve Interpolation

@@ -3,13 +3,12 @@
  * Performance benchmarks for the Audio Engine.
  */
 
-import { AdvancedScheduler } from '@/engine/audioEngine/scheduler';
+import { advancedScheduler } from '@/engine/audioEngine/scheduler';
 import { routingEngine } from '@/engine/audioEngine/routingEngine';
 
 describe('Audio Engine Benchmarks', () => {
   
   test('Scheduling 1000 clips', async () => {
-    const scheduler = new AdvancedScheduler();
     const clips = Array.from({ length: 1000 }, (_, i) => ({
       id: `clip-${i}`,
       trackId: 'track-1',

@@ -11,6 +11,13 @@ export interface RecordingConfig {
   batchSize?: number;
 }
 
+export interface RecordingResult {
+  audioBuffer: AudioBuffer;
+  duration: number;
+  sampleRate: number;
+  channels: number;
+}
+
 export type RecordingState = 'idle' | 'recording' | 'paused' | 'stopped';
 
 /**
@@ -36,7 +43,7 @@ export class AudioRecorder {
   private meterLevel = 0;
   private peakLevel = 0;
   private peakHoldTime = 0;
-  private analysisBuffer: Float32Array = new Float32Array(2048);
+  private analysisBuffer: Float32Array<ArrayBuffer> = new Float32Array(2048) as Float32Array<ArrayBuffer>;
 
   // Timing & Accuracy
   private recordingStartTime = 0;

@@ -2,7 +2,9 @@ import { create } from 'zustand';
 import { audioEngine } from '@/engine/AudioEngineAdapter';
 import { Track, TrackAlternative, PluginSetting } from '@/models/Track';
 import { Clip, Note, ClipType } from '@/models/Clip';
+import { TimelineAnnotation } from '@/models/Annotation';
 import { ArticulationSet, Articulation } from '@/models/Articulation';
+import { libraryData, Preset } from '@/lib/libraryData';
 import { serializeStoreState, deserializeState, saveToIndexedDB, loadFromIndexedDB, CURRENT_SCHEMA_VERSION } from '@/engine/persistence/projectPersistence';
 import { rebuildEngine } from '@/engine/persistence/engineRebuilder';
 import { storeAudioFile } from '@/engine/persistence/audioFileStore';
@@ -235,6 +237,15 @@ interface GlobalSettings {
     useProjectSettings: boolean; // if false, global settings are enforced and project settings are read-only
 }
 
+export interface MarqueeSelection {
+    id: string;
+    startBeat: number;
+    endBeat: number;
+    trackIds: string[];
+    clipIds: string[];
+    laneIds: string[];
+}
+
 interface ProjectState {
     id: string | null;
     name: string;
@@ -246,6 +257,7 @@ interface ProjectState {
     playhead: number;
     tracks: Track[];
     clips: Clip[];
+    annotations: TimelineAnnotation[];
     alternatives: ProjectAlternative[];
     currentAlternativeId: string | null;
     globalTracks: GlobalTracks;
@@ -263,6 +275,7 @@ interface ProjectState {
     snap: 'bar' | 'half' | 'quarter' | 'eighth' | 'sixteenth';
     controlBarSettings: ControlBarSettings;
     isDirty: boolean;
+    loadError: string | null;
     history: Partial<ProjectState>[];
     future: Partial<ProjectState>[];
 
@@ -299,9 +312,13 @@ interface ProjectState {
     pianoRollLinkMode: 'single' | 'selected' | 'folder' | 'project';
     pianoRollFocusClipId: string | null;
 
+    // --- Automation Selection ---
+    selectedAutomationPointId: string | null;
+    selectedAutomationPointIds: string[];
+
     // --- Selection-Based Processing ---
     showSelectionBasedProcessing: boolean;
-    marqueeSelection: { trackIds: string[], start: number, duration: number } | null;
+    marqueeSelection: MarqueeSelection | null;
     sbpState: {
         setA: PluginSetting[];
         setB: PluginSetting[];
@@ -320,6 +337,7 @@ interface ProjectState {
     locatorLeft: number;
     locatorRight: number;
     autoSetLocators: 'off' | 'marquee' | 'region' | 'note' | 'marker';
+    showToolsMenu: boolean;
     showNewTrackDialog: boolean;
     showCreateTrackUsing: boolean;
     showColorPalette: boolean;
@@ -552,8 +570,10 @@ interface ProjectState {
     addPlugin: (trackId: string, pluginType: 'comp' | 'eq' | 'reverb' | 'delay') => void;
     togglePlugin: (trackId: string, pluginId: string) => void;
     addClip: (clip: Clip) => void;
-    currentTool: 'select' | 'split' | 'draw' | 'erase' | 'zoom' | 'mute';
-    setCurrentTool: (tool: 'select' | 'split' | 'draw' | 'erase' | 'zoom' | 'mute') => void;
+    currentTool: 'select' | 'split' | 'draw' | 'erase' | 'zoom' | 'mute'
+        | 'text' | 'pointer' | 'pencil' | 'scissors' | 'glue' | 'solo'
+        | 'fade' | 'automation-select' | 'automation-curve' | 'marquee' | 'flex';
+    setCurrentTool: (tool: 'select' | 'split' | 'draw' | 'erase' | 'zoom' | 'mute' | 'text' | 'pointer' | 'pencil' | 'scissors' | 'glue' | 'solo' | 'fade' | 'automation-select' | 'automation-curve' | 'marquee' | 'flex') => void;
     contextMenu: { visible: boolean; x: number; y: number; clipId: string | null };
     showContextMenu: (x: number, y: number, clipId: string) => void;
     hideContextMenu: () => void;
@@ -615,6 +635,9 @@ interface ProjectState {
     addNote: (clipId: string, note: Note) => void;
     updateNote: (clipId: string, noteId: string, updates: Partial<Note>) => void;
     deleteNote: (clipId: string, noteId: string) => void;
+    addAnnotation: (annotation: TimelineAnnotation) => void;
+    updateAnnotation: (id: string, updates: Partial<TimelineAnnotation>) => void;
+    deleteAnnotation: (id: string) => void;
     setZoom: (zoom: number) => void;
     setTrackHeight: (height: number) => void;
     setSnap: (snap: ProjectState['snap']) => void;
@@ -622,6 +645,7 @@ interface ProjectState {
     addAutomationPoint: (trackId: string, parameter: string, time: number, value: number) => void;
     updateAutomationPoint: (trackId: string, laneIndex: number, pointIndex: number, updatedPoint: any) => void;
     deleteAutomationPoint: (trackId: string, laneIndex: number, pointIndex: number) => void;
+    toggleToolsMenu: (show?: boolean) => void;
     toggleLibrary: () => void;
     toggleInspector: () => void;
     toggleToolbar: () => void;
@@ -689,6 +713,9 @@ interface ProjectState {
     toggleCycle: () => void;
     toggleSkipCycle: () => void;
     setLocators: (left: number, right: number) => void;
+    setLoopEnabled: (enabled: boolean) => void;
+    setLoop: (start: number, end: number, enable?: boolean) => void;
+    clearLoop: () => void;
     setAutoSetLocators: (mode: ProjectState['autoSetLocators']) => void;
     updateLocatorsBySelection: () => void;
     chaseEvents: (position: number) => void;
@@ -777,6 +804,13 @@ interface ProjectState {
     updateStepInputSettings: (updates: Partial<ProjectState['stepInputSettings']>) => void;
     selectClips: (ids: string[]) => void;
 
+    // --- Automation Selection Actions ---
+    selectAutomationPoint: (pointId: string, additive?: boolean) => void;
+    deselectAutomationPoint: (pointId: string) => void;
+    toggleAutomationPointSelection: (pointId: string) => void;
+    selectAutomationPoints: (ids: string[]) => void;
+    deselectAllAutomationPoints: () => void;
+
     // --- Internal MIDI Routing Actions ---
     setInternalMidiIn: (trackId: string, sourceId: string | undefined, type: Track['internalMidiInType']) => void;
     setInternalMidiInRecordMode: (trackId: string, mode: Track['internalMidiInRecordMode']) => void;
@@ -796,7 +830,7 @@ function estimatedSize(obj: unknown): number {
             if (seen.has(v as object)) return 0;
             seen.add(v as object);
             if (Array.isArray(v)) return v.reduce((s, x) => s + size(x), 0);
-            return Object.values(v as Record<string, unknown>).reduce((s, x) => s + size(x), 0);
+            return Object.values(v as Record<string, unknown>).reduce((s: number, x: unknown) => s + size(x), 0);
         }
         return 0;
     }
@@ -813,6 +847,7 @@ function createHistorySnapshot(state: ProjectState): Partial<ProjectState> {
         keySignature: state.keySignature,
         tracks: state.tracks.map(t => ({ ...t })),
         clips: state.clips.map(c => ({ ...c })),
+        annotations: state.annotations ? state.annotations.map(a => ({ ...a })) : undefined,
         alternatives: state.alternatives ? state.alternatives.map(a => ({ ...a, tracks: a.tracks.map(t => ({ ...t })), clips: a.clips.map(c => ({ ...c })) })) : undefined,
         currentAlternativeId: state.currentAlternativeId,
         globalTracks: state.globalTracks ? JSON.parse(JSON.stringify(state.globalTracks)) : undefined,
@@ -857,6 +892,8 @@ function createHistorySnapshot(state: ProjectState): Partial<ProjectState> {
         bottomPanelHeight: state.bottomPanelHeight,
         pianoRollLinkMode: state.pianoRollLinkMode,
         pianoRollFocusClipId: state.pianoRollFocusClipId,
+        selectedAutomationPointId: state.selectedAutomationPointId,
+        selectedAutomationPointIds: state.selectedAutomationPointIds ? [...state.selectedAutomationPointIds] : undefined,
         showSelectionBasedProcessing: state.showSelectionBasedProcessing,
         marqueeSelection: state.marqueeSelection ? { ...state.marqueeSelection } : undefined,
         sbpState: state.sbpState ? { ...state.sbpState } : undefined,
@@ -923,6 +960,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     playhead: 0,
     tracks: [],
     clips: [],
+    annotations: [],
     alternatives: [],
     currentAlternativeId: null,
     globalTracks: {
@@ -1139,6 +1177,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     trackHeight: 70,
     snap: 'quarter',
     isDirty: false,
+    loadError: null,
     controlBarSettings: {
         showViews: true, showTransport: true, showDisplay: true, showModes: true,
         viewButtons: {
@@ -1174,7 +1213,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     showAutomation: false,
     showLibrary: true,
     showInspector: true,
-    showToolbar: false,
+    showToolbar: true,
     showSmartControls: false,
     showMixer: false,
     showEditors: false,
@@ -1201,7 +1240,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     selectedClipIds: [],
     regionClipboard: [],
     selectedNoteId: null,
-    currentTool: 'select',
+    selectedAutomationPointId: null,
+    selectedAutomationPointIds: [],
+    currentTool: 'pointer',
     contextMenu: { visible: false, x: 0, y: 0, clipId: null },
     bottomPanel: 'mixer',
     bottomPanelHeight: 320,
@@ -1211,6 +1252,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     locatorLeft: 32,
     locatorRight: 48,
     autoSetLocators: 'off',
+    showToolsMenu: false,
     showNewTrackDialog: false,
     showCreateTrackUsing: false,
     showColorPalette: false,
@@ -1919,6 +1961,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
         if (!loaded) {
             console.warn(`[Persistence] Failed to load project: ${projectId}`);
+            set({ loadError: `Project "${projectId}" not found. It may have been deleted.` });
         }
     },
 
@@ -1931,7 +1974,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 console.warn('[Persistence] Close save failed:', e)
             );
         }
-        set({ id: null, name: 'Untitled Project', tracks: [], clips: [], isDirty: false, playing: false, playhead: 0, history: [], future: [] });
+        set({ id: null, name: 'Untitled Project', tracks: [], clips: [], isDirty: false, loadError: null, playing: false, playhead: 0, history: [], future: [] });
     },
 
     setDirty: (dirty) => set({ isDirty: dirty }),
@@ -2062,10 +2105,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             if (t.id !== trackId) return t;
             const existingAutomation = t.automation ? [...t.automation] : [];
             const laneIndex = existingAutomation.findIndex(l => l.parameter === parameter);
+            const newPoint = { 
+                id: `autopoint-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
+                time, 
+                value 
+            };
             if (laneIndex === -1) {
-                existingAutomation.push({ parameter, points: [{ time, value }] });
+                existingAutomation.push({ parameter, points: [newPoint] });
             } else {
-                const points = [...existingAutomation[laneIndex].points, { time, value }].sort((a, b) => a.time - b.time);
+                const points = [...existingAutomation[laneIndex].points, newPoint].sort((a, b) => a.time - b.time);
                 existingAutomation[laneIndex] = { ...existingAutomation[laneIndex], points };
             }
             return { ...t, automation: existingAutomation };
@@ -2537,127 +2585,111 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         });
     },
 
-    stemSplitter: (clipId, options) => {
+    stemSplitter: async (clipId, options) => {
         const s = get();
         const clip = s.clips.find(c => c.id === clipId);
         if (!clip || clip.type !== 'audio') return;
 
-        const presets: Record<string, string[]> = {
-            'All Stems': ['vocals', 'drums', 'bass', 'guitar', 'piano', 'other'],
-            'Vocals + Music': ['vocals', 'instruments'],
-            'Vocals Only': ['vocals'],
-            'Drums + Bass': ['drums', 'bass'],
-        };
+        const { STEM_PRESETS, separateStems } = await import('@/lib/stemSeparation');
 
-        const presetName = options?.preset && presets[options.preset] ? options.preset : 'All Stems';
-        const stems = options?.selectedStems && options.selectedStems.length > 0 ? options.selectedStems : presets[presetName];
+        const allowedStems = options?.selectedStems && options.selectedStems.length > 0
+            ? options.selectedStems
+            : (options?.preset && STEM_PRESETS[options.preset] ? STEM_PRESETS[options.preset] : STEM_PRESETS['All Stems']);
         const includeSubmix = options?.includeSubmix ?? true;
 
         const sourceTrack = s.tracks.find(t => t.id === clip.trackId);
         const newTrackOrderBase = sourceTrack ? (sourceTrack.orderIndex + 1) : s.tracks.length;
 
-        const newClips: Clip[] = [];
+        const audioBuffer = bufferCacheManager.getBuffer(clip.id);
+        if (!audioBuffer) {
+            console.warn('[StemSplitter] No audio buffer found for clip', clip.id);
+            return;
+        }
 
-        stems.forEach((stem, idx) => {
-            const trackId = `track-${Date.now()}-${Math.random().toString(36).slice(2, 5)}-${idx}`;
-            const trackColor = ['#fb7185', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6'][idx % 6];
-            const stemTrack: Track = {
+        let stemResults: { name: string; buffer: AudioBuffer }[]
+        try {
+            stemResults = await separateStems(audioBuffer)
+        } catch (e) {
+            console.error('[StemSplitter] Stem separation failed:', e)
+            return
+        }
+
+        const newTracks: Track[] = []
+        const newClips: Clip[] = []
+        const trackColors = ['#fb7185', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6']
+
+        allowedStems.forEach((stem, idx) => {
+            const stemResult = stemResults.find(r => r.name === stem)
+            if (!stemResult) return
+
+            const trackId = `track-${Date.now()}-${Math.random().toString(36).slice(2, 5)}-${idx}`
+            const stemClipId = `clip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${idx}`
+
+            bufferCacheManager.addBuffer(stemClipId, stemResult.buffer, `${clip.name} (${stem})`)
+
+            newTracks.push({
                 id: trackId,
                 name: `${clip.name} - ${stem}`,
                 type: 'audio',
-                color: trackColor,
+                color: trackColors[idx % trackColors.length],
                 icon: 'mic',
                 orderIndex: newTrackOrderBase + idx,
-                muted: false,
-                soloed: false,
-                volume: 0.8,
-                pan: 0,
-                protected: false,
-                frozen: false,
-                freezeMode: 'Source Only',
-                enabled: true,
-                recordEnabled: false,
-                inputMonitoring: false,
+                muted: false, soloed: false, volume: 0.8, pan: 0,
+                protected: false, frozen: false, freezeMode: 'Source Only',
+                enabled: true, recordEnabled: false, inputMonitoring: false,
                 alternatives: [{ id: 'alt-1', name: 'A' }],
-                activeAlternativeId: 'alt-1',
-                showInactiveAlternatives: false,
-                transpose: 0,
-                velocityOffset: 0,
-                delay: 0,
-                plugins: [],
-                sends: [],
-                outputBusId: 'stereo-out',
-                channelStripId: trackId,
-                zoom: 1,
-                hidden: false,
-                isCollapsed: false,
-                isGrooveTrack: false,
-                matchGrooveTrack: false,
-            };
-            // Add the track
-            set(state => ({ tracks: [...state.tracks, stemTrack] }));
+                activeAlternativeId: 'alt-1', showInactiveAlternatives: false,
+                transpose: 0, velocityOffset: 0, delay: 0,
+                plugins: [], sends: [], outputBusId: 'stereo-out',
+                channelStripId: trackId, zoom: 1, hidden: false, isCollapsed: false,
+                isGrooveTrack: false, matchGrooveTrack: false,
+            })
 
             newClips.push({
                 ...clip,
-                id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${idx}`,
+                id: stemClipId,
                 trackId,
                 name: `${clip.name} (${stem})`,
+                bufferId: stemClipId,
                 aliasOf: undefined,
                 aliasName: undefined,
-            });
-        });
+            })
+        })
 
         if (includeSubmix) {
-            const submixTrackId = `track-${Date.now()}-submix`;
-            const submixTrack: Track = {
+            const submixTrackId = `track-${Date.now()}-submix`
+            newTracks.push({
                 id: submixTrackId,
                 name: `${clip.name} - Submix`,
-                type: 'audio',
-                color: '#9ca3af',
-                icon: 'mic',
-                orderIndex: newTrackOrderBase + stems.length,
-                muted: false,
-                soloed: false,
-                volume: 0.8,
-                pan: 0,
-                protected: false,
-                frozen: false,
-                freezeMode: 'Source Only',
-                enabled: true,
-                recordEnabled: false,
-                inputMonitoring: false,
+                type: 'audio', color: '#9ca3af', icon: 'mic',
+                orderIndex: newTrackOrderBase + allowedStems.length,
+                muted: false, soloed: false, volume: 0.8, pan: 0,
+                protected: false, frozen: false, freezeMode: 'Source Only',
+                enabled: true, recordEnabled: false, inputMonitoring: false,
                 alternatives: [{ id: 'alt-1', name: 'A' }],
-                activeAlternativeId: 'alt-1',
-                showInactiveAlternatives: false,
-                transpose: 0,
-                velocityOffset: 0,
-                delay: 0,
-                plugins: [],
-                sends: [],
-                outputBusId: 'stereo-out',
-                channelStripId: submixTrackId,
-                zoom: 1,
-                hidden: false,
-                isCollapsed: false,
-                isGrooveTrack: false,
-                matchGrooveTrack: false,
-            };
-            set(state => ({ tracks: [...state.tracks, submixTrack] }));
+                activeAlternativeId: 'alt-1', showInactiveAlternatives: false,
+                transpose: 0, velocityOffset: 0, delay: 0,
+                plugins: [], sends: [], outputBusId: 'stereo-out',
+                channelStripId: submixTrackId, zoom: 1, hidden: false, isCollapsed: false,
+                isGrooveTrack: false, matchGrooveTrack: false,
+            })
             newClips.push({
                 ...clip,
-                id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-submix`,
+                id: `clip-${Date.now()}-submix`,
                 trackId: submixTrackId,
                 name: `${clip.name} (Submix)`,
+                bufferId: clip.id,
                 aliasOf: undefined,
                 aliasName: undefined,
-            });
+            })
         }
 
         set({
+            tracks: [...s.tracks, ...newTracks],
             clips: [...s.clips.map(c => c.id === clip.id ? { ...c, muted: true } : c), ...newClips],
             selectedClipIds: newClips.map(c => c.id),
             selectedClipId: newClips[0]?.id ?? null,
-        });
+        })
     },
 
     addMediaFile: async (file, trackId) => {
@@ -2723,7 +2755,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
             // Calculate duration in beats from real time
             const tempo = globalTracks?.tempo?.[0]?.value ?? 120;
-            durationBeats = (audioBuffer.duration / 60) * tempo;
+            durationBeats = (audioBuffer.duration / 60) * (tempo as number);
 
             // Generate waveform peaks
             const peaks = await extractPeaksAsync(audioBuffer);
@@ -2904,10 +2936,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     deleteNote: (clipId, noteId) => set(s => ({ clips: s.clips.map(c => c.id === clipId ? { ...c, notes: c.notes?.filter(n => n.id !== noteId) } : c) })),
 
+    addAnnotation: (annotation) => set(s => ({ annotations: [...s.annotations, annotation], isDirty: true })),
+    updateAnnotation: (id, updates) => set(s => ({ annotations: s.annotations.map(a => a.id === id ? { ...a, ...updates, updatedAt: Date.now() } : a), isDirty: true })),
+    deleteAnnotation: (id) => set(s => ({ annotations: s.annotations.filter(a => a.id !== id), isDirty: true })),
+
     setZoom: (z) => set({ zoom: z }),
     setTrackHeight: (h) => set({ trackHeight: h }),
     setSnap: (s) => set({ snap: s }),
     toggleAutomation: () => set(s => ({ showAutomation: !s.showAutomation })),
+    toggleToolsMenu: (show?: boolean) => set(s => ({ showToolsMenu: show !== undefined ? show : !s.showToolsMenu })),
     toggleLibrary: () => set(s => ({ showLibrary: !s.showLibrary })),
     toggleInspector: () => set(s => ({ showInspector: !s.showInspector })),
     toggleToolbar: () => set(s => ({ showToolbar: !s.showToolbar })),
@@ -3181,13 +3218,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     toggleVirtualKeyboard: (show) => set(s => ({ showVirtualKeyboard: show !== undefined ? show : !s.showVirtualKeyboard })),
     setVirtualKeyboardMode: (mode) => set({ virtualKeyboardMode: mode }),
     setOpenPluginEditor: (editor) => set({ openPluginEditor: editor }),
-    updateVirtualKeyboardParams: (updates) => set(s => ({
-        virtualKeyboardOctave: updates.octave !== undefined ? updates.octave : s.virtualKeyboardOctave,
-        virtualKeyboardVelocity: updates.velocity !== undefined ? updates.velocity : s.virtualKeyboardVelocity,
-        virtualKeyboardPitchBend: updates.pitchBend !== undefined ? updates.pitchBend : s.virtualKeyboardPitchBend,
-        virtualKeyboardModulation: updates.modulation !== undefined ? updates.modulation : s.virtualKeyboardModulation,
-        virtualKeyboardSustain: updates.sustain !== undefined ? updates.sustain : s.virtualKeyboardSustain,
-    })),
+    updateVirtualKeyboardParams: (updates) => {
+        set(s => ({
+            virtualKeyboardOctave: updates.octave !== undefined ? updates.octave : s.virtualKeyboardOctave,
+            virtualKeyboardVelocity: updates.velocity !== undefined ? updates.velocity : s.virtualKeyboardVelocity,
+            virtualKeyboardPitchBend: updates.pitchBend !== undefined ? updates.pitchBend : s.virtualKeyboardPitchBend,
+            virtualKeyboardModulation: updates.modulation !== undefined ? updates.modulation : s.virtualKeyboardModulation,
+            virtualKeyboardSustain: updates.sustain !== undefined ? updates.sustain : s.virtualKeyboardSustain,
+        }));
+    },
 
     triggerNote: (pitch, velocity, trackId, depth = 0) => {
         if (depth > 5) return;
@@ -3465,6 +3504,30 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     updateStepInputSettings: (updates) => set(s => ({ stepInputSettings: { ...s.stepInputSettings, ...updates } })),
 
     selectClips: (ids) => set({ selectedClipIds: ids, selectedClipId: ids[0] || null }),
+
+    // --- Automation Selection Actions ---
+    selectAutomationPoint: (pointId, additive = false) => set(s => {
+        if (additive) {
+            const ids = s.selectedAutomationPointIds.includes(pointId) 
+                ? s.selectedAutomationPointIds 
+                : [...s.selectedAutomationPointIds, pointId];
+            return { selectedAutomationPointIds: ids, selectedAutomationPointId: pointId };
+        }
+        return { selectedAutomationPointIds: [pointId], selectedAutomationPointId: pointId };
+    }),
+    deselectAutomationPoint: (pointId) => set(s => ({
+        selectedAutomationPointIds: s.selectedAutomationPointIds.filter(id => id !== pointId),
+        selectedAutomationPointId: s.selectedAutomationPointId === pointId ? null : s.selectedAutomationPointId
+    })),
+    toggleAutomationPointSelection: (pointId) => set(s => ({
+        selectedAutomationPointIds: s.selectedAutomationPointIds.includes(pointId)
+            ? s.selectedAutomationPointIds.filter(id => id !== pointId)
+            : [...s.selectedAutomationPointIds, pointId],
+        selectedAutomationPointId: pointId
+    })),
+    selectAutomationPoints: (ids) => set({ selectedAutomationPointIds: ids, selectedAutomationPointId: ids[0] || null }),
+    deselectAllAutomationPoints: () => set({ selectedAutomationPointIds: [], selectedAutomationPointId: null }),
+
     copySelectedClips: () => {
         const s = get();
         const selected = s.clips.filter(c => s.selectedClipIds.includes(c.id));
@@ -3734,9 +3797,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const track = tracks.find(t => t.id === trackId);
         if (!track) return;
 
-        // In a real app, this would load full channel strip settings
+        // Lookup preset to get engine type and display name
+        const preset: Preset | undefined = libraryData.flatMap(c => c.presets).find(p => p.id === presetId);
+        const presetName = preset?.name || presetId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+
         const updates: Partial<Track> = {};
-        updates.name = presetId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        updates.name = presetName;
+        if (preset?.engine) {
+            updates.instrument = preset.name;
+        }
         
         // Auto-assign articulation set for Studio Horns / Strings if detected
         if (presetId.includes('horn') || presetId.includes('string')) {
@@ -3998,6 +4067,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     toggleCycle: () => set(s => ({ cycleEnabled: !s.cycleEnabled, skipCycleEnabled: false })),
     toggleSkipCycle: () => set(s => ({ skipCycleEnabled: !s.skipCycleEnabled, cycleEnabled: false })),
     setLocators: (left, right) => set({ locatorLeft: left, locatorRight: right }),
+    setLoopEnabled: (enabled) => set({ cycleEnabled: enabled }),
+    setLoop: (start, end, enable = true) => set({ locatorLeft: start, locatorRight: end, cycleEnabled: enable }),
+    clearLoop: () => set({ cycleEnabled: false }),
     setAutoSetLocators: (mode) => { set({ autoSetLocators: mode }); if (mode !== 'off') get().updateLocatorsBySelection(); },
     updateLocatorsBySelection: () => {
         const { autoSetLocators, selectedClipId, clips, selectedNoteId } = get();
@@ -4110,6 +4182,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             tempo: settings.tempo,
             tracks: [],
             clips: [],
+            annotations: [],
             projectFormat: (settings.projectFormat || 'stereo') as 'stereo' | 'surround' | 'dolby-atmos',
             surroundFormat: (settings.surroundFormat || '5.1 (ITU 775)') as 'Quadraphonic' | 'LCR (Pro Logic)' | '5.1 (ITU 775)' | '6.1 (ES/EX)' | '7.1' | '7.1 (SDDS)' | '5.1.2' | '5.1.4' | '7.1.2' | '7.1.4',
             spatialAudioMode: (settings.spatialAudioMode || 'Off') as 'Off' | 'Dolby Atmos',
@@ -4665,7 +4738,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             marqueeSelection.trackIds.forEach(tid => {
                 const trackClips = clips.filter(c => c.trackId === tid);
                 trackClips.forEach(clip => {
-                    const startInside = clip.start >= marqueeSelection.start && clip.start < (marqueeSelection.start + marqueeSelection.duration);
+                    const startInside = clip.start >= marqueeSelection.startBeat && clip.start < marqueeSelection.endBeat;
                     if (startInside) {
                         updateClip(clip.id, { name: `${clip.name} (Processed)` });
                     }

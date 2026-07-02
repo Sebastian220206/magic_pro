@@ -8,13 +8,17 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  passwordHash  String
-  name          String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  projects      Project[]
+  id                        String    @id @default(cuid())
+  email                     String    @unique
+  passwordHash              String
+  name                      String?
+  planTier                  String    @default("free")
+  stripeCustomerId          String?
+  stripeSubscriptionId      String?
+  stripeSubscriptionStatus  String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  projects                  Project[]
 }
 
 model Project {
@@ -122,4 +126,19 @@ model Send {
   busId   String
   bus     Bus      @relation(fields: [busId], references: [id], onDelete: Cascade)
   level   Float    @default(0.0)
+}
+
+model Soundfont {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  storagePath String
+  publicUrl   String
+  presetCount Int      @default(0)
+  presets     Json
+  fileSize    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
 }

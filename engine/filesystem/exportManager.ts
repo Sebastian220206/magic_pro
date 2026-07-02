@@ -81,7 +81,7 @@ export class ExportManager {
       case 'wav':
         return this.exportToWav(project, options);
       case 'mp3':
-        throw new Error('MP3 export is not available in this version. Please use WAV format.');
+        return this.exportToMp3(project, options);
       case 'midi':
         return this.exportToMidi(project, options);
       case 'zip':
@@ -149,6 +149,83 @@ export class ExportManager {
       duration: audioBuffer.duration,
       size: blob.size,
     };
+  }
+
+  /**
+   * Export to MP3 format
+   */
+  private async exportToMp3(project: Project, options: ExportOptions): Promise<ExportResult> {
+    const audioBuffer = await this.renderProject(project, options);
+    if (!audioBuffer) throw new Error('Failed to render project audio');
+
+    const blob = await this.audioBufferToMp3(audioBuffer, options);
+    const safeName = project.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+
+    return {
+      blob,
+      filename: `${safeName}.mp3`,
+      duration: audioBuffer.duration,
+      size: blob.size,
+    };
+  }
+
+  /**
+   * Convert AudioBuffer to MP3 Blob using lamejs
+   */
+  private async audioBufferToMp3(buffer: AudioBuffer, options: ExportOptions): Promise<Blob> {
+    try {
+      const lamejs = require('lamejs');
+      const numChannels = buffer.numberOfChannels;
+      const sampleRate = options.sampleRate ?? buffer.sampleRate;
+      const bitRate = 192;
+
+      const mp3Encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, bitRate);
+      const mp3Data: Uint8Array[] = [];
+
+      const channelData: Float32Array[] = [];
+      for (let c = 0; c < numChannels; c++) {
+        channelData.push(buffer.getChannelData(c));
+      }
+
+      const sampleBlockSize = 1152;
+      const totalSamples = buffer.length;
+
+      for (let i = 0; i < totalSamples; i += sampleBlockSize) {
+        const blockSize = Math.min(sampleBlockSize, totalSamples - i);
+        const left = new Int16Array(blockSize);
+        const right = numChannels > 1 ? new Int16Array(blockSize) : left;
+
+        for (let j = 0; j < blockSize; j++) {
+          const idx = i + j;
+          const ls = Math.max(-1, Math.min(1, channelData[0][idx]));
+          left[j] = ls < 0 ? ls * 0x8000 : ls * 0x7FFF;
+
+          if (numChannels > 1) {
+            const rs = Math.max(-1, Math.min(1, channelData[1][idx]));
+            right[j] = rs < 0 ? rs * 0x8000 : rs * 0x7FFF;
+          }
+        }
+
+        const mp3Buf = mp3Encoder.encodeBuffer(left, right);
+        if (mp3Buf.length > 0) mp3Data.push(mp3Buf);
+      }
+
+      const finalBuf = mp3Encoder.flush();
+      if (finalBuf.length > 0) mp3Data.push(finalBuf);
+
+      const totalLength = mp3Data.reduce((acc, buf) => acc + buf.length, 0);
+      const combined = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const buf of mp3Data) {
+        combined.set(buf, offset);
+        offset += buf.length;
+      }
+
+      return new Blob([combined], { type: 'audio/mpeg' });
+    } catch (e) {
+      console.error('[ExportManager] MP3 encoding failed, falling back to WAV:', e);
+      return this.audioBufferToWav(buffer);
+    }
   }
 
   /**

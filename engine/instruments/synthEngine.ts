@@ -135,7 +135,7 @@ class SynthVoice {
 
     // Create output gain
     this.output = ctx.createGain();
-    this.output.gain.value = 0.3; // Master volume
+    this.output.gain.value = 1.0; // Per-voice output (velocity + envelope applied on top)
 
     // Connect: filter -> envelope -> output
     this.filter.connect(this.envelope);
@@ -286,7 +286,7 @@ export class PolyphonicSynth {
 
     // Create master output
     this.masterGain = ctx.createGain();
-    this.masterGain.gain.value = 0.5;
+    this.masterGain.gain.value = 0.8;
 
     // Pre-create voices (voice pooling for performance)
     this.allocateVoices();

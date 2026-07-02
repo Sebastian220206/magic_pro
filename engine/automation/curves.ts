@@ -58,6 +58,12 @@ export function interpolateAutomation(
         pointA.curveAmount || 0
       );
     
+    case 'sCurve':
+      return interpolateSCurve(pointA.value, pointB.value, progress);
+    
+    case 'equalPower':
+      return interpolateEqualPower(pointA.value, pointB.value, progress);
+    
     case 'hold':
       return pointA.value; // Step change at pointB
     
@@ -192,6 +198,42 @@ export function interpolateSmootherstep(start: number, end: number, t: number): 
 // =============================================================================
 // Ease Functions (for UI animations)
 // =============================================================================
+
+// =============================================================================
+// Equal Power Interpolation
+// =============================================================================
+
+/**
+ * Equal power interpolation - constant power crossfade
+ * Useful for volume/pan transitions where perceived loudness stays constant
+ * Based on sin/cos curves: sin^2 + cos^2 = 1
+ */
+export function interpolateEqualPower(start: number, end: number, t: number): number {
+  const angle = t * Math.PI / 2;
+  const cosVal = Math.cos(angle);
+  const sinVal = Math.sin(angle);
+  return start * cosVal * cosVal + end * sinVal * sinVal;
+}
+
+// =============================================================================
+// Curve Amount Interpolation (for automation curve tool drag)
+// =============================================================================
+
+/**
+ * Apply a curve amount to an interpolation between start and end values.
+ * curveAmount: -1 to 1
+ *  0 = linear
+ *  1 = max upward curve (start stays low, jumps at end)
+ * -1 = max downward curve (jumps at start, stays high)
+ * Uses power basis for predictable shaping.
+ */
+export function interpolateWithAmount(start: number, end: number, t: number, amount: number): number {
+  if (amount === 0) return interpolateLinear(start, end, t);
+  const curve = amount > 0
+    ? Math.pow(t, 1 + amount * 4)
+    : Math.pow(t, 1 / (1 - amount * 4));
+  return interpolateLinear(start, end, curve);
+}
 
 export const easeFunctions = {
   linear: (t: number) => t,
@@ -427,6 +469,8 @@ export const curveTypeLabels: Record<CurveType, string> = {
   exponential: 'Exponential',
   logarithmic: 'Logarithmic',
   bezier: 'Bezier',
+  sCurve: 'S-Curve',
+  equalPower: 'Equal Power',
   hold: 'Hold',
 };
 
@@ -435,6 +479,8 @@ export const curveTypeDescriptions: Record<CurveType, string> = {
   exponential: 'Accelerating curve',
   logarithmic: 'Decelerating curve',
   bezier: 'Smooth curve with control point',
+  sCurve: 'Smooth sigmoid transition',
+  equalPower: 'Constant power crossfade',
   hold: 'Step value (no interpolation)',
 };
 
@@ -442,7 +488,7 @@ export const curveTypeDescriptions: Record<CurveType, string> = {
  * Cycle through curve types
  */
 export function nextCurveType(current: CurveType): CurveType {
-  const types: CurveType[] = ['linear', 'exponential', 'logarithmic', 'bezier', 'hold'];
+  const types: CurveType[] = ['linear', 'exponential', 'logarithmic', 'bezier', 'sCurve', 'equalPower', 'hold'];
   const currentIndex = types.indexOf(current);
   return types[(currentIndex + 1) % types.length];
 }

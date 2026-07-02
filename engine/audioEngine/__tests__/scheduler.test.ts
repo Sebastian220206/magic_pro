@@ -5,7 +5,7 @@
  * Note: These tests focus on the math of lookahead and drift correction.
  */
 
-import { AdvancedScheduler } from '../scheduler';
+import { advancedScheduler } from '../scheduler';
 
 // Mock AudioContext Manager
 jest.mock('../audioContext', () => ({
@@ -20,7 +20,7 @@ describe('AdvancedScheduler Timing Logic', () => {
     let mockCtx: any;
 
     beforeEach(() => {
-        scheduler = new AdvancedScheduler({
+        scheduler = new (advancedScheduler.constructor as any)({
             lookaheadTime: 100,
             scheduleInterval: 25
         });

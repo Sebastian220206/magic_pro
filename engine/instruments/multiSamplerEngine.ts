@@ -226,6 +226,19 @@ export class MultiSamplerEngine {
         }
     }
 
+    public stopAll(time?: number): void {
+        const t = time ?? this.ctx.currentTime;
+        this.activeVoices.forEach(({ source, gain }, note) => {
+            try {
+                gain.gain.cancelScheduledValues(t);
+                gain.gain.setValueAtTime(gain.gain.value, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+                source.stop(t + 0.35);
+            } catch { }
+        });
+        this.activeVoices.clear();
+    }
+
     public dispose(): void {
         this.activeVoices.forEach(v => { try { v.source.stop(); } catch{} });
         this.activeVoices.clear();

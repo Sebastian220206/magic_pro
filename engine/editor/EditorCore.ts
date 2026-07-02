@@ -12,6 +12,7 @@ import { SelectTool } from './tools/SelectTool';
 import { DrawTool } from './tools/DrawTool';
 import { SplitTool } from './tools/SplitTool';
 import { MarqueeTool } from './tools/MarqueeTool';
+import { TextTool } from './tools/TextTool';
 
 export class EditorCore {
     readonly coordinateSystem: CoordinateSystem;
@@ -49,6 +50,9 @@ export class EditorCore {
 
         const marqueeTool = new MarqueeTool(this.selectionManager, this.coordinateSystem);
         this.toolManager.registerTool(marqueeTool);
+
+        const textTool = new TextTool(this.snapEngine);
+        this.toolManager.registerTool(textTool);
 
         this.toolManager.setActiveTool('select');
     }

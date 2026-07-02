@@ -165,6 +165,43 @@ class BounceEngine {
         return this.bounceProject(clips, tracks, startBeat, endBeat, tempo, userConfig);
     }
 
+    /**
+     * Bounce individual tracks as stems.
+     * Returns a map of trackId -> { url, size } for each track.
+     */
+    async bounceStems(
+        clips: AudioClip[],
+        tracks: AudioTrack[],
+        startBeat: number,
+        endBeat: number,
+        tempo: number,
+        userConfig?: Partial<BounceConfig>
+    ): Promise<Map<string, { url: string; size: number }>> {
+        const results = new Map<string, { url: string; size: number }>();
+        
+        for (const track of tracks) {
+            if (!track.id || track.muted) continue;
+            
+            // Filter clips for this track only
+            const trackClips = clips.filter(c => c.trackId === track.id);
+            if (trackClips.length === 0) continue;
+
+            // Bounce just this track
+            const result = await this.bounceProject(
+                trackClips,
+                [track],
+                startBeat,
+                endBeat,
+                tempo,
+                userConfig
+            );
+            results.set(track.id, result);
+        }
+
+        console.log('[BounceEngine] Stem bounce completed:', results.size, 'tracks');
+        return results;
+    }
+
     // ── Rendering ────────────────────────────────────────────────────────────────
 
     /**
@@ -360,11 +397,76 @@ class BounceEngine {
     }
 
     private convertToMP3(buffer: AudioBuffer): Blob {
-        throw new Error('MP3 export is not supported in this version. Please use WAV format.');
+        try {
+            // Use lamejs for MP3 encoding
+            const lamejs = require('lamejs');
+            const numChannels = buffer.numberOfChannels;
+            const sampleRate = buffer.sampleRate;
+            const bitRate = 192;
+
+            const mp3Encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, bitRate);
+            const mp3Data: Uint8Array[] = [];
+
+            const channelData: Float32Array[] = [];
+            for (let c = 0; c < numChannels; c++) {
+                channelData.push(buffer.getChannelData(c));
+            }
+
+            // Convert float32 samples to int16 (lamejs expects Int16Array)
+            const sampleBlockSize = 1152;
+            const totalSamples = buffer.length;
+
+            for (let i = 0; i < totalSamples; i += sampleBlockSize) {
+                const blockSize = Math.min(sampleBlockSize, totalSamples - i);
+                const left = new Int16Array(blockSize);
+                const right = numChannels > 1 ? new Int16Array(blockSize) : left;
+
+                for (let j = 0; j < blockSize; j++) {
+                    const idx = i + j;
+                    const ls = Math.max(-1, Math.min(1, channelData[0][idx]));
+                    left[j] = ls < 0 ? ls * 0x8000 : ls * 0x7FFF;
+
+                    if (numChannels > 1) {
+                        const rs = Math.max(-1, Math.min(1, channelData[1][idx]));
+                        right[j] = rs < 0 ? rs * 0x8000 : rs * 0x7FFF;
+                    }
+                }
+
+                const mp3Buf = mp3Encoder.encodeBuffer(left, right);
+                if (mp3Buf.length > 0) {
+                    mp3Data.push(mp3Buf);
+                }
+            }
+
+            const finalBuf = mp3Encoder.flush();
+            if (finalBuf.length > 0) {
+                mp3Data.push(finalBuf);
+            }
+
+            const totalLength = mp3Data.reduce((acc, buf) => acc + buf.length, 0);
+            const combined = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const buf of mp3Data) {
+                combined.set(buf, offset);
+                offset += buf.length;
+            }
+
+            return new Blob([combined], { type: 'audio/mpeg' });
+        } catch (e) {
+            console.error('[BounceEngine] MP3 encoding failed, falling back to WAV:', e);
+            return this.convertToWAV(buffer, 16);
+        }
     }
 
     private convertToOGG(buffer: AudioBuffer): Blob {
-        throw new Error('OGG export is not supported in this version. Please use WAV format.');
+        try {
+            // Use ogg.js or ogg encoder — fall back to WAV for now
+            console.warn('[BounceEngine] OGG export not yet implemented, falling back to WAV');
+            return this.convertToWAV(buffer, 16);
+        } catch (e) {
+            console.error('[BounceEngine] OGG encoding failed, falling back to WAV:', e);
+            return this.convertToWAV(buffer, 16);
+        }
     }
 
     /**

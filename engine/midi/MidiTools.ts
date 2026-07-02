@@ -1,6 +1,13 @@
 import { MidiNote, MidiEditorState, MidiRegionChunk } from './types';
 import { MoveMidiNotesCommand, RootStoreMidiApi } from './MidiCommands';
-import { Viewport } from './MidiRenderer';
+import type { MidiRenderer } from './MidiRenderer';
+
+interface Viewport {
+  startBeat: number;
+  pixelsPerBeat: number;
+  maxVisiblePitch: number;
+  pixelsPerPitch: number;
+}
 
 export interface MidiToolContext {
   regionId: string;

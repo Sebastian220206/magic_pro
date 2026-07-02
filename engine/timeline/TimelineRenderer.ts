@@ -181,7 +181,8 @@ export class TimelineRenderer implements RendererContract {
         const { zoomLevel, startTime, endTime } = viewport;
 
         clips.forEach(clip => {
-            const clipStart = Number.isFinite(clip.startBeat) ? clip.startBeat : 0;
+            const sb = clip.startBeat ?? clip.start ?? 0;
+            const clipStart = Number.isFinite(sb) ? sb : 0;
             const clipDuration = Number.isFinite(clip.duration) ? clip.duration : 0;
             if (!Number.isFinite(clipStart) || !Number.isFinite(clipDuration)) {
                 if (process.env.NODE_ENV === 'development') {

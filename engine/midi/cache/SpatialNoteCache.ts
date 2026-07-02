@@ -1,4 +1,4 @@
-import { MidiNote } from '../../types';
+import { MidiNote } from '../types';
 
 export interface SpatialNoteBucket {
   notes: MidiNote[];

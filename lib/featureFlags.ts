@@ -20,6 +20,13 @@ export const features = {
   exportOgg: false,
   exportFlac: false,
 
+  // Phase 6 — Cloud & Infrastructure
+  pwa: true,
+  cloudSave: true,
+  s3Storage: false,
+  printToPdf: true,
+  stripeSubscriptions: false,
+
   // Disabled — non-functional or stubbed
   collaboration: false,
   atmosMixing: false,

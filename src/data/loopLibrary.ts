@@ -9,6 +9,16 @@ export interface LoopAsset {
   beats: number;
   genre: string;
   instrument: string;
+  pack?: string;
+}
+
+export interface GenrePack {
+  id: string;
+  name: string;
+  genre: string;
+  description: string;
+  color: string;
+  loopIds: string[];
 }
 
 export const loopLibrary: LoopAsset[] = [
@@ -23,6 +33,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'House',
     instrument: 'Drums',
+    pack: 'house_essentials',
   },
   {
     id: 'drums_house_02',
@@ -34,6 +45,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'House',
     instrument: 'Drums',
+    pack: 'house_essentials',
   },
   {
     id: 'drums_lofi_01',
@@ -45,6 +57,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Lo-fi',
     instrument: 'Drums',
+    pack: 'lofi_study',
   },
   {
     id: 'drums_lofi_02',
@@ -56,6 +69,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Lo-fi',
     instrument: 'Drums',
+    pack: 'lofi_study',
   },
   {
     id: 'drums_trap_01',
@@ -67,6 +81,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Trap',
     instrument: 'Drums',
+    pack: 'trap_essentials',
   },
   {
     id: 'drums_trap_02',
@@ -78,6 +93,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Trap',
     instrument: 'Drums',
+    pack: 'trap_essentials',
   },
   {
     id: 'drums_techno_01',
@@ -89,6 +105,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Techno',
     instrument: 'Drums',
+    pack: 'techno_warehouse',
   },
   {
     id: 'drums_techno_02',
@@ -100,6 +117,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Techno',
     instrument: 'Drums',
+    pack: 'techno_warehouse',
   },
   {
     id: 'drums_hiphop_01',
@@ -112,6 +130,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Hip Hop',
     instrument: 'Drums',
+    pack: 'hiphop_bangers',
   },
   {
     id: 'drums_hiphop_02',
@@ -124,6 +143,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Hip Hop',
     instrument: 'Drums',
+    pack: 'hiphop_bangers',
   },
   {
     id: 'drums_funk_01',
@@ -135,6 +155,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Funk',
     instrument: 'Drums',
+    pack: 'funk_grooves',
   },
   {
     id: 'drums_rock_01',
@@ -146,6 +167,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Rock',
     instrument: 'Drums',
+    pack: 'rock_anthems',
   },
 
   // ── Bass ───────────────────────────────────────────────────────────────
@@ -160,6 +182,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Deep House',
     instrument: 'Bass Synth',
+    pack: 'deep_house_grooves',
   },
   {
     id: 'bass_deep_02',
@@ -172,6 +195,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Deep House',
     instrument: 'Bass Synth',
+    pack: 'deep_house_grooves',
   },
   {
     id: 'bass_walking_01',
@@ -184,6 +208,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Jazz',
     instrument: 'Upright Bass',
+    pack: 'jazz_standards',
   },
   {
     id: 'bass_sub_01',
@@ -196,6 +221,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Dubstep',
     instrument: 'Sub Bass',
+    pack: 'electronic_bass',
   },
   {
     id: 'bass_electro_01',
@@ -208,6 +234,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Electro',
     instrument: 'Bass Synth',
+    pack: 'electronic_bass',
   },
 
   // ── Melodic ────────────────────────────────────────────────────────────
@@ -222,6 +249,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'House',
     instrument: 'Piano',
+    pack: 'house_essentials',
   },
   {
     id: 'melodic_keys_02',
@@ -234,6 +262,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'House',
     instrument: 'Piano',
+    pack: 'house_essentials',
   },
   {
     id: 'melodic_guitar_01',
@@ -246,6 +275,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Pop',
     instrument: 'Acoustic Guitar',
+    pack: 'pop_hits',
   },
   {
     id: 'melodic_strings_01',
@@ -258,6 +288,7 @@ export const loopLibrary: LoopAsset[] = [
     beats: 4,
     genre: 'Cinematic',
     instrument: 'Strings',
+    pack: 'cinematic_scores',
   },
   {
     id: 'melodic_ambient_01',
@@ -270,7 +301,24 @@ export const loopLibrary: LoopAsset[] = [
     beats: 8,
     genre: 'Ambient',
     instrument: 'Synth Pad',
+    pack: 'ambient_textures',
   },
+];
+
+export const genrePacks: GenrePack[] = [
+  { id: 'house_essentials', name: 'House Essentials', genre: 'House', description: 'Four-on-the-floor house grooves and keys', color: '#f59e0b', loopIds: ['drums_house_01', 'drums_house_02', 'melodic_keys_01', 'melodic_keys_02'] },
+  { id: 'lofi_study', name: 'Lo-fi Study Beats', genre: 'Lo-fi', description: 'Chill lo-fi beats for focused work', color: '#10b981', loopIds: ['drums_lofi_01', 'drums_lofi_02'] },
+  { id: 'trap_essentials', name: 'Trap Essentials', genre: 'Trap', description: 'Hard-hitting trap drum patterns', color: '#ef4444', loopIds: ['drums_trap_01', 'drums_trap_02'] },
+  { id: 'techno_warehouse', name: 'Techno Warehouse', genre: 'Techno', description: 'Driving techno beats for the club', color: '#8b5cf6', loopIds: ['drums_techno_01', 'drums_techno_02'] },
+  { id: 'hiphop_bangers', name: 'Hip Hop Bangers', genre: 'Hip Hop', description: 'Boom-bap and modern hip-hop beats', color: '#f97316', loopIds: ['drums_hiphop_01', 'drums_hiphop_02'] },
+  { id: 'funk_grooves', name: 'Funk Grooves', genre: 'Funk', description: 'Funky drum patterns with pocket', color: '#ec4899', loopIds: ['drums_funk_01'] },
+  { id: 'rock_anthems', name: 'Rock Anthems', genre: 'Rock', description: 'Powerful rock drum patterns', color: '#6366f1', loopIds: ['drums_rock_01'] },
+  { id: 'deep_house_grooves', name: 'Deep House Grooves', genre: 'Deep House', description: 'Smooth deep house bass lines', color: '#06b6d4', loopIds: ['bass_deep_01', 'bass_deep_02'] },
+  { id: 'jazz_standards', name: 'Jazz Standards', genre: 'Jazz', description: 'Walking bass and jazz progressions', color: '#a855f7', loopIds: ['bass_walking_01'] },
+  { id: 'electronic_bass', name: 'Electronic Bass', genre: 'Electronic', description: 'Sub bass and electro bass lines', color: '#3b82f6', loopIds: ['bass_sub_01', 'bass_electro_01'] },
+  { id: 'pop_hits', name: 'Pop Hits', genre: 'Pop', description: 'Catchy pop guitar and melody hooks', color: '#f43f5e', loopIds: ['melodic_guitar_01'] },
+  { id: 'cinematic_scores', name: 'Cinematic Scores', genre: 'Cinematic', description: 'Epic strings and orchestral pads', color: '#64748b', loopIds: ['melodic_strings_01'] },
+  { id: 'ambient_textures', name: 'Ambient Textures', genre: 'Ambient', description: 'Ethereal pads and atmospheric soundscapes', color: '#14b8a6', loopIds: ['melodic_ambient_01'] },
 ];
 
 export function getLoopsByCategory(category: LoopAsset['category']): LoopAsset[] {
@@ -280,3 +328,12 @@ export function getLoopsByCategory(category: LoopAsset['category']): LoopAsset[]
 export function getLoopById(id: string): LoopAsset | undefined {
   return loopLibrary.find(l => l.id === id);
 }
+
+export function getLoopsByPack(packId: string): LoopAsset[] {
+  return loopLibrary.filter(l => l.pack === packId);
+}
+
+export function getLoopsByGenre(genre: string): LoopAsset[] {
+  return loopLibrary.filter(l => l.genre.toLowerCase() === genre.toLowerCase());
+}
+

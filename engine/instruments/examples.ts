@@ -14,6 +14,11 @@ import {
   instrumentRegistry,
   getAllInstrumentNames,
 } from '@/engine/instruments';
+import { useInstruments } from '@/hooks/useInstruments';
+import { PolyphonicSynth } from '@/engine/instruments/synthEngine';
+import { useProjectStore } from '@/store/projectStore';
+import { MidiScheduler } from '@/engine/midi/midiScheduler';
+import { createInstrumentAdapter } from '@/engine/instruments/instrumentAdapter';
 
 // Example: Creating a Grand Piano and playing a note
 async function playPianoExample() {
@@ -41,8 +46,6 @@ async function playPianoExample() {
 // =============================================================================
 // EXAMPLE 2: Assigning Instruments to Tracks
 // =============================================================================
-
-import { useInstruments } from '@/hooks/useInstruments';
 
 // In a React component:
 function TrackInstrumentExample() {
@@ -75,8 +78,6 @@ function TrackInstrumentExample() {
 // =============================================================================
 // EXAMPLE 3: Playing MIDI Notes Through Instruments
 // =============================================================================
-
-import { getInstrumentService } from '@/engine/instruments/instrumentService';
 
 // Direct service usage for MIDI playback
 function playMidiNote(trackId: string, note: number, velocity: number) {
@@ -129,8 +130,6 @@ async function drumMachineExample() {
 // EXAMPLE 5: Synth Engine Configuration
 // =============================================================================
 
-import { PolyphonicSynth } from '@/engine/instruments/synthEngine';
-
 function synthExample() {
   const ctx = new AudioContext();
 
@@ -154,9 +153,6 @@ function synthExample() {
 // =============================================================================
 // EXAMPLE 6: Track Integration with Zustand Store
 // =============================================================================
-
-import { useProjectStore } from '@/store/projectStore';
-import { useInstruments } from '@/hooks/useInstruments';
 
 // Complete track setup with instrument
 function useTrackWithInstrument(trackId: string) {
@@ -214,9 +210,6 @@ function testAllInstruments() {
 // EXAMPLE 8: MIDI Clip Playback with Instruments
 // =============================================================================
 
-import { MidiScheduler } from '@/engine/midi/midiScheduler';
-import { createInstrumentAdapter } from '@/engine/instruments/instrumentAdapter';
-
 async function setupMidiPlayback(trackId: string, instrumentName: string) {
   const ctx = new AudioContext();
 
@@ -228,10 +221,10 @@ async function setupMidiPlayback(trackId: string, instrumentName: string) {
   const adapter = createInstrumentAdapter(instrument);
 
   // Create scheduler
-  const scheduler = new MidiScheduler(ctx);
+  const scheduler = new MidiScheduler(ctx, null as any);
 
   // Register instrument with scheduler
-  scheduler.setInstrument(trackId, adapter);
+  scheduler.setInstrument(trackId, adapter as any);
 
   // Connect to output
   instrument.getOutput().connect(ctx.destination);
@@ -242,8 +235,6 @@ async function setupMidiPlayback(trackId: string, instrumentName: string) {
 // =============================================================================
 // EXAMPLE 9: Volume and Mute Control
 // =============================================================================
-
-import { getInstrumentService } from '@/engine/instruments/instrumentService';
 
 function trackControls(trackId: string) {
   const service = getInstrumentService();
@@ -270,8 +261,6 @@ function trackControls(trackId: string) {
 // =============================================================================
 // EXAMPLE 10: Instrument Factory Advanced Usage
 // =============================================================================
-
-import { createInstrumentFactory } from '@/engine/instruments/instrumentFactory';
 
 async function factoryExample() {
   const ctx = new AudioContext();

@@ -19,6 +19,7 @@ export interface SerializedState {
   playhead: number;
   tracks: any[];
   clips: any[];
+  annotations?: any[];
   globalTracks: any;
   settings: any;
   globalSettings: any;
@@ -198,6 +199,7 @@ export function serializeStoreState(getState: () => any, extra?: { mixerState?: 
       ...c,
       waveformPeaks: serializeWaveformPeaks(c.waveformPeaks),
     })),
+    annotations: s.annotations ?? [],
     globalTracks: s.globalTracks,
     settings: s.settings,
     globalSettings: s.globalSettings,
@@ -241,6 +243,7 @@ export function deserializeState(serialized: SerializedState): Partial<any> {
       ...c,
       waveformPeaks: deserializeWaveformPeaks(c.waveformPeaks),
     })),
+    annotations: serialized.annotations ?? [],
     globalTracks: serialized.globalTracks,
     settings: serialized.settings,
     globalSettings: serialized.globalSettings,
