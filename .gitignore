@@ -97,3 +97,15 @@ out/
 playwright-report/
 test-results/
 
+# Large audio/sound binary assets (keep on disk, not in git)
+vst/
+public/soundfonts/
+public/sound_sample/
+sound sample/
+*.wav
+*.sf2
+*.sf3
+*.sfz
+*.cpf
+*.ppi
+
