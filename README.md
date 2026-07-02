@@ -1,4 +1,4 @@
-# Magic Pro — DAW
+# Magic Pro — DAW  (BY SEBASTIAN GUNTUR)
 
 A digital audio workstation built with Next.js, featuring multi-track audio/MIDI recording, real-time effects, a professional mixer interface, and optional cloud/collaboration/AI features. See [`implementation_plan.md.resolved`](./implementation_plan.md.resolved) for the full architecture plan.
 
