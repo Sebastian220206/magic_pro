@@ -16,6 +16,30 @@ export function TimelineCanvas() {
     
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
+    // Sync store currentTool to editor's ToolManager
+    useEffect(() => {
+        const syncTool = () => {
+            const storeTool = useProjectStore.getState().currentTool;
+            const TOOL_ID_MAP: Record<string, string> = {
+                pointer: 'select', select: 'select',
+                pencil: 'draw', draw: 'draw',
+                text: 'text',
+                scissors: 'split', split: 'split',
+                marquee: 'marquee',
+                erase: 'erase',
+                zoom: 'zoom',
+                mute: 'mute',
+            };
+            const mapped = TOOL_ID_MAP[storeTool] || 'select';
+            editor.toolManager.setActiveTool(mapped);
+        };
+        syncTool();
+        const unsub = useProjectStore.subscribe((state, prev) => {
+            if (state.currentTool !== prev.currentTool) syncTool();
+        });
+        return unsub;
+    }, [editor]);
+
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;

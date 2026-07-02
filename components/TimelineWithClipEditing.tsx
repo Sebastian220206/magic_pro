@@ -118,24 +118,65 @@ export function TimelineWithClipEditing({
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || (e.target as HTMLElement)?.isContentEditable) return;
       if (e.key === 'Shift') setIsShiftPressed(true);
 
-      // Tool shortcuts
-      switch (e.key) {
-        case 't':
-          if (!e.metaKey && !e.ctrlKey) setCurrentTool('select');
-          break;
-        case 'c':
-          if (!e.metaKey && !e.ctrlKey) setCurrentTool('split');
+      // Tool shortcuts (matching ToolsMenu.tsx)
+      switch (e.key.toLowerCase()) {
+        case 'a':
+          setCurrentTool('pointer');
           break;
         case 'p':
-          if (!e.metaKey && !e.ctrlKey) setCurrentTool('draw');
+          setCurrentTool('pencil');
           break;
         case 'e':
-          if (!e.metaKey && !e.ctrlKey) setCurrentTool('erase');
+          setCurrentTool('erase');
           break;
+        case 't':
+          setCurrentTool('text');
+          break;
+        case 's':
+          setCurrentTool('scissors');
+          break;
+        case 'g':
+          setCurrentTool('glue');
+          break;
+        case 'o':
+          setCurrentTool('solo');
+          break;
+        case 'm':
+          setCurrentTool('mute');
+          break;
+        case 'z':
+          setCurrentTool('zoom');
+          break;
+        case 'f':
+          setCurrentTool('fade');
+          break;
+        case 'q':
+          setCurrentTool('automation-select');
+          break;
+        case 'w':
+          setCurrentTool('automation-curve');
+          break;
+        case 'r':
+          setCurrentTool('marquee');
+          break;
+        case 'x':
+          setCurrentTool('flex');
+          break;
+      }
+
+      // Non-letter shortcuts
+      switch (e.key) {
         case 'Delete':
-        case 'Backspace':
-          selectedClipIds.forEach(id => deleteClip(id));
+        case 'Backspace': {
+          const { marqueeSelection, setMarqueeSelection } = useProjectStore.getState();
+          if (currentTool === 'marquee' && marqueeSelection && marqueeSelection.clipIds.length > 0) {
+            marqueeSelection.clipIds.forEach(id => deleteClip(id));
+            setMarqueeSelection(null);
+          } else {
+            selectedClipIds.forEach(id => deleteClip(id));
+          }
           break;
+        }
         case 'd':
           if (e.metaKey || e.ctrlKey) {
             e.preventDefault();
@@ -145,7 +186,47 @@ export function TimelineWithClipEditing({
         case 'Escape':
           deselectAllClips();
           hideContextMenu();
+          useProjectStore.getState().setMarqueeSelection(null);
           break;
+      }
+
+      // Marquee tool shortcuts
+      if (currentTool === 'marquee') {
+        const { marqueeSelection, setLocators, movePlayhead, playing, setMarqueeSelection } = useProjectStore.getState();
+        if (marqueeSelection) {
+          switch (e.key.toLowerCase()) {
+            case 's': {
+              e.preventDefault();
+              const clips = useProjectStore.getState().clips;
+              marqueeSelection.clipIds.forEach(cid => {
+                const clip = clips.find(c => c.id === cid);
+                if (!clip) return;
+                const clipEnd = clip.start + clip.duration;
+                if (marqueeSelection.startBeat > clip.start && marqueeSelection.startBeat < clipEnd) {
+                  splitClip(clip.id, marqueeSelection.startBeat);
+                }
+                if (marqueeSelection.endBeat > clip.start && marqueeSelection.endBeat < clipEnd) {
+                  splitClip(clip.id, marqueeSelection.endBeat);
+                }
+              });
+              break;
+            }
+            case '/': {
+              e.preventDefault();
+              setLocators(marqueeSelection.startBeat, marqueeSelection.endBeat);
+              break;
+            }
+            case 'Enter': {
+              e.preventDefault();
+              movePlayhead(marqueeSelection.startBeat);
+              if (!playing) {
+                const { play } = useProjectStore.getState();
+                play();
+              }
+              break;
+            }
+          }
+        }
       }
     };
 
@@ -160,7 +241,7 @@ export function TimelineWithClipEditing({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [setCurrentTool, deleteClip, duplicateSelectedClips, deselectAllClips, hideContextMenu]);
+  }, [setCurrentTool, deleteClip, duplicateSelectedClips, deselectAllClips, hideContextMenu, splitClip, currentTool]);
 
   // =============================================================================
   // Track Event Handlers
@@ -168,7 +249,7 @@ export function TimelineWithClipEditing({
 
   const handleTrackPointerDown = useCallback((e: React.PointerEvent) => {
     // Start selection box if clicking on empty area with select tool
-    if (currentTool === 'select' && e.target === trackRef.current) {
+    if ((currentTool === 'select' || currentTool === 'pointer') && e.target === trackRef.current) {
       const rect = trackRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useProjectStore } from "@/store/projectStore"
 import { X, Piano, Keyboard, Minus, Plus, ChevronUp, ChevronDown } from "lucide-react"
 
@@ -32,6 +32,33 @@ export function VirtualKeyboard() {
     const focusedTrack = tracks.find(t => t.id === focusedTrackId)
     const windowRef = useRef<HTMLDivElement>(null)
 
+    // Use refs for frequently-changing values so the keyboard event listeners
+    // don't get torn down and re-created on every slider movement (which causes
+    // missed keydown/keyup events and a dead zone at slider values 91-127).
+    const velocityRef = useRef(virtualKeyboardVelocity)
+    const octaveRef = useRef(virtualKeyboardOctave)
+    const sustainRef = useRef(virtualKeyboardSustain)
+    const sustainedNotesRef = useRef<Set<number>>(new Set())
+    velocityRef.current = virtualKeyboardVelocity
+    octaveRef.current = virtualKeyboardOctave
+    sustainRef.current = virtualKeyboardSustain
+
+    // Release all held notes when sustain is turned OFF
+    useEffect(() => {
+        if (!virtualKeyboardSustain && sustainedNotesRef.current.size > 0) {
+            sustainedNotesRef.current.forEach(pitch => releaseNote(pitch))
+            sustainedNotesRef.current.clear()
+        }
+    }, [virtualKeyboardSustain, releaseNote])
+
+    const handleNoteRelease = useCallback((pitch: number) => {
+        if (sustainRef.current) {
+            sustainedNotesRef.current.add(pitch)
+        } else {
+            releaseNote(pitch)
+        }
+    }, [releaseNote])
+
     useEffect(() => {
         if (!showVirtualKeyboard || virtualKeyboardMode !== 'musical-typing') return
 
@@ -40,17 +67,17 @@ export function VirtualKeyboard() {
             const key = e.key.toLowerCase()
 
             // Octave
-            if (key === 'z') updateVirtualKeyboardParams({ octave: Math.max(0, virtualKeyboardOctave - 1) })
-            if (key === 'x') updateVirtualKeyboardParams({ octave: Math.min(8, virtualKeyboardOctave + 1) })
+            if (key === 'z') updateVirtualKeyboardParams({ octave: Math.max(0, octaveRef.current - 1) })
+            if (key === 'x') updateVirtualKeyboardParams({ octave: Math.min(8, octaveRef.current + 1) })
             
             // Velocity
-            if (key === 'c') updateVirtualKeyboardParams({ velocity: Math.max(0, virtualKeyboardVelocity - 10) })
-            if (key === 'v') updateVirtualKeyboardParams({ velocity: Math.min(127, virtualKeyboardVelocity + 10) })
+            if (key === 'c') updateVirtualKeyboardParams({ velocity: Math.max(0, velocityRef.current - 10) })
+            if (key === 'v') updateVirtualKeyboardParams({ velocity: Math.min(127, velocityRef.current + 10) })
 
             // Sustain
             if (key === 'tab') {
                 e.preventDefault()
-                updateVirtualKeyboardParams({ sustain: !virtualKeyboardSustain })
+                updateVirtualKeyboardParams({ sustain: !sustainRef.current })
             }
 
             // Pitch Bend
@@ -65,8 +92,8 @@ export function VirtualKeyboard() {
 
             // Musical Keys
             if (KEY_MAP[key] !== undefined) {
-                const pitch = (virtualKeyboardOctave + 1) * 12 + KEY_MAP[key]
-                triggerNote(pitch, virtualKeyboardVelocity)
+                const pitch = (octaveRef.current + 1) * 12 + KEY_MAP[key]
+                triggerNote(pitch, velocityRef.current)
                 setActiveKeys(prev => new Set(prev).add(key))
             }
         }
@@ -77,8 +104,8 @@ export function VirtualKeyboard() {
             if (key === '1' || key === '2') updateVirtualKeyboardParams({ pitchBend: 0 })
 
             if (KEY_MAP[key] !== undefined) {
-                const pitch = (virtualKeyboardOctave + 1) * 12 + KEY_MAP[key]
-                releaseNote(pitch)
+                const pitch = (octaveRef.current + 1) * 12 + KEY_MAP[key]
+                handleNoteRelease(pitch)
                 setActiveKeys(prev => {
                     const next = new Set(prev)
                     next.delete(key)
@@ -93,7 +120,10 @@ export function VirtualKeyboard() {
             window.removeEventListener('keydown', handleKeyDown)
             window.removeEventListener('keyup', handleKeyUp)
         }
-    }, [showVirtualKeyboard, virtualKeyboardMode, virtualKeyboardOctave, virtualKeyboardVelocity, virtualKeyboardSustain, triggerNote, releaseNote, updateVirtualKeyboardParams])
+    }, [showVirtualKeyboard, virtualKeyboardMode, triggerNote, releaseNote, updateVirtualKeyboardParams])
+    // NOTE: velocityRef/octaveRef/sustainRef deliberately excluded from deps —
+    //       they're up-to-date via .current assignment above, and including them
+    //       would re-attach listeners on every slider movement, causing missed keys.
 
     if (!showVirtualKeyboard) return null
 
@@ -147,7 +177,7 @@ export function VirtualKeyboard() {
                         <PianoView 
                             octave={virtualKeyboardOctave}
                             triggerNote={triggerNote}
-                            releaseNote={releaseNote}
+                            releaseNote={handleNoteRelease}
                             velocity={virtualKeyboardVelocity}
                         />
                     )}
@@ -164,16 +194,46 @@ export function VirtualKeyboard() {
                                 <button className="w-6 h-6 rounded bg-[#333] border border-white/5 flex items-center justify-center text-gray-400 hover:text-white" onClick={() => updateVirtualKeyboardParams({ octave: Math.min(8, virtualKeyboardOctave+1) })}><Plus className="w-3 h-3" /></button>
                             </div>
                         </div>
-                        <div className="flex flex-col gap-0.5">
-                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">Velocity</span>
-                            <div className="text-xs font-black text-orange-400">{virtualKeyboardVelocity}</div>
+                        <div className="flex flex-col gap-0.5 min-w-[140px]">
+                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">Volume</span>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={127}
+                                    value={virtualKeyboardVelocity}
+                                    onChange={(e) => updateVirtualKeyboardParams({ velocity: Number(e.target.value) })}
+                                    className="w-full h-1.5 appearance-none bg-[#1a1a1a] rounded-full cursor-pointer
+                                        [&::-webkit-slider-thumb]:appearance-none
+                                        [&::-webkit-slider-thumb]:w-3.5
+                                        [&::-webkit-slider-thumb]:h-3.5
+                                        [&::-webkit-slider-thumb]:rounded-full
+                                        [&::-webkit-slider-thumb]:bg-orange-400
+                                        [&::-webkit-slider-thumb]:shadow-[0_0_6px_rgba(251,146,60,0.5)]
+                                        [&::-webkit-slider-thumb]:cursor-pointer
+                                        [&::-webkit-slider-thumb]:border-0
+                                        [&::-moz-range-thumb]:w-3.5
+                                        [&::-moz-range-thumb]:h-3.5
+                                        [&::-moz-range-thumb]:rounded-full
+                                        [&::-moz-range-thumb]:bg-orange-400
+                                        [&::-moz-range-thumb]:border-0
+                                        [&::-moz-range-thumb]:cursor-pointer"
+                                />
+                                <span className="text-[11px] font-black text-orange-400 w-8 text-right tabular-nums">{virtualKeyboardVelocity}</span>
+                            </div>
                         </div>
                     </div>
 
                     <div className="flex gap-4">
                         <StatusPill label="Pitch Bend" value={virtualKeyboardPitchBend === 0 ? "Off" : virtualKeyboardPitchBend > 0 ? "+1" : "-1"} active={virtualKeyboardPitchBend !== 0} />
                         <StatusPill label="Modulation" value={Math.round(virtualKeyboardModulation/1.27) + "%"} active={virtualKeyboardModulation > 0} />
-                        <StatusPill label="Sustain" value={virtualKeyboardSustain ? "On" : "Off"} active={virtualKeyboardSustain} color="bg-emerald-500" />
+                        <StatusPill 
+                            label="Sustain" 
+                            value={virtualKeyboardSustain ? "On" : "Off"} 
+                            active={virtualKeyboardSustain} 
+                            color="bg-emerald-500"
+                            onClick={() => updateVirtualKeyboardParams({ sustain: !virtualKeyboardSustain })}
+                        />
                     </div>
                 </div>
             </div>
@@ -181,11 +241,14 @@ export function VirtualKeyboard() {
     )
 }
 
-function StatusPill({ label, value, active, color = "bg-sky-500" }: { label: string, value: string, active: boolean, color?: string }) {
+function StatusPill({ label, value, active, color = "bg-sky-500", onClick }: { label: string, value: string, active: boolean, color?: string, onClick?: () => void }) {
     return (
         <div className="flex flex-col gap-0.5 items-end">
             <span className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">{label}</span>
-            <div className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${active ? `${color} text-white shadow-[0_0_10px_rgba(0,0,0,0.3)]` : 'bg-white/5 text-gray-600'}`}>
+            <div 
+                onClick={onClick}
+                className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${onClick ? 'cursor-pointer hover:brightness-125 active:scale-95' : ''} ${active ? `${color} text-white shadow-[0_0_10px_rgba(0,0,0,0.3)]` : 'bg-white/5 text-gray-600'}`}
+            >
                 {value}
             </div>
         </div>

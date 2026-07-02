@@ -38,7 +38,7 @@ export function KeyCommandsManager() {
     }, [globalSettings.keyCommands, projectKeyCommands])
 
     const candidates = useMemo(() => {
-        let source = scope === 'global' ? globalSettings.keyCommands : scope === 'project' ? projectKeyCommands : effectiveCommands
+        const source = scope === 'global' ? globalSettings.keyCommands : scope === 'project' ? projectKeyCommands : effectiveCommands
         const query = search.toLowerCase()
         return source.filter(cmd => {
             const category = cmd.category || 'Other'

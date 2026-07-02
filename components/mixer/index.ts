@@ -6,6 +6,7 @@ export { Mixer, type MixerProps, type MixerChannelState, type BusState, type Sen
 export { ChannelStrip, type ChannelStripProps, type SendInfo } from './ChannelStrip';
 export { Meter, type MeterProps } from './Meter';
 export { SendControls, type SendControlsProps, type SendInfo as SendControlInfo } from './SendControls';
+export { MasteringPanel } from './MasteringPanel';
 
 // Default exports
 export { default } from './Mixer';

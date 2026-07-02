@@ -54,6 +54,8 @@ export function TrackInstrumentSelector({ trackId, compact = false }: TrackInstr
         return <Drum className="w-4 h-4" />;
       case 'synth':
         return <Zap className="w-4 h-4" />;
+      case 'soundfont':
+        return <Music className="w-4 h-4" />;
       default:
         return <Music className="w-4 h-4" />;
     }
@@ -156,6 +158,7 @@ export function TrackInstrumentSelector({ trackId, compact = false }: TrackInstr
               {currentInfo?.engine === 'synth' && 'Synthesizer'}
               {currentInfo?.engine === 'sampler' && 'Sampler'}
               {currentInfo?.engine === 'drumkit' && 'Drum Machine'}
+              {currentInfo?.engine === 'soundfont' && 'SoundFont'}
             </span>
           </div>
         </div>

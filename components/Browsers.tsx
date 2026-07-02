@@ -7,10 +7,11 @@ import {
     ChevronRight, ChevronDown, Download, Trash,
     PlusCircle, X, ExternalLink, HardDrive, FileAudio, FileText, Settings
 } from "lucide-react"
+import { SoundLibraryBrowser } from "./SoundLibraryBrowser"
 
 export function Browsers() {
     const { showBrowsers, toggleBrowsers, clips, tracks, focusedTrackId, addClip, addMediaFile } = useProjectStore()
-    const [activeTab, setActiveTab] = useState<'project' | 'all'>('project')
+    const [activeTab, setActiveTab] = useState<'project' | 'all' | 'sounds'>('project')
     const [searchQuery, setSearchQuery] = useState('')
     const [allFilesLocation, setAllFilesLocation] = useState<'Computer' | 'Home' | 'Project'>('Project')
     const [viewMode, setViewMode] = useState<'list' | 'column'>('list')
@@ -139,6 +140,10 @@ export function Browsers() {
                         onClick={() => setActiveTab('all')}
                         className={`flex-1 text-[10px] font-black uppercase transition-all rounded transition-all ${activeTab === 'all' ? 'text-sky-400 bg-[#333] shadow-md border border-[#444]' : 'text-gray-600 hover:text-gray-400'}`}
                     >All Files</button>
+                    <button
+                        onClick={() => setActiveTab('sounds')}
+                        className={`flex-1 text-[10px] font-black uppercase transition-all rounded transition-all ${activeTab === 'sounds' ? 'text-sky-400 bg-[#333] shadow-md border border-[#444]' : 'text-gray-600 hover:text-gray-400'}`}
+                    >Sounds</button>
                 </div>
 
                 {/* Location + View Mode */}
@@ -215,6 +220,31 @@ export function Browsers() {
                         ) : (
                             <div className="flex-1 flex flex-col items-center justify-center pt-20 text-gray-800 scale-75 opacity-20"><FileText className="w-12 h-12 mb-2" /><span className="text-[10px] font-black uppercase tracking-widest">No Search Results</span></div>
                         )
+                    ) : activeTab === 'sounds' ? (
+                        <SoundLibraryBrowser
+                            onSelectInstrument={(name) => {
+                                const tid = focusedTrackId || tracks.find(t => t.type === 'audio')?.id
+                                if (tid) {
+                                    useProjectStore.getState().updateTrack(tid, { instrument: name } as any)
+                                }
+                            }}
+                            onSelectLoop={(loop) => {
+                                const tid = focusedTrackId || tracks.find(t => t.type === 'audio')?.id
+                                if (tid) {
+                                    addClip({
+                                        id: `clip-${Date.now()}`,
+                                        trackId: tid,
+                                        name: loop.name,
+                                        start: 0,
+                                        duration: loop.duration * (120 / loop.bpm),
+                                        type: 'audio',
+                                        filePath: loop.path,
+                                        muted: false,
+                                        loop: false,
+                                    } as any)
+                                }
+                            }}
+                        />
                     ) : (
                         filteredAllFiles.map((item, idx) => (
                             <div

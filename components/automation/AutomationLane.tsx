@@ -27,6 +27,9 @@ interface AutomationLaneProps {
   pixelsPerBeat: number;
   height: number;
   trackColor?: string;
+  selectedSegmentId?: string | null;
+  hoveredSegmentId?: string | null;
+  curveDragAmount?: number;
   onPointMouseDown: (e: React.MouseEvent, pointId: string) => void;
   onPointContextMenu: (e: React.MouseEvent, pointId: string) => void;
   onPointDoubleClick: (pointId: string) => void;
@@ -46,6 +49,9 @@ export function AutomationLaneComponent({
   pixelsPerBeat,
   height,
   trackColor = '#3B82F6',
+  selectedSegmentId,
+  hoveredSegmentId,
+  curveDragAmount,
   onPointMouseDown,
   onPointContextMenu,
   onPointDoubleClick,
@@ -253,6 +259,8 @@ export function AutomationLaneComponent({
           pixelsPerBeat={pixelsPerBeat}
           color={lane.color}
           selectedPointIds={selectedPointIds}
+          selectedSegmentId={selectedSegmentId}
+          hoveredSegmentId={hoveredSegmentId}
           onCurveClick={onCurveClick}
         />
         

@@ -52,6 +52,12 @@ export default function Dashboard() {
       .finally(() => setLoadingProjects(false));
   }, [status]);
 
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/login");
+    }
+  }, [status, router]);
+
   useEffect(fetchProjects, [fetchProjects]);
 
   const handleRename = useCallback(async (id: string, name: string) => {
@@ -76,12 +82,16 @@ export default function Dashboard() {
     setDeleteTarget(null);
   }, [deleteTarget]);
 
-  if (status === "loading" || !session) {
+  if (status === "loading") {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-daw-bg text-gray-400">
         Loading...
       </div>
     );
+  }
+
+  if (status === "unauthenticated") {
+    return null;
   }
 
   return (

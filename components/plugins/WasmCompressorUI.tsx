@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
+import type { PluginUIContract } from '@/engine/plugins/manifest';
 
-export function WasmCompressorUI() {
-  const [threshold, setThreshold] = useState(-20);
-  const [ratio, setRatio] = useState(4);
-  const [attack, setAttack] = useState(10);
-  const [release, setRelease] = useState(100);
+export function WasmCompressorUI({ params, onParamChange }: PluginUIContract) {
+  const threshold = params.threshold ?? -20;
+  const ratio = params.ratio ?? 4;
+  const attack = params.attack ?? 10;
+  const release = params.release ?? 100;
 
   return (
     <div className="bg-[#222] p-4 rounded border border-gray-700 shadow-xl select-none w-80 text-white flex flex-col">
@@ -16,31 +17,39 @@ export function WasmCompressorUI() {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        {/* Threshold */}
         <div className="flex flex-col items-center bg-gray-900 p-2 rounded border border-gray-800">
           <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Threshold</span>
           <span className="font-mono text-amber-500 text-lg">{threshold.toFixed(1)}</span>
           <span className="text-[10px] text-gray-600 mt-1">dB</span>
+          <input type="range" min="-60" max="0" step="0.5" value={threshold}
+            onChange={(e) => onParamChange('threshold', parseFloat(e.target.value))}
+            className="w-full accent-amber-500 bg-gray-900 appearance-none h-1.5 rounded mt-1 cursor-pointer" />
         </div>
 
-        {/* Ratio */}
         <div className="flex flex-col items-center bg-gray-900 p-2 rounded border border-gray-800">
           <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Ratio</span>
           <span className="font-mono text-amber-500 text-lg">{ratio.toFixed(1)}:1</span>
+          <input type="range" min="1" max="20" step="0.5" value={ratio}
+            onChange={(e) => onParamChange('ratio', parseFloat(e.target.value))}
+            className="w-full accent-amber-500 bg-gray-900 appearance-none h-1.5 rounded mt-1 cursor-pointer" />
         </div>
 
-        {/* Attack */}
         <div className="flex flex-col items-center bg-gray-900 p-2 rounded border border-gray-800">
           <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Attack</span>
           <span className="font-mono text-amber-500 text-lg">{attack.toFixed(0)}</span>
           <span className="text-[10px] text-gray-600 mt-1">ms</span>
+          <input type="range" min="0.1" max="100" step="0.1" value={attack}
+            onChange={(e) => onParamChange('attack', parseFloat(e.target.value))}
+            className="w-full accent-amber-500 bg-gray-900 appearance-none h-1.5 rounded mt-1 cursor-pointer" />
         </div>
 
-        {/* Release */}
         <div className="flex flex-col items-center bg-gray-900 p-2 rounded border border-gray-800">
           <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Release</span>
           <span className="font-mono text-amber-500 text-lg">{release.toFixed(0)}</span>
           <span className="text-[10px] text-gray-600 mt-1">ms</span>
+          <input type="range" min="1" max="1000" step="1" value={release}
+            onChange={(e) => onParamChange('release', parseFloat(e.target.value))}
+            className="w-full accent-amber-500 bg-gray-900 appearance-none h-1.5 rounded mt-1 cursor-pointer" />
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useProjectStore } from '@/store/projectStore'
 import {
     X, Settings, Activity, Circle, Piano, Music, Film,
@@ -188,6 +188,43 @@ export function PreferencesDialog() {
     const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
     const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
     const [hasPermission, setHasPermission] = useState(false);
+    const midiAccessRef = useRef<MIDIAccess | null>(null);
+
+    const refreshMidiDevices = async () => {
+        if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) return;
+        try {
+            const access = await navigator.requestMIDIAccess();
+            midiAccessRef.current = access;
+
+            const inputs: { name: string; enabled: boolean }[] = [];
+            access.inputs.forEach(input => {
+                inputs.push({ name: input.name || 'Unknown MIDI Device', enabled: true });
+            });
+
+            const currentMidi = globalSettings.midi || {};
+            const existingInputs = (currentMidi.inputs || []) as { name: string; enabled: boolean }[];
+            const mergedInputs = inputs.map(newInput => {
+                const existing = existingInputs.find(e => e.name === newInput.name);
+                return existing ? { ...newInput, enabled: existing.enabled } : newInput;
+            });
+
+            updateMidi({ ...currentMidi, inputs: mergedInputs });
+
+            access.onstatechange = () => {
+                const updatedInputs: { name: string; enabled: boolean }[] = [];
+                access.inputs.forEach(input => {
+                    updatedInputs.push({ name: input.name || 'Unknown MIDI Device', enabled: true });
+                });
+                const merged = updatedInputs.map(newInput => {
+                    const existing = (globalSettings.midi?.inputs || []).find((e: any) => e.name === newInput.name);
+                    return existing ? { ...newInput, enabled: existing.enabled } : newInput;
+                });
+                updateMidi({ ...globalSettings.midi, inputs: merged });
+            };
+        } catch (e) {
+            console.warn('[Preferences] MIDI access failed', e);
+        }
+    };
 
     const refreshDevices = async () => {
         try {
@@ -229,6 +266,12 @@ export function PreferencesDialog() {
             navigator.mediaDevices?.removeEventListener('devicechange', refreshDevices);
         };
     }, [showSettingsDialog]);
+
+    useEffect(() => {
+        if (showSettingsDialog && globalSettings.midi?.activeSubTab === 'Inputs') {
+            refreshMidiDevices();
+        }
+    }, [showSettingsDialog, globalSettings.midi?.activeSubTab]);
 
     if (!showSettingsDialog) return null;
 

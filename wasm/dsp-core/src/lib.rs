@@ -1,6 +1,12 @@
 use wasm_bindgen::prelude::*;
 
 pub mod processors;
+pub mod simd;
+pub mod memory;
+pub mod parameters;
+pub mod oversampling;
+pub mod fft;
+pub mod modulation;
 
 
 #[wasm_bindgen]

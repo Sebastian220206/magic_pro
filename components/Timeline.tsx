@@ -26,7 +26,9 @@ export function Timeline() {
         toggleBounceRegionsDialog,
         autopunchEnabled, autopunchStart, autopunchEnd, setAutopunchLocators,
         saveTakeFolderComp, createTakeFolderComp, selectTakeFolderComp, renameTakeFolderComp, deleteTakeFolderComp,
-        addAutomationPoint, updateAutomationPoint, deleteAutomationPoint
+        addAutomationPoint, updateAutomationPoint, deleteAutomationPoint,
+        annotations,
+        currentTool, splitClip, deleteClip
     } = useProjectStore()
 
     const containerRef = useRef<HTMLDivElement>(null)
@@ -151,6 +153,34 @@ export function Timeline() {
     const handleClipMouseDown = (clip: Clip, e: React.MouseEvent) => {
         e.stopPropagation();
 
+        // Normalize tool IDs (ToolsMenu uses pointer/pencil/scissors, engine uses select/draw/split)
+        const tool = currentTool === 'pointer' ? 'select'
+            : currentTool === 'pencil' ? 'draw'
+            : currentTool === 'scissors' ? 'split'
+            : currentTool;
+
+        // --- Erase tool: delete clip on click ---
+        if (tool === 'erase') {
+            deleteClip(clip.id);
+            return;
+        }
+
+        // --- Split tool: split clip at click position ---
+        if (tool === 'split') {
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            const offsetX = e.clientX - rect.left;
+            const splitBeat = clip.start + offsetX / pixelsPerBeat;
+            splitClip(clip.id, getSnapValue(splitBeat));
+            return;
+        }
+
+        // --- Mute tool: toggle mute on click ---
+        if (tool === 'mute') {
+            updateClip(clip.id, { muted: !clip.muted });
+            return;
+        }
+
+        // --- Default: select (pointer) tool ---
         if (e.shiftKey) {
             const already = selectedClipIds.includes(clip.id);
             const next = already ? selectedClipIds.filter(id => id !== clip.id) : [...selectedClipIds, clip.id];
@@ -248,46 +278,65 @@ export function Timeline() {
         const startY = e.clientY - rect.top + containerRef.current!.scrollTop;
         const startTime = startX / pixelsPerBeat;
 
-        // Reset selection if clicking empty space
-        selectClips([]);
-        selectClip(null);
+        if (currentTool === 'marquee') {
+            selectClips([]);
+            selectClip(null);
+            setMarqueeSelection(null);
 
-        const onMouseMove = (me: MouseEvent) => {
-            const currentX = me.clientX - rect.left + containerRef.current!.scrollLeft;
-            const currentTime = currentX / pixelsPerBeat;
-            
-            const selectionStart = Math.min(startTime, currentTime);
-            const selectionDuration = Math.abs(currentTime - startTime);
+            const onMouseMove = (me: MouseEvent) => {
+                const currentX = me.clientX - rect.left + containerRef.current!.scrollLeft;
+                const currentTime = currentX / pixelsPerBeat;
 
-            // Find tracks within vertical range
-            const currentY = me.clientY - rect.top + containerRef.current!.scrollTop;
-            const top = Math.min(startY, currentY);
-            const bottom = Math.max(startY, currentY);
+                const selectionStart = Math.min(startTime, currentTime);
+                const selectionEnd = Math.max(startTime, currentTime);
 
-            const selectedTrackIds: string[] = [];
-            let currentOffset = 40; // Height of ruler
-            tracks.forEach(track => {
-                const h = trackHeight * (track.zoom || 1);
-                if (currentOffset + h > top && currentOffset < bottom) {
-                    selectedTrackIds.push(track.id);
-                }
-                currentOffset += h;
-            });
+                const currentY = me.clientY - rect.top + containerRef.current!.scrollTop;
+                const top = Math.min(startY, currentY);
+                const bottom = Math.max(startY, currentY);
 
-            setMarqueeSelection({
-                trackIds: selectedTrackIds,
-                start: getSnapValue(selectionStart),
-                duration: Math.max(0.1, getSnapValue(selectionDuration))
-            });
-        };
+                const selectedTrackIds: string[] = [];
+                let currentOffset = 40;
+                tracks.forEach(track => {
+                    const h = trackHeight * (track.zoom || 1);
+                    if (currentOffset + h > top && currentOffset < bottom) {
+                        selectedTrackIds.push(track.id);
+                    }
+                    currentOffset += h;
+                });
 
-        const onMouseUp = () => {
-            window.removeEventListener('mousemove', onMouseMove);
-            window.removeEventListener('mouseup', onMouseUp);
-        };
+                // Find clip IDs within the selection bounds
+                const selectedClipIds: string[] = [];
+                const selectedLaneIds: string[] = [];
+                clips.forEach(clip => {
+                    if (!selectedTrackIds.includes(clip.trackId)) return;
+                    if (clip.start < selectionEnd && (clip.start + clip.duration) > selectionStart) {
+                        selectedClipIds.push(clip.id);
+                        if ('subTrackId' in clip && (clip as any).subTrackId) selectedLaneIds.push((clip as any).subTrackId);
+                    }
+                });
 
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('mouseup', onMouseUp);
+                setMarqueeSelection({
+                    id: `marquee-${Date.now()}`,
+                    startBeat: getSnapValue(selectionStart),
+                    endBeat: getSnapValue(selectionEnd),
+                    trackIds: selectedTrackIds,
+                    clipIds: selectedClipIds,
+                    laneIds: selectedLaneIds
+                });
+            };
+
+            const onMouseUp = () => {
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', onMouseUp);
+            };
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+        } else {
+            selectClips([]);
+            selectClip(null);
+            setMarqueeSelection(null);
+        }
     };
 
     const totalWidth = 5000 * pixelsPerBeat / 60; // Approx 5000 beats
@@ -372,10 +421,32 @@ export function Timeline() {
         return () => window.removeEventListener('mousedown', handleWindowMouseDown);
     }, []);
 
+    const TOOL_CURSORS: Record<string, string> = {
+        pointer: 'default',
+        select: 'default',
+        split: 'crosshair',
+        scissors: 'crosshair',
+        erase: 'not-allowed',
+        draw: 'crosshair',
+        pencil: 'crosshair',
+        zoom: 'zoom-in',
+        mute: 'pointer',
+        text: 'text',
+        marquee: 'crosshair',
+        fade: 'col-resize',
+        'automation-select': 'default',
+        'automation-curve': 'crosshair',
+        flex: 'ew-resize',
+        solo: 'default',
+        glue: 'default',
+    };
+    const timelineCursor = TOOL_CURSORS[currentTool] || 'default';
+
     return (
         <div
             className="flex-1 bg-[#111] overflow-x-auto overflow-y-auto relative flex flex-col custom-scrollbar select-none z-10"
             ref={containerRef}
+            style={{ cursor: timelineCursor }}
             onMouseDown={handleTimelineMouseDown}
             onContextMenu={(e) => e.preventDefault()}
             onDragOver={handleDragOver}
@@ -525,15 +596,18 @@ export function Timeline() {
                 {/* Marquee Selection Rendering */}
                 {marqueeSelection && (
                     <div 
-                        className="absolute z-[60] bg-white/10 border border-white/30 backdrop-blur-[1px] pointer-events-none"
+                        className="absolute z-[60] border-2 border-sky-400/60 pointer-events-none rounded-sm"
                         style={{
-                            left: `${marqueeSelection.start * pixelsPerBeat}px`,
-                            width: `${marqueeSelection.duration * pixelsPerBeat}px`,
-                            top: `${40 + tracks.findIndex(t => t.id === marqueeSelection.trackIds[0]) * trackHeight}px`, // Simplified vertical pos
+                            left: `${marqueeSelection.startBeat * pixelsPerBeat}px`,
+                            width: `${(marqueeSelection.endBeat - marqueeSelection.startBeat) * pixelsPerBeat}px`,
+                            top: `${40 + tracks.findIndex(t => t.id === marqueeSelection.trackIds[0]) * trackHeight}px`,
                             height: `${marqueeSelection.trackIds.length * trackHeight}px`,
                         }}
                     >
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
+                        <div className="absolute inset-0 bg-gradient-to-br from-sky-500/15 via-sky-400/5 to-transparent"></div>
+                        <div className="absolute top-0 left-0 px-2 py-0.5 bg-sky-500/30 text-sky-200 text-[10px] font-medium rounded-br">
+                            {marqueeSelection.clipIds.length} clips
+                        </div>
                     </div>
                 )}
 
@@ -802,6 +876,16 @@ export function Timeline() {
                                             </div>
                                         ))}
                                     </div>
+
+                                    {/* Annotations */}
+                                    {annotations.filter(a => a.laneY === tracks.indexOf(track)).map(a => (
+                                        <div key={a.id} className="absolute z-25 pointer-events-auto group/annot" style={{ left: `${a.startBeat * pixelsPerBeat}px`, top: '0px', height: `${currentHeight}px` }}>
+                                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-500/20 border-l-2 border-yellow-400 text-yellow-300 text-[9px] font-bold uppercase tracking-wider whitespace-nowrap">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0" />
+                                                {a.text}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
 
                                 {/* Inactive Alternatives Sub-lanes */}

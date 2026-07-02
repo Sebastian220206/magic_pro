@@ -1,16 +1,32 @@
 "use client"
+import { useRef, useCallback } from "react"
 import { useProjectStore } from "@/store/projectStore"
+import { ToolsMenu } from "./ToolsMenu"
 import {
     Scissors, Copy, ClipboardPaste,
     MousePointer2, Eraser, Move,
     Type, Hand, Search, Magnet,
-    Grid, Split, RefreshCcw, Layers
+    Grid, Split, RefreshCcw, Layers, Pencil, Crop
 } from "lucide-react"
 
+const TOOL_PALETTE: { id: 'pointer' | 'scissors' | 'erase' | 'zoom' | 'text' | 'pencil' | 'marquee'; icon: typeof MousePointer2; shortcut: string }[] = [
+    { id: 'pointer',   icon: MousePointer2, shortcut: 'A' },
+    { id: 'scissors',  icon: Scissors,      shortcut: 'S' },
+    { id: 'erase',     icon: Eraser,        shortcut: 'E' },
+    { id: 'zoom',      icon: Search,        shortcut: 'Z' },
+    { id: 'text',      icon: Type,          shortcut: 'T' },
+    { id: 'pencil',    icon: Pencil,        shortcut: 'P' },
+    { id: 'marquee',   icon: Crop,          shortcut: 'R' },
+]
+
 export function Toolbar() {
-    const { 
-        showToolbar, 
-        toggleNoteRepeat, 
+    const toolMenuAnchorRef = useRef<HTMLDivElement>(null)
+    const {
+        showToolbar,
+        currentTool,
+        setCurrentTool,
+        toggleToolsMenu,
+        toggleNoteRepeat,
         showNoteRepeatDialog,
         toggleSpotErase,
         showSpotEraseDialog,
@@ -24,19 +40,37 @@ export function Toolbar() {
         setRecordingOverlappingMode
     } = useProjectStore()
 
+    const handleToolsMenuClose = useCallback(() => {
+        toggleToolsMenu(false)
+    }, [toggleToolsMenu])
+
     if (!showToolbar) return null
 
     return (
+        <>
         <div className="h-[44px] bg-[#1a1a1a] border-b border-[#000] flex items-center px-6 gap-6 shadow-md shrink-0 z-10 transition-all animate-in slide-in-from-top duration-200">
             {/* Context Tool Palette */}
-            <div className="flex items-center bg-[#0a0a0a] rounded-lg border border-[#333] p-0.5 gap-0.5">
-                <ToolButton icon={<MousePointer2 className="w-4 h-4" />} active />
-                <ToolButton icon={<Scissors className="w-4 h-4" />} />
-                <ToolButton icon={<Eraser className="w-4 h-4" />} />
-                <ToolButton icon={<Search className="w-4 h-4" />} />
-                <ToolButton icon={<Type className="w-4 h-4" />} />
-                <ToolButton icon={<Move className="w-4 h-4" />} />
-                <ToolButton icon={<Hand className="w-4 h-4" />} />
+            <div
+                ref={toolMenuAnchorRef}
+                className="flex items-center bg-[#0a0a0a] rounded-lg border border-[#333] p-0.5 gap-0.5 cursor-pointer"
+                onClick={() => toggleToolsMenu()}
+                title="Click to open Tools Menu (T)"
+            >
+                {TOOL_PALETTE.map((tool) => {
+                    const Icon = tool.icon
+                    return (
+                        <ToolButton
+                            key={tool.id}
+                            icon={<Icon className="w-4 h-4" />}
+                            active={currentTool === tool.id || (tool.id === 'pointer' && currentTool === 'select')}
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                setCurrentTool(tool.id)
+                            }}
+                            title={`${tool.id} (${tool.shortcut})`}
+                        />
+                    )
+                })}
             </div>
 
             {/* Edit / Function Utilities */}
@@ -118,12 +152,18 @@ export function Toolbar() {
                 </div>
             </div>
         </div>
+        <ToolsMenu anchorEl={toolMenuAnchorRef.current} onClose={handleToolsMenuClose} />
+        </>
     )
 }
 
-function ToolButton({ icon, active = false }: { icon: React.ReactNode, active?: boolean }) {
+function ToolButton({ icon, active = false, onClick, title }: { icon: React.ReactNode, active?: boolean, onClick?: (e: React.MouseEvent) => void, title?: string }) {
     return (
-        <button className={`w-8 h-8 flex items-center justify-center rounded transition-all ${active ? 'bg-[#333] text-sky-400 border border-[#444] shadow-md' : 'text-gray-500 hover:text-white'}`}>
+        <button
+            onClick={onClick}
+            title={title}
+            className={`w-8 h-8 flex items-center justify-center rounded transition-all ${active ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-md shadow-sky-500/10' : 'text-gray-500 hover:text-white'}`}
+        >
             {icon}
         </button>
     )

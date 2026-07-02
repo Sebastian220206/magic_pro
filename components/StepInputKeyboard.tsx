@@ -141,7 +141,7 @@ export function StepInputKeyboard() {
     const setClipNote = (step: number, rowPitch?: number) => {
         if (!focusedTrackId) return
 
-        let clip = activeClip || getOrCreateClip()
+        const clip = activeClip || getOrCreateClip()
         if (!clip) return
 
         const targetPitch = rowPitch ?? selectedPitch

@@ -12,7 +12,7 @@
 
 import React, { useMemo } from 'react';
 import { AutomationPoint, CurveType } from '../../engine/automation/types';
-import { interpolateAutomation, generateCurvePoints } from '../../engine/automation/curves';
+import { generateCurvePoints } from '../../engine/automation/curves';
 
 interface AutomationCurveProps {
   pointA: AutomationPoint;
@@ -90,6 +90,10 @@ export function AutomationCurve({
         return { strokeDasharray: '2,2' };
       case 'bezier':
         return { strokeDasharray: '6,3,2,3' };
+      case 'sCurve':
+        return { strokeDasharray: '8,3' };
+      case 'equalPower':
+        return { strokeDasharray: '2,4' };
       case 'hold':
         return { strokeDasharray: 'none', strokeWidth: 1 };
       default:
@@ -106,14 +110,17 @@ export function AutomationCurve({
   if (!pathData) return null;
   
   const curveStyle = getCurveStyle(pointA.curve);
+  const hasNonLinearCurve = pointA.curve !== 'linear' && pointA.curve !== 'hold';
+  const hasCurveAmount = Math.abs(pointA.curveAmount ?? 0) > 0.01;
+  const curveColor = hasCurveAmount ? '#FCD34D' : color;
   
   return (
     <path
       d={pathData}
       fill="none"
-      stroke={color}
-      strokeWidth={isSelected ? 3 : 2}
-      opacity={isSelected ? 0.8 : 0.6}
+      stroke={isSelected ? '#60A5FA' : curveColor}
+      strokeWidth={isSelected ? 3 : hasCurveAmount ? 2.5 : 2}
+      opacity={isSelected ? 1 : hasCurveAmount ? 0.9 : 0.6}
       style={{
         ...curveStyle,
         cursor: 'pointer',
@@ -138,6 +145,8 @@ interface AutomationCurvesProps {
   pixelsPerBeat: number;
   color: string;
   selectedPointIds: string[];
+  selectedSegmentId?: string | null;
+  hoveredSegmentId?: string | null;
   onCurveClick?: (pointAId: string, pointBId: string) => void;
 }
 
@@ -151,6 +160,8 @@ export function AutomationCurves({
   pixelsPerBeat,
   color,
   selectedPointIds,
+  selectedSegmentId,
+  hoveredSegmentId,
   onCurveClick,
 }: AutomationCurvesProps) {
   // Sort points by beat
@@ -163,29 +174,34 @@ export function AutomationCurves({
     const result: Array<{
       pointA: AutomationPoint;
       pointB: AutomationPoint;
-      isSelected: boolean;
+      isPointSelected: boolean;
+      isSegmentSelected: boolean;
+      isSegmentHovered: boolean;
       key: string;
     }> = [];
     
     for (let i = 0; i < sortedPoints.length - 1; i++) {
       const pointA = sortedPoints[i];
       const pointB = sortedPoints[i + 1];
-      const isSelected = selectedPointIds.includes(pointA.id) || selectedPointIds.includes(pointB.id);
+      const segmentId = `seg-${pointA.id}-${pointB.id}`;
+      const isPointSelected = selectedPointIds.includes(pointA.id) || selectedPointIds.includes(pointB.id);
       
       result.push({
         pointA,
         pointB,
-        isSelected,
-        key: `${pointA.id}-${pointB.id}`,
+        isPointSelected,
+        isSegmentSelected: selectedSegmentId === segmentId,
+        isSegmentHovered: hoveredSegmentId === segmentId,
+        key: segmentId,
       });
     }
     
     return result;
-  }, [sortedPoints, selectedPointIds]);
+  }, [sortedPoints, selectedPointIds, selectedSegmentId, hoveredSegmentId]);
   
   return (
     <g>
-      {curves.map(({ pointA, pointB, isSelected, key }) => (
+      {curves.map(({ pointA, pointB, isPointSelected, isSegmentSelected, isSegmentHovered, key }) => (
         <AutomationCurve
           key={key}
           pointA={pointA}
@@ -197,7 +213,7 @@ export function AutomationCurves({
           height={height}
           pixelsPerBeat={pixelsPerBeat}
           color={color}
-          isSelected={isSelected}
+          isSelected={isPointSelected || isSegmentSelected || isSegmentHovered}
           onCurveClick={onCurveClick}
         />
       ))}

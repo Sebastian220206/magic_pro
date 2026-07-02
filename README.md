@@ -1,14 +1,16 @@
 # Magic Pro — DAW
 
-A digital audio workstation built with Next.js, featuring multi-track audio/MIDI recording, real-time effects, and a professional mixer interface.
+A digital audio workstation built with Next.js, featuring multi-track audio/MIDI recording, real-time effects, a professional mixer interface, and optional cloud/collaboration/AI features. See [`implementation_plan.md.resolved`](./implementation_plan.md.resolved) for the full architecture plan.
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14 (React 18), Zustand, Tailwind CSS
+- **Frontend**: Next.js 14 (React 18), Zustand, Tailwind CSS, WebGL2
 - **Backend**: Next.js API routes, Prisma ORM, PostgreSQL / SQLite
-- **Audio**: Web Audio API, AudioWorklet, custom scheduler with lookahead
+- **Audio**: Web Audio API, AudioWorklet, custom scheduler with lookahead, WASM DSP
 - **Auth**: NextAuth.js
-- **Storage**: IndexedDB (client-side), PostgreSQL (server-side)
+- **Storage**: IndexedDB (client-side), PostgreSQL (server-side), Supabase / S3 (cloud)
+- **Cloud**: Docker, PWA, Stripe subscriptions, OpenAI integration
+- **Plugin System**: WASM sandbox with manifest-based plugin API
 
 ## Getting Started
 
@@ -98,6 +100,18 @@ prisma/                 Database schema + migrations
 - **History/undo** with capped selective snapshots (no full-store cloning)
 - **Session-based authentication** (NextAuth + credentials)
 - **Project save/load** to PostgreSQL + IndexedDB with auto-save
+- **Cloud save** via Supabase storage (feature-flagged)
+- **AI features**: chord suggestion, melody generation, auto-mix suggestions, lyric assistant (OpenAI)
+- **Plugin sandbox**: WASM/AudioWorklet plugins with manifest API and standard GUI contract
+- **Flex Time/Pitch**: WSOLA time-stretch, YIN pitch detection, warp markers
+- **Comping**: take lane manager with crossfade comping
+- **Score editor**: Canvas staff renderer with clefs, key/time signatures, noteheads
+- **Video track**: HTML5 `<video>` backed playback with sync
+- **Export**: WAV + MP3 + stem export; print-to-PDF
+- **PWA**: offline-capable shell with service worker (feature-flagged)
+- **Stripe subscriptions**: Free/Pro/Studio tiers (feature-flagged)
+- **Docker**: multi-stage build with Postgres 16 + Redis 7
+- **CI**: GitHub Actions (tsc, eslint, jest on every push)
 
 ## Scripts
 

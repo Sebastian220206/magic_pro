@@ -17,7 +17,8 @@ import React, { memo, useCallback } from 'react';
 import { Volume2, VolumeX, Headphones, Mic, Power } from 'lucide-react';
 import { MixerFader } from './MixerFader';
 import { MixerMeter } from './MixerMeter';
-import { ChannelStripState, MeterData } from '../../engine/audioEngine/channelStrip';
+import { ChannelStripState } from '../../engine/audioEngine/channelStrip';
+import { MeterData } from '../../engine/audioEngine/audioMeter';
 
 interface MixerChannelProps {
   channel: ChannelStripState;

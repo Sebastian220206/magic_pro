@@ -127,7 +127,7 @@ export function Compressor({ trackId, pluginId }: CompressorProps) {
         const thresh = (params.threshold + 50) / 50; const r = params.ratio;
         ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.beginPath();
         for(let i=0; i<w; i++) {
-            const xN = i/w; let yN = xN > thresh ? thresh + (xN - thresh) / r : xN;
+            const xN = i/w; const yN = xN > thresh ? thresh + (xN - thresh) / r : xN;
             if (i === 0) ctx.moveTo(i, h - yN * h); else ctx.lineTo(i, h - yN * h);
         }
         ctx.stroke();

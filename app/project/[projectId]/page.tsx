@@ -50,6 +50,7 @@ import { tutorialStore } from "@/store/tutorialStore"
 export default function ProjectStudio({ params }: { params: { projectId: string } }) {
     const {
         loadProject,
+        loadError,
         loadGlobalSettings,
         showLibrary,
         showInspector,
@@ -144,6 +145,17 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
 
     return (
         <div className="flex flex-col h-screen w-full bg-[#000] overflow-hidden text-sm selection:bg-sky-500/30">
+            {loadError && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80">
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-8 max-w-md text-center">
+                        <h2 className="text-xl font-bold text-white mb-2">Project Not Found</h2>
+                        <p className="text-zinc-400 mb-6">{loadError}</p>
+                        <a href="/dashboard" className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                            Go to Dashboard
+                        </a>
+                    </div>
+                </div>
+            )}
             {/* macOS Menu Bar */}
             <AppMenuBar />
 

@@ -12,6 +12,7 @@ import {
     MousePointer2, Zap,
     ZoomIn, GripVertical
 } from "lucide-react"
+import { TOOLS, ToolsMenu } from "./ToolsMenu"
 
 export function TracksAreaMenuBar() {
     const store = useProjectStore(useShallow(s => ({
@@ -35,6 +36,7 @@ export function TracksAreaMenuBar() {
         toggleTracksArea: s.toggleTracksArea, showTracksArea: s.showTracksArea,
         trackHeight: s.trackHeight, setTrackHeight: s.setTrackHeight,
         zoom: s.zoom, setZoom: s.setZoom,
+        currentTool: s.currentTool,
     })));
     const {
         addTrack, snap, setSnap,
@@ -53,10 +55,16 @@ export function TracksAreaMenuBar() {
         toggleLiveLoops, showLiveLoopsGrid,
         toggleTracksArea, showTracksArea,
         trackHeight, setTrackHeight,
-        zoom, setZoom
+        zoom, setZoom,
+        currentTool
     } = store
     const [showProjectSettings, setShowProjectSettings] = useState(false)
     const [showExportMenu, setShowExportMenu] = useState(false)
+    const [isToolMenuOpen, setIsToolMenuOpen] = useState(false)
+    const toolMenuAnchorRef = useRef<HTMLDivElement>(null)
+
+    const currentToolDef = TOOLS.find(t => t.id === currentTool) || TOOLS[0]
+    const CurrentToolIcon = currentToolDef.icon
 
     const handleAddTrack = (e: React.MouseEvent) => {
         if (e.altKey && e.shiftKey) {
@@ -107,8 +115,12 @@ export function TracksAreaMenuBar() {
 
             {/* 2. Center Section: Tool Palette (The Arrow and Divider) */}
             <div className="flex items-center justify-center flex-1">
-                <div className="flex items-center bg-black/20 rounded-[4px] border border-white/10 p-0.5 gap-0.5">
-                    <ToolButton icon={MousePointer2} active={true} showArrow />
+                <div 
+                    ref={toolMenuAnchorRef}
+                    className="flex items-center bg-black/20 rounded-[4px] border border-white/10 p-0.5 gap-0.5 cursor-pointer hover:bg-white/5"
+                    onClick={() => setIsToolMenuOpen(!isToolMenuOpen)}
+                >
+                    <ToolButton icon={CurrentToolIcon} active={true} showArrow />
                 </div>
             </div>
 
@@ -174,6 +186,12 @@ export function TracksAreaMenuBar() {
                     />
                 </div>
             </div>
+
+            <ToolsMenu 
+                anchorEl={toolMenuAnchorRef.current} 
+                open={isToolMenuOpen} 
+                onClose={() => setIsToolMenuOpen(false)} 
+            />
         </div>
     )
 }
@@ -200,7 +218,7 @@ function ViewToggle({ icon: Icon, active, onClick }: { icon: any, active: boolea
 
 function ToolButton({ icon: Icon, active, showArrow }: { icon: any, active: boolean, showArrow?: boolean }) {
     return (
-        <div className="flex items-center px-1.5 h-6 rounded-[3px] transition-all cursor-pointer hover:bg-white/5 group">
+        <div className="flex items-center px-1.5 h-6 rounded-[3px] transition-all cursor-pointer group">
             <Icon className={`w-3.5 h-3.5 ${active ? 'text-gray-200' : 'text-gray-500'}`} />
             {showArrow && <ChevronDown className="w-2.5 h-2.5 text-gray-600 ml-1 group-hover:text-gray-400" />}
         </div>

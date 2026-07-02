@@ -3,6 +3,8 @@ import { useState, useRef, useEffect, useCallback, memo } from "react"
 import { useProjectStore } from "@/store/projectStore"
 import { audioEngine } from "@/engine/AudioEngineAdapter"
 import { VerticalMeter } from "./VerticalMeter"
+import { getSoundInfo } from "@/engine/soundLibrary/instruments"
+import { SoundFontPanel } from "./SoundFontPanel"
 import {
     ChevronDown, ChevronRight,
     ChevronUp, Settings2, Sliders,
@@ -131,7 +133,13 @@ export function Inspector() {
                         </InspectorField>
                         <InspectorField label="Channel" value={track.channel || "Inst 1"} hasChevron />
                         <InspectorField label="MIDI Input" value={track.midiInput || "All"} hasChevron />
-                        
+
+                        {track.instrument && getSoundInfo(track.instrument)?.engine === 'soundfont' && (
+                            <div className="px-2 py-2">
+                                <SoundFontPanel trackId={track.id} />
+                            </div>
+                        )}
+
                         {/* Internal MIDI In Section */}
                         <div className="flex flex-col border-y border-white/5 my-1 py-1 bg-black/10">
                             <InspectorField label="Internal MIDI In">
