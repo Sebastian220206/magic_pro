@@ -90,6 +90,17 @@ describe('provider registration', () => {
     });
 });
 
+describe('error routing', () => {
+    it('sends failures to the login page, not NextAuth\'s own error page', () => {
+        const { options } = loadAuth(WITH_GOOGLE);
+
+        // The default error page shows a bare code like "OAuthCallback" with no
+        // way to retry. /login?error=<code> is where the message mapping lives.
+        expect(options.pages?.error).toBe('/login');
+        expect(options.pages?.signIn).toBe('/login');
+    });
+});
+
 describe('signIn callback', () => {
     const signIn = () => loadAuth(WITH_GOOGLE).options.callbacks!.signIn!;
 

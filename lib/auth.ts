@@ -110,6 +110,11 @@ export const authOptions: NextAuthOptions = {
   providers,
   pages: {
     signIn: "/login",
+    // Without this, a failed OAuth callback lands on NextAuth's own error page
+    // — a bare "Sign in" heading and a code like `OAuthCallback`. Routing it to
+    // /login?error=<code> is what lets `OAUTH_ERRORS` there turn the code into
+    // a sentence, next to the form the user can actually retry with.
+    error: "/login",
   },
   session: {
     strategy: "jwt",
