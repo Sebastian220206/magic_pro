@@ -12,16 +12,15 @@ const nextConfig = {
   /**
    * The single source of truth for response headers.
    *
-   * `vercel.json` also had a `headers` block, and none of its cache rules ever
-   * reached production: for a Next.js project Vercel deploys the routing this
-   * function produces, and the vercel.json entries are not merged in. The
-   * security headers below appeared to work only because they were duplicated
-   * in both files. Confirmed against the live deployment — /worklets/, /wasm/
-   * and /audio/ were all serving `max-age=0, must-revalidate` despite a
-   * year-long immutable rule sitting in vercel.json.
+   * These were previously split between here and a `headers` block in
+   * `vercel.json`, which duplicated the security headers and held the cache
+   * rules alone. Both work on Vercel; only this one works anywhere else, so
+   * `next start` and the Docker image were silently running without any cache
+   * policy at all.
    *
-   * Defining them here also means they apply to `next start` and the Docker
-   * image, not only to Vercel.
+   * `vercel.json` is now build configuration only. Note it is validated
+   * against a strict schema, so it cannot carry explanatory keys — which is
+   * why this comment lives here.
    */
   async headers() {
     /**

@@ -3,6 +3,5 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "installCommand": "npm ci",
-  "outputDirectory": ".next",
-  "_comment_headers": "Response headers are defined in next.config.js, not here. A `headers` block in this file is silently ignored for a Next.js project — Vercel deploys the routing the framework emits — which is why the immutable cache rules that used to live here never applied in production. Defining them in next.config.js also makes them apply to `next start` and the Docker image."
+  "outputDirectory": ".next"
 }
