@@ -68,21 +68,24 @@ const DEFAULTS = {
 /**
  * Encode settings, chosen by measuring rather than by taste.
  *
- * The loop is a full-bleed background sitting under a heavy dark overlay, so
- * resolution buys far less than it costs. Measured on this footage, 12 s:
+ * The loop plays full-bleed at full brightness with no scrim over it, so
+ * compression artefacts are directly visible and resolution is worth paying
+ * for. (It was 720p while a heavy overlay hid both.) Measured on this footage,
+ * 12 s:
  *
+ *   1920×1080 CRF 28   5.38 MB
  *   1920×1080 CRF 30   4.44 MB
- *   1280×720  CRF 30   2.48 MB
- *   1280×720  CRF 33   1.82 MB   <- chosen; no visible blocking under the overlay
+ *   1920×1080 CRF 32   3.64 MB   <- chosen; clean at 1:1, no visible blocking
+ *   1280×720  CRF 33   1.84 MB   <- previous, when a dark overlay covered it
  *
  * There is deliberately no WebM sibling. VP9 was measured on the same segment
  * and lost at every setting tried — 3.05 MB at CRF 45, 2.50 MB at CRF 48, both
- * worse than H.264 at 1.82 MB. libvpx handles this dense particle motion badly.
- * A second format only earns its bandwidth and encode time if it is smaller, and
+ * worse than H.264 at 720p. libvpx handles this dense particle motion badly. A
+ * second format only earns its bandwidth and encode time if it is smaller, and
  * H.264 is supported everywhere anyway.
  */
-const LOOP_SCALE = '1280:-2';
-const LOOP_CRF = '33';
+const LOOP_SCALE = '1920:-2';
+const LOOP_CRF = '32';
 
 function parseArgs(argv) {
     const args = { ...DEFAULTS, thumbs: false };
