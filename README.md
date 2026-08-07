@@ -77,6 +77,8 @@ The essentials:
 | `NEXT_PUBLIC_SUPABASE_URL` | no | Object storage for uploads |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | no | Object storage for uploads |
 | `SUPABASE_SERVICE_ROLE_KEY` | no | Admin storage operations — server only |
+| `GOOGLE_CLIENT_ID` | no | Google sign-in; the button only appears with both halves set |
+| `GOOGLE_CLIENT_SECRET` | no | as above |
 | `OPENAI_API_KEY` | no | AI features; without it they answer 503 |
 | `STRIPE_SECRET_KEY` | no | Billing; without it everyone is on the free tier |
 | `STRIPE_WEBHOOK_SECRET` | no | Required for subscriptions to actually activate |
@@ -153,6 +155,40 @@ soundfonts it shipped:
 It answers **503** when the database is unreachable. `soundfonts: "missing"`
 does not fail the probe but means the build shipped no instruments — worth an
 alert, because nothing else surfaces it.
+
+### Google sign-in
+
+Optional. Without `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` the provider is
+not registered and no button is rendered; email/password is unaffected.
+
+In Google Cloud Console → APIs & Services → Credentials, create an **OAuth
+client ID → Web application**, and list every origin you sign in from under
+*Authorised redirect URIs*:
+
+```
+http://localhost:3000/api/auth/callback/google
+https://your-domain.vercel.app/api/auth/callback/google
+```
+
+The path is fixed by NextAuth. A mismatch produces Google's
+`redirect_uri_mismatch`, which does not say what it expected.
+
+How accounts are handled:
+
+- Sessions are JWTs and there is no database adapter, so nothing persists an
+  OAuth user automatically. The `jwt` callback upserts the row and puts **our**
+  `User.id` on the token — the rest of the app treats it as one.
+- Signing in with Google using an email that already has a password account
+  **signs you into that account**. That is the intended behaviour, and it is
+  why the `signIn` callback requires Google's `email_verified` flag.
+- A Google-only account has `passwordHash = null`. Password sign-in for it
+  fails cleanly rather than throwing inside bcrypt.
+
+> **Known gap:** signup does not verify email addresses. Someone could register
+> a password account using an address they do not own, and its real owner would
+> then land in that account when they sign in with Google. Requiring
+> `email_verified` stops the reverse direction but not this one. The fix is
+> email verification at signup, which does not exist yet.
 
 ### Operational notes
 
