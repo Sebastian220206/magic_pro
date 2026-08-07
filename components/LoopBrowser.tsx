@@ -2,7 +2,7 @@
 import { useState, useCallback, useMemo } from "react"
 import { useProjectStore } from "@/store/projectStore"
 import { audioEngine } from "@/engine/AudioEngineAdapter"
-import { loopLibrary, type LoopAsset } from "@/src/data/loopLibrary"
+import { loopLibrary, type LoopAsset } from "@/data/loopLibrary"
 import {
     Search, Music, Play, RotateCcw,
     ChevronDown, Filter, MoreHorizontal,

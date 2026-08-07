@@ -3,7 +3,7 @@
  * Maps sound names to their respective engines and presets
  */
 
-export type InstrumentEngine = 'synth' | 'sampler' | 'drumkit' | 'soundfont';
+export type InstrumentEngine = 'synth' | 'sampler' | 'drumkit' | 'soundfont' | 'multisampler';
 
 export interface InstrumentDefinition {
   engine: InstrumentEngine;
@@ -175,6 +175,36 @@ export const instrumentRegistry: Record<string, InstrumentDefinition> = {
     description: 'Deep sub-bass drop for dramatic entrances',
   },
 
+  // Wavetable Synthesizers
+  'Wavetable Lead': {
+    engine: 'synth',
+    preset: 'wavetable_lead',
+    displayName: 'Wavetable Lead',
+    category: 'Wavetable Synths',
+    description: 'Wavetable lead with filter LFO modulation',
+  },
+  'Wavetable Pad': {
+    engine: 'synth',
+    preset: 'wavetable_pad',
+    displayName: 'Wavetable Pad',
+    category: 'Wavetable Synths',
+    description: 'Lush wavetable pad with slow filter sweep',
+  },
+  'Wavetable Bass': {
+    engine: 'synth',
+    preset: 'wavetable_bass',
+    displayName: 'Wavetable Bass',
+    category: 'Wavetable Synths',
+    description: 'Gritty wavetable bass with pitch LFO',
+  },
+  'Evolving Pad': {
+    engine: 'synth',
+    preset: 'evolving_pad',
+    displayName: 'Evolving Pad',
+    category: 'Wavetable Synths',
+    description: 'Evolving pad with triangle filter modulation',
+  },
+
   // SoundFont Instruments
   'SoundFont Instrument': {
     engine: 'soundfont',
@@ -182,6 +212,29 @@ export const instrumentRegistry: Record<string, InstrumentDefinition> = {
     displayName: 'SoundFont Instrument',
     category: 'SoundFont Instruments',
     description: 'General MIDI SoundFont instrument (load .sf2 file)',
+  },
+
+  // MultiSampler Instruments (SFZ/EXS/DecentSampler)
+  'SFZ Instrument': {
+    engine: 'multisampler',
+    preset: '',
+    displayName: 'SFZ Instrument',
+    category: 'MultiSampler Instruments',
+    description: 'SFZ format sampler instrument (load .sfz file)',
+  },
+  'EXS Instrument': {
+    engine: 'multisampler',
+    preset: '',
+    displayName: 'EXS Instrument',
+    category: 'MultiSampler Instruments',
+    description: 'Logic Pro EXS24 format sampler instrument (load .exs file)',
+  },
+  'DecentSampler Instrument': {
+    engine: 'multisampler',
+    preset: '',
+    displayName: 'DecentSampler Instrument',
+    category: 'MultiSampler Instruments',
+    description: 'DecentSampler format instrument (load .dspreset file)',
   },
 
   // Drum Kits

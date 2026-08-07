@@ -1,7 +1,18 @@
 import { serializeStoreState, saveToIndexedDB } from './projectPersistence';
 
 type Unsubscribe = () => void;
-type StoreSubscribe = (selector: (state: any) => any, listener: (slice: any, prevSlice: any) => void) => Unsubscribe;
+
+/**
+ * zustand vanilla stores expose `subscribe(listener: (state, prevState) => void)`.
+ * The two-argument `subscribe(selector, listener)` form only exists when the
+ * store is created with the `subscribeWithSelector` middleware — which the
+ * project store is NOT. Passing a selector there would register the selector
+ * AS the listener, silently discarding the real save listener.
+ *
+ * So we subscribe with a plain listener and filter persistence-relevant
+ * slices ourselves.
+ */
+type StoreSubscribe = (listener: (state: any, prevState: any) => void) => Unsubscribe;
 
 export function createAutosave(
   subscribe: StoreSubscribe,
@@ -39,19 +50,19 @@ export function createAutosave(
   };
 
   // Subscribe to just the fields that affect persistence
-  const unsub = subscribe(
-    (s: any) => ({
-      id: s.id,
-      isDirty: s.isDirty,
-      tracks: s.tracks,
-      clips: s.clips,
-    }),
-    (slice: any, prevSlice: any) => {
-      if (!slice.id || !slice.isDirty) return;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(doSave, debounceMs);
-    }
-  );
+  const unsub = subscribe((state: any, prevState: any) => {
+    if (!state.id || !state.isDirty) return;
+
+    const changed =
+      state.id !== prevState?.id ||
+      state.isDirty !== prevState?.isDirty ||
+      state.tracks !== prevState?.tracks ||
+      state.clips !== prevState?.clips;
+
+    if (!changed) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(doSave, debounceMs);
+  });
 
   return () => {
     if (timer) clearTimeout(timer);

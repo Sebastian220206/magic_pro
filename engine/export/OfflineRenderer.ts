@@ -1,5 +1,17 @@
 import { bufferCacheManager } from '../audioEngine/bufferCache';
 import { SYNTH_PRESETS } from '../SynthEngine';
+import { InsertChain } from '../audioEngine/insertChain';
+import { createProcessor } from '../plugins/processorFactory';
+import { toPluginSpecs } from '../plugins/pluginSpec';
+import {
+    computeCompensation,
+    projectLatencySamples,
+    samplesToSeconds,
+    trackLatencySamples,
+    type PluginDescriptor,
+    type TrackLatencyReport,
+} from '../audioEngine/latencyCompensation';
+import type { PluginSetting } from '../../models/Track';
 
 export interface ExportClip {
   id: string;
@@ -26,6 +38,8 @@ export interface ExportTrack {
   muted: boolean;
   soloed: boolean;
   instrument?: string;
+  /** Insert chain to apply, so the export matches playback. */
+  plugins?: PluginSetting[];
 }
 
 export interface ExportOptions {
@@ -33,6 +47,12 @@ export interface ExportOptions {
   endBeat?: number;
   sampleRate?: number;
   bitDepth?: 16 | 24 | 32;
+  /**
+   * Called when plugins could not be instantiated for the render. Those tracks
+   * are rendered dry — surface this rather than shipping a file that quietly
+   * differs from playback.
+   */
+  onPluginFailure?: (tracks: string[]) => void;
 }
 
 const EXPORT_TAIL_SECONDS = 2;
@@ -108,6 +128,22 @@ export async function renderSongOffline(
     inputNode: GainNode;
   }>();
 
+  // Plugin delay compensation, mirroring live playback. Without it a track
+  // carrying a latent plugin lands late relative to the others and the export
+  // does not match what was heard. The whole render is shifted by the worst
+  // case, which is trimmed off the head afterwards.
+  const latencyReports: TrackLatencyReport[] = tracks.map(track => ({
+    trackId: track.id,
+    latencySamples: trackLatencySamples(track.plugins as PluginDescriptor[] | undefined),
+  }));
+  const compensation = computeCompensation(latencyReports);
+  const headroomSamples = projectLatencySamples(latencyReports);
+
+  /** Chains are built asynchronously; rendering must wait for them. */
+  const chainReady: Promise<void>[] = [];
+  const chains: InsertChain[] = [];
+  const failedPlugins: string[] = [];
+
   for (const track of tracks) {
     let effectiveGain = track.volume;
     if (track.muted) effectiveGain = 0;
@@ -122,9 +158,33 @@ export async function renderSongOffline(
     const inputNode = offlineCtx.createGain();
     inputNode.gain.value = 1;
 
-    inputNode.connect(gainNode);
+    // Align this track against the most latent one.
+    const compensationSeconds = samplesToSeconds(compensation.get(track.id) ?? 0, sampleRate);
+    const pdcDelay = offlineCtx.createDelay(Math.max(1, headroomSamples / sampleRate + 1));
+    pdcDelay.delayTime.value = compensationSeconds;
+
+    const specs = toPluginSpecs(track.plugins);
+    if (specs.length > 0) {
+      // Same InsertChain as live playback — it takes a BaseAudioContext
+      // precisely so it can be reused here.
+      const chain = new InsertChain(offlineCtx, inputNode, gainNode, createProcessor);
+      chains.push(chain);
+      chainReady.push(
+        chain.setSpecs(specs).then(() => {
+          const built = chain.getInstanceIds().length;
+          if (built < specs.length) {
+            // Render dry rather than silently producing a different mix.
+            failedPlugins.push(`${track.name} (${specs.length - built} of ${specs.length})`);
+          }
+        }),
+      );
+    } else {
+      inputNode.connect(gainNode);
+    }
+
     gainNode.connect(panNode);
-    panNode.connect(masterGain);
+    panNode.connect(pdcDelay);
+    pdcDelay.connect(masterGain);
 
     trackNodeMap.set(track.id, { gainNode, panNode, inputNode });
   }
@@ -168,6 +228,18 @@ export async function renderSongOffline(
   await Promise.all(clipStartPromises);
   console.timeEnd('[Export] Buffer loading');
 
+  // Plugin chains must exist before rendering starts — an AudioWorklet added
+  // mid-render would not process the earlier part of the timeline.
+  if (chainReady.length > 0) {
+    await Promise.all(chainReady);
+    if (failedPlugins.length > 0) {
+      console.warn(
+        `[Export] Some plugins could not be rendered offline and were bypassed: ${failedPlugins.join(', ')}`,
+      );
+      options.onPluginFailure?.(failedPlugins);
+    }
+  }
+
   console.log('[OFFLINE RENDER START]');
   console.time('[Export] OfflineAudioContext rendering');
   const startTime = performance.now();
@@ -182,7 +254,35 @@ export async function renderSongOffline(
   console.timeEnd('[Export] OfflineAudioContext rendering');
   console.log('[OFFLINE RENDER COMPLETE]', renderTime + 's');
 
-  return renderedBuffer;
+  chains.forEach(chain => chain.dispose());
+
+  // Compensation delayed every track equally; remove that offset so the export
+  // starts where the timeline does rather than `headroomSamples` late.
+  return headroomSamples > 0
+    ? trimHead(renderedBuffer, headroomSamples)
+    : renderedBuffer;
+}
+
+/**
+ * Drop `samples` from the start of a buffer.
+ *
+ * Used to undo the uniform shift introduced by delay compensation. Returns the
+ * original buffer when the trim would consume all of it.
+ */
+function trimHead(buffer: AudioBuffer, samples: number): AudioBuffer {
+    const offset = Math.max(0, Math.min(Math.round(samples), buffer.length - 1));
+    if (offset === 0) return buffer;
+
+    const trimmed = new OfflineAudioContext({
+        numberOfChannels: buffer.numberOfChannels,
+        length: buffer.length - offset,
+        sampleRate: buffer.sampleRate,
+    }).createBuffer(buffer.numberOfChannels, buffer.length - offset, buffer.sampleRate);
+
+    for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+        trimmed.getChannelData(channel).set(buffer.getChannelData(channel).subarray(offset));
+    }
+    return trimmed;
 }
 
 async function scheduleAudioClip(

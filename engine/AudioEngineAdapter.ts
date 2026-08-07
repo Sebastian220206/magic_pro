@@ -13,6 +13,18 @@ import { routingEngine } from './audioEngine/routingEngine';
 import { recordingEngine } from './audioEngine/recordingEngine';
 import { bufferCacheManager } from './audioEngine/bufferCache';
 import { bounceEngine } from './audioEngine/bounceEngine';
+import { metronomeEngine } from './audioEngine/metronome';
+import type { MidiNoteEvent, MidiSink } from './audioEngine/midiSequencer';
+import { midiDeviceService } from './midi/midiDeviceService';
+import {
+    assignWamInstrument,
+    removeWamInstrument,
+    wamAllNotesOff,
+    wamNoteOff,
+    wamNoteOn,
+} from './plugins/wam/wamInstrumentHost';
+import { getInstrumentService } from './instruments/instrumentService';
+import { LoudnessMeter, type LoudnessData } from './audioEngine/loudnessMeter';
 import { SynthEngine } from "./SynthEngine";
 import { MultiSamplerEngine, createSamplerInstrument } from "./instruments/multiSamplerEngine";
 import { AudioTrack, AudioClip } from './audioEngine/types';
@@ -69,7 +81,7 @@ const DEFAULT_AUDIO_TRACK: Omit<AudioTrack, 'id'> = {
     sends: [],
 };
 
-export class AudioEngineAdapter {
+export class AudioEngineAdapter implements MidiSink {
     private synthEngines: Map<string, SynthEngine> = new Map();
     /** Per-track synth volume (0-1), separate from track volume */
     private synthVolumes: Map<string, number> = new Map();
@@ -92,21 +104,37 @@ export class AudioEngineAdapter {
         console.log('[AudioEngineAdapter] Created');
         this.setupMidiInput();
         this._readyPromise = new Promise((resolve) => { this._readyResolve = resolve; });
+        // Become the scheduler's sound source for sequenced MIDI notes.
+        advancedScheduler.setMidiSink(this);
     }
 
-    private async setupMidiInput() {
-        if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) return;
-        try {
-            const access = await navigator.requestMIDIAccess();
+    /**
+     * Attach message handlers to every MIDI input, re-attaching whenever the
+     * device list changes.
+     *
+     * Handlers used to be bound once at construction against a private
+     * `requestMIDIAccess` call, so a keyboard plugged in after the app loaded
+     * would appear in settings but never produce a note. Subscribing to the
+     * shared device service covers hot-plugging, and means the app makes one
+     * permission request instead of several competing ones.
+     */
+    private setupMidiInput() {
+        midiDeviceService.subscribe(snapshot => {
+            if (snapshot.status !== 'granted') return;
+            const access = midiDeviceService.getAccess();
+            if (!access) return;
+
             access.inputs.forEach(input => {
+                // Assigning is idempotent: re-binding the same handler on an
+                // already-connected port simply replaces it.
                 input.onmidimessage = (message) => {
                     const event = { message, inputId: input.id };
                     this.midiListeners.forEach(l => l(event));
                 };
             });
-        } catch (e) {
-            console.warn('[AudioEngineAdapter] MIDI access failed', e);
-        }
+        });
+
+        void midiDeviceService.initialize();
     }
 
     addMidiListener(callback: (event: MidiInputEvent) => void) {
@@ -174,26 +202,57 @@ export class AudioEngineAdapter {
 
     // ─── Transport Control ────────────────────────────────────────────────────────
     
-    async play(clipsOrMetronome: AudioClip[] | boolean = [], tracks: AudioTrack[] = [], startBeat: number = 0, tempo: number = 120) {
+    async play(clips: AudioClip[] = [], tracks: AudioTrack[] = [], startBeat: number = 0, tempo: number = 120) {
         const ctx = this.getContext();
         if (ctx?.state === 'suspended') {
             await ctx.resume();
         }
 
-        if (typeof clipsOrMetronome === 'boolean') {
-            advancedScheduler.startPlayback([], [], startBeat, tempo);
-            return;
-        }
+        advancedScheduler.startPlayback(clips, tracks, startBeat, tempo);
 
-        advancedScheduler.startPlayback(clipsOrMetronome, tracks, startBeat, tempo);
+        // The metronome schedules itself off the scheduler's clock, so it has to
+        // be (re)armed after the transport has been anchored.
+        if (metronomeEngine.isEnabled()) {
+            metronomeEngine.reset();
+            metronomeEngine.setEnabled(false);
+            metronomeEngine.setEnabled(true);
+        }
     }
 
     stop() {
         advancedScheduler.stopPlayback();
+        metronomeEngine.reset();
     }
 
     stopPlaybackAndReset() {
         advancedScheduler.stopPlaybackAndReset();
+        metronomeEngine.reset();
+    }
+
+    /**
+     * Enable or disable the click track. Clicks are only audible while the
+     * transport is rolling, but the flag is honoured immediately so toggling
+     * mid-playback starts/stops the click without restarting the transport.
+     */
+    setMetronomeEnabled(enabled: boolean) {
+        metronomeEngine.setEnabled(enabled);
+    }
+
+    isMetronomeEnabled(): boolean {
+        return metronomeEngine.isEnabled();
+    }
+
+    /** Apply the project's metronome preferences to the click generator. */
+    configureMetronome(settings: {
+        accentLevel?: number;
+        clickLevel?: number;
+        polyphonicClick?: boolean;
+        volume?: number;
+    }) {
+        if (settings.accentLevel !== undefined) metronomeEngine.setAccentLevel(settings.accentLevel);
+        if (settings.clickLevel !== undefined) metronomeEngine.setClickLevel(settings.clickLevel);
+        if (settings.polyphonicClick !== undefined) metronomeEngine.setPolyphonic(settings.polyphonicClick);
+        if (settings.volume !== undefined) metronomeEngine.setVolume(settings.volume);
     }
 
     stopAll() {
@@ -209,6 +268,17 @@ export class AudioEngineAdapter {
 
     get isPlaying(): boolean {
         return advancedScheduler.isCurrentlyPlaying();
+    }
+
+    /**
+     * Transport position in beats, derived from the AudioContext clock.
+     *
+     * This is the authoritative playhead: it is the same value used to schedule
+     * audio and MIDI, so anything drawn from it stays locked to what is heard.
+     * Prefer this over accumulating beats per animation frame.
+     */
+    getCurrentBeat(): number {
+        return advancedScheduler.getPreciseCurrentBeat();
     }
 
     onTransportTick(callback: (beat: number, time: number) => void) {
@@ -275,9 +345,57 @@ export class AudioEngineAdapter {
         routingEngine.updateTrack(trackId, { volume, pan });
     }
 
-    updateFXChain(trackId: string, plugins: Array<{ id: string; type?: string; pluginId?: string; enabled?: boolean; params?: Record<string, number> }>) {
-        // V2 RoutingEngine handles effects differently, for now we log or map
-        console.log(`[AudioEngineAdapter] updateFXChain for ${trackId}`, plugins);
+    updateFXChain(trackId: string, plugins: Array<{ id: string; type?: string; pluginId?: string; enabled?: boolean; params?: Record<string, number>; latencySamples?: number }>) {
+        // Report the chain's latency so plugin delay compensation can realign
+        // this track against the rest of the project.
+        routingEngine.updateTrackPlugins(trackId, plugins);
+    }
+
+    /**
+     * Replace the master bus insert chain — the bus compression and limiting
+     * that a mastering pass puts across the whole mix.
+     */
+    updateMasterFXChain(plugins: Array<{ id: string; pluginId?: string; enabled?: boolean; params?: Record<string, number> }>) {
+        routingEngine.updateMasterPlugins(plugins as never);
+    }
+
+    /** Current peak level of a track or bus, 0-1. */
+    getTrackPeak(trackId: string): number {
+        return routingEngine.getTrackPeak(trackId);
+    }
+
+    /** Nudge a track's playback in time, in milliseconds. */
+    setTrackDelay(trackId: string, ms: number): void {
+        routingEngine.setTrackDelay(trackId, ms);
+    }
+
+    /** `direct` bypasses the master chain, for auditioning a reference track. */
+    setTrackMonitorMode(trackId: string, mode: 'normal' | 'direct'): void {
+        routingEngine.setTrackMonitorMode(trackId, mode);
+    }
+
+    /** Fold the monitor path to mono for a phase check. */
+    setMonitorMode(mode: 'stereo' | 'mono'): void {
+        routingEngine.setMonitorMode(mode);
+    }
+
+    /** Duck one track from another's level — the kick-to-sub pump. */
+    setSidechainSource(trackId: string, pluginId: string, sourceTrackId: string): void {
+        routingEngine.setSidechainSource(trackId, pluginId, sourceTrackId);
+    }
+
+    clearSidechainSource(trackId: string, pluginId: string): void {
+        routingEngine.clearSidechainSource(trackId, pluginId);
+    }
+
+    /** Latency the current plugin chains impose, in samples. */
+    getProjectLatencySamples(): number {
+        return routingEngine.getProjectLatencySamples();
+    }
+
+    /** Latency the current plugin chains impose, in seconds. */
+    getProjectLatencySeconds(): number {
+        return routingEngine.getProjectLatencySeconds();
     }
 
     routeTrackToTrack(sourceId: string, destinationId: string) {
@@ -335,6 +453,45 @@ export class AudioEngineAdapter {
 
     getMasterAnalyzer() {
         return (routingEngine as any).getMasterAnalyzer ? (routingEngine as any).getMasterAnalyzer() : null;
+    }
+
+    // ─── Loudness metering (LUFS / true peak) ────────────────────────────────
+
+    private loudnessMeter: LoudnessMeter | null = null;
+
+    /**
+     * Begin EBU R128 loudness metering on the master bus.
+     *
+     * `callback` receives momentary / short-term / integrated LUFS, true-peak
+     * per channel and loudness range — the figures needed to master to a
+     * streaming target rather than by eye.
+     *
+     * Returns a disposer; calling again replaces the previous meter.
+     */
+    startLoudnessMetering(callback: (data: LoudnessData) => void): () => void {
+        const ctx = this.getContext();
+        const master = routingEngine.getMasterGain();
+        if (!ctx || !master) return () => { };
+
+        this.stopLoudnessMetering();
+
+        this.loudnessMeter = new LoudnessMeter(ctx, master);
+        this.loudnessMeter.start(callback);
+
+        return () => this.stopLoudnessMetering();
+    }
+
+    stopLoudnessMetering(): void {
+        if (!this.loudnessMeter) return;
+        this.loudnessMeter.stop();
+        this.loudnessMeter.dispose();
+        this.loudnessMeter = null;
+    }
+
+    /** Reset the integrated LUFS reading — used when starting a new pass. */
+    resetLoudnessIntegration(): void {
+        this.loudnessMeter?.resetIntegrated();
+        this.loudnessMeter?.resetPeakHold();
     }
 
     getEQAnalyzer(trackId: string, _pluginId: string, _post: boolean): AnalyserNode | null {
@@ -497,9 +654,23 @@ export class AudioEngineAdapter {
     // ─── MIDI & Synthesis ────────────────────────────────────────────────────────
 
     triggerNote(trackId: string, pitch: number, velocity: number, repeatRate?: string, instrument?: string) {
-        const ctx = this.getContext();
+        let ctx = this.getContext();
         if (!ctx) {
-            console.error('[AudioEngineAdapter] No AudioContext available');
+            audioContextManager.initialize().catch(e =>
+                console.warn('[AudioEngineAdapter] AudioContext init failed, retry on next note:', e)
+            );
+            return;
+        }
+
+        // 0. A WAM instrument owns the track's sound entirely.
+        if (wamNoteOn(trackId, pitch, velocity)) return;
+
+        // 1. An instrument loaded through the Library / useInstruments lives in
+        //    getInstrumentService(). That registry is the one the loading path writes
+        //    to, so it must be checked first — otherwise every note falls
+        //    through to the built-in synth no matter what the user selected.
+        if (getInstrumentService().hasInstrument(trackId)) {
+            getInstrumentService().noteOn(trackId, pitch, velocity);
             return;
         }
 
@@ -558,6 +729,107 @@ export class AudioEngineAdapter {
         // 3. Fire-and-forget: load sampler in background, replaces synth when ready
         if (instrument && samplerPresets[instrument]) {
             this.triggerSamplerNote(trackId, pitch, velocity, channel, instrument, samplerPresets[instrument]);
+        }
+    }
+
+    // ─── Sequenced MIDI (MidiSink) ───────────────────────────────────────────────
+    //
+    // The scheduler hands us notes resolved to absolute AudioContext times. All
+    // three instrument backends accept a start time, so sequenced playback is
+    // sample-accurate rather than timer-driven.
+
+    /**
+     * Play one sequenced note between two absolute AudioContext times.
+     *
+     * Instrument resolution mirrors `triggerNote`: an explicitly selected
+     * SoundFont wins, then a loaded multi-sampler, then the built-in synth.
+     */
+    scheduleNote(event: MidiNoteEvent): void {
+        const ctx = this.getContext();
+        if (!ctx) return;
+
+        let channel = this.getTrackNodes(event.trackId);
+        if (!channel) {
+            this.createTrack(event.trackId);
+            channel = this.getTrackNodes(event.trackId);
+            if (!channel) return;
+        }
+
+        const { pitch, velocity, startTime, stopTime } = event;
+
+        // 0. A WAM instrument. Both note events carry absolute AudioContext
+        //    times, which the sequencer has already computed — so scheduled
+        //    notes stay sample-accurate instead of being fired by a timer.
+        if (wamNoteOn(event.trackId, pitch, velocity, startTime)) {
+            wamNoteOff(event.trackId, pitch, stopTime);
+            return;
+        }
+
+        // 1. Instrument loaded via the Library / useInstruments. Same priority
+        //    as triggerNote, so sequenced playback uses whatever the user
+        //    actually selected rather than the fallback synth.
+        if (getInstrumentService().hasInstrument(event.trackId)) {
+            getInstrumentService().noteOn(event.trackId, pitch, velocity, startTime);
+            getInstrumentService().noteOff(event.trackId, pitch, stopTime);
+            return;
+        }
+
+        // 1. SoundFont selected for this track (or globally).
+        const sfManager = SoundFontManager.getInstance();
+        const sfSelection = sfManager.getSelection(event.trackId) ?? sfManager.getSelection('_global_');
+        if (sfSelection) {
+            const sfInstrument = sfManager.getInstrument(sfSelection.fontId);
+            if (sfInstrument && sfInstrument.isLoaded) {
+                if (sfInstrument.currentPresetIndex !== sfSelection.presetIndex) {
+                    sfInstrument.selectPreset(sfSelection.presetIndex);
+                }
+                try {
+                    sfInstrument.getOutput().connect(channel.inputGain || channel.mainGain!);
+                } catch {
+                    // Already connected — harmless.
+                }
+                sfInstrument.noteOn(pitch, velocity, startTime);
+                sfInstrument.noteOff(pitch, stopTime);
+                return;
+            }
+        }
+
+        // 2. A multi-sampler already loaded for this track.
+        const sampler = this.samplerEngines.get(event.trackId);
+        if (sampler) {
+            sampler.playNote(pitch, velocity, startTime);
+            return;
+        }
+
+        // 3. Built-in synth.
+        const targetNode: AudioNode = channel.inputGain || channel.mainGain!;
+        const engine = this.getOrCreateSynth(event.trackId, ctx, targetNode);
+        engine.scheduleNote(pitch, velocity, event.instrument || 'piano', startTime, stopTime);
+    }
+
+    /**
+     * Silence every sequenced and live voice. Called on stop, seek and tempo
+     * change, where any already-scheduled note time has become invalid.
+     */
+    allNotesOff(): void {
+        const ctx = this.getContext();
+        const now = ctx?.currentTime ?? 0;
+
+        this.synthEngines.forEach(engine => engine.stopAll());
+        this.samplerEngines.forEach(engine => engine.stopAll(now));
+        wamAllNotesOff();
+
+        const service = getInstrumentService();
+        service.getAllAssignments().forEach(a => service.allNotesOff(a.trackId, now));
+
+        try {
+            const sfManager = SoundFontManager.getInstance();
+            sfManager.getAllFonts().forEach(font => {
+                const instrument = sfManager.getInstrument(font.id);
+                if (instrument?.isLoaded) instrument.allNotesOff(now);
+            });
+        } catch (error) {
+            console.warn('[AudioEngineAdapter] Failed to clear SoundFont notes:', error);
         }
     }
 
@@ -664,6 +936,15 @@ export class AudioEngineAdapter {
     }
 
     releaseNote(trackId: string, pitch: number) {
+        // Mirror triggerNote's resolution order so a Library-loaded instrument
+        // is released by the same registry that sounded it.
+        if (wamNoteOff(trackId, pitch)) return;
+
+        if (getInstrumentService().hasInstrument(trackId)) {
+            getInstrumentService().noteOff(trackId, pitch);
+            return;
+        }
+
         this.synthEngines.get(trackId)?.noteOff(pitch);
         this.samplerEngines.get(trackId)?.noteOff(pitch);
 
@@ -715,8 +996,46 @@ export class AudioEngineAdapter {
         return null;
     }
 
+    /**
+     * Apply parameter changes to a live plugin.
+     *
+     * `pluginId` here is the plugin *instance* id (`PluginSetting.id`), which is
+     * what identifies a slot in the track's chain.
+     */
     updatePluginParams(trackId: string, pluginId: string, params: Record<string, number>) {
-        console.log(`[AudioEngineAdapter] updatePluginParams`, { trackId, pluginId, params });
+        const processor = routingEngine.getInsertProcessor(trackId, pluginId);
+        if (!processor) return;
+        processor.setParams(params);
+    }
+
+    /**
+     * Load a Web Audio Module instrument onto a track.
+     *
+     * Instruments generate sound from MIDI rather than processing audio, so
+     * they connect at the track input rather than joining the insert chain.
+     */
+    async loadWamInstrument(trackId: string, url: string, identifier: string): Promise<boolean> {
+        const ctx = this.getContext();
+        if (!ctx) return false;
+
+        // The track must exist in the routing graph before anything can connect.
+        if (!this.getTrackNodes(trackId)) this.createTrack(trackId);
+
+        return assignWamInstrument(ctx, trackId, url, identifier);
+    }
+
+    /** Remove a track's WAM instrument. */
+    removeWamInstrument(trackId: string): void {
+        removeWamInstrument(trackId);
+    }
+
+    /** Opaque plugin state, for saving a project. */
+    getPluginState(trackId: string, pluginId: string): unknown {
+        return routingEngine.getInsertProcessor(trackId, pluginId)?.getState();
+    }
+
+    setPluginState(trackId: string, pluginId: string, state: unknown): void {
+        routingEngine.getInsertProcessor(trackId, pluginId)?.setState(state);
     }
 
     // ─── Recording & Export ───────────────────────────────────────────────────────

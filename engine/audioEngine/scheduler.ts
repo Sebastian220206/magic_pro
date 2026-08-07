@@ -22,6 +22,14 @@ import {
 import { audioContextManager } from './audioContext';
 import { routingEngine } from './routingEngine';
 import { bufferCacheManager } from './bufferCache';
+import {
+    collectMidiNoteEvents,
+    type MidiSink,
+    type SequencerClip,
+} from './midiSequencer';
+import { TempoMap, type TempoPoint } from './tempoMap';
+import { flexCacheKey, isFlexActive, renderFlexBuffer, type FlexSettings } from './flexRender';
+import { resolveClipsForPlayback, type ResolvableClip } from './takeResolver';
 
 // ─── Scheduler Configuration ────────────────────────────────────────────────────────────
 
@@ -50,6 +58,11 @@ class AdvancedScheduler {
     private pauseTime: number = 0;
     private currentTime: number = 0;
     private tempo: number = 120;
+    /**
+     * The project's tempo track. A single-point map is equivalent to the old
+     * scalar behaviour, so constant-tempo projects are unaffected.
+     */
+    private tempoMap: TempoMap = new TempoMap([{ time: 0, value: 120 }]);
     private timeSignature: [number, number] = [4, 4]; // [numerator, denominator]
     
     private scheduledClips: Map<string, ScheduledClip> = new Map();
@@ -61,6 +74,16 @@ class AdvancedScheduler {
     private timingCorrection: number = 0;
     private clipsCache: AudioClip[] = [];
     private tracksCache: AudioTrack[] = [];
+
+    /** Main-thread timer used when a Worker cannot be created. */
+    private fallbackTimer: ReturnType<typeof setInterval> | null = null;
+    /** Blob URL backing the timer worker; revoked on dispose. */
+    private timerWorkerUrl: string | null = null;
+
+    /** Sound generator for sequenced MIDI. Installed by AudioEngineAdapter. */
+    private midiSink: MidiSink | null = null;
+    /** Notes already handed to the sink, so overlapping windows don't re-fire them. */
+    private scheduledNoteKeys: Set<string> = new Set();
 
     constructor(config: Partial<SchedulerConfig> = {}) {
         this.config = { ...DEFAULT_CONFIG, ...config };
@@ -104,6 +127,7 @@ class AdvancedScheduler {
             this.lastScheduleTime = 0;
             this.clipsCache = clips;
             this.tracksCache = tracks;
+            this.scheduledNoteKeys.clear();
 
             // Pre-schedule clips within lookahead window
             await this.scheduleClips(clips, tracks, startBeat);
@@ -141,9 +165,7 @@ class AdvancedScheduler {
         this.pauseTime = this.currentTime;
 
         // Stop scheduling loop
-        if (this.timerWorker) {
-            this.timerWorker.postMessage('stop');
-        }
+        this.stopSchedulingLoop();
 
         // Stop all active sources
         this.activeSources.forEach(source => {
@@ -159,6 +181,7 @@ class AdvancedScheduler {
         this.scheduledClips.clear();
         this.clipsCache = [];
         this.tracksCache = [];
+        this.resetMidiScheduling();
 
         this.emitEvent({
             type: 'playbackStopped',
@@ -197,6 +220,9 @@ class AdvancedScheduler {
         });
         this.activeSources.clear();
         this.scheduledClips.clear();
+        // Note times were derived from the old playhead mapping — discard them
+        // and silence anything sounding, or held notes would ring through the seek.
+        this.resetMidiScheduling();
 
         this.emitEvent({
             type: 'seek',
@@ -208,25 +234,42 @@ class AdvancedScheduler {
 
     // ── Scheduling Logic ────────────────────────────────────────────────────────
 
-    private async scheduleClips(clips: AudioClip[], _tracks: AudioTrack[], currentBeat: number): Promise<void> {
+    /**
+     * Whether a track should be heard, given live mute/solo state.
+     */
+    private isTrackAudible(trackId: string): boolean {
+        const trackNodes = (routingEngine as any).trackNodes?.get(trackId);
+        const isMuted = trackNodes?.isMuted ?? false;
+        const isSoloed = trackNodes?.isSoloed ?? false;
+        const anySolo = ((routingEngine as any).soloedTracks?.size ?? 0) > 0;
+        return !isMuted && !(anySolo && !isSoloed);
+    }
+
+    private async scheduleClips(clips: AudioClip[], tracks: AudioTrack[], _currentBeat: number): Promise<void> {
         const ctx = audioContextManager.getContext();
         if (!ctx) return;
 
         const window = this.getSchedulingWindow(ctx);
 
+        // Flatten take folders to the take (or comp) that should sound. A
+        // folder carries no audio itself, so without this it plays silence.
+        const playable = resolveClipsForPlayback(
+            clips as unknown as ResolvableClip[],
+        ) as unknown as AudioClip[];
+
+        // MIDI is sequenced note-by-note rather than as a single buffer source,
+        // so it takes a separate path from audio clips.
+        this.scheduleMidiNotes(playable, tracks, window, ctx);
+
         // Filter clips that should be scheduled — check live routing engine state
-        const clipsToSchedule = clips.filter(clip => {
-            const trackNodes = (routingEngine as any).trackNodes.get(clip.trackId);
-            const isMuted = trackNodes?.isMuted ?? false;
-            const isSoloed = trackNodes?.isSoloed ?? false;
-            const anySolo = (routingEngine as any).soloedTracks?.size > 0;
-            const skip = isMuted || (anySolo && !isSoloed);
-            if (skip) return false;
+        const clipsToSchedule = playable.filter(clip => {
+            if ((clip as unknown as SequencerClip).type === 'midi') return false;
+            if (!this.isTrackAudible(clip.trackId)) return false;
 
             // Check if clip is within scheduling window
             const clipStartBeat = clip.startBeat;
             const clipEndBeat = clip.startBeat + clip.duration;
-            
+
             return clipEndBeat >= window.windowStart && clipStartBeat <= window.windowEnd;
         });
 
@@ -236,6 +279,84 @@ class AdvancedScheduler {
         // Schedule each clip synchronously
         for (const clip of clipsToSchedule) {
             this.scheduleClipSync(clip, window);
+        }
+    }
+
+    /**
+     * Hand every MIDI note starting in this window to the sink.
+     *
+     * Runs on each tick alongside audio scheduling, which is what makes MIDI
+     * play for the whole length of a region instead of only at the moment the
+     * transport starts.
+     */
+    private scheduleMidiNotes(
+        clips: AudioClip[],
+        tracks: AudioTrack[],
+        window: SchedulingWindow,
+        ctx: AudioContext,
+    ): void {
+        if (!this.midiSink) return;
+
+        const trackById = new Map(tracks.map(track => [track.id, track]));
+
+        // Track-level offsets, including any Summing stack the track sits in —
+        // a summing parent applies its transpose/velocity to its children.
+        type MixTrack = { transpose?: number; velocityOffset?: number; parentId?: string; stackType?: string; instrument?: string };
+        const offsetsFor = (trackId: string) => {
+            const track = trackById.get(trackId) as unknown as MixTrack | undefined;
+            let transpose = track?.transpose ?? 0;
+            if (track?.parentId) {
+                const parent = trackById.get(track.parentId) as unknown as MixTrack | undefined;
+                if (parent?.stackType === 'Summing') transpose += parent.transpose ?? 0;
+            }
+            return { transpose, instrument: track?.instrument };
+        };
+
+        const events = collectMidiNoteEvents(
+            clips as unknown as SequencerClip[],
+            {
+                transportStartTime: this.startTime,
+                currentTime: ctx.currentTime,
+                windowStartBeat: window.windowStart,
+                windowEndBeat: window.windowEnd,
+            },
+            {
+                beatsToSeconds: (beats) => this.beatsToSeconds(beats),
+                isTrackAudible: (trackId) => this.isTrackAudible(trackId),
+                alreadyScheduled: this.scheduledNoteKeys,
+                trackInstrument: (trackId) => offsetsFor(trackId).instrument,
+                trackTranspose: (trackId) => offsetsFor(trackId).transpose,
+            },
+        );
+
+        for (const event of events) {
+            try {
+                this.midiSink.scheduleNote(event);
+            } catch (error) {
+                console.warn('[Scheduler] MIDI sink failed to schedule note:', error);
+            }
+        }
+    }
+
+    /**
+     * Install the sound generator used for sequenced MIDI notes.
+     */
+    setMidiSink(sink: MidiSink | null): void {
+        this.midiSink = sink;
+    }
+
+    /**
+     * Drop scheduling memory and silence anything sounding.
+     *
+     * Called whenever the timeline↔time mapping changes — stop, seek, tempo —
+     * because every previously scheduled note time is now wrong.
+     */
+    private resetMidiScheduling(): void {
+        this.scheduledNoteKeys.clear();
+        try {
+            this.midiSink?.allNotesOff();
+        } catch (error) {
+            console.warn('[Scheduler] MIDI sink failed to clear notes:', error);
         }
     }
 
@@ -285,12 +406,16 @@ class AdvancedScheduler {
         }
         if (!buffer) return;
 
+        buffer = this.resolveFlexBuffer(clip, buffer, ctx);
+
         const clipStartBeat = Number.isFinite(clip.startBeat) ? clip.startBeat : 0;
         if (!Number.isFinite(clipStartBeat)) return;
         const clipDuration = clip.duration ?? 0;
         if (!Number.isFinite(clipDuration)) return;
         const clipStartSeconds = this.beatsToSeconds(clipStartBeat);
-        const clipDurationSeconds = this.beatsToSeconds(clipDuration);
+        // Measured across the clip's own span: a duration in beats has no fixed
+        // length in seconds once the timeline has a tempo track.
+        const clipDurationSeconds = this.beatSpanToSeconds(clipStartBeat, clipDuration);
         const hardwareStartTime = this.startTime + clipStartSeconds;
 
         let scheduledStartTime = hardwareStartTime;
@@ -304,7 +429,9 @@ class AdvancedScheduler {
         const remainingDurationSeconds = clipDurationSeconds - playheadOffsetSeconds;
         if (remainingDurationSeconds <= 0) return;
 
-        const baseClipOffsetSeconds = (clip as any).offset ? this.beatsToSeconds((clip as any).offset) : 0;
+        const baseClipOffsetSeconds = (clip as any).offset
+            ? this.beatSpanToSeconds(clipStartBeat, (clip as any).offset)
+            : 0;
         const totalBufferOffsetSeconds = baseClipOffsetSeconds + playheadOffsetSeconds;
 
         const source = ctx.createBufferSource();
@@ -355,30 +482,113 @@ class AdvancedScheduler {
         });
     }
 
-    private createTimerWorker(): Worker | null {
-        if (typeof Worker === 'undefined') return null;
+    /**
+     * Build the off-thread tick timer.
+     *
+     * The worker source is inlined and loaded from a Blob URL rather than
+     * referenced as a module file. The previous implementation used
+     * `new Function('return new URL("./scheduler.worker.ts", import.meta.url)')`,
+     * which throws a SyntaxError in every environment — `import.meta` is not
+     * valid inside a Function constructor body — so worker creation always
+     * failed silently and the scheduling loop never ran at all.
+     *
+     * A worker is used rather than a plain interval because background tabs
+     * throttle main-thread timers to ~1s, which would starve the scheduler.
+     */
+    /**
+     * Substitute a flex-processed buffer when the clip asks for time or pitch
+     * flexing. Results are cached, since WSOLA is far too slow to run inside
+     * the scheduling loop on every pass.
+     */
+    private resolveFlexBuffer(clip: AudioClip, buffer: AudioBuffer, ctx: BaseAudioContext): AudioBuffer {
+        const settings = clip as unknown as FlexSettings;
+        if (!isFlexActive(settings)) return buffer;
+
+        const key = flexCacheKey(clip.id, settings);
+        const cached = bufferCacheManager.getBuffer(key);
+        if (cached) return cached;
+
         try {
-            const url = new Function('return new URL("./scheduler.worker.ts", import.meta.url)')();
-            return new Worker(url);
-        } catch {
+            const processed = renderFlexBuffer(buffer, settings, (channels, length, sampleRate) =>
+                ctx.createBuffer(channels, length, sampleRate));
+            if (processed !== buffer) bufferCacheManager.addBuffer(key, processed);
+            return processed;
+        } catch (error) {
+            console.warn('[Scheduler] Flex processing failed, using dry audio:', error);
+            return buffer;
+        }
+    }
+
+    private createTimerWorker(): Worker | null {
+        if (typeof Worker === 'undefined' || typeof Blob === 'undefined') return null;
+        if (typeof URL === 'undefined' || !URL.createObjectURL) return null;
+
+        const source = `
+            let timerId = null;
+            let interval = 25;
+            function restart() {
+                if (timerId) clearInterval(timerId);
+                timerId = setInterval(function () { self.postMessage('tick'); }, interval);
+            }
+            self.onmessage = function (e) {
+                if (e.data === 'start') {
+                    restart();
+                } else if (e.data === 'stop') {
+                    if (timerId) clearInterval(timerId);
+                    timerId = null;
+                } else if (e.data && typeof e.data.interval === 'number') {
+                    interval = e.data.interval;
+                    if (timerId) restart();
+                }
+            };
+        `;
+
+        try {
+            const blob = new Blob([source], { type: 'application/javascript' });
+            this.timerWorkerUrl = URL.createObjectURL(blob);
+            return new Worker(this.timerWorkerUrl);
+        } catch (error) {
+            console.warn('[Scheduler] Timer worker unavailable, using main-thread timer:', error);
             return null;
         }
     }
 
-    private startSchedulingLoop(clips: AudioClip[], tracks: AudioTrack[]): void {
-        if (!this.timerWorker) {
+    private startSchedulingLoop(_clips: AudioClip[], _tracks: AudioTrack[]): void {
+        // Each tick reads clipsCache/tracksCache rather than closing over the
+        // arguments: the worker is reused across playbacks, so a captured list
+        // would go stale as soon as the project changed.
+        const runTick = () => this.tick(this.clipsCache, this.tracksCache);
+
+        if (!this.timerWorker && !this.fallbackTimer) {
             this.timerWorker = this.createTimerWorker();
-            if (!this.timerWorker) return;
-            this.timerWorker.onmessage = (e) => {
-                if (e.data === 'tick') {
-                    this.tick(clips, tracks);
-                }
-            };
+
+            if (this.timerWorker) {
+                this.timerWorker.onmessage = (e) => {
+                    if (e.data === 'tick') runTick();
+                };
+            } else {
+                // No worker available (SSR, or a browser that blocks Blob
+                // workers). A main-thread interval still keeps the transport
+                // running; it is only less resilient to jank.
+                this.fallbackTimer = setInterval(runTick, this.config.scheduleInterval);
+                return;
+            }
         }
 
-        // Configure interval
-        this.timerWorker.postMessage({ interval: this.config.scheduleInterval });
-        this.timerWorker.postMessage('start');
+        if (this.timerWorker) {
+            this.timerWorker.postMessage({ interval: this.config.scheduleInterval });
+            this.timerWorker.postMessage('start');
+        }
+    }
+
+    private stopSchedulingLoop(): void {
+        if (this.timerWorker) {
+            this.timerWorker.postMessage('stop');
+        }
+        if (this.fallbackTimer) {
+            clearInterval(this.fallbackTimer);
+            this.fallbackTimer = null;
+        }
     }
 
     private tick(clips: AudioClip[], tracks: AudioTrack[]): void {
@@ -448,12 +658,27 @@ class AdvancedScheduler {
         };
     }
 
-    private beatsToSeconds(beats: number): number {
-        return (beats / this.tempo) * 60;
+    /**
+     * Seconds occupied by `beats` starting at `fromBeat`.
+     *
+     * A duration in beats does not have a fixed length in seconds once a tempo
+     * track exists — it depends where on the timeline it sits. Converting a
+     * duration with `beatsToSeconds` alone (which measures from beat 0) is only
+     * correct at constant tempo.
+     */
+    private beatSpanToSeconds(fromBeat: number, beats: number): number {
+        if (!Number.isFinite(beats) || beats <= 0) return 0;
+        return this.tempoMap.beatToSeconds(fromBeat + beats) - this.tempoMap.beatToSeconds(fromBeat);
     }
 
+    /** Seconds from beat 0 to `beat`, honouring the tempo track. */
+    private beatsToSeconds(beats: number): number {
+        return this.tempoMap.beatToSeconds(beats);
+    }
+
+    /** Beat reached `seconds` after beat 0, honouring the tempo track. */
     private secondsToBeats(seconds: number): number {
-        return (seconds / 60) * this.tempo;
+        return this.tempoMap.secondsToBeat(seconds);
     }
 
     // ── Event System ───────────────────────────────────────────────────────────
@@ -489,37 +714,88 @@ class AdvancedScheduler {
         return this.currentTime;
     }
 
+    getPreciseCurrentBeat(): number {
+        if (!this.isPlaying) return this.currentTime;
+        const ctx = audioContextManager.getContext();
+        if (!ctx) return this.currentTime;
+        const elapsedSeconds = ctx.currentTime - this.startTime;
+        return this.secondsToBeats(elapsedSeconds);
+    }
+
+    /** Instantaneous tempo at the current playhead. */
     getTempo(): number {
-        return this.tempo;
+        return this.tempoMap.tempoAt(this.currentTime);
+    }
+
+    /** The tempo track currently driving scheduling. */
+    getTempoMap(): TempoMap {
+        return this.tempoMap;
+    }
+
+    /**
+     * Install the project's tempo track.
+     *
+     * Every previously scheduled start time was derived from the old beat→time
+     * mapping, so playback is re-anchored at the current beat and rescheduled.
+     */
+    setTempoMap(points: TempoPoint[]): void {
+        const next = new TempoMap(points);
+        const current = this.tempoMap.getPoints();
+        const candidate = next.getPoints();
+
+        const unchanged =
+            current.length === candidate.length &&
+            current.every((p, i) =>
+                p.time === candidate[i].time &&
+                p.value === candidate[i].value &&
+                p.type === candidate[i].type);
+        if (unchanged) return;
+
+        this.tempoMap = next;
+        this.tempo = next.tempoAt(this.currentTime);
+        this.reanchorAndReschedule();
     }
 
     setTempo(tempo: number): void {
-        if (this.tempo === tempo) return;
+        if (this.tempoMap.isConstant() && this.tempo === tempo) return;
 
         const oldTempo = this.tempo;
         this.tempo = tempo;
-
-        if (this.isPlaying) {
-            const ctx = audioContextManager.getContext();
-            if (ctx) {
-                this.startTime = ctx.currentTime - this.beatsToSeconds(this.currentTime);
-                // Stop sources with a small scheduled delay to let any pending ramp finish
-                const stopTime = ctx.currentTime + 0.01;
-                this.activeSources.forEach(source => {
-                    try { source.stop(stopTime); } catch { }
-                });
-                this.activeSources.clear();
-                this.scheduledClips.clear();
-            }
-            // Immediately reschedule from current position with new tempo
-            const clips = Array.from(this.clipsCache ?? []);
-            const tracks = Array.from(this.tracksCache ?? []);
-            if (clips.length > 0) {
-                this.scheduleClips(clips, tracks, this.currentTime);
-            }
-        }
+        // A scalar tempo collapses the track to a single constant point.
+        this.tempoMap = new TempoMap([{ time: 0, value: tempo }]);
+        this.reanchorAndReschedule();
 
         console.log('[Scheduler] Tempo changed:', { oldTempo, newTempo: tempo });
+    }
+
+    /**
+     * Re-pin the transport to the current beat under a changed beat→time
+     * mapping, then rebuild the schedule.
+     *
+     * Every already-scheduled source and note carries an absolute time derived
+     * from the previous mapping, so all of it has to be discarded rather than
+     * left to fire at now-wrong moments.
+     */
+    private reanchorAndReschedule(): void {
+        if (!this.isPlaying) return;
+
+        const ctx = audioContextManager.getContext();
+        if (ctx) {
+            this.startTime = ctx.currentTime - this.beatsToSeconds(this.currentTime);
+
+            // Stop sources with a small scheduled delay to let any pending ramp finish
+            const stopTime = ctx.currentTime + 0.01;
+            this.activeSources.forEach(source => {
+                try { source.stop(stopTime); } catch { }
+            });
+            this.activeSources.clear();
+            this.scheduledClips.clear();
+            this.resetMidiScheduling();
+        }
+
+        if (this.clipsCache.length > 0) {
+            this.scheduleClips(this.clipsCache, this.tracksCache, this.currentTime);
+        }
     }
 
     getTimeSignature(): [number, number] {
@@ -575,6 +851,17 @@ class AdvancedScheduler {
     dispose(): void {
         this.stopPlayback();
         this.eventListeners = [];
+
+        if (this.timerWorker) {
+            this.timerWorker.terminate();
+            this.timerWorker = null;
+        }
+        if (this.timerWorkerUrl) {
+            URL.revokeObjectURL(this.timerWorkerUrl);
+            this.timerWorkerUrl = null;
+        }
+
+        this.midiSink = null;
         console.log('[Scheduler] Disposed');
     }
 }

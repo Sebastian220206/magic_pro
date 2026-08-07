@@ -17,6 +17,8 @@ export class VelocityIntegrator {
     for (const v of vectors) {
       if (v.type === 'zoom') {
         nextState = this.applyAnchoredZoom(nextState, v.dy, v.anchorX);
+      } else if (v.type === 'zoom-vertical') {
+        nextState = this.applyVerticalZoom(nextState, v.dy, v.anchorY);
       } else if (v.type === 'pan') {
         // Feed the physical pan delta directly into the velocity buffer
         this.panVelocityX = Number.isFinite(v.dx) ? v.dx : 0;
@@ -68,5 +70,27 @@ export class VelocityIntegrator {
       : state.startBeat;
 
     return { ...state, startBeat: newStartBeat, pixelsPerBeat: newPixelsPerBeat };
+  }
+
+  private static applyVerticalZoom(state: ViewportState, zoomDelta: number, anchorPixelY: number): ViewportState {
+    if (!Number.isFinite(zoomDelta) || !Number.isFinite(anchorPixelY)) {
+      return state;
+    }
+
+    // 1. Calculate the pitch currently under the cursor
+    const pitchUnderCursor = state.maxVisiblePitch - (anchorPixelY / state.pixelsPerPitch);
+    if (!Number.isFinite(pitchUnderCursor)) return state;
+
+    // 2. Scale pixelsPerPitch exponentially (clamped between 6 and 40)
+    const zoomMultiplier = Math.exp(-zoomDelta * 0.01);
+    if (!Number.isFinite(zoomMultiplier) || zoomMultiplier <= 0) return state;
+
+    const newPixelsPerPitch = Math.max(6, Math.min(40, state.pixelsPerPitch * zoomMultiplier));
+    if (!Number.isFinite(newPixelsPerPitch)) return state;
+
+    // 3. Shift maxVisiblePitch so the pitch under the cursor stays pinned
+    const newMaxVisiblePitch = pitchUnderCursor + (anchorPixelY / newPixelsPerPitch);
+
+    return { ...state, pixelsPerPitch: newPixelsPerPitch, maxVisiblePitch: newMaxVisiblePitch };
   }
 }

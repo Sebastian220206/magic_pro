@@ -1,11 +1,14 @@
 import { audioEngine } from '@/engine/AudioEngineAdapter';
 import { bufferCacheManager } from '@/engine/audioEngine/bufferCache';
 import { loadAudioBuffer } from './audioFileStore';
+import { loadSoundFontForTrack } from '@/engine/instruments/soundfont/loadSoundFontForTrack';
 
 export interface RebuildOptions {
   tracks: any[];
   clips: any[];
   tempo: number;
+  /** Inserts across the summed mix — restored with the per-track chains. */
+  masterPlugins?: any[];
   projectFormat?: string;
   surroundFormat?: string;
   spatialAudioMode?: string;
@@ -20,7 +23,7 @@ export interface RebuildResult {
 }
 
 export async function rebuildEngine(options: RebuildOptions): Promise<RebuildResult> {
-  const { tracks, clips, tempo, projectFormat, surroundFormat, spatialAudioMode } = options;
+  const { tracks, clips, tempo, masterPlugins, projectFormat, surroundFormat, spatialAudioMode } = options;
   const result: RebuildResult = {
     success: false,
     tracksCreated: 0,
@@ -77,6 +80,11 @@ export async function rebuildEngine(options: RebuildOptions): Promise<RebuildRes
 
   // ── Step 4: Load instruments (sequential, await each) ────────────────────
   for (const track of tracks) {
+    // A SoundFont or WAM track owns its own sound and is restored in step 6.
+    // `track.instrument` there is only a preset's display name, so looking it
+    // up in the built-in registry would attach the wrong instrument.
+    if (track.soundFont?.url || track.wamInstrument?.url) continue;
+
     if (track.instrument) {
       try {
         await audioEngine.loadInstrument(track.id, track.instrument);
@@ -118,6 +126,40 @@ export async function rebuildEngine(options: RebuildOptions): Promise<RebuildRes
       } catch (e) {
         result.errors.push(`Plugin chain failed for ${track.id}: ${e}`);
       }
+    }
+
+    // A Web Audio Module instrument is loaded from its URL rather than being
+    // reconstructed from track state, so it has to be re-fetched on open.
+    const wam = (track as { wamInstrument?: { url: string; identifier: string } }).wamInstrument;
+    if (wam?.url) {
+      void audioEngine
+        .loadWamInstrument(track.id, wam.url, wam.identifier)
+        .catch(e => console.warn(`[Rebuild] WAM instrument failed for ${track.id}:`, e));
+    }
+
+    // Same for a SoundFont preset: the track only carries the bank URL and the
+    // preset index, so the .sf2 has to be fetched and the preset re-selected.
+    // Without this a reopened project showed the right instrument name but
+    // played the fallback synth.
+    const sf = (track as {
+      soundFont?: { url: string; presetIndex: number };
+    }).soundFont;
+    if (sf?.url) {
+      void loadSoundFontForTrack(track.id, sf.url, sf.presetIndex)
+        .then(r => {
+          if (!r.ok) console.warn(`[Rebuild] SoundFont failed for ${track.id}: ${r.error}`);
+        })
+        .catch(e => console.warn(`[Rebuild] SoundFont failed for ${track.id}:`, e));
+    }
+  }
+
+  // The master bus chain is project state like any other insert chain, so it
+  // has to be rebuilt too or a mastered project opens with no bus compression.
+  if (masterPlugins?.length) {
+    try {
+      audioEngine.updateMasterFXChain(masterPlugins);
+    } catch (e) {
+      result.errors.push(`Master chain failed: ${e}`);
     }
   }
 

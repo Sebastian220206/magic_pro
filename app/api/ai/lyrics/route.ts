@@ -1,39 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateLyrics, suggestLyricLine } from '@/lib/openai';
+import { badRequest, requireUserId, withApiHandler } from '@/lib/apiAuth';
+import { AI_RATE_LIMIT, enforceSharedRateLimit } from '@/lib/rateLimit';
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { action, topic, genre, structure, mood, context, rhymeScheme } = body;
+export const POST = withApiHandler('ai.lyrics', async (request: NextRequest) => {
+  const userId = await requireUserId();
+  await enforceSharedRateLimit(`ai:${userId}`, AI_RATE_LIMIT);
 
-    if (action === 'generate') {
-      if (!topic) {
-        return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
-      }
-      const lyrics = await generateLyrics(
-        topic,
-        genre || 'pop',
-        structure || 'verse-chorus-verse-chorus-bridge-chorus',
-        mood || 'emotional'
-      );
-      return NextResponse.json({ lyrics });
-    }
+  const body = await request.json();
+  const { action, topic, genre, structure, mood, context, rhymeScheme } = body;
 
-    if (action === 'suggest') {
-      if (!context) {
-        return NextResponse.json({ error: 'Context is required' }, { status: 400 });
-      }
-      const suggestions = await suggestLyricLine(
-        context,
-        genre || 'pop',
-        rhymeScheme
-      );
-      return NextResponse.json({ suggestions });
-    }
-
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  } catch (error) {
-    console.error('AI Lyrics error:', error);
-    return NextResponse.json({ error: 'Failed to generate lyrics' }, { status: 500 });
+  if (action === 'generate') {
+    if (!topic) throw badRequest('Topic is required');
+    const lyrics = await generateLyrics(
+      String(topic).slice(0, 500),
+      genre || 'pop',
+      structure || 'verse-chorus-verse-chorus-bridge-chorus',
+      mood || 'emotional',
+    );
+    return NextResponse.json({ lyrics });
   }
-}
+
+  if (action === 'suggest') {
+    if (!context) throw badRequest('Context is required');
+    const suggestions = await suggestLyricLine(
+      String(context).slice(0, 2000),
+      genre || 'pop',
+      rhymeScheme,
+    );
+    return NextResponse.json({ suggestions });
+  }
+
+  throw badRequest('Invalid action');
+});

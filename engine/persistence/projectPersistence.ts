@@ -18,6 +18,8 @@ export interface SerializedState {
   keySignature: string;
   playhead: number;
   tracks: any[];
+  /** Inserts across the summed mix. */
+  masterPlugins?: any[];
   clips: any[];
   annotations?: any[];
   globalTracks: any;
@@ -195,6 +197,7 @@ export function serializeStoreState(getState: () => any, extra?: { mixerState?: 
     keySignature: s.keySignature,
     playhead: s.playhead,
     tracks: s.tracks,
+    masterPlugins: s.masterPlugins ?? [],
     clips: (s.clips ?? []).map((c: any) => ({
       ...c,
       waveformPeaks: serializeWaveformPeaks(c.waveformPeaks),
@@ -239,6 +242,7 @@ export function deserializeState(serialized: SerializedState): Partial<any> {
     keySignature: serialized.keySignature,
     playhead: serialized.playhead,
     tracks: serialized.tracks,
+    masterPlugins: serialized.masterPlugins ?? [],
     clips: (serialized.clips ?? []).map((c: any) => ({
       ...c,
       waveformPeaks: deserializeWaveformPeaks(c.waveformPeaks),

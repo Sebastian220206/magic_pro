@@ -1,14 +1,10 @@
 "use client"
 
 import { useEffect, useMemo } from 'react'
-import { useSession } from 'next-auth/react'
 import { useProjectStore } from '@/store/projectStore'
 import { audioEngine } from '@/engine/AudioEngineAdapter'
 
 export function GlobalKeyHandler() {
-    const { data: session } = useSession()
-    const currentUserId = session?.user?.id || 'user-1'
-
     const {
         toggleNewTrackDialog,
         addTrack,
@@ -311,7 +307,7 @@ export function GlobalKeyHandler() {
                 }
                 if (e.key.toLowerCase() === 's') {
                     e.preventDefault();
-                    saveProject(currentUserId);
+                    saveProject();
                 }
                 if (e.key.toLowerCase() === 'k') {
                     e.preventDefault();

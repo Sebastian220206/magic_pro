@@ -12,10 +12,10 @@
  */
 
 import React, { memo, useCallback } from 'react';
-import { 
-  MousePointer2, 
-  Pencil, 
-  Eraser, 
+import {
+  MousePointer2,
+  Pencil,
+  Eraser,
   Activity,
   ZoomIn,
   ZoomOut,
@@ -24,8 +24,23 @@ import {
   Music,
   Undo,
   Redo,
+  Palette,
+  Play,
+  PanelBottomOpen,
+  PanelBottomClose,
+  ArrowUpDown,
+  Link,
+  Scissors,
+  Merge,
+  BoxSelect,
+  Maximize2,
+  ArrowRightToLine,
+  VolumeX,
+  Paintbrush,
+  GripHorizontal,
 } from 'lucide-react';
 import { PianoRollTool } from '../../engine/midi/types';
+import { PianoRollLinkMode } from '../../engine/pianoRoll/projectSync';
 
 interface PianoRollToolsProps {
   currentTool: PianoRollTool;
@@ -36,11 +51,33 @@ interface PianoRollToolsProps {
   onToggleSnap: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  onZoomInVertical: () => void;
+  onZoomOutVertical: () => void;
   onQuantize: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
+  activeChannel: number;
+  channelFilter: number | null;
+  onChannelChange: (channel: number) => void;
+  onChannelFilterChange: (channel: number | null) => void;
+  slideMode: boolean;
+  portaMode: boolean;
+  showEventEditor: boolean;
+  onSlideModeChange: (active: boolean) => void;
+  onPortaModeChange: (active: boolean) => void;
+  onToggleEventEditor: () => void;
+  stepInputEnabled: boolean;
+  onToggleStepInput: () => void;
+  drawDuration: number;
+  onDrawDurationChange: (duration: number) => void;
+  linkMode: PianoRollLinkMode;
+  onLinkModeChange: (mode: PianoRollLinkMode) => void;
+  onSplitNote: () => void;
+  onJoinNotes: () => void;
+  onZoomToSelection?: () => void;
+  onGoToBeat?: () => void;
 }
 
 const TOOLS: Array<{ id: PianoRollTool; icon: React.ReactNode; label: string; shortcut: string }> = [
@@ -48,6 +85,11 @@ const TOOLS: Array<{ id: PianoRollTool; icon: React.ReactNode; label: string; sh
   { id: 'draw', icon: <Pencil className="w-4 h-4" />, label: 'Draw', shortcut: 'B' },
   { id: 'erase', icon: <Eraser className="w-4 h-4" />, label: 'Erase', shortcut: 'E' },
   { id: 'velocity', icon: <Activity className="w-4 h-4" />, label: 'Velocity', shortcut: 'V' },
+  { id: 'mute', icon: <VolumeX className="w-4 h-4" />, label: 'Mute', shortcut: 'M' },
+  { id: 'brush', icon: <Paintbrush className="w-4 h-4" />, label: 'Brush', shortcut: 'A' },
+  { id: 'scissors', icon: <Scissors className="w-4 h-4" />, label: 'Scissors', shortcut: 'C' },
+  { id: 'glue', icon: <GripHorizontal className="w-4 h-4" />, label: 'Glue', shortcut: 'G' },
+  { id: 'lasso', icon: <MousePointer2 className="w-4 h-4" />, label: 'Lasso', shortcut: 'L' },
 ];
 
 const GRID_DIVISIONS = [
@@ -66,11 +108,33 @@ export const PianoRollTools = memo(function PianoRollTools({
   onToggleSnap,
   onZoomIn,
   onZoomOut,
+  onZoomInVertical,
+  onZoomOutVertical,
   onQuantize,
   canUndo = false,
   canRedo = false,
   onUndo,
   onRedo,
+  activeChannel,
+  channelFilter,
+  onChannelChange,
+  onChannelFilterChange,
+  slideMode,
+  portaMode,
+  showEventEditor,
+  onSlideModeChange,
+  onPortaModeChange,
+  onToggleEventEditor,
+  drawDuration,
+  onDrawDurationChange,
+  linkMode,
+  onLinkModeChange,
+  onSplitNote,
+  onJoinNotes,
+  stepInputEnabled,
+  onToggleStepInput,
+  onZoomToSelection,
+  onGoToBeat,
 }: PianoRollToolsProps) {
   const handleToolClick = useCallback((tool: PianoRollTool) => {
     onToolChange(tool);
@@ -134,19 +198,55 @@ export const PianoRollTools = memo(function PianoRollTools({
 
       {/* Zoom Controls */}
       <div className="flex items-center gap-1">
+        <span className="text-[10px] text-gray-500 mr-0.5">H</span>
         <button
           onClick={onZoomOut}
           className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700"
-          title="Zoom Out (-)"
+          title="Zoom Out Horizontal (-)"
         >
           <ZoomOut className="w-4 h-4" />
         </button>
         <button
           onClick={onZoomIn}
           className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700"
-          title="Zoom In (+)"
+          title="Zoom In Horizontal (+)"
         >
           <ZoomIn className="w-4 h-4" />
+        </button>
+        <span className="text-[10px] text-gray-500 ml-1 mr-0.5">V</span>
+        <button
+          onClick={onZoomOutVertical}
+          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700"
+          title="Zoom Out Vertical"
+        >
+          <ArrowUpDown className="w-3 h-3 opacity-50" />
+        </button>
+        <button
+          onClick={onZoomInVertical}
+          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700"
+          title="Zoom In Vertical"
+        >
+          <ArrowUpDown className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="w-px h-6 bg-gray-700 mx-1" />
+
+      {/* Zoom to Selection / Go To Beat */}
+      <div className="flex items-center gap-1">
+        <button
+          onClick={onZoomToSelection}
+          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          title="Zoom to Selection"
+        >
+          <Maximize2 className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onGoToBeat}
+          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          title="Go to Beat/Measure..."
+        >
+          <ArrowRightToLine className="w-4 h-4" />
         </button>
       </div>
 
@@ -161,6 +261,156 @@ export const PianoRollTools = memo(function PianoRollTools({
         >
           <Music className="w-4 h-4" />
           <span>Quantize</span>
+        </button>
+      </div>
+
+      <div className="w-px h-6 bg-gray-700 mx-1" />
+
+      {/* Link Mode */}
+      <div className="flex items-center gap-1" title="Piano Roll Link Mode">
+        <Link className="w-4 h-4 text-gray-500" />
+        <select
+          value={linkMode}
+          onChange={(e) => onLinkModeChange(e.target.value as PianoRollLinkMode)}
+          className="bg-gray-900 text-gray-300 text-sm rounded px-1 py-1 border border-gray-700 focus:outline-none focus:border-blue-500"
+        >
+          <option value="single">Single</option>
+          <option value="selected">Selected</option>
+          <option value="folder">Folder</option>
+          <option value="project">Project</option>
+        </select>
+      </div>
+
+      <div className="w-px h-6 bg-gray-700 mx-1" />
+
+      {/* Draw Duration Presets */}
+      <div className="flex items-center gap-1" title="Note Length for Draw Tool">
+        <span className="text-[10px] text-gray-500">Len</span>
+        {([0.25, 0.5, 1, 2] as number[]).map(dur => (
+          <button
+            key={dur}
+            onClick={() => onDrawDurationChange(dur)}
+            className={`
+              px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors
+              ${drawDuration === dur
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+              }
+            `}
+            title={`Draw ${dur < 1 ? `1/${1/dur}` : dur + ' beat'} note`}
+          >
+            {dur < 1 ? `1/${1/dur}` : dur + 'b'}
+          </button>
+        ))}
+      </div>
+
+      <div className="w-px h-6 bg-gray-700 mx-1" />
+
+      {/* Split / Join */}
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onSplitNote()}
+          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          title="Split Note at Playhead (X)"
+        >
+          <Scissors className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => onJoinNotes()}
+          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          title="Join Selected Notes (J)"
+        >
+          <Merge className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          onClick={onToggleStepInput}
+          className={`
+            p-1.5 rounded transition-colors flex items-center gap-1 text-sm
+            ${stepInputEnabled
+              ? 'text-blue-400 bg-blue-400/10'
+              : 'text-gray-500 hover:text-gray-300'
+            }
+          `}
+          title="Step Input (Tab)"
+        >
+          <Grid3x3 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      <div className="w-px h-6 bg-gray-700 mx-1" />
+
+      {/* FL Studio specific note tools */}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1" title="Note Color Group (MIDI Channel)">
+          <Palette className="w-4 h-4 text-gray-500" />
+          <select
+            value={activeChannel}
+            onChange={(e) => onChannelChange(Number(e.target.value))}
+            className="bg-gray-900 text-gray-300 text-sm rounded px-1 py-1 border border-gray-700 focus:outline-none focus:border-blue-500"
+          >
+            {Array.from({ length: 16 }).map((_, i) => (
+              <option key={i} value={i}>Color {i + 1}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Channel Filter */}
+        <div className="flex items-center gap-1" title="Channel Filter">
+          <select
+            value={channelFilter !== null ? channelFilter : ''}
+            onChange={(e) => onChannelFilterChange(e.target.value === '' ? null : Number(e.target.value))}
+            className="bg-gray-900 text-gray-300 text-sm rounded px-1 py-1 border border-gray-700 focus:outline-none focus:border-blue-500"
+          >
+            <option value="">All Channels</option>
+            {Array.from({ length: 16 }).map((_, i) => (
+              <option key={i} value={i}>Ch {i + 1}</option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          onClick={() => onSlideModeChange(!slideMode)}
+          className={`
+            p-1.5 rounded transition-colors flex items-center gap-1 text-sm
+            ${slideMode 
+              ? 'text-blue-400 bg-blue-400/10' 
+              : 'text-gray-500 hover:text-gray-300'
+            }
+          `}
+          title="Slide Note Mode"
+        >
+          <Play className="w-4 h-4 -rotate-45" />
+        </button>
+
+        <button
+          onClick={() => onPortaModeChange(!portaMode)}
+          className={`
+            p-1.5 rounded transition-colors flex items-center gap-1 text-sm font-bold
+            ${portaMode 
+              ? 'text-blue-400 bg-blue-400/10' 
+              : 'text-gray-500 hover:text-gray-300'
+            }
+          `}
+          title="Portamento Mode"
+        >
+          /
+        </button>
+        <button
+          onClick={onToggleEventEditor}
+          className={`
+            p-1.5 rounded transition-colors flex items-center gap-1 text-sm
+            ${showEventEditor
+              ? 'text-blue-400 bg-blue-400/10'
+              : 'text-gray-500 hover:text-gray-300'
+            }
+          `}
+          title="Toggle Event Editor"
+        >
+          {showEventEditor
+            ? <PanelBottomOpen className="w-4 h-4" />
+            : <PanelBottomClose className="w-4 h-4" />
+          }
         </button>
       </div>
 

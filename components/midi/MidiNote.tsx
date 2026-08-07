@@ -42,6 +42,7 @@ export const MidiNoteComponent = memo(function MidiNoteComponent({
 
   // Velocity-based opacity (0-127 mapped to 0.3-1.0)
   const opacity = 0.3 + (note.velocity / 127) * 0.7;
+  const noteColor = note.color || color;
 
   const handleMouseDown = useCallback((e: React.MouseEvent, handle: 'body' | 'left' | 'right') => {
     e.stopPropagation();
@@ -61,7 +62,7 @@ export const MidiNoteComponent = memo(function MidiNoteComponent({
         top: y,
         width,
         height,
-        backgroundColor: color,
+        backgroundColor: noteColor,
         opacity,
         transform: isDragging ? 'scale(1.02)' : undefined,
       }}

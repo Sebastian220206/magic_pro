@@ -18,6 +18,8 @@
 // Types
 // =============================================================================
 
+export type CompressorMode = 'VCA' | 'FET' | 'Opto';
+
 export interface CompressorParameters {
   threshold: number;    // dB (-100 to 0)
   ratio: number;        // 1 to 20
@@ -25,6 +27,7 @@ export interface CompressorParameters {
   release: number;      // seconds (0 to 1)
   knee: number;         // dB (0 to 40)
   makeupGain: number;   // dB (-20 to +20)
+  mode: CompressorMode; // Character mode
 }
 
 export interface CompressorState extends CompressorParameters {
@@ -38,6 +41,7 @@ export interface CompressorOptions {
   release?: number;
   knee?: number;
   makeupGain?: number;
+  mode?: CompressorMode;
 }
 
 export interface CompressorReduction {
@@ -57,6 +61,38 @@ const DEFAULT_PARAMS: CompressorParameters = {
   release: 0.1,      // 100ms
   knee: 6,
   makeupGain: 6,
+  mode: 'VCA',
+};
+
+// Mode-specific character profiles
+const MODE_PROFILES: Record<CompressorMode, {
+  attackRange: [number, number];
+  releaseRange: [number, number];
+  kneeDefault: number;
+  saturationDrive: number;
+  autoMakeup: boolean;
+}> = {
+  VCA: {
+    attackRange: [0.001, 0.1],
+    releaseRange: [0.01, 0.5],
+    kneeDefault: 6,
+    saturationDrive: 1.0,    // Clean
+    autoMakeup: false,
+  },
+  FET: {
+    attackRange: [0.0001, 0.01],
+    releaseRange: [0.01, 0.3],
+    kneeDefault: 3,
+    saturationDrive: 1.5,    // Aggressive, warm
+    autoMakeup: false,
+  },
+  Opto: {
+    attackRange: [0.01, 0.3],
+    releaseRange: [0.1, 1.0],
+    kneeDefault: 12,
+    saturationDrive: 1.1,    // Smooth
+    autoMakeup: true,         // Program-dependent makeup
+  },
 };
 
 // =============================================================================
@@ -67,6 +103,7 @@ export class CompressorPlugin {
   private audioContext: AudioContext;
   private compressor!: DynamicsCompressorNode;
   private makeupGainNode!: GainNode;
+  private saturationNode!: WaveShaperNode;
   private inputNode!: GainNode;
   private outputNode!: GainNode;
   private bypassNode!: GainNode;
@@ -88,6 +125,7 @@ export class CompressorPlugin {
       release: options.release ?? DEFAULT_PARAMS.release,
       knee: options.knee ?? DEFAULT_PARAMS.knee,
       makeupGain: options.makeupGain ?? DEFAULT_PARAMS.makeupGain,
+      mode: options.mode ?? DEFAULT_PARAMS.mode,
     };
     
     this.createAudioGraph();
@@ -114,18 +152,41 @@ export class CompressorPlugin {
     this.compressor.release.value = this.params.release;
     this.compressor.knee.value = this.params.knee;
     
+    // Saturation (for FET mode warmth)
+    this.saturationNode = ctx.createWaveShaper();
+    this.saturationNode.curve = this.makeSaturationCurve(MODE_PROFILES[this.params.mode].saturationDrive);
+    this.saturationNode.oversample = '4x';
+    
     // Makeup gain
     this.makeupGainNode = ctx.createGain();
     this.makeupGainNode.gain.value = this.dbToGain(this.params.makeupGain);
     
-    // Chain: input → compressor → makeup gain → output
+    // Chain: input → compressor → saturation → makeup gain → output
     this.inputNode.connect(this.compressor);
-    this.compressor.connect(this.makeupGainNode);
+    this.compressor.connect(this.saturationNode);
+    this.saturationNode.connect(this.makeupGainNode);
     this.makeupGainNode.connect(this.outputNode);
     
     // Bypass: input → bypassNode → output
     this.inputNode.connect(this.bypassNode);
     this.bypassNode.connect(this.outputNode);
+  }
+  
+  /**
+   * Create a waveshaper curve for saturation
+   */
+  private makeSaturationCurve(drive: number): Float32Array<ArrayBuffer> {
+    const samples = 44100;
+    const curve: Float32Array<ArrayBuffer> = new Float32Array(samples);
+    const deg = Math.PI / 180;
+    
+    for (let i = 0; i < samples; i++) {
+      const x = (i * 2) / samples - 1;
+      // Soft-clipping saturation
+      curve[i] = ((3 + drive) * x * 20 * deg) / (Math.PI + drive * Math.abs(x));
+    }
+    
+    return curve;
   }
   
   // ===========================================================================
@@ -230,6 +291,26 @@ export class CompressorPlugin {
     return this.params.makeupGain;
   }
   
+  /**
+   * Set compressor mode (VCA/FET/Opto)
+   */
+  public setMode(mode: CompressorMode): void {
+    this.params.mode = mode;
+    const profile = MODE_PROFILES[mode];
+    
+    // Update saturation curve
+    this.saturationNode.curve = this.makeSaturationCurve(profile.saturationDrive);
+    
+    // Apply mode-specific defaults if knee was at default
+    if (this.params.knee === MODE_PROFILES[this.params.mode].kneeDefault) {
+      this.setKnee(profile.kneeDefault);
+    }
+  }
+  
+  public getMode(): CompressorMode {
+    return this.params.mode;
+  }
+  
   // ===========================================================================
   // Metering
   // ===========================================================================
@@ -329,6 +410,7 @@ export class CompressorPlugin {
     if (state.release !== undefined) this.setRelease(state.release);
     if (state.knee !== undefined) this.setKnee(state.knee);
     if (state.makeupGain !== undefined) this.setMakeupGain(state.makeupGain);
+    if (state.mode !== undefined) this.setMode(state.mode);
     if (state.bypass !== undefined) this.setBypass(state.bypass);
   }
   
@@ -377,6 +459,7 @@ export class CompressorPlugin {
   public dispose(): void {
     this.inputNode.disconnect();
     this.compressor.disconnect();
+    this.saturationNode.disconnect();
     this.makeupGainNode.disconnect();
     this.outputNode.disconnect();
     this.bypassNode.disconnect();
@@ -395,6 +478,7 @@ export const COMPRESSOR_PRESETS: Record<string, CompressorParameters> = {
     release: 0.1,
     knee: 6,
     makeupGain: 6,
+    mode: 'VCA',
   },
   'gentle-compression': {
     threshold: -18,
@@ -403,6 +487,7 @@ export const COMPRESSOR_PRESETS: Record<string, CompressorParameters> = {
     release: 0.2,
     knee: 12,
     makeupGain: 3,
+    mode: 'VCA',
   },
   'heavy-compression': {
     threshold: -30,
@@ -411,6 +496,7 @@ export const COMPRESSOR_PRESETS: Record<string, CompressorParameters> = {
     release: 0.05,
     knee: 0,
     makeupGain: 10,
+    mode: 'VCA',
   },
   'vocal-leveller': {
     threshold: -20,
@@ -419,6 +505,7 @@ export const COMPRESSOR_PRESETS: Record<string, CompressorParameters> = {
     release: 0.15,
     knee: 8,
     makeupGain: 4,
+    mode: 'VCA',
   },
   'drum-transient': {
     threshold: -12,
@@ -427,6 +514,7 @@ export const COMPRESSOR_PRESETS: Record<string, CompressorParameters> = {
     release: 0.05,
     knee: 3,
     makeupGain: 6,
+    mode: 'FET',
   },
   'bus-glue': {
     threshold: -16,
@@ -435,6 +523,7 @@ export const COMPRESSOR_PRESETS: Record<string, CompressorParameters> = {
     release: 0.3,
     knee: 10,
     makeupGain: 4,
+    mode: 'VCA',
   },
   'limiting': {
     threshold: -8,
@@ -443,6 +532,54 @@ export const COMPRESSOR_PRESETS: Record<string, CompressorParameters> = {
     release: 0.1,
     knee: 0,
     makeupGain: 8,
+    mode: 'VCA',
+  },
+  // FET mode presets (aggressive, fast, warm)
+  'fet-vocal': {
+    threshold: -18,
+    ratio: 4,
+    attack: 0.001,
+    release: 0.05,
+    knee: 3,
+    makeupGain: 6,
+    mode: 'FET',
+  },
+  'fet-drums': {
+    threshold: -15,
+    ratio: 8,
+    attack: 0.0005,
+    release: 0.03,
+    knee: 2,
+    makeupGain: 8,
+    mode: 'FET',
+  },
+  // Opto mode presets (smooth, program-dependent)
+  'opto-vocal': {
+    threshold: -20,
+    ratio: 3,
+    attack: 0.05,
+    release: 0.5,
+    knee: 12,
+    makeupGain: 5,
+    mode: 'Opto',
+  },
+  'opto-bass': {
+    threshold: -22,
+    ratio: 4,
+    attack: 0.03,
+    release: 0.3,
+    knee: 10,
+    makeupGain: 4,
+    mode: 'Opto',
+  },
+  'opto-mix': {
+    threshold: -16,
+    ratio: 2,
+    attack: 0.02,
+    release: 0.4,
+    knee: 15,
+    makeupGain: 3,
+    mode: 'Opto',
   },
 };
 

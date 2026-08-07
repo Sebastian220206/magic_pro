@@ -4,6 +4,31 @@ node_modules
 *.md
 .env
 .env.local
+.env.mcp
 .next
 coverage
 .vscode
+
+# Large local assets. The build fetches its own General MIDI bank into
+# public/soundfonts/, so sending a developer's copy — often hundreds of
+# megabytes of extra fonts — would only slow the build down.
+public/soundfonts
+public/sound_sample
+sound sample
+vst
+*.sf2
+*.sf3
+*.wav
+*.pdf
+
+# Build and tooling artefacts that never belong in an image.
+test-results
+playwright-report
+.playwright-mcp
+tmp
+scratch
+.omo
+.opencode
+.continue
+.codegraph
+*.tsbuildinfo

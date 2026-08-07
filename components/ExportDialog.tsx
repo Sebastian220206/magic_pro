@@ -2,21 +2,20 @@ import { useState } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import { X, ChevronDown, Check } from "lucide-react";
 import { useToast } from "./Toast";
-import { audioEngine } from "@/engine/AudioEngineAdapter";
-import { bounceEngine } from "@/engine/audioEngine/bounceEngine";
+import { downloadExport } from "@/engine/export/projectExport";
 
 export function ExportDialog() {
   const {
     showExportDialog,
     toggleExportDialog,
     clips,
-    tracks,
-    tempo,
     name: projectName,
     selectedClipIds,
     selectedClipId,
     focusedTrackId,
     selectedTrackIds,
+    exportProject,
+    exportStems,
   } = useProjectStore();
   const { toast } = useToast();
 
@@ -25,6 +24,10 @@ export function ExportDialog() {
     bitDepth: "24-bit",
     normalize: "Overload Protection Only",
   });
+
+  /** Stems: one aligned file per bus, for delivery or a remix pack. */
+  const [asStems, setAsStems] = useState(false);
+  const [metadata, setMetadata] = useState({ title: "", artist: "", isrc: "" });
 
   const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
@@ -38,89 +41,90 @@ export function ExportDialog() {
         ? "Export All Tracks"
         : "Export Selected Regions";
 
+  /**
+   * Render and download the project.
+   *
+   * This used to go through `bounceEngine` with `effects: []` and
+   * `sends: []` hardcoded — so no plugin ever reached the file — and read
+   * `c.startBeat`, which project clips do not have, so every region exported
+   * stacked at beat 0. It now uses the same offline path playback uses.
+   */
   const handleExport = async () => {
     setExporting(true);
-    setProgress(0);
-
-    const progressListener = (event: any) => {
-      if (event.type === 'bounceProgress' && event.progress) {
-        setProgress(Math.round(event.progress.progress * 100));
-      }
-    };
-    bounceEngine.addEventListener(progressListener);
+    setProgress(null);
 
     try {
-      const mappedTracks = tracks.map(t => ({
-        id: t.id,
-        name: t.name,
-        volume: t.volume,
-        pan: t.pan,
-        muted: t.muted || false,
-        solo: t.soloed || false,
-        armed: t.recordEnabled || false,
-        effects: [],
-        sends: [],
-        enabled: t.enabled !== false,
-      }));
+      const selectedTrackId = focusedTrackId || selectedTrackIds[0];
+      const regionIds = selectedClipIds.length > 0
+        ? selectedClipIds
+        : (selectedClipId ? [selectedClipId] : []);
 
-      const mappedClips = clips.map(c => ({
-        id: c.id,
-        name: c.name,
-        buffer: audioEngine.getBuffer(c.sampleId ?? c.id) || undefined,
-        startBeat: c.startBeat ?? 0,
-        duration: c.duration,
-        trackId: c.trackId,
-        pitchShift: c.transpose || 0,
-        timeStretch: 1.0,
-        volume: 1.0,
-        pan: 0.0,
-        muted: c.muted || false,
-        loop: c.loop || false,
-      }));
+      // Scope the render to whatever the dialog was opened for.
+      let startBeat: number | undefined;
+      let endBeat: number | undefined;
+      let trackIds: string[] | undefined;
 
-      let targetClips = mappedClips;
-      if (showExportDialog === "track") {
-        const selectedTrackId = focusedTrackId || selectedTrackIds[0];
-        targetClips = selectedTrackId ? mappedClips.filter(c => c.trackId === selectedTrackId) : mappedClips;
-      } else if (showExportDialog === "regions") {
-        const targetIds = selectedClipIds.length > 0 ? selectedClipIds : (selectedClipId ? [selectedClipId] : []);
-        targetClips = targetIds.length > 0 ? mappedClips.filter(c => targetIds.includes(c.id)) : mappedClips;
+      if (showExportDialog === "track" && selectedTrackId) {
+        trackIds = [selectedTrackId];
+      } else if (showExportDialog === "regions" && regionIds.length > 0) {
+        const regions = clips.filter(c => regionIds.includes(c.id));
+        if (regions.length > 0) {
+          startBeat = Math.min(...regions.map(c => c.start ?? 0));
+          endBeat = Math.max(...regions.map(c => (c.start ?? 0) + c.duration));
+          trackIds = [...new Set(regions.map(c => c.trackId))];
+        }
       }
 
-      let startBeat = 0;
-      let endBeat = 8;
-      if (targetClips.length > 0) {
-        startBeat = Math.min(...targetClips.map(c => c.startBeat));
-        endBeat = Math.max(...targetClips.map(c => c.startBeat + c.duration));
+      const tags = {
+        title: metadata.title.trim() || undefined,
+        artist: metadata.artist.trim() || undefined,
+        isrc: metadata.isrc.trim() || undefined,
+      };
+      const depth = settings.bitDepth === "16-bit" ? 16 : settings.bitDepth === "24-bit" ? 24 : 32;
+
+      if (asStems) {
+        const stems = await exportStems({ bitDepth: depth, startBeat, endBeat });
+        stems.forEach(stem => downloadExport({ blob: stem.blob, fileName: stem.fileName }));
+        const degraded = stems.filter(s => s.degraded).length;
+        toast(
+          degraded > 0
+            ? `Exported ${stems.length} stems; ${degraded} rendered without plugins.`
+            : `Exported ${stems.length} stems.`,
+          degraded > 0 ? "error" : "success",
+        );
+        return;
       }
 
-      const { url } = await bounceEngine.bounceProject(
-        targetClips,
-        mappedTracks,
+      const result = await exportProject({
+        format: settings.fileType === "MP3" ? "mp3" : "wav",
+        bitDepth: depth,
         startBeat,
         endBeat,
-        tempo,
-        {
-          sampleRate: 44100,
-          bitDepth: settings.bitDepth === "16-bit" ? 16 : settings.bitDepth === "24-bit" ? 24 : 32,
-          normalize: settings.normalize === "On" || settings.normalize === "Overload Protection Only",
-          format: "wav",
-        }
-      );
+        trackIds,
+        fileName: projectName || "Untitled Beat",
+        metadata: tags,
+      });
 
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${projectName || "Untitled Beat"}.wav`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      downloadExport(result);
 
-      toast("Export completed! Your WAV file is downloading.", "success");
+      if (result.degradedTracks.length > 0) {
+        toast(
+          `Exported, but ${result.degradedTracks.length} track(s) rendered without plugins.`,
+          "error",
+        );
+      } else if (result.formatNotice) {
+        toast(result.formatNotice, "success");
+      } else {
+        const { integratedLufs, truePeakDb } = result.loudness;
+        toast(
+          `Exported — ${integratedLufs.toFixed(1)} LUFS, true peak ${truePeakDb.toFixed(1)} dBTP.`,
+          truePeakDb > -1 ? "error" : "success",
+        );
+      }
     } catch (err) {
-      console.error("[ExportDialog] Bounce failed:", err);
+      console.error("[ExportDialog] Export failed:", err);
       toast(`Export failed: ${err instanceof Error ? err.message : String(err)}`, "error");
     } finally {
-      bounceEngine.removeEventListener(progressListener);
       setExporting(false);
       setProgress(null);
       toggleExportDialog(null);
@@ -155,6 +159,43 @@ export function ExportDialog() {
                 value={settings.bitDepth}
                 onChange={(v) => setSettings({ ...settings, bitDepth: v })}
                 options={["16-bit", "24-bit", "32-bit (float)"]}
+              />
+
+              <label className="text-[11px] font-bold text-gray-400 text-right pr-6">Stems:</label>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={asStems}
+                  onChange={e => setAsStems(e.target.checked)}
+                  className="accent-sky-500 w-4 h-4"
+                />
+                <span className="text-[11px] text-gray-400">
+                  One aligned file per bus, all the same length
+                </span>
+              </label>
+
+              <label className="text-[11px] font-bold text-gray-400 text-right pr-6">Title:</label>
+              <input
+                value={metadata.title}
+                onChange={e => setMetadata({ ...metadata, title: e.target.value })}
+                placeholder={projectName || "Untitled"}
+                className="bg-black/40 border border-white/10 rounded px-3 h-9 text-[12px] text-white placeholder:text-gray-600 focus:border-sky-500 outline-none"
+              />
+
+              <label className="text-[11px] font-bold text-gray-400 text-right pr-6">Artist:</label>
+              <input
+                value={metadata.artist}
+                onChange={e => setMetadata({ ...metadata, artist: e.target.value })}
+                className="bg-black/40 border border-white/10 rounded px-3 h-9 text-[12px] text-white focus:border-sky-500 outline-none"
+              />
+
+              <label className="text-[11px] font-bold text-gray-400 text-right pr-6">ISRC:</label>
+              <input
+                value={metadata.isrc}
+                onChange={e => setMetadata({ ...metadata, isrc: e.target.value.toUpperCase() })}
+                placeholder="CCXXXYYNNNNN"
+                maxLength={12}
+                className="bg-black/40 border border-white/10 rounded px-3 h-9 text-[12px] text-white placeholder:text-gray-600 font-mono focus:border-sky-500 outline-none"
               />
 
               <label className="text-[11px] font-bold text-gray-400 text-right pr-6">Normalize:</label>

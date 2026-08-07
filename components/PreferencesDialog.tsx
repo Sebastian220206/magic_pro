@@ -2,6 +2,11 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useProjectStore } from '@/store/projectStore'
 import {
+    describeMidiStatus,
+    midiDeviceService,
+    type MidiDeviceSnapshot,
+} from '@/engine/midi/midiDeviceService'
+import {
     X, Settings, Activity, Circle, Piano, Music, Film,
     Share2, SlidersHorizontal, Eye, User, Settings2, Check, AlertCircle, Loader2,
     RotateCcw, ChevronDown, ChevronUp
@@ -188,42 +193,12 @@ export function PreferencesDialog() {
     const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
     const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
     const [hasPermission, setHasPermission] = useState(false);
-    const midiAccessRef = useRef<MIDIAccess | null>(null);
+    const [midiSnapshot, setMidiSnapshot] = useState<MidiDeviceSnapshot>(
+        () => midiDeviceService.getSnapshot(),
+    );
 
     const refreshMidiDevices = async () => {
-        if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) return;
-        try {
-            const access = await navigator.requestMIDIAccess();
-            midiAccessRef.current = access;
-
-            const inputs: { name: string; enabled: boolean }[] = [];
-            access.inputs.forEach(input => {
-                inputs.push({ name: input.name || 'Unknown MIDI Device', enabled: true });
-            });
-
-            const currentMidi = globalSettings.midi || {};
-            const existingInputs = (currentMidi.inputs || []) as { name: string; enabled: boolean }[];
-            const mergedInputs = inputs.map(newInput => {
-                const existing = existingInputs.find(e => e.name === newInput.name);
-                return existing ? { ...newInput, enabled: existing.enabled } : newInput;
-            });
-
-            updateMidi({ ...currentMidi, inputs: mergedInputs });
-
-            access.onstatechange = () => {
-                const updatedInputs: { name: string; enabled: boolean }[] = [];
-                access.inputs.forEach(input => {
-                    updatedInputs.push({ name: input.name || 'Unknown MIDI Device', enabled: true });
-                });
-                const merged = updatedInputs.map(newInput => {
-                    const existing = (globalSettings.midi?.inputs || []).find((e: any) => e.name === newInput.name);
-                    return existing ? { ...newInput, enabled: existing.enabled } : newInput;
-                });
-                updateMidi({ ...globalSettings.midi, inputs: merged });
-            };
-        } catch (e) {
-            console.warn('[Preferences] MIDI access failed', e);
-        }
+        await midiDeviceService.initialize();
     };
 
     const refreshDevices = async () => {
@@ -267,17 +242,35 @@ export function PreferencesDialog() {
         };
     }, [showSettingsDialog]);
 
+    // Track the live device list. Subscribing (rather than enumerating into
+    // project settings) means hot-plugged devices appear without reopening the
+    // dialog, and a denied permission is distinguishable from "none connected".
+    useEffect(() => midiDeviceService.subscribe(setMidiSnapshot), []);
+
+    // Enumerate whenever the dialog opens, not only when the Inputs sub-tab is
+    // active — devices were previously never scanned unless you happened to
+    // click that exact tab.
     useEffect(() => {
-        if (showSettingsDialog && globalSettings.midi?.activeSubTab === 'Inputs') {
-            refreshMidiDevices();
-        }
-    }, [showSettingsDialog, globalSettings.midi?.activeSubTab]);
+        if (showSettingsDialog) void refreshMidiDevices();
+    }, [showSettingsDialog]);
+
+    // Note: the discovered device list is merged into `globalSettings.midi.inputs`
+    // by the boot subscription in `app/providers.tsx`, so it stays current whether
+    // or not this dialog has ever been opened. Doing it here as well would be
+    // duplicate work — and could not reference `updateMidi`, which is declared
+    // below the early return and is therefore uninitialised on renders where the
+    // dialog is closed.
 
     if (!showSettingsDialog) return null;
 
     const audio = globalSettings.audio;
     const recording = globalSettings.recording;
     const midi = globalSettings.midi;
+    // `globalSettings.midi` defaults to `{}` and is persisted that way, so
+    // `activeSubTab` is undefined for every existing project. Without a
+    // fallback the MIDI page renders its sub-tab buttons above an empty body,
+    // and the device scan (gated on the Inputs tab) never runs.
+    const midiSubTab = midi?.activeSubTab || 'General';
     const score = globalSettings.score;
     const movie = globalSettings.movie;
     const automation = globalSettings.automation;
@@ -349,15 +342,19 @@ export function PreferencesDialog() {
         { name: 'Advanced', icon: Settings2 },
     ]
 
-    const subTabs = settingsActiveTab === 'General'
+    // Projects saved before Settings had a default tab persist an empty string,
+    // which matches no panel and renders "Settings for '' not available".
+    const settingsTab = settingsActiveTab || 'General';
+
+    const subTabs = settingsTab === 'General'
         ? ['Project Handling', 'Editing', 'Cycle', 'Catch', 'Notifications', 'Accessibility']
-        : settingsActiveTab === 'Audio'
+        : settingsTab === 'Audio'
             ? ['Devices', 'General', 'Sampler', 'Editing', 'I/O Assignments', 'File Editor']
-            : settingsActiveTab === 'Control Surfaces'
+            : settingsTab === 'Control Surfaces'
                 ? ['General', 'Help Tags', 'MIDI Controllers']
-                : settingsActiveTab === 'View'
+                : settingsTab === 'View'
                     ? ['General', 'Tracks', 'Mixer', 'Editors']
-                    : settingsActiveTab === 'MIDI'
+                    : settingsTab === 'MIDI'
                     ? ['General', 'Reset Messages', 'Sync', 'Inputs']
                     : ['General'];
 
@@ -397,12 +394,12 @@ export function PreferencesDialog() {
                         <button
                             key={tab.name}
                             onClick={() => setShowSettingsDialog(true, tab.name)}
-                            className={`flex flex-col items-center gap-1.5 min-w-[64px] py-1 transition-all rounded-lg ${settingsActiveTab === tab.name ? 'bg-white/5' : 'hover:bg-white/5'}`}
+                            className={`flex flex-col items-center gap-1.5 min-w-[64px] py-1 transition-all rounded-lg ${settingsTab === tab.name ? 'bg-white/5' : 'hover:bg-white/5'}`}
                         >
-                            <div className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${settingsActiveTab === tab.name ? 'bg-sky-500 text-white shadow-[0_0_15px_rgba(14,165,233,0.3)]' : 'text-gray-500'}`}>
-                                <tab.icon className={`w-[22px] h-[22px] ${settingsActiveTab === tab.name ? 'animate-in zoom-in-75 duration-300' : ''}`} />
+                            <div className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${settingsTab === tab.name ? 'bg-sky-500 text-white shadow-[0_0_15px_rgba(14,165,233,0.3)]' : 'text-gray-500'}`}>
+                                <tab.icon className={`w-[22px] h-[22px] ${settingsTab === tab.name ? 'animate-in zoom-in-75 duration-300' : ''}`} />
                             </div>
-                            <span className={`text-[9px] whitespace-nowrap font-semibold tracking-wide transition-colors ${settingsActiveTab === tab.name ? 'text-sky-400' : 'text-gray-500'}`}>{tab.name}</span>
+                            <span className={`text-[9px] whitespace-nowrap font-semibold tracking-wide transition-colors ${settingsTab === tab.name ? 'text-sky-400' : 'text-gray-500'}`}>{tab.name}</span>
                         </button>
                     ))}
                 </div>
@@ -422,7 +419,7 @@ export function PreferencesDialog() {
 
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto p-12 bg-[#252529] relative min-h-[480px]">
-                    {settingsActiveTab === 'General' && settingsActiveSubTab === 'Project Handling' && (
+                    {settingsTab === 'General' && settingsActiveSubTab === 'Project Handling' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <Dropdown
                                 label="Startup Action"
@@ -475,7 +472,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'General' && settingsActiveSubTab === 'Editing' && (
+                    {settingsTab === 'General' && settingsActiveSubTab === 'Editing' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="flex items-center justify-between">
                                 <span className="text-[12px] font-medium text-gray-300 w-1/3 text-right pr-6">Number of Undo Steps:</span>
@@ -611,7 +608,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'General' && settingsActiveSubTab === 'Cycle' && (
+                    {settingsTab === 'General' && settingsActiveSubTab === 'Cycle' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <Dropdown
                                 label="Cycle Pre-Processing"
@@ -634,7 +631,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'General' && settingsActiveSubTab === 'Notifications' && (
+                    {settingsTab === 'General' && settingsActiveSubTab === 'Notifications' && (
                         <div className="max-w-3xl mx-auto space-y-6">
                             <p className="text-[12px] text-gray-400 font-medium pb-2 border-b border-white/5">
                                 Warnings and alerts set previously to "Do not show again."
@@ -672,13 +669,13 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'General' && (settingsActiveSubTab === 'Catch' || settingsActiveSubTab === 'Accessibility') && (
+                    {settingsTab === 'General' && (settingsActiveSubTab === 'Catch' || settingsActiveSubTab === 'Accessibility') && (
                         <div className="max-w-2xl mx-auto flex flex-col items-center justify-center h-64 text-gray-500">
                            <Settings className="w-12 h-12 opacity-10 mb-4" />
                            <p className="text-[13px] font-medium">This configuration section is not available in this version.</p>
                         </div>
                     )}
-                    {settingsActiveTab === 'Audio' && settingsActiveSubTab === 'Devices' && (
+                    {settingsTab === 'Audio' && settingsActiveSubTab === 'Devices' && (
                         <div className="max-w-2xl mx-auto space-y-6">
                             <div className="space-y-4 pb-4 border-b border-white/5">
                                 <Toggle
@@ -785,7 +782,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Audio' && settingsActiveSubTab === 'General' && (
+                    {settingsTab === 'Audio' && settingsActiveSubTab === 'General' && (
                         <div className="max-w-2xl mx-auto space-y-6">
                             <div className="space-y-4 pb-6 border-b border-white/5">
                                 <Toggle
@@ -881,7 +878,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Audio' && settingsActiveSubTab === 'Sampler' && (
+                    {settingsTab === 'Audio' && settingsActiveSubTab === 'Sampler' && (
                         <div className="max-w-2xl mx-auto flex flex-col items-center">
                             {/* Sub-Sub Tabs: Misc / Virtual Memory */}
                             <div className="flex bg-[#1a1a1a] rounded-md p-0.5 mb-8 border border-black/20 shadow-inner">
@@ -1004,7 +1001,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Audio' && settingsActiveSubTab === 'Editing' && (
+                    {settingsTab === 'Audio' && settingsActiveSubTab === 'Editing' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-6 pb-6 border-b border-white/5">
                                 <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-widest pl-[33.33%] mb-4">Crossfades for Merge and Take Comping</h3>
@@ -1055,7 +1052,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Audio' && settingsActiveSubTab === 'I/O Assignments' && (
+                    {settingsTab === 'Audio' && settingsActiveSubTab === 'I/O Assignments' && (
                         <div className="max-w-3xl mx-auto flex flex-col items-center">
                             {/* Sub-Sub Tabs */}
                             <div className="flex bg-[#1a1a1a] rounded-md p-0.5 mb-8 border border-black/20 shadow-inner">
@@ -1417,7 +1414,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Audio' && settingsActiveSubTab === 'File Editor' && (
+                    {settingsTab === 'Audio' && settingsActiveSubTab === 'File Editor' && (
                         <div className="max-w-2xl mx-auto space-y-6">
                             <div className="space-y-3 pb-6 border-b border-white/5 pl-[33.33%]">
                                 <Toggle
@@ -1470,7 +1467,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Audio' && settingsActiveSubTab === 'MP3' && (
+                    {settingsTab === 'Audio' && settingsActiveSubTab === 'MP3' && (
                         <div className="max-w-xl mx-auto space-y-6">
                             <div className="space-y-4">
                                 <Dropdown 
@@ -1526,7 +1523,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Recording' && (
+                    {settingsTab === 'Recording' && (
                         <div className="max-w-4xl mx-auto space-y-10">
                             {/* Audio Recording */}
                             <div className="space-y-4">
@@ -1634,7 +1631,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'MIDI' && (
+                    {settingsTab === 'MIDI' && (
                         <div className="max-w-4xl mx-auto flex flex-col items-center">
                             {/* Sub Tabs */}
                             <div className="flex bg-[#1a1a1a] rounded-md p-0.5 mb-10 border border-black/20 shadow-inner">
@@ -1642,14 +1639,14 @@ export function PreferencesDialog() {
                                     <button 
                                         key={tab}
                                         onClick={() => updateMidi({ activeSubTab: tab as any })}
-                                        className={`px-4 py-1.5 text-[11px] font-semibold rounded-[4px] transition-all ${midi?.activeSubTab === tab ? 'bg-gray-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+                                        className={`px-4 py-1.5 text-[11px] font-semibold rounded-[4px] transition-all ${midiSubTab === tab ? 'bg-gray-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
                                     >
                                         {tab}
                                     </button>
                                 ))}
                             </div>
 
-                            {midi?.activeSubTab === 'General' && (
+                            {midiSubTab === 'General' && (
                                 <div className="w-full space-y-12">
                                     <div className="space-y-4 pb-12 border-b border-white/5 flex flex-col items-center">
                                         <div className="space-y-4 w-full">
@@ -1751,7 +1748,7 @@ export function PreferencesDialog() {
                                 </div>
                             )}
 
-                            {midi?.activeSubTab === 'Reset Messages' && (
+                            {midiSubTab === 'Reset Messages' && (
                                 <div className="w-full space-y-8">
                                     <div className="space-y-4 pb-8 border-b border-white/5">
                                         <h3 className="text-[12px] font-bold text-gray-300 mb-4 pl-[33.33%]">Software Instruments</h3>
@@ -1800,7 +1797,7 @@ export function PreferencesDialog() {
                                 </div>
                             )}
 
-                            {midi?.activeSubTab === 'Sync' && (
+                            {midiSubTab === 'Sync' && (
                                 <div className="w-full space-y-10">
                                     {/* All MIDI Output */}
                                     <div className="space-y-4">
@@ -1924,10 +1921,33 @@ export function PreferencesDialog() {
                                 </div>
                             )}
 
-                            {midi?.activeSubTab === 'Inputs' && (
+                            {midiSubTab === 'Inputs' && (
                                 <div className="w-full space-y-4">
-                                    <p className="text-[11px] text-gray-400 mb-6">Enable MIDI ports to use as inputs in Logic</p>
-                                    
+                                    <div className="flex items-center justify-between mb-6 gap-4">
+                                        <p className="text-[11px] text-gray-400">Enable MIDI ports to use as inputs</p>
+                                        <button
+                                            onClick={() => void refreshMidiDevices()}
+                                            className="px-3 py-1 text-[11px] font-semibold rounded bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white transition-colors shrink-0"
+                                        >
+                                            Rescan
+                                        </button>
+                                    </div>
+
+                                    {/* Why the list looks the way it does. Previously a denied
+                                        permission, an unsupported browser and an empty port list
+                                        were indistinguishable. */}
+                                    <div
+                                        className={`text-[11px] px-3 py-2 rounded border ${
+                                            midiSnapshot.status === 'denied' || midiSnapshot.status === 'error'
+                                                ? 'bg-red-950/40 border-red-800/40 text-red-300'
+                                                : midiSnapshot.status === 'unsupported'
+                                                    ? 'bg-amber-950/40 border-amber-800/40 text-amber-300'
+                                                    : 'bg-white/[0.03] border-white/5 text-gray-400'
+                                        }`}
+                                    >
+                                        {describeMidiStatus(midiSnapshot)}
+                                    </div>
+
                                     <div className="border border-black/60 rounded overflow-hidden shadow-2xl">
                                         <div className="grid grid-cols-[60px_1fr] bg-[#1a1a1a] border-b border-black/40 text-[10px] font-bold text-gray-500 uppercase tracking-widest py-1.5 px-4">
                                             <div className="text-center">On</div>
@@ -1962,16 +1982,16 @@ export function PreferencesDialog() {
                                 </div>
                             )}
 
-                            {midi?.activeSubTab !== 'General' && midi?.activeSubTab !== 'Reset Messages' && midi?.activeSubTab !== 'Sync' && midi?.activeSubTab !== 'Inputs' && (
+                            {midiSubTab !== 'General' && midiSubTab !== 'Reset Messages' && midiSubTab !== 'Sync' && midiSubTab !== 'Inputs' && (
                                 <div className="w-full py-20 flex flex-col items-center justify-center text-gray-600 opacity-50 bg-black/10 rounded-2xl border border-dashed border-white/5">
                                     <Activity className="w-10 h-10 mb-4" />
-                                    <span className="text-[13px] font-medium">MIDI {midi?.activeSubTab} settings not available in this version</span>
+                                    <span className="text-[13px] font-medium">MIDI {midiSubTab} settings not available in this version</span>
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Score' && (
+                    {settingsTab === 'Score' && (
                         <div className="max-w-4xl mx-auto space-y-12">
                             {/* Display */}
                             <div className="space-y-4">
@@ -2070,7 +2090,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Movie' && (
+                    {settingsTab === 'Movie' && (
                         <div className="max-w-4xl mx-auto space-y-12">
                             {/* Adjustments */}
                             <div className="space-y-4">
@@ -2152,7 +2172,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Automation' && (
+                    {settingsTab === 'Automation' && (
                         <div className="max-w-4xl mx-auto space-y-8">
                             <div className="space-y-4">
                                 <Dropdown 
@@ -2279,7 +2299,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Control Surfaces' && settingsActiveSubTab === 'General' && (
+                    {settingsTab === 'Control Surfaces' && settingsActiveSubTab === 'General' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-4 pb-6 border-b border-white/5">
                                 <Toggle
@@ -2398,7 +2418,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Control Surfaces' && settingsActiveSubTab === 'Help Tags' && (
+                    {settingsTab === 'Control Surfaces' && settingsActiveSubTab === 'Help Tags' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-4 pb-6 border-b border-white/5">
                                 <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-[33.33%]">While Editing Show Long Names For</h4>
@@ -2476,7 +2496,7 @@ export function PreferencesDialog() {
                             </div>
                         </div>
                     )}
-                    {settingsActiveTab === 'Control Surfaces' && settingsActiveSubTab === 'MIDI Controllers' && (
+                    {settingsTab === 'Control Surfaces' && settingsActiveSubTab === 'MIDI Controllers' && (
                         <div className="max-w-3xl mx-auto space-y-6">
                             <p className="text-[12px] text-gray-400 leading-relaxed bg-white/5 p-4 rounded-lg border border-white/5">
                                 The buttons, knobs and other controls on the following USB MIDI Controllers can be automatically assigned to Smart Controls and other functions. Select Auto to enable automatic assignment for a device.
@@ -2535,7 +2555,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'View' && settingsActiveSubTab === 'General' && (
+                    {settingsTab === 'View' && settingsActiveSubTab === 'General' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <Dropdown
                                 label="Appearance"
@@ -2631,7 +2651,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'View' && settingsActiveSubTab === 'Tracks' && (
+                    {settingsTab === 'View' && settingsActiveSubTab === 'Tracks' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-4 pb-6 border-b border-white/5">
                                 <div 
@@ -2712,7 +2732,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'View' && settingsActiveSubTab === 'Mixer' && (
+                    {settingsTab === 'View' && settingsActiveSubTab === 'Mixer' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-4 pb-6 border-b border-white/5">
                                 <div 
@@ -2776,7 +2796,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'View' && settingsActiveSubTab === 'Editors' && (
+                    {settingsTab === 'View' && settingsActiveSubTab === 'Editors' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-4">
                                 <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-[33.33%]">Piano Roll</h4>
@@ -2795,7 +2815,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'My Info' && (
+                    {settingsTab === 'My Info' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <p className="text-[12px] text-gray-400 leading-relaxed bg-white/5 p-4 rounded-lg border border-white/5 mb-2">
                                 Magic Pro will use this information to identify your songs when sharing them.
@@ -2825,7 +2845,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab === 'Advanced' && (
+                    {settingsTab === 'Advanced' && (
                         <div className="max-w-2xl mx-auto space-y-6">
                             <div 
                                 onClick={() => updateAdvanced({ enableCompleteFeatures: !advanced.enableCompleteFeatures })}
@@ -2863,12 +2883,12 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsActiveTab !== 'Audio' && settingsActiveTab !== 'Recording' && settingsActiveTab !== 'MIDI' && settingsActiveTab !== 'Score' && settingsActiveTab !== 'Movie' && settingsActiveTab !== 'Automation' && settingsActiveTab !== 'Control Surfaces' && settingsActiveTab !== 'View' && settingsActiveTab !== 'My Info' && settingsActiveTab !== 'Advanced' && (
+                    {settingsTab !== 'Audio' && settingsTab !== 'Recording' && settingsTab !== 'MIDI' && settingsTab !== 'Score' && settingsTab !== 'Movie' && settingsTab !== 'Automation' && settingsTab !== 'Control Surfaces' && settingsTab !== 'View' && settingsTab !== 'My Info' && settingsTab !== 'Advanced' && (
                         <div className="flex flex-col items-center justify-center h-full gap-5 text-gray-600 opacity-50">
                             <div className="w-20 h-20 rounded-full border-2 border-dashed border-gray-700 flex items-center justify-center">
                                 <Settings className="w-10 h-10" />
                             </div>
-                            <span className="text-sm font-medium tracking-wide">Settings for "{settingsActiveTab}" not available in this version</span>
+                            <span className="text-sm font-medium tracking-wide">Settings for "{settingsTab}" not available in this version</span>
                         </div>
                     )}
 

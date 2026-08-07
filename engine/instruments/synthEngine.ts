@@ -1,7 +1,18 @@
 /**
  * Polyphonic Synth Engine
- * Web Audio API based synthesizer with oscillators, filter, and ADSR envelope
+ * Web Audio API based synthesizer with oscillators, filter, ADSR envelope,
+ * LFO modulation, and wavetable support.
  */
+
+import { SynthLFO, type LFOParams, defaultLFOParams } from './synthLfo';
+import {
+  wavetablePresets,
+  createWavetableOscillator,
+  type WavetableData,
+} from './wavetableOscillator';
+
+export type { LFOParams } from './synthLfo';
+export type { WavetableData } from './wavetableOscillator';
 
 export interface ADSREnvelope {
   attack: number;    // seconds
@@ -20,6 +31,7 @@ export interface OscillatorParams {
   type: OscillatorType;
   detune: number; // cents
   mix: number;  // 0-1 blend for multiple oscillators
+  wavetable?: string; // wavetable preset name (overrides type if set)
 }
 
 export interface SynthPreset {
@@ -29,6 +41,7 @@ export interface SynthPreset {
   envelope: ADSREnvelope;
   polyphony: number;
   portamento?: number; // seconds for glide
+  lfo?: LFOParams;    // LFO modulation settings
 }
 
 // Built-in synth presets
@@ -96,6 +109,54 @@ export const synthPresets: Record<string, SynthPreset> = {
     envelope: { attack: 0.005, decay: 0.3, sustain: 0.2, release: 0.2 },
     polyphony: 6,
   },
+
+  // Wavetable presets with LFO
+  wavetable_lead: {
+    name: 'Wavetable Lead',
+    oscillators: [
+      { type: 'sawtooth', detune: 0, mix: 0.6, wavetable: 'rich' },
+      { type: 'sawtooth', detune: 7, mix: 0.4, wavetable: 'smooth' },
+    ],
+    filter: { type: 'lowpass', frequency: 2500, resonance: 4 },
+    envelope: { attack: 0.01, decay: 0.3, sustain: 0.7, release: 0.3 },
+    polyphony: 8,
+    lfo: { rate: 5.0, depth: 0.3, target: 'filter', waveform: 'sine' },
+  },
+  wavetable_pad: {
+    name: 'Wavetable Pad',
+    oscillators: [
+      { type: 'sawtooth', detune: -8, mix: 0.3, wavetable: 'smooth' },
+      { type: 'sawtooth', detune: 0, mix: 0.4, wavetable: 'rich' },
+      { type: 'sawtooth', detune: 8, mix: 0.3, wavetable: 'smooth' },
+    ],
+    filter: { type: 'lowpass', frequency: 1000, resonance: 2 },
+    envelope: { attack: 0.5, decay: 0.8, sustain: 0.8, release: 2.0 },
+    polyphony: 10,
+    lfo: { rate: 0.3, depth: 0.4, target: 'filter', waveform: 'sine' },
+  },
+  wavetable_bass: {
+    name: 'Wavetable Bass',
+    oscillators: [
+      { type: 'sawtooth', detune: 0, mix: 0.7, wavetable: 'gritty' },
+      { type: 'square', detune: -12, mix: 0.3, wavetable: 'square' },
+    ],
+    filter: { type: 'lowpass', frequency: 500, resonance: 3 },
+    envelope: { attack: 0.01, decay: 0.2, sustain: 0.9, release: 0.2 },
+    polyphony: 4,
+    lfo: { rate: 0.5, depth: 0.2, target: 'pitch', waveform: 'sine' },
+  },
+  evolving_pad: {
+    name: 'Evolving Pad',
+    oscillators: [
+      { type: 'sawtooth', detune: -5, mix: 0.3, wavetable: 'rich' },
+      { type: 'sawtooth', detune: 5, mix: 0.3, wavetable: 'gritty' },
+      { type: 'sawtooth', detune: 0, mix: 0.4, wavetable: 'smooth' },
+    ],
+    filter: { type: 'lowpass', frequency: 800, resonance: 1 },
+    envelope: { attack: 1.0, decay: 1.0, sustain: 0.8, release: 3.0 },
+    polyphony: 8,
+    lfo: { rate: 0.2, depth: 0.5, target: 'filter', waveform: 'triangle' },
+  },
 };
 
 /**
@@ -115,6 +176,7 @@ class SynthVoice {
   private envelope: GainNode;
   private output: GainNode;
   private params: SynthPreset;
+  private lfo: SynthLFO | null = null;
   private isActive = false;
   private currentNote = 0;
   private attackTime = 0;
@@ -135,11 +197,42 @@ class SynthVoice {
 
     // Create output gain
     this.output = ctx.createGain();
-    this.output.gain.value = 1.0; // Per-voice output (velocity + envelope applied on top)
+    this.output.gain.value = 1.0;
 
     // Connect: filter -> envelope -> output
     this.filter.connect(this.envelope);
     this.envelope.connect(this.output);
+  }
+
+  /**
+   * Create LFO and connect to target parameter.
+   */
+  private setupLFO(): void {
+    const lfoParams = this.params.lfo;
+    if (!lfoParams || lfoParams.depth === 0) return;
+
+    this.lfo = new SynthLFO(this.ctx, lfoParams);
+    this.lfo.start();
+
+    // Determine target parameter
+    if (lfoParams.target === 'filter') {
+      // Modulate filter cutoff frequency
+      this.lfo.connectToParam(
+        this.filter.frequency,
+        this.params.filter.frequency,
+        this.params.filter.frequency * 0.5 // ±50% of base cutoff
+      );
+    } else if (lfoParams.target === 'pitch') {
+      // Modulate oscillator frequency (requires connecting to each osc)
+      // Will be connected in noteOn after oscillators are created
+    } else if (lfoParams.target === 'amplitude') {
+      // Modulate envelope gain
+      this.lfo.connectToParam(
+        this.envelope.gain,
+        0,
+        0.5 // ±50% depth
+      );
+    }
   }
 
   /**
@@ -152,14 +245,43 @@ class SynthVoice {
     this.isActive = true;
     this.attackTime = time + this.params.envelope.attack;
 
+    // Setup LFO for this voice (if not already set up)
+    if (!this.lfo && this.params.lfo) {
+      this.setupLFO();
+    }
+
     // Create oscillators for this voice
     this.oscillators = this.params.oscillators.map((oscParams) => {
-      const osc = this.ctx.createOscillator();
-      osc.type = oscParams.type;
-      osc.frequency.value = freq;
-      osc.detune.value = oscParams.detune;
+      let osc: OscillatorNode;
+
+      if (oscParams.wavetable) {
+        // Use wavetable oscillator
+        const wt = wavetablePresets[oscParams.wavetable];
+        if (wt) {
+          osc = createWavetableOscillator(this.ctx, wt, freq, oscParams.detune);
+        } else {
+          // Fallback to standard oscillator
+          osc = this.ctx.createOscillator();
+          osc.type = oscParams.type;
+          osc.frequency.value = freq;
+          osc.detune.value = oscParams.detune;
+        }
+      } else {
+        // Use standard oscillator
+        osc = this.ctx.createOscillator();
+        osc.type = oscParams.type;
+        osc.frequency.value = freq;
+        osc.detune.value = oscParams.detune;
+      }
+
       osc.connect(this.filter);
       osc.start(time);
+
+      // Connect LFO pitch modulation if target is pitch
+      if (this.lfo && this.params.lfo?.target === 'pitch') {
+        this.lfo.connectToParam(osc.frequency, freq, 50); // ±50 cents
+      }
+
       return osc;
     });
 
@@ -260,6 +382,10 @@ class SynthVoice {
    */
   dispose(): void {
     this.cleanup();
+    if (this.lfo) {
+      this.lfo.dispose();
+      this.lfo = null;
+    }
     try {
       this.filter.disconnect();
       this.envelope.disconnect();

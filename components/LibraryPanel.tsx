@@ -1,5 +1,5 @@
 "use client"
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
     Search, Music, ChevronRight, ChevronDown,
     MoreHorizontal, Settings, Trash2, Save,
@@ -8,9 +8,33 @@ import {
 } from 'lucide-react'
 import { useProjectStore } from '@/store/projectStore'
 import { libraryData, Preset, Category } from '@/lib/libraryData'
+import { useInstruments } from '@/hooks/useInstruments'
+
+interface SoundFontItem {
+    id: string
+    name: string
+    category: string
+    fileUrl: string
+    fileSizeKb: number
+    storagePath: string
+    createdAt: string
+}
+
+interface Sf2Preset {
+    index: number
+    name: string
+    bank: number
+    program: number
+}
+
+interface SfPresetWithId extends Sf2Preset {
+    id: string
+}
+
+type UnifiedPreset = Preset | SfPresetWithId
 
 export function LibraryPanel() {
-    const { 
+    const {
         showLibrary, focusedTrackId, updateTrack, tracks,
         librarySearchQuery, setLibrarySearchQuery,
         libraryPatchMerging, toggleLibraryPatchMerging,
@@ -18,30 +42,156 @@ export function LibraryPanel() {
         librarySelectedPresetId, setLibrarySelectedPresetId,
         applyPatch
     } = useProjectStore()
-    
-    const [selectedCategory, setSelectedCategory] = useState<Category | null>(libraryData[1]) // Default to Synthesizers
+
+    const { loadSoundFont } = useInstruments()
+
+    const [selectedCategory, setSelectedCategory] = useState<Category | null>(libraryData[0])
     const [showActionsMenu, setShowActionsMenu] = useState(false)
+    const [dynamicSoundFonts, setDynamicSoundFonts] = useState<SoundFontItem[]>([])
+    const [loadingSoundFonts, setLoadingSoundFonts] = useState(true)
+    const [soundFontsError, setSoundFontsError] = useState<string | null>(null)
+
+    // Dynamic presets for the currently selected SoundFont category
+    const [sfPresets, setSfPresets] = useState<Sf2Preset[]>([])
+    const [loadingSfPresets, setLoadingSfPresets] = useState(false)
+    const [currentSfItem, setCurrentSfItem] = useState<SoundFontItem | null>(null)
 
     const track = tracks.find(t => t.id === focusedTrackId)
 
+    // Fetch uploaded SoundFonts from the API
+    useEffect(() => {
+        async function fetchSoundFonts() {
+            try {
+                const res = await fetch('/api/soundfonts')
+                if (!res.ok) throw new Error('Failed to fetch')
+                const data: SoundFontItem[] = await res.json()
+                setDynamicSoundFonts(data)
+            } catch (err) {
+                setSoundFontsError(err instanceof Error ? err.message : 'Unknown error')
+            } finally {
+                setLoadingSoundFonts(false)
+            }
+        }
+        fetchSoundFonts()
+    }, [])
+
+    // Build categories: static + each uploaded SoundFont as its own category
+    const categories = useMemo(() => {
+        const cats = [...libraryData]
+
+        dynamicSoundFonts.forEach(sf => {
+            cats.push({
+                name: sf.name,
+                presets: [{
+                    id: `sf-category-${sf.id}`,
+                    name: sf.name,
+                    type: 'instrument',
+                    category: sf.name,
+                    engine: 'soundfont',
+                    description: `${sf.category} • ${Math.round(sf.fileSizeKb / 1024 * 10) / 10} MB`,
+                    icon: 'music',
+                    color: '#FF6B35',
+                    samplePath: sf.fileUrl,
+                }]
+            })
+        })
+
+        return cats
+    }, [dynamicSoundFonts])
+
     const filteredCategories = useMemo(() => {
-        if (!librarySearchQuery) return libraryData
-        return libraryData.filter(cat =>
+        if (!librarySearchQuery) return categories
+        return categories.filter(cat =>
             cat.name.toLowerCase().includes(librarySearchQuery.toLowerCase()) ||
             cat.presets.some(p => p.name.toLowerCase().includes(librarySearchQuery.toLowerCase()))
         )
-    }, [librarySearchQuery])
+    }, [categories, librarySearchQuery])
 
-    const handlePresetSelect = (preset: Preset) => {
+    // Auto-select first category if current selection is invalid
+    useMemo(() => {
+        if (selectedCategory && !filteredCategories.find(c => c.name === selectedCategory.name)) {
+            setSelectedCategory(filteredCategories[0] || null)
+        }
+    }, [filteredCategories, selectedCategory])
+
+    // Fetch SF2 presets when a SoundFont category is selected
+useEffect(() => {
+        if (!selectedCategory) return
+
+        const sfItem = dynamicSoundFonts.find(sf => sf.name === selectedCategory.name)
+        if (!sfItem) {
+            setShowSfPresets(false)
+            setSfPresets([])
+            setCurrentSfItem(null)
+            return
+        }
+
+        async function fetchPresets(item: SoundFontItem) {
+            setLoadingSfPresets(true)
+            try {
+                const res = await fetch(`/api/soundfonts/${item.id}/presets`)
+                if (!res.ok) throw new Error('Failed to fetch presets')
+                const data = await res.json()
+                setSfPresets(data.presets)
+                setCurrentSfItem(item)
+                setShowSfPresets(true)
+            } catch (err) {
+                console.error('Failed to load SF2 presets:', err)
+                setSfPresets([])
+                setShowSfPresets(false)
+            } finally {
+                setLoadingSfPresets(false)
+            }
+        }
+        fetchPresets(sfItem)
+    }, [selectedCategory, dynamicSoundFonts])
+
+    const [showSfPresets, setShowSfPresets] = useState(false)
+
+    const handlePresetSelect = useCallback((preset: Preset) => {
         setLibrarySelectedPresetId(preset.id)
         if (!focusedTrackId) return
-        applyPatch(focusedTrackId, preset.id)
-    }
+
+        if (preset.id.startsWith('sf-preset-')) {
+            updateTrack(focusedTrackId, { instrument: preset.name } as any)
+        } else {
+            applyPatch(focusedTrackId, preset.id)
+        }
+    }, [focusedTrackId, setLibrarySelectedPresetId, updateTrack, applyPatch])
+
+    const handleSfPresetSelect = useCallback((sfPreset: SfPresetWithId) => {
+        if (!focusedTrackId || !currentSfItem) return
+        setLibrarySelectedPresetId(sfPreset.id)
+        loadSoundFont(focusedTrackId, currentSfItem.fileUrl, sfPreset.index, currentSfItem.id)
+    }, [focusedTrackId, currentSfItem, setLibrarySelectedPresetId, loadSoundFont])
+
+    const handleCategoryClick = useCallback((cat: Category) => {
+        setSelectedCategory(cat)
+        const sfItem = dynamicSoundFonts.find(sf => sf.name === cat.name)
+        if (sfItem) {
+            // The useEffect will handle fetching presets
+        } else {
+            setShowSfPresets(false)
+            setSfPresets([])
+            setCurrentSfItem(null)
+        }
+    }, [dynamicSoundFonts])
 
     if (!showLibrary) return null
 
+    // Determine which presets to show
+    const presetsToShow: UnifiedPreset[] = useMemo(() => {
+        if (showSfPresets && currentSfItem) {
+            return sfPresets.map(p => ({
+                ...p,
+                id: `sf-preset-${currentSfItem.id}-${p.index}`
+            }))
+        }
+        return selectedCategory?.presets || []
+    }, [showSfPresets, currentSfItem, sfPresets, selectedCategory])
+
     return (
-        <div className="w-[320px] h-full bg-[#1e1e1e] border-r border-black flex flex-col shrink-0 z-50 overflow-hidden shadow-2xl select-none text-gray-300">
+        <div className="w-[320px] h-full bg-[#1e1e1e] border-r border-[var(--accent-cyan)]/40 flex flex-col shrink-0 z-50 overflow-hidden shadow-2xl select-none text-gray-300">
 
             {/* 1. Header Area */}
             <div className="pt-2 px-4 flex flex-col items-center gap-1 shrink-0 pb-4">
@@ -78,7 +228,7 @@ export function LibraryPanel() {
                         placeholder="Search Sounds"
                         value={librarySearchQuery}
                         onChange={(e) => setLibrarySearchQuery(e.target.value)}
-                        className="w-full bg-black/40 border border-[#333] rounded h-[26px] pl-10 pr-3 text-[11px] font-bold text-gray-200 placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-sky-500/50 transition-all shadow-inner"
+                        className="w-full bg-black/40 border border-[var(--accent-cyan)]/40 rounded h-[26px] pl-10 pr-3 text-[11px] font-bold text-gray-200 placeholder-gray-700 focus:outline-none focus:border-[var(--accent-cyan)] focus:shadow-[0_0_10px_var(--accent-cyan-glow)] transition-all shadow-inner"
                     />
                 </div>
             </div>
@@ -87,36 +237,73 @@ export function LibraryPanel() {
             <div className="flex-1 flex min-h-0 border-t border-black bg-[#1a1a1a]">
                 {/* Categories Column */}
                 <div className="w-[140px] h-full overflow-y-auto custom-scrollbar border-r border-black/50 bg-[#1e1e1e]">
-                    {filteredCategories.map((cat, idx) => (
+                    {loadingSoundFonts && (
+                        <div className="h-7 px-2 flex items-center text-gray-600 text-[10px]">Loading…</div>
+                    )}
+                    {soundFontsError && (
+                        <div className="h-7 px-2 flex items-center text-red-500 text-[10px]">Error</div>
+                    )}
+                    {!loadingSoundFonts && !soundFontsError && filteredCategories.map((cat, idx) => (
                         <div
                             key={cat.name}
-                            onClick={() => setSelectedCategory(cat)}
-                            className={`h-7 px-2 flex items-center justify-between group cursor-pointer border-b border-black/10 transition-colors ${selectedCategory?.name === cat.name ? 'bg-sky-500/10 text-white' : 'hover:bg-white/[0.03]'}`}
+onClick={() => handleCategoryClick(cat)}
+                                            className={`h-7 px-2 flex items-center justify-between group cursor-pointer border-b border-black/10 transition-colors ${selectedCategory?.name === cat.name ? 'bg-[var(--accent-cyan)]/10 text-white' : 'hover:bg-white/[0.03]'}`}
                         >
                             <div className="flex items-center gap-2 truncate">
                                 <span className="text-[10px] font-bold text-white/30 tabular-nums">{(idx + 1).toString().padStart(2, '0')}</span>
-                                <span className={`text-[11px] font-bold truncate ${selectedCategory?.name === cat.name ? 'text-sky-400' : 'text-gray-400'}`}>
+                                <span className={`text-[11px] font-bold truncate ${selectedCategory?.name === cat.name ? 'text-[var(--accent-cyan)]' : 'text-gray-400'}`}>
                                     {cat.name}
                                 </span>
                             </div>
-                            <ChevronRight className={`w-3 h-3 ${selectedCategory?.name === cat.name ? 'text-sky-400' : 'text-gray-700 group-hover:text-gray-500'}`} />
+                            <ChevronRight className={`w-3 h-3 ${selectedCategory?.name === cat.name ? 'text-[var(--accent-cyan)]' : 'text-gray-700 group-hover:text-gray-500'}`} />
                         </div>
                     ))}
+                    {!loadingSoundFonts && !soundFontsError && filteredCategories.length === 0 && (
+                        <div className="text-gray-800 text-[11px] text-center pt-4">No categories match your search.</div>
+                    )}
                 </div>
 
                 {/* Patches Column */}
                 <div className="flex-1 h-full overflow-y-auto custom-scrollbar bg-[#161616]">
-                    {selectedCategory?.presets.map(preset => (
-                        <div
-                            key={preset.id}
-                            onClick={() => handlePresetSelect(preset)}
-                            className={`h-7 px-4 flex items-center justify-between group cursor-pointer border-b border-black/10 transition-colors ${librarySelectedPresetId === preset.id ? 'bg-sky-600 text-white shadow-[inset_0_0_10px_rgba(255,255,255,0.1)]' : 'hover:bg-white/[0.03]'}`}
-                        >
-                            <span className={`text-[11px] font-bold truncate ${librarySelectedPresetId === preset.id ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
-                                {preset.name}
-                            </span>
-                        </div>
-                    ))}
+                    {loadingSoundFonts && (
+                        <div className="h-7 px-4 flex items-center text-gray-600 text-[11px]">Loading SoundFonts…</div>
+                    )}
+                    {soundFontsError && (
+                        <div className="h-7 px-4 flex items-center text-red-500 text-[11px]">Error: {soundFontsError}</div>
+                    )}
+                    {!loadingSoundFonts && !soundFontsError && (
+                        <>
+                            {showSfPresets && loadingSfPresets && (
+                                <div className="h-7 px-4 flex items-center text-gray-600 text-[11px]">Loading presets…</div>
+                            )}
+                            {presetsToShow.map((preset, idx) => (
+                                <div
+                                    key={preset.id ?? preset.name ?? idx}
+onClick={() => {
+                                    if ('index' in preset) {
+                                        handleSfPresetSelect(preset as SfPresetWithId)
+                                    } else {
+                                        handlePresetSelect(preset as Preset)
+                                    }
+                                }}
+                                className={`h-7 px-4 flex items-center justify-between group cursor-pointer border-b border-black/10 transition-colors ${librarySelectedPresetId === preset.id ? 'bg-[var(--accent-cyan)]/15 text-white shadow-[inset_0_0_10px_var(--accent-cyan-glow)]' : 'hover:bg-white/[0.03]'}`}
+                                >
+                                    <span className={`text-[11px] font-bold truncate ${librarySelectedPresetId === preset.id ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
+                                        {preset.name}
+                                    </span>
+                                </div>
+                            ))}
+                            {!showSfPresets && selectedCategory?.presets?.length === 0 && (
+                                <div className="text-gray-800 text-[11px] text-center pt-8">No sounds in this category.</div>
+                            )}
+                            {showSfPresets && !loadingSfPresets && sfPresets.length === 0 && (
+                                <div className="text-gray-800 text-[11px] text-center pt-8">No presets found in this SoundFont.</div>
+                            )}
+                            {!selectedCategory && !showSfPresets && (
+                                <div className="text-gray-800 text-[11px] text-center pt-8">Select a category.</div>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -126,9 +313,9 @@ export function LibraryPanel() {
                     <button onClick={() => toggleLibraryPatchMerging()} className="p-1 hover:text-white transition-colors"><X className="w-3 h-3" /></button>
                     {(['midiEffects', 'instruments', 'audioEffects', 'sends'] as const).map(opt => (
                         <button
-                            key={opt}
-                            onClick={() => setLibraryMergingOption(opt, !libraryMergingOptions[opt])}
-                            className={`flex-1 h-7 rounded text-[8px] font-black uppercase transition-all ${libraryMergingOptions[opt] ? 'bg-sky-500 text-white shadow-lg' : 'bg-black/40 text-gray-500 hover:text-gray-300'}`}
+key={opt}
+                                        onClick={() => setLibraryMergingOption(opt, !libraryMergingOptions[opt])}
+                                        className={`flex-1 h-7 rounded text-[8px] font-black uppercase transition-all ${libraryMergingOptions[opt] ? 'bg-[var(--accent-cyan)] text-black shadow-lg' : 'bg-black/40 text-gray-500 hover:text-[var(--accent-cyan)]'}`}
                         >
                             {opt.replace('Effects', ' FX')}
                         </button>
@@ -152,16 +339,16 @@ export function LibraryPanel() {
                 <div className="flex-1 flex items-center justify-between gap-1 pb-1 relative">
                     <div className="flex gap-1 items-center">
                         <div className="relative">
-                            <button 
-                                onClick={() => setShowActionsMenu(!showActionsMenu)}
-                                className={`w-8 h-[24px] flex items-center justify-center border border-black/40 rounded shadow-sm transition-colors ${showActionsMenu ? 'bg-sky-500 text-white' : 'bg-[#111] hover:bg-[#333]'}`}
+                            <button
+onClick={() => setShowActionsMenu(!showActionsMenu)}
+                                                className={`w-8 h-[24px] flex items-center justify-center border border-[var(--accent-cyan)]/40 rounded shadow-sm transition-all ${showActionsMenu ? 'bg-[var(--accent-cyan)] text-black' : 'bg-[#111] hover:bg-[var(--accent-cyan)]/10 hover:text-[var(--accent-cyan)]'}`}
                             >
                                 <MoreHorizontal className="w-3.5 h-3.5" />
                                 <ChevronDown className="w-2 h-2 ml-0.5 opacity-50" />
                             </button>
                             {showActionsMenu && (
                                 <div className="absolute bottom-full left-0 mb-2 w-48 bg-[#2c2c2e] border border-white/10 rounded-lg shadow-2xl z-[100] py-1 overflow-hidden">
-                                    <button 
+                                    <button
                                         className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors flex items-center justify-between"
                                         onClick={() => { toggleLibraryPatchMerging(!libraryPatchMerging); setShowActionsMenu(false); }}
                                     >

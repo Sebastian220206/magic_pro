@@ -1,33 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateChordProgression, suggestNextChord } from '@/lib/openai';
+import { badRequest, requireUserId, withApiHandler } from '@/lib/apiAuth';
+import { AI_RATE_LIMIT, enforceSharedRateLimit } from '@/lib/rateLimit';
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { action, key, genre, mood, length, progression } = body;
+export const POST = withApiHandler('ai.chords', async (request: NextRequest) => {
+  const userId = await requireUserId();
+  await enforceSharedRateLimit(`ai:${userId}`, AI_RATE_LIMIT);
 
-    if (action === 'generate') {
-      const chords = await generateChordProgression(
-        key || 'C major',
-        genre || 'pop',
-        mood || 'upbeat',
-        length || 4
-      );
-      return NextResponse.json({ chords });
-    }
+  const body = await request.json();
+  const { action, key, genre, mood, length, progression } = body;
 
-    if (action === 'suggest') {
-      const suggestions = await suggestNextChord(
-        progression || [],
-        key || 'C major',
-        genre || 'pop'
-      );
-      return NextResponse.json({ suggestions });
-    }
-
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  } catch (error) {
-    console.error('AI Chords error:', error);
-    return NextResponse.json({ error: 'Failed to generate chords' }, { status: 500 });
+  if (action === 'generate') {
+    const bars = Math.min(Math.max(Number(length) || 4, 1), 16);
+    const chords = await generateChordProgression(
+      key || 'C major',
+      genre || 'pop',
+      mood || 'upbeat',
+      bars,
+    );
+    return NextResponse.json({ chords });
   }
-}
+
+  if (action === 'suggest') {
+    const chords = await suggestNextChord(
+      Array.isArray(progression) ? progression.slice(0, 32) : [],
+      key || 'C major',
+      genre || 'pop',
+    );
+    return NextResponse.json({ suggestions: chords });
+  }
+
+  throw badRequest('Invalid action');
+});

@@ -7,7 +7,7 @@ export interface ViewportState {
 }
 
 export interface NavigationVector {
-  type: 'pan' | 'zoom';
+  type: 'pan' | 'zoom' | 'zoom-vertical';
   dx: number;
   dy: number;
   anchorX: number;

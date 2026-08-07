@@ -24,6 +24,9 @@ interface ResolvedSampleZone {
     attenuation: number;
     pan: number;
     adsr: ADSREnvelopeParams;
+    /** Absolute indices into the font's sample pool, offsets already applied. */
+    sampleStart: number;
+    sampleEnd: number;
     loopStart: number;
     loopEnd: number;
     sampleModes: number;
@@ -75,19 +78,23 @@ export class SamplePlayer {
 
             const header = headers[sampleId];
 
-            const keyRangeLo = (genMap.get(GenOper.keyRange) ?? 0) & 0xff;
-            const keyRangeHi = ((genMap.get(GenOper.keyRange) ?? 0xff00) >> 8) & 0xff;
-            const velRangeLo = (genMap.get(GenOper.velRange) ?? 0) & 0xff;
-            const velRangeHi = ((genMap.get(GenOper.velRange) ?? 0xff00) >> 8) & 0xff;
+            const keyRange = genMap.get(GenOper.keyRange) ?? 0x7f00;
+            const velRange = genMap.get(GenOper.velRange) ?? 0x7f00;
+            const keyRangeLo = keyRange & 0xff;
+            const keyRangeHi = (keyRange >> 8) & 0xff;
+            const velRangeLo = velRange & 0xff;
+            const velRangeHi = (velRange >> 8) & 0xff;
 
-            const rootKey = genMap.has(GenOper.overridingRootKey)
+            const rootKey = genMap.has(GenOper.overridingRootKey) && genMap.get(GenOper.overridingRootKey)! >= 0
                 ? genMap.get(GenOper.overridingRootKey)!
                 : header.originalPitch;
-            const fineTune = genMap.get(GenOper.fineTune) ?? header.pitchCorrection;
+            // The sample header's own correction always applies; a zone's
+            // fineTune is an additional offset, not a replacement for it.
+            const fineTune = (genMap.get(GenOper.fineTune) ?? 0) + header.pitchCorrection;
             const coarseTune = genMap.get(GenOper.coarseTune) ?? 0;
             const attenuation = (genMap.get(GenOper.initialAttenuation) ?? 0) / 10;
-            const panValue = (genMap.get(GenOper.pan) ?? 0);
-            const pan = panValue >= 500 ? (panValue - 500) / 500 : panValue / 500;
+            // SF2 pan is signed tenths of a percent: -500 hard left, +500 hard right.
+            const pan = Math.max(-1, Math.min(1, (genMap.get(GenOper.pan) ?? 0) / 500));
             const scaleTuning = genMap.get(GenOper.scaleTuning) ?? 100;
 
             const adsrGenMap = new Map<number, number>();
@@ -115,7 +122,7 @@ export class SamplePlayer {
             const loopStart = header.startLoop + startLoopOffset + loopStartCoarse * 32768;
             const loopEnd = header.endLoop + endLoopOffset + loopEndCoarse * 32768;
 
-            const sampleModes = genMap.get(GenOper.sampleModes) ?? 1;
+            const sampleModes = genMap.get(GenOper.sampleModes) ?? 0;
             const exclusiveClass = genMap.get(GenOper.exclusiveClass) ?? 0;
             const overrideRootKey = genMap.get(GenOper.overridingRootKey) ?? -1;
 
@@ -131,6 +138,8 @@ export class SamplePlayer {
                 attenuation,
                 pan,
                 adsr,
+                sampleStart,
+                sampleEnd,
                 loopStart,
                 loopEnd,
                 sampleModes,
@@ -162,25 +171,20 @@ export class SamplePlayer {
             clampedVel >= z.velRangeLo && clampedVel <= z.velRangeHi
         );
 
-        // 3. Fallback: Find zones with the closest velocity range if no exact match
+        // 3. Fallback for fonts with gaps in their velocity split: play the
+        //    nearest layer rather than nothing. Ties are broken by keeping the
+        //    lowest velocity floor, so a gap never stacks a whole velocity
+        //    split's worth of samples onto one key.
         if (matchingZones.length === 0) {
-            let minDistance = Infinity;
-            const zonesWithDistance = keyMatchingZones.map(z => {
-                let dist = 0;
-                if (clampedVel < z.velRangeLo) {
-                    dist = z.velRangeLo - clampedVel;
-                } else if (clampedVel > z.velRangeHi) {
-                    dist = clampedVel - z.velRangeHi;
-                }
-                if (dist < minDistance) {
-                    minDistance = dist;
-                }
-                return { zone: z, dist };
-            });
+            const distance = (z: ResolvedSampleZone) =>
+                clampedVel < z.velRangeLo ? z.velRangeLo - clampedVel
+                    : clampedVel > z.velRangeHi ? clampedVel - z.velRangeHi
+                        : 0;
 
-            matchingZones = zonesWithDistance
-                .filter(zd => zd.dist === minDistance)
-                .map(zd => zd.zone);
+            const minDistance = Math.min(...keyMatchingZones.map(distance));
+            const nearest = keyMatchingZones.filter(z => distance(z) === minDistance);
+            const floor = Math.min(...nearest.map(z => z.velRangeLo));
+            matchingZones = nearest.filter(z => z.velRangeLo === floor);
         }
 
         if (matchingZones.length === 0) return;
@@ -192,11 +196,14 @@ export class SamplePlayer {
             const header = headers[zone.sampleIndex];
             if (!header) continue;
 
+            // SF2 exclusive class: a new voice silences any sounding voice in
+            // the same class, whatever its note — that is how a closed hi-hat
+            // cuts the open one. This used to search only voices on the *same*
+            // note, so nothing was ever choked.
             if (zone.exclusiveClass > 0) {
-                const existing = this.voiceAllocator.findVoicesForNote(note);
-                for (const v of existing) {
+                for (const v of this.voiceAllocator.getVoices()) {
                     if ((v as any)._exclusiveClass === zone.exclusiveClass) {
-                        v.stop();
+                        v.choke(time);
                     }
                 }
             }
@@ -211,25 +218,35 @@ export class SamplePlayer {
 
             const sampleRate = this.presetManager.getSampleRate();
             const centsPerSemitone = 100;
-            const noteDiff = note - zone.rootKey + zone.coarseTune * 1 + zone.fineTune / centsPerSemitone;
+            // scaleTuning is cents of pitch change per semitone of key travel
+            // (100 = normal, 0 = every key plays at the sample's own pitch,
+            // which is how most drum kits are mapped).
+            const keyTravel = (note - zone.rootKey) * (zone.scaleTuning / 100);
+            const noteDiff = keyTravel + zone.coarseTune + zone.fineTune / centsPerSemitone;
             const playbackRate = Math.pow(2, noteDiff / 12);
 
-            const key = `sf2-${zone.sampleIndex}-${sampleRate}`;
-            const sampleLen = header.end - header.start;
+            // Honour the zone's start/end address offsets, and slice via
+            // subarray so a sample pool with a non-zero byteOffset still reads
+            // correctly.
+            const start = Math.max(0, Math.min(zone.sampleStart, sampleData.length));
+            const end = Math.max(start, Math.min(zone.sampleEnd, sampleData.length));
+            const sampleLen = end - start;
             if (sampleLen <= 0) continue;
 
-            const sampleSlice = new Float32Array(sampleData.buffer, header.start * 4, sampleLen);
-            const audioBuffer = this.sampleManager.getOrCreateBuffer(key, sampleSlice, sampleRate);
+            const key = `sf2-${zone.sampleIndex}-${start}-${end}-${sampleRate}`;
+            const audioBuffer = this.sampleManager.getOrCreateBuffer(
+                key, sampleData.subarray(start, end), sampleRate);
 
-            const sampleOffsetSamples = zone.loopStart - header.start;
-            const sampleOffsetTime = Math.max(0, sampleOffsetSamples / sampleRate);
+            const gain = Math.pow(10, -zone.attenuation / 20);
 
-            const attGain = Math.pow(10, -zone.attenuation / 20);
-            const gain = attGain;
-
-            const loopStartTime = zone.loopStart > 0 ? (zone.loopStart - header.start) / sampleRate : 0;
-            const loopEndTime = zone.loopEnd > 0 ? (zone.loopEnd - header.start) / sampleRate : 0;
-            const hasLoop = zone.sampleModes > 1 && loopEndTime > loopStartTime;
+            // sampleModes: 1 = loop continuously, 3 = loop until release.
+            // 0 and 2 are unlooped. This used to test `> 1`, which looped the
+            // one unlooped mode and left the most common looped mode dry.
+            const loopStartTime = (zone.loopStart - start) / sampleRate;
+            const loopEndTime = (zone.loopEnd - start) / sampleRate;
+            const hasLoop = (zone.sampleModes === 1 || zone.sampleModes === 3)
+                && loopEndTime > loopStartTime
+                && loopStartTime >= 0;
 
             voice.start({
                 destination: this.destination,
@@ -240,7 +257,9 @@ export class SamplePlayer {
                 adsr: zone.adsr,
                 loopStart: hasLoop ? loopStartTime : undefined,
                 loopEnd: hasLoop ? loopEndTime : undefined,
-                sampleOffset: sampleOffsetTime,
+                // Playback starts at the top of the slice. It used to start at
+                // the loop point, which skipped every sample's attack.
+                sampleOffset: 0,
             }, time);
         }
     }

@@ -12,6 +12,7 @@ model User {
   email                     String    @unique
   passwordHash              String
   name                      String?
+  role                      String    @default("user")
   planTier                  String    @default("free")
   stripeCustomerId          String?
   stripeSubscriptionId      String?
@@ -141,4 +142,35 @@ model Soundfont {
   updatedAt   DateTime @updatedAt
 
   @@index([userId])
+}
+
+/// A fixed rate-limit window, shared by every server instance.
+///
+/// Counters used to live in process memory, which on a serverless host means
+/// each concurrently-warm instance enforces its own separate quota — so the
+/// real limit was the configured one multiplied by however many instances the
+/// platform happened to spin up. That matters because the endpoints it guards
+/// bill per call to OpenAI.
+model RateLimitWindow {
+  /// Scope being limited, e.g. `ai:<userId>`.
+  key       String   @id
+  count     Int      @default(0)
+  /// When the window rolls over and `count` restarts.
+  resetAt   DateTime
+
+  /// Expired rows are swept in bulk.
+  @@index([resetAt])
+}
+
+model SoundFontLibraryItem {
+  id           String   @id @default(cuid())
+  name         String
+  category     String
+  fileUrl      String
+  fileSizeKb   Int
+  storagePath  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([category])
 }

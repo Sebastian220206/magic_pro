@@ -2,7 +2,7 @@ export { SoundFontParser, SoundFontParser as Sf2Parser } from './SoundFontParser
 export type { Sf2ParsedData, Sf2Preset, Sf2Instrument, Sf2SampleHeader, Sf2Generator, Sf2Zone } from './SoundFontParser';
 export { GenOper } from './SoundFontParser';
 
-export { createDefaultADSR, adsrFromSF2Generators, scheduleADSR } from './ADSREnvelope';
+export { createDefaultADSR, adsrFromSF2Generators, scheduleAttack, scheduleRelease, envelopeLevelAt } from './ADSREnvelope';
 export type { ADSREnvelopeParams } from './ADSREnvelope';
 
 export { Voice, VoiceState } from './Voice';

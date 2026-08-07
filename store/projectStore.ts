@@ -10,6 +10,19 @@ import { rebuildEngine } from '@/engine/persistence/engineRebuilder';
 import { storeAudioFile } from '@/engine/persistence/audioFileStore';
 import { extractPeaksAsync } from '@/engine/waveform';
 import { bufferCacheManager } from '@/engine/audioEngine/bufferCache';
+import { renderTrackOffline, freezeBufferId, freezeClipId } from '@/engine/audioEngine/trackRender';
+import { routingEngine } from '@/engine/audioEngine/routingEngine';
+import { exportProjectAudio, downloadExport } from '@/engine/export/projectExport';
+import { exportStems as renderStems } from '@/engine/export/stemExport';
+import type { StemExportSettings, Stem } from '@/engine/export/stemExport';
+import { analyseLoudness as measureLoudness, gainToMatchRms as rmsGain } from '@/engine/metering/offlineLoudness';
+import type { LoudnessAnalysis } from '@/engine/metering/offlineLoudness';
+import { tuneVocal, cleanVocal, alignmentOffset, SCALES } from '@/engine/audio/vocalEditing';
+import type { ProjectExportSettings, ProjectExportResult } from '@/engine/export/projectExport';
+import { initializeInstruments } from '@/engine/instruments/instrumentBootstrap';
+import { BUILTIN_PLUGIN_IDS, BUILTIN_PLUGIN_NAMES, resolvePluginId } from '@/engine/plugins/pluginIds';
+import { getGridSize } from '@/engine/midi/quantization';
+import type { GridDivision } from '@/engine/midi/types';
 
 interface GlobalTrackPoint {
     time: number; // beats
@@ -63,6 +76,8 @@ interface ProjectAlternative {
 
 interface ProjectSettings {
     sampleRate: 44100 | 48000 | 88200 | 96000 | 176400 | 192000;
+    /** Bit depth for bounces and delivery. */
+    bitDepth: 16 | 24 | 32;
     frameRate: number;
     metronome: {
         simpleMode: boolean;
@@ -164,17 +179,6 @@ export interface ControlSurfaceDevice {
     inputId?: string;
     outputId?: string;
     enabled: boolean;
-}
-
-export interface ControlSurfaceAssignment {
-    id: string;
-    deviceId?: string;
-    status: number; // MIDI status byte (e.g., 0x90 note on, 0x80 note off, 0xB0 cc)
-    channel: number; // MIDI channel 0-15
-    data1: number; // note number or CC number
-    data2?: number; // optional value (for fixed matches) or ignore for wildcard
-    mode: 'toggle' | 'direct' | 'relative';
-    commandId: string;
 }
 
 export interface ControlSurfaceAssignment {
@@ -491,12 +495,16 @@ interface ProjectState {
     play: () => void;
     stop: () => void;
     setTempo: (bpm: number) => void;
+    /** e.g. "4/4", "3/4", "6/8". */
+    setTimeSignature: (signature: string) => void;
+    /** e.g. "C major", "A minor". */
+    setKeySignature: (key: string) => void;
     movePlayhead: (position: number) => void;
     addAlternative: (name: string) => void;
     switchToAlternative: (id: string) => void;
     createTrackStack: (trackIds: string[], type: 'Folder' | 'Summing') => void;
     flattenStack: (stackId: string) => void;
-    addMarker: (time: number, text: string) => void;
+    addMarker: (time: number, text: string, duration?: number) => void;
     updateTempoPoint: (index: number, updates: Partial<GlobalTrackPoint>) => void;
     updateControlBar: (updates: Partial<ControlBarSettings>) => void;
     toggleFloatingWindow: (type: 'giantBeats' | 'giantTime') => void;
@@ -504,9 +512,10 @@ interface ProjectState {
     setNewTrackDefaults: (updates: Partial<ProjectState['newTrackDefaults']>) => void;
     toggleCreateTrackUsing: (show: boolean, items?: any[]) => void;
     createTrackFromSamplerType: (type: 'Quick Sampler (Original)' | 'Quick Sampler (Optimized)' | 'Drum Machine Designer' | 'Sample Alchemy' | 'Sampler (Zone Per Note)', items: any[]) => void;
-    saveProject: (userId: string) => Promise<void>;
-    saveAs: (data: any, userId?: string) => Promise<void>;
-    saveCopyAs: (data: any, userId?: string) => Promise<void>;
+    // Ownership is derived from the server session; the client cannot choose it.
+    saveProject: () => Promise<void>;
+    saveAs: (data: any) => Promise<void>;
+    saveCopyAs: (data: any) => Promise<void>;
     saveAsTemplate: (name: string) => Promise<void>;
     revertTo: (version?: string) => void;
     loadProject: (projectId: string) => Promise<void>;
@@ -534,6 +543,8 @@ interface ProjectState {
     setTakeColor: (clipId: string, color: string) => void;
 
     saveTakeFolderComp: (clipId: string, name?: string) => void;
+    /** Fold several recorded takes into one take-folder region. */
+    createTakeFolder: (trackId: string, clipIds: string[], name?: string) => string | null;
     createTakeFolderComp: (clipId: string, name?: string) => void;
     selectTakeFolderComp: (clipId: string, compId: string) => void;
     renameTakeFolderComp: (clipId: string, compId: string, name: string) => void;
@@ -567,7 +578,53 @@ interface ProjectState {
     addTrack: (track: Partial<Track>) => void;
     updateTrack: (id: string, updates: Partial<Track>) => void;
     deleteTrack: (id: string) => void;
-    addPlugin: (trackId: string, pluginType: 'comp' | 'eq' | 'reverb' | 'delay') => void;
+    /** Insert a plugin on a track. Accepts any registered plugin id. */
+    addPlugin: (trackId: string, pluginType: string) => void;
+    /** Inserts across the summed mix — bus compression, limiting. */
+    masterPlugins: PluginSetting[];
+    addMasterPlugin: (pluginType: string) => void;
+    removeMasterPlugin: (pluginId: string) => void;
+    toggleMasterPlugin: (pluginId: string) => void;
+    updateMasterPluginParams: (pluginId: string, params: Record<string, number>) => void;
+    /** Create or update a track's send to a bus. Level 0-1. */
+    setTrackSend: (trackId: string, busId: string, level: number) => void;
+    /** Route a track's main output into a bus (or 'stereo-out'). */
+    routeTrackTo: (trackId: string, busId: string) => void;
+    /** Playback offset in ms, for nudging a layer behind its partner. */
+    setTrackDelay: (trackId: string, ms: number) => void;
+    /** `direct` bypasses the master chain — used for reference tracks. */
+    setTrackMonitorMode: (trackId: string, mode: 'normal' | 'direct') => void;
+    /** Key a plugin (a compressor) from another track's signal. */
+    setSidechainSource: (trackId: string, pluginId: string, sourceTrackId: string) => void;
+    clearSidechainSource: (trackId: string, pluginId: string) => void;
+    /** Repeat a region to fill [startBeat, endBeat). Returns the new clip ids. */
+    duplicateClipAcross: (clipId: string, startBeat: number, endBeat: number) => string[];
+    /** Interpolated value of an automation lane at a point in time. */
+    automationValueAt: (trackId: string, parameter: string, time: number) => number | undefined;
+    /** Monitor path: 'stereo' normally, 'mono' for a phase check. */
+    monitorMode: 'stereo' | 'mono';
+    setMonitorMode: (mode: 'stereo' | 'mono') => void;
+    /** Current peak level of a track or bus, in dBFS. */
+    getBusPeakDb: (trackId: string) => number;
+    /** Offline loudness analysis of rendered channel data. */
+    analyseLoudness: (channels: Float32Array[], sampleRate: number) => LoudnessAnalysis;
+    /** Gain needed to bring a buffer to a target RMS, for reference matching. */
+    gainToMatchRms: (samples: Float32Array, targetRmsDb: number) => number;
+    /** Render one aligned audio file per bus. */
+    exportStems: (settings?: StemExportSettings) => Promise<Stem[]>;
+
+    // --- Vocal editing (Session 5) ---
+    /** Tune a vocal clip in place, snapping to the project key. */
+    tuneVocalClip: (clipId: string, options?: {
+        strength?: number; retuneSeconds?: number; scale?: number[];
+    }) => Promise<boolean>;
+    /** Nudge `clipId` into time with `referenceClipId`. Returns the offset in seconds. */
+    alignClipTo: (clipId: string, referenceClipId: string) => Promise<number | null>;
+    /** Duck breaths and repair mouth clicks on a clip. */
+    cleanVocalClip: (clipId: string, options?: {
+        breathReductionDb?: number; breathThresholdDb?: number;
+    }) => Promise<boolean>;
+    removeTrackSend: (trackId: string, busId: string) => void;
     togglePlugin: (trackId: string, pluginId: string) => void;
     addClip: (clip: Clip) => void;
     currentTool: 'select' | 'split' | 'draw' | 'erase' | 'zoom' | 'mute'
@@ -633,6 +690,16 @@ interface ProjectState {
     updateClip: (id: string, updates: Partial<Clip>) => void;
     deleteClip: (id: string) => void;
     addNote: (clipId: string, note: Note) => void;
+    /**
+     * Quantize every note in a region to a grid.
+     * `division` is 4 for quarter notes, 16 for sixteenths, and so on.
+     */
+    quantizeClipNotes: (
+        clipId: string,
+        division: GridDivision,
+        strength?: number,
+        swing?: number,
+    ) => void;
     updateNote: (clipId: string, noteId: string, updates: Partial<Note>) => void;
     deleteNote: (clipId: string, noteId: string) => void;
     addAnnotation: (annotation: TimelineAnnotation) => void;
@@ -703,6 +770,12 @@ interface ProjectState {
 
     // --- New Professional Track Actions ---
     updateTrackParameter: (trackId: string, params: Partial<Pick<Track, 'protected' | 'frozen' | 'enabled' | 'freezeMode'>>) => void;
+    /** Render a track offline and play the render instead of its source. */
+    freezeTrack: (trackId: string) => Promise<void>;
+    /** Restore a frozen track's source material. */
+    unfreezeTrack: (trackId: string) => void;
+    /** Tracks currently rendering, for progress UI. */
+    freezingTrackIds: string[];
     addTrackAlternative: (trackId: string, options?: { duplicate?: boolean, nameByRegion?: boolean }) => void;
     deleteInactiveAlternatives: (trackId: string) => void;
     setActiveAlternative: (trackId: string, alternativeId: string) => void;
@@ -771,6 +844,28 @@ interface ProjectState {
     addPluginToSBP: (set: 'A' | 'B', pluginType: string) => void;
     removePluginFromSBP: (setSide: 'A' | 'B', pluginId: string) => void;
     updatePluginParams: (trackId: string, pluginId: string, params: Record<string, number>) => void;
+    /** Track the plugin browser is adding to, or null when closed. */
+    pluginBrowserTrackId: string | null;
+    /** Which half of the catalogue to show: effects, instruments, or both. */
+    pluginBrowserMode: 'all' | 'instrument' | 'effect';
+    setPluginBrowserTrack: (
+        trackId: string | null,
+        mode?: 'all' | 'instrument' | 'effect',
+    ) => void;
+    /** Load a Web Audio Module instrument onto a track. Returns success. */
+    setWamInstrument: (
+        trackId: string,
+        entry: { identifier: string; name: string; url: string },
+    ) => Promise<boolean>;
+    /** Insert a Web Audio Module plugin. Returns the new instance id. */
+    addWamPlugin: (
+        trackId: string,
+        entry: { identifier: string; name: string; url: string },
+    ) => string;
+    /** Remove one plugin instance from a track's chain. */
+    removePlugin: (trackId: string, pluginId: string) => void;
+    /** Move a plugin within a track's chain, changing processing order. */
+    reorderPlugins: (trackId: string, fromIndex: number, toIndex: number) => void;
 
     // Stacks & Groove
     toggleStackCollapse: (trackId: string, recursive?: boolean) => void;
@@ -782,12 +877,15 @@ interface ProjectState {
     toggleBounceTrackDialog: (trackId?: string | null) => void;
     toggleBounceRegionsDialog: (clipIds?: string[] | null) => void;
     toggleBounceAllTracksDialog: (show?: boolean) => void;
-    bounceTrackInPlace: (trackId: string, settings: any) => void;
+    /** Render a track to audio on a new track. Awaitable: it renders offline. */
+    bounceTrackInPlace: (trackId: string, settings: any) => Promise<void>;
     bounceRegionsInPlace: (clipIds: string[], settings: any) => void;
     bounceReplaceAllTracks: (settings: any) => void;
     toggleExportDialog: (type: ProjectState['showExportDialog']) => void;
     setShowSettingsDialog: (show: boolean, tab?: string, subTab?: string) => void;
     exportAsAudioFiles: (settings: any) => void;
+    /** Render the project offline and return the buffer plus an encoded file. */
+    exportProject: (settings?: ProjectExportSettings) => Promise<ProjectExportResult>;
     toggleShareDialog: (show?: boolean) => void;
     shareProject: (options: { format: 'project' | 'song' | 'aaf' | 'xml' | 'musicxml'; destination: 'download' | 'web-share'; includeAssets: boolean; compress: boolean; customName: string}) => Promise<void>;
     setOpenPluginEditor: (editor: { trackId: string; pluginId: string } | null) => void;
@@ -845,15 +943,32 @@ function createHistorySnapshot(state: ProjectState): Partial<ProjectState> {
         tempo: state.tempo,
         timeSignature: state.timeSignature,
         keySignature: state.keySignature,
-        tracks: state.tracks.map(t => ({ ...t })),
-        clips: state.clips.map(c => ({ ...c })),
+        tracks: (state.tracks ?? []).map(t => ({ ...t })),
+        clips: (state.clips ?? []).map(c => ({ ...c })),
         annotations: state.annotations ? state.annotations.map(a => ({ ...a })) : undefined,
-        alternatives: state.alternatives ? state.alternatives.map(a => ({ ...a, tracks: a.tracks.map(t => ({ ...t })), clips: a.clips.map(c => ({ ...c })) })) : undefined,
+        // An alternative restored from a project that predates track/clip
+        // snapshots has neither array; mapping them unguarded threw and took
+        // undo down with it.
+        alternatives: state.alternatives
+            ? state.alternatives.map(a => ({
+                ...a,
+                tracks: (a.tracks ?? []).map(t => ({ ...t })),
+                clips: (a.clips ?? []).map(c => ({ ...c })),
+            }))
+            : undefined,
         currentAlternativeId: state.currentAlternativeId,
         globalTracks: state.globalTracks ? JSON.parse(JSON.stringify(state.globalTracks)) : undefined,
         settings: state.settings ? { ...state.settings } : undefined,
         globalSettings: undefined,
-        environment: state.environment ? { ...state.environment, layers: state.environment.layers.map(l => ({ ...l })), objects: state.environment.objects.map(o => ({ ...o })) } : undefined,
+        // `GET /api/project/[id]` returns `environment: {}` when a project has
+        // none — truthy, but with no layers/objects to map.
+        environment: state.environment
+            ? {
+                ...state.environment,
+                layers: (state.environment.layers ?? []).map(l => ({ ...l })),
+                objects: (state.environment.objects ?? []).map(o => ({ ...o })),
+            }
+            : undefined,
         projectKeyCommands: state.projectKeyCommands ? state.projectKeyCommands.map(k => ({ ...k })) : undefined,
         zoom: state.zoom,
         trackHeight: state.trackHeight,
@@ -935,7 +1050,13 @@ function createHistorySnapshot(state: ProjectState): Partial<ProjectState> {
         showStepInputKeyboard: state.showStepInputKeyboard,
         stepInputSettings: state.stepInputSettings ? { ...state.stepInputSettings } : undefined,
         channelStripSettings: state.channelStripSettings ? state.channelStripSettings.map(c => ({ ...c, settings: { ...c.settings, plugins: c.settings.plugins.map(p => ({ ...p })), sends: c.settings.sends.map(s => ({ ...s })) } })) : undefined,
-        channelStripCopyBuffer: state.channelStripCopyBuffer ? { ...state.channelStripCopyBuffer, plugins: state.channelStripCopyBuffer.plugins.map(p => ({ ...p })), sends: state.channelStripCopyBuffer.sends.map(s => ({ ...s })) } : undefined,
+        channelStripCopyBuffer: state.channelStripCopyBuffer
+            ? {
+                ...state.channelStripCopyBuffer,
+                plugins: (state.channelStripCopyBuffer.plugins ?? []).map(p => ({ ...p })),
+                sends: (state.channelStripCopyBuffer.sends ?? []).map(s => ({ ...s })),
+            }
+            : undefined,
         channelStripPerformances: state.channelStripPerformances ? state.channelStripPerformances.map(p => ({ ...p, settings: { ...p.settings, plugins: p.settings.plugins.map(p2 => ({ ...p2 })), sends: p.settings.sends.map(s => ({ ...s })) } })) : undefined,
         librarySearchQuery: state.librarySearchQuery,
         libraryPatchMerging: state.libraryPatchMerging,
@@ -949,6 +1070,90 @@ function createHistorySnapshot(state: ProjectState): Partial<ProjectState> {
     };
 }
 
+/**
+ * Push the project's click-track preferences into the audio engine and switch
+ * the click on or off for the transport mode we are entering.
+ *
+ * Logic Pro semantics: in simple mode `metronomeEnabled` is the only switch; in
+ * advanced mode playback and recording have independent toggles.
+ */
+function syncMetronome(
+    settings: ProjectSettings,
+    metronomeEnabled: boolean,
+    mode: 'play' | 'record' | 'stop',
+): void {
+    const m = settings.metronome;
+
+    audioEngine.configureMetronome({
+        accentLevel: m.accentLevel,
+        clickLevel: m.clickLevel,
+        polyphonicClick: m.polyphonicClick,
+    });
+
+    if (mode === 'stop') {
+        audioEngine.setMetronomeEnabled(false);
+        return;
+    }
+
+    const active = m.simpleMode
+        ? metronomeEnabled
+        : (mode === 'record' ? m.clickWhileRecording : m.clickWhilePlaying);
+
+    audioEngine.setMetronomeEnabled(active);
+}
+
+
+/** Scale degrees implied by a key signature string like "A minor". */
+function scaleFromKeySignature(key: string): { tonic: number; scale: number[] } {
+    const PITCH_CLASSES: Record<string, number> = {
+        C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5,
+        'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11,
+    };
+    const match = /^([A-G][#b]?)\s*(.*)$/.exec(key.trim());
+    if (!match) return { tonic: 0, scale: SCALES.chromatic };
+
+    const tonic = PITCH_CLASSES[match[1]] ?? 0;
+    const mode = match[2].toLowerCase();
+    const scale = mode.startsWith('min') ? SCALES.minor
+        : mode.startsWith('maj') || mode === '' ? SCALES.major
+            : SCALES.chromatic;
+    return { tonic, scale };
+}
+
+/** The decoded audio behind a clip, if it has been loaded. */
+function clipBuffer(get: () => ProjectState, clipId: string): AudioBuffer | null {
+    const clip = get().clips.find(c => c.id === clipId);
+    if (!clip) return null;
+    return bufferCacheManager.getBuffer(clip.storageKey ?? clip.sampleId ?? clip.id) ?? null;
+}
+
+/**
+ * Run a per-channel edit over a clip's audio and put the result back in the
+ * buffer cache, so playback and export both pick it up.
+ *
+ * Destructive by design — these are print-style edits, and the take folder is
+ * what preserves the original.
+ */
+async function editClipSamples(
+    get: () => ProjectState,
+    clipId: string,
+    edit: (samples: Float32Array, sampleRate: number) => Float32Array,
+): Promise<boolean> {
+    const ctx = audioEngine.getContext();
+    const source = clipBuffer(get, clipId);
+    const clip = get().clips.find(c => c.id === clipId);
+    if (!ctx || !source || !clip) return false;
+
+    const edited = ctx.createBuffer(source.numberOfChannels, source.length, source.sampleRate);
+    for (let channel = 0; channel < source.numberOfChannels; channel++) {
+        const result = edit(source.getChannelData(channel), source.sampleRate);
+        edited.getChannelData(channel).set(result.subarray(0, source.length));
+    }
+
+    bufferCacheManager.addBuffer(clip.storageKey ?? clip.sampleId ?? clip.id, edited, clip.name);
+    return true;
+}
+
 export const useProjectStore = create<ProjectState>((set, get) => ({
     id: null,
     name: "Logic Pro Project",
@@ -960,6 +1165,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     playhead: 0,
     tracks: [],
     clips: [],
+    masterPlugins: [],
+    monitorMode: 'stereo',
     annotations: [],
     alternatives: [],
     currentAlternativeId: null,
@@ -972,6 +1179,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     },
     settings: {
         sampleRate: 48000,
+        bitDepth: 24,
         frameRate: 25,
         metronome: {
             simpleMode: false, clickWhilePlaying: true, clickWhileRecording: true, onlyDuringCountIn: false,
@@ -1211,9 +1419,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         clockFormat: '1 1 1 1'
     },
     showAutomation: false,
-    showLibrary: true,
-    showInspector: true,
-    showToolbar: true,
+    showLibrary: false,
+    showInspector: false,
+    showToolbar: false,
     showSmartControls: false,
     showMixer: false,
     showEditors: false,
@@ -1231,6 +1439,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     showGlobalTracks: false,
     beatMappingMode: false,
     metronomeEnabled: true,
+    freezingTrackIds: [],
     countInEnabled: false,
     countInBars: 1,
     hideViewActive: false,
@@ -1286,7 +1495,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     showBounceAllTracksDialog: false,
     showExportDialog: null,
     showSettingsDialog: false,
-    settingsActiveTab: '',
+    settingsActiveTab: 'General',
     settingsActiveSubTab: '',
     showShareDialog: false,
     showNoteRepeatDialog: false,
@@ -1398,11 +1607,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     },
 
     play: () => {
-        const { clips, playhead, metronomeEnabled, tracks, globalTracks } = get();
+        const { clips, playhead, metronomeEnabled, tracks, globalTracks, settings, recording } = get();
         set({ playing: true });
         const currentTempoIdx = globalTracks.tempo.reduce((prev, curr, idx) => curr.time <= playhead ? idx : prev, 0);
-        const activeTempo = typeof globalTracks.tempo[currentTempoIdx].value === 'number' ? globalTracks.tempo[currentTempoIdx].value as number : 120;
+        // A project restored with an empty tempo track would otherwise index undefined.
+        const activeTempo = typeof globalTracks.tempo[currentTempoIdx]?.value === 'number' ? globalTracks.tempo[currentTempoIdx].value as number : 120;
         audioEngine.setTempo(activeTempo);
+        syncMetronome(settings, metronomeEnabled, recording ? 'record' : 'play');
         tracks.forEach(t => {
             audioEngine.getTrackNodes(t.id);
             audioEngine.updateFXChain(t.id, t.plugins);
@@ -1440,41 +1651,35 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         });
 
         if (playhead > 0) get().chaseEvents(playhead);
-        // Audio clips are scheduled by useAudioPlayer hook via advancedScheduler.
-        // Only schedule MIDI clips here since the scheduler doesn't handle MIDI notes.
-        clips.forEach(clip => {
-            if (clip.type !== 'midi') return;
-            const track = tracks.find(t => t.id === clip.trackId);
-            if (!track) return;
-            const isMuted = track.muted || (anySolo && !track.soloed);
-            if (isMuted) return;
 
-            let totalTranspose = (clip.transpose || 0) + (track.transpose || 0);
-            let totalVelocity = (clip.velocityOffset || 0) + (track.velocityOffset || 0);
-            if (track.parentId) {
-                const parent = tracks.find(p => p.id === track.parentId);
-                if (parent && parent.stackType === 'Summing') {
-                    totalTranspose += (parent.transpose || 0);
-                    totalVelocity += (parent.velocityOffset || 0);
-                }
-            }
-            const finalClip = { ...clip, transpose: totalTranspose, velocityOffset: totalVelocity };
-            if (clip.start - playhead >= 0 || Math.abs(clip.start - playhead) < clip.duration) {
-                audioEngine.playRegion(clip.trackId, finalClip, playhead);
-            }
-        });
+        // Both audio and MIDI clips are scheduled by useAudioPlayer via
+        // advancedScheduler, which sequences MIDI notes across the whole region.
+        // This used to call audioEngine.playRegion() once per clip, which fired
+        // only the notes sounding under the playhead at this instant — so MIDI
+        // regions never actually played.
 
-        
+
         const loop = () => {
             if (!get().playing) return;
             const state = get();
             const { playhead, globalTracks, cycleEnabled, skipCycleEnabled, locatorLeft, locatorRight, recording, autopunchEnabled, autopunchStart, autopunchEnd, liveRecordingClips, focusedTrackId } = state;
             
             const newIdx = globalTracks.tempo.reduce((p, c, i) => c.time <= playhead ? i : p, 0);
-            const currentTempo = typeof globalTracks.tempo[newIdx].value === 'number' ? globalTracks.tempo[newIdx].value as number : 120;
-            const increment = (currentTempo / 60 / 60);
-            let nextPlayhead = playhead + increment;
-            
+            const currentTempo = typeof globalTracks.tempo[newIdx]?.value === 'number' ? globalTracks.tempo[newIdx].value as number : 120;
+
+            // Follow the audio clock. The scheduler derives this beat from
+            // AudioContext.currentTime — the same value it schedules notes
+            // against — so the visible playhead cannot drift from what is
+            // heard. Accumulating a per-frame increment (the previous
+            // approach) drifts whenever the frame rate deviates from 60fps.
+            const engineBeat = audioEngine.isPlaying ? audioEngine.getCurrentBeat() : NaN;
+            let nextPlayhead = Number.isFinite(engineBeat) && engineBeat >= 0
+                ? engineBeat
+                // Before the scheduler is armed there is no audio clock to read,
+                // so fall back to frame accumulation for those first frames.
+                : playhead + (currentTempo / 60 / 60);
+
+
             const wrapped = (skipCycleEnabled && nextPlayhead >= locatorLeft && playhead < locatorLeft) || (cycleEnabled && !skipCycleEnabled && nextPlayhead >= locatorRight);
             if (skipCycleEnabled && nextPlayhead >= locatorLeft && playhead < locatorLeft) nextPlayhead = locatorRight;
             else if (cycleEnabled && !skipCycleEnabled && nextPlayhead >= locatorRight) nextPlayhead = locatorLeft;
@@ -1618,9 +1823,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             // Finalize recordings
             set({ recording: false });
         }
-        if (s.playing) { 
-            set({ playing: false, recording: false, recordingStartTime: null, liveRecordingClips: {} }); 
-            audioEngine.stopAll(); 
+        if (s.playing) {
+            set({ playing: false, recording: false, recordingStartTime: null, liveRecordingClips: {} });
+            audioEngine.stopAll();
+            syncMetronome(s.settings, s.metronomeEnabled, 'stop');
         }
         else { set({ playhead: 0 }); }
     },
@@ -1639,6 +1845,37 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             return { tempo: bpm, globalTracks: { ...s.globalTracks, tempo: updated } };
         });
         audioEngine.setTempo(bpm);
+    },
+
+    /**
+     * Set the project's time signature, e.g. "4/4".
+     *
+     * `timeSignature` and `keySignature` are top-level state read by the piano
+     * roll, the ruler and the metronome, but `updateProjectSettings` only ever
+     * merged into `settings` — so neither could be changed after the project
+     * was created. Malformed input is ignored rather than left to blow up
+     * `timeSignature.split('/')` downstream.
+     */
+    setTimeSignature: (signature) => {
+        const match = /^(\d{1,2})\/(1|2|4|8|16|32)$/.exec(signature.trim());
+        if (!match) {
+            console.warn(`[Project] Ignoring malformed time signature "${signature}"`);
+            return;
+        }
+        const numerator = Number(match[1]);
+        if (numerator < 1 || numerator > 32) return;
+
+        set({ timeSignature: `${numerator}/${match[2]}`, isDirty: true });
+
+        // The metronome accents beat 1, so it has to know the new bar length.
+        const { settings, metronomeEnabled, playing, recording } = get();
+        if (playing) syncMetronome(settings, metronomeEnabled, recording ? 'record' : 'play');
+    },
+
+    setKeySignature: (key) => {
+        const trimmed = key.trim();
+        if (!trimmed) return;
+        set({ keySignature: trimmed, isDirty: true });
     },
 
     movePlayhead: (position) => {
@@ -1680,7 +1917,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     flattenStack: (stackId) => set(s => ({ tracks: s.tracks.filter(t => t.id !== stackId).map(t => t.parentId === stackId ? { ...t, parentId: undefined, outputBusId: 'stereo-out' } : t) })),
 
-    addMarker: (time, text) => set(s => ({ globalTracks: { ...s.globalTracks, markers: [...s.globalTracks.markers, { id: Date.now().toString(), time, duration: 4, text, color: '#fbc02d' }] } })),
+    /**
+     * Add a marker. `duration` makes it a section *region* rather than a point,
+     * which is what an arrangement map needs — it used to hardcode 4 beats, so
+     * every section marker claimed exactly one bar regardless of the section.
+     */
+    addMarker: (time, text, duration = 4) => set(s => ({
+        globalTracks: {
+            ...s.globalTracks,
+            markers: [
+                ...s.globalTracks.markers,
+                { id: `marker-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, time, duration, text, color: '#fbc02d' },
+            ],
+        },
+    })),
 
     toggleBeatMapping: () => set(s => ({ beatMappingMode: !s.beatMappingMode })),
 
@@ -1744,7 +1994,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         set({ showCreateTrackUsing: false, draggedItems: null });
     },
 
-    saveProject: async (userId) => {
+    saveProject: async () => {
         const state = get();
         const { id, name, tempo, tracks, clips, globalTracks, settings, currentAlternativeId, alternatives, globalSettings, environment, projectFormat, surroundFormat, spatialAudioMode, timeSignature, keySignature } = state;
 
@@ -1766,7 +2016,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     id,
-                    userId,
                     name,
                     tempo,
                     timeSignature,
@@ -1811,7 +2060,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     id: newId,
-                    userId: 'user-1',
                     name: data.name,
                     tempo,
                     timeSignature,
@@ -1852,7 +2100,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     id: copyId,
-                    userId: 'user-1',
                     name: data.name,
                     tempo,
                     timeSignature,
@@ -1881,6 +2128,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         get().loadGlobalSettings();
         let loaded = false;
 
+        // If the requested project is already in memory (e.g. just created from
+        // a template before autosave persisted it), keep it — the engine is
+        // already wired and a reload would race the pending autosave.
+        const inMemory = get();
+        if (inMemory.id === projectId && (inMemory.tracks?.length || inMemory.clips?.length)) {
+            loaded = true;
+        }
+
         // Try IndexedDB first (fast, offline-capable)
         if (typeof window !== 'undefined') {
             try {
@@ -1893,6 +2148,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                     const result = await rebuildEngine({
                         tracks: restored.tracks || [],
                         clips: restored.clips || [],
+                        masterPlugins: restored.masterPlugins || [],
                         tempo: restored.tempo || 120,
                         projectFormat: restored.projectFormat,
                         surroundFormat: restored.surroundFormat,
@@ -1932,9 +2188,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                         spatialAudioMode: data.spatialAudioMode || get().spatialAudioMode,
                         tracks: tracks.map((t: any) => { const { clips, ...trackData } = t; return trackData; }),
                         clips,
-                        globalTracks: data.globalTracks || get().globalTracks,
-                        settings: data.settings || get().settings,
-                        globalSettings: data.globalSettings || get().globalSettings,
+                        globalTracks: { ...get().globalTracks, ...(data.globalTracks ?? {}) },
+                        // Merge rather than replace: a stored payload may predate
+                        // fields the engine now requires (masterVolume, metronome,
+                        // …), and dropping them hands undefined to AudioParams.
+                        settings: { ...get().settings, ...(data.settings ?? {}) },
+                        globalSettings: { ...get().globalSettings, ...(data.globalSettings ?? {}) },
                         environment: data.environment || get().environment,
                         alternatives: data.alternatives || [],
                         currentAlternativeId: data.currentAlternativeId || null
@@ -1943,6 +2202,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                     const result = await rebuildEngine({
                         tracks: tracks.map((t: any) => { const { clips, ...trackData } = t; return trackData; }),
                         clips,
+                        masterPlugins: data.masterPlugins || [],
                         tempo: data.tempo || 120,
                         projectFormat: data.projectFormat,
                         surroundFormat: data.surroundFormat,
@@ -2037,8 +2297,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 key: legacyData.key || [{ time: 0, root: 'C', mode: 'major' }],
                 beatMapping: legacyData.beatMapping || []
             },
-            settings: legacyData.settings || get().settings,
-            globalSettings: legacyData.globalSettings || get().globalSettings,
+            settings: { ...get().settings, ...(legacyData.settings ?? {}) },
+            globalSettings: { ...get().globalSettings, ...(legacyData.globalSettings ?? {}) },
             environment: legacyData.environment || get().environment,
             alternatives: legacyData.alternatives || [],
             currentAlternativeId: legacyData.currentAlternativeId || null
@@ -2156,11 +2416,327 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     },
 
     addPlugin: (trackId, pluginType) => {
-        const pluginNames = { comp: 'Compressor', eq: 'Channel EQ', reverb: 'Space Designer', delay: 'Delay Designer' };
-        const newPlugin = { id: Math.random().toString(), pluginId: pluginType, name: pluginNames[pluginType] as string, enabled: true, params: {} };
-        set(s => ({ tracks: s.tracks.map(t => t.id === trackId ? { ...t, plugins: [...t.plugins, newPlugin] } : t) }));
+        // Store the canonical id so old and new spellings converge; existing
+        // projects keep whatever they were saved with and are resolved on load.
+        const pluginId = resolvePluginId(pluginType);
+        const newPlugin: PluginSetting = {
+            id: `plugin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            pluginId,
+            name: BUILTIN_PLUGIN_NAMES[pluginId] ?? pluginType,
+            enabled: true,
+            params: {},
+            format: 'builtin',
+            insertPoint: 'pre',
+        };
+        set(s => ({
+            tracks: s.tracks.map(t => t.id === trackId ? { ...t, plugins: [...t.plugins, newPlugin] } : t),
+            isDirty: true,
+        }));
         const track = get().tracks.find(t => t.id === trackId);
         if (track) audioEngine.updateFXChain(trackId, track.plugins);
+    },
+
+    /**
+     * Route some of a track's signal to a bus — the reverb/delay send that a
+     * mix is normally built on.
+     *
+     * `Track.sends` existed in the model and the routing engine already builds
+     * a gain node per send, but nothing could create one: there was no action,
+     * so the only sends that ever appeared came from loading a saved channel
+     * strip.
+     */
+    /**
+     * Add a plugin to the master bus.
+     *
+     * There was no master insert chain at all: `addPlugin` only ever wrote to
+     * a track, so the mastering step — light bus compression and a limiter
+     * across the mix — had nowhere to live.
+     */
+    addMasterPlugin: (pluginType) => {
+        const pluginId = resolvePluginId(pluginType);
+        const plugin: PluginSetting = {
+            id: `master-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            pluginId,
+            name: BUILTIN_PLUGIN_NAMES[pluginId] ?? pluginType,
+            enabled: true,
+            params: {},
+            format: 'builtin',
+            insertPoint: 'pre',
+        };
+        set(s => ({ masterPlugins: [...(s.masterPlugins ?? []), plugin], isDirty: true }));
+        audioEngine.updateMasterFXChain(get().masterPlugins);
+    },
+
+    removeMasterPlugin: (pluginId) => {
+        set(s => ({
+            masterPlugins: (s.masterPlugins ?? []).filter(p => p.id !== pluginId),
+            isDirty: true,
+        }));
+        audioEngine.updateMasterFXChain(get().masterPlugins);
+    },
+
+    toggleMasterPlugin: (pluginId) => {
+        set(s => ({
+            masterPlugins: (s.masterPlugins ?? []).map(p =>
+                p.id === pluginId ? { ...p, enabled: !p.enabled } : p),
+            isDirty: true,
+        }));
+        audioEngine.updateMasterFXChain(get().masterPlugins);
+    },
+
+    updateMasterPluginParams: (pluginId, params) => {
+        set(s => ({
+            masterPlugins: (s.masterPlugins ?? []).map(p =>
+                p.id === pluginId ? { ...p, params: { ...p.params, ...params } } : p),
+            isDirty: true,
+        }));
+        const plugin = get().masterPlugins.find(p => p.id === pluginId);
+        if (plugin) routingEngine.getMasterProcessor(pluginId)?.setParams(plugin.params);
+    },
+
+    /**
+     * Route a track's output into a bus.
+     *
+     * `Track.outputBusId` existed, `engineRebuilder` restored it and the
+     * routing engine acted on it — but nothing in the store could *set* it, so
+     * a bus tree (drums → mix → master) could not be built at all.
+     */
+    routeTrackTo: (trackId, busId) => {
+        if (trackId === busId) {
+            console.warn('[Routing] Refusing to route a track into itself');
+            return;
+        }
+        // Walk up from the destination; if we meet this track, the assignment
+        // would close a loop and the graph would feed back on itself.
+        const tracks = get().tracks;
+        let hop: string | undefined = busId;
+        const seen = new Set<string>();
+        while (hop && hop !== 'stereo-out' && !seen.has(hop)) {
+            if (hop === trackId) {
+                console.warn(`[Routing] Refusing to create a feedback loop via ${busId}`);
+                return;
+            }
+            seen.add(hop);
+            hop = tracks.find(t => t.id === hop)?.outputBusId;
+        }
+
+        set(sx => ({
+            tracks: sx.tracks.map(t => t.id === trackId ? { ...t, outputBusId: busId } : t),
+            isDirty: true,
+        }));
+        audioEngine.routeTrackToTrack(trackId, busId);
+    },
+
+    setTrackDelay: (trackId, ms) => {
+        const clamped = Number.isFinite(ms) ? Math.max(-500, Math.min(500, ms)) : 0;
+        set(sx => ({
+            tracks: sx.tracks.map(t => t.id === trackId ? { ...t, delay: clamped } : t),
+            isDirty: true,
+        }));
+        audioEngine.setTrackDelay?.(trackId, clamped);
+    },
+
+    setTrackMonitorMode: (trackId, mode) => {
+        set(sx => ({
+            tracks: sx.tracks.map(t => t.id === trackId ? { ...t, monitorMode: mode } : t),
+            isDirty: true,
+        }));
+        audioEngine.setTrackMonitorMode?.(trackId, mode);
+    },
+
+    setSidechainSource: (trackId, pluginId, sourceTrackId) => {
+        if (trackId === sourceTrackId) {
+            console.warn('[Sidechain] A track cannot key itself');
+            return;
+        }
+        // Only the sidechain compressor has a key input; keying a plain
+        // compressor would silently do nothing.
+        const plugin = get().tracks.find(t => t.id === trackId)?.plugins
+            .find(p => p.id === pluginId);
+        if (plugin && plugin.pluginId !== BUILTIN_PLUGIN_IDS.sidechainCompressor) {
+            console.warn(
+                `[Sidechain] "${plugin.name}" has no key input — add a Sidechain Comp instead.`,
+            );
+            return;
+        }
+        set(sx => ({
+            tracks: sx.tracks.map(t => t.id === trackId
+                ? { ...t, plugins: t.plugins.map(p => p.id === pluginId ? { ...p, sidechainSourceId: sourceTrackId } : p) }
+                : t),
+            isDirty: true,
+        }));
+        audioEngine.setSidechainSource?.(trackId, pluginId, sourceTrackId);
+    },
+
+    clearSidechainSource: (trackId, pluginId) => {
+        set(sx => ({
+            tracks: sx.tracks.map(t => t.id === trackId
+                ? { ...t, plugins: t.plugins.map(p => p.id === pluginId ? { ...p, sidechainSourceId: undefined } : p) }
+                : t),
+            isDirty: true,
+        }));
+        audioEngine.clearSidechainSource?.(trackId, pluginId);
+    },
+
+    /**
+     * Repeat a region to fill a range — how a loop becomes an arrangement.
+     * Copies are laid end to end and the last one is trimmed to the boundary.
+     */
+    duplicateClipAcross: (clipId, startBeat, endBeat) => {
+        const source = get().clips.find(c => c.id === clipId);
+        if (!source || !(source.duration > 0) || !(endBeat > startBeat)) return [];
+
+        const copies: Clip[] = [];
+        const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        let at = startBeat;
+        let index = 0;
+
+        // Guard the loop as well as the range: a tiny duration over a long span
+        // would otherwise allocate an unbounded number of regions.
+        const maxCopies = 2048;
+        while (at < endBeat && index < maxCopies) {
+            if (Math.abs(at - source.start) > 1e-9) {
+                copies.push({
+                    ...source,
+                    id: `clip-${stamp}-${index}`,
+                    start: at,
+                    duration: Math.min(source.duration, endBeat - at),
+                    notes: source.notes?.map(n => ({ ...n })),
+                });
+            }
+            at += source.duration;
+            index++;
+        }
+
+        if (copies.length === 0) return [];
+        set(sx => ({ clips: [...sx.clips, ...copies], isDirty: true }));
+        return copies.map(c => c.id);
+    },
+
+    /**
+     * Interpolated automation value. The store could record points but nothing
+     * could read a lane back, so an automation curve was write-only.
+     */
+    automationValueAt: (trackId, parameter, time) => {
+        const lane = get().tracks.find(t => t.id === trackId)
+            ?.automation?.find(a => a.parameter === parameter);
+        const points = lane?.points;
+        if (!points?.length) return undefined;
+
+        const sorted = [...points].sort((a, b) => a.time - b.time);
+        if (time <= sorted[0].time) return sorted[0].value;
+        if (time >= sorted[sorted.length - 1].time) return sorted[sorted.length - 1].value;
+
+        for (let i = 0; i < sorted.length - 1; i++) {
+            const a = sorted[i], b = sorted[i + 1];
+            if (time >= a.time && time <= b.time) {
+                const span = b.time - a.time;
+                if (span <= 0) return b.value;
+                return a.value + (b.value - a.value) * ((time - a.time) / span);
+            }
+        }
+        return sorted[sorted.length - 1].value;
+    },
+
+    setMonitorMode: (mode) => {
+        set({ monitorMode: mode });
+        audioEngine.setMonitorMode?.(mode);
+    },
+
+    getBusPeakDb: (trackId) => {
+        const level = audioEngine.getTrackPeak?.(trackId) ?? 0;
+        return level > 0 ? 20 * Math.log10(level) : -Infinity;
+    },
+
+    analyseLoudness: (channels, sampleRate) => measureLoudness(channels, sampleRate),
+
+    gainToMatchRms: (samples, targetRmsDb) => rmsGain(samples, targetRmsDb),
+
+    /**
+     * Tune a vocal region.
+     *
+     * The scale comes from the project key unless one is given, so tuning
+     * follows the song rather than needing to be set twice.
+     */
+    tuneVocalClip: async (clipId, options = {}) => {
+        const edited = await editClipSamples(get, clipId, (samples, sampleRate) => {
+            const { tonic, scale } = scaleFromKeySignature(get().keySignature);
+            return tuneVocal(samples, {
+                sampleRate,
+                tonic,
+                scale: options.scale ?? scale,
+                strength: options.strength ?? 0.8,
+                retuneSeconds: options.retuneSeconds ?? 0.06,
+            });
+        });
+        return edited;
+    },
+
+    alignClipTo: async (clipId, referenceClipId) => {
+        const ctx = audioEngine.getContext();
+        const target = clipBuffer(get, clipId);
+        const reference = clipBuffer(get, referenceClipId);
+        if (!ctx || !target || !reference) return null;
+
+        const offset = alignmentOffset(
+            reference.getChannelData(0), target.getChannelData(0), target.sampleRate);
+        const seconds = offset / target.sampleRate;
+
+        // Move the region rather than rewriting its audio: non-destructive, and
+        // it stays legible in the arrangement.
+        const clip = get().clips.find(c => c.id === clipId);
+        if (clip) {
+            const secondsPerBeat = 60 / get().tempo;
+            get().moveClip(clipId, Math.max(0, clip.start + seconds / secondsPerBeat));
+        }
+        return seconds;
+    },
+
+    cleanVocalClip: async (clipId, options = {}) =>
+        editClipSamples(get, clipId, (samples, sampleRate) =>
+            cleanVocal(samples, sampleRate, options)),
+
+    exportStems: async (settings = {}) => {
+        const sx = get();
+        return renderStems(
+            {
+                tracks: sx.tracks,
+                clips: sx.clips,
+                tempo: sx.tempo,
+                projectName: sx.name,
+                masterPlugins: sx.masterPlugins,
+            },
+            settings,
+        );
+    },
+
+    setTrackSend: (trackId, busId, level) => {
+        const clamped = Number.isFinite(level) ? Math.max(0, Math.min(1, level)) : 0;
+        set(s => ({
+            tracks: s.tracks.map(t => {
+                if (t.id !== trackId) return t;
+                const sends = t.sends ?? [];
+                const existing = sends.findIndex(x => x.busId === busId);
+                return {
+                    ...t,
+                    sends: existing >= 0
+                        ? sends.map((x, i) => i === existing ? { ...x, level: clamped } : x)
+                        : [...sends, { busId, level: clamped }],
+                };
+            }),
+            isDirty: true,
+        }));
+        audioEngine.routeTrackToBus(trackId, busId, clamped);
+    },
+
+    removeTrackSend: (trackId, busId) => {
+        set(s => ({
+            tracks: s.tracks.map(t => t.id === trackId
+                ? { ...t, sends: (t.sends ?? []).filter(x => x.busId !== busId) }
+                : t),
+            isDirty: true,
+        }));
+        audioEngine.routeTrackToBus(trackId, busId, 0);
     },
 
     togglePlugin: (trackId, pluginId) => {
@@ -2477,28 +3053,56 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     setAudioTrackEditorHeight: (height) => set({ audioTrackEditorHeight: Math.max(120, Math.min(450, height)) }),
     setAudioTrackEditorWaveformZoom: (zoom) => set({ audioTrackEditorWaveformZoom: Math.max(0.5, Math.min(8, zoom)) }),
 
+    /**
+     * Split a region in two at `time` (in beats).
+     *
+     * Works on MIDI as well as audio. It used to bail on anything that was not
+     * `type === 'audio'`, so a MIDI region — the thing you actually cut when
+     * arranging a programmed part — could not be split at all.
+     *
+     * MIDI notes are partitioned by where they start, and a note straddling the
+     * cut is shortened to end at it rather than being duplicated into both
+     * halves or left hanging past the region boundary.
+     */
     splitClipAtTime: (clipId, time) => {
         const s = get();
         const clip = s.clips.find(c => c.id === clipId);
-        if (!clip || clip.type !== 'audio') return;
+        if (!clip) return;
         const splitPoint = Math.max(clip.start, Math.min(clip.start + clip.duration, time));
         if (splitPoint <= clip.start || splitPoint >= clip.start + clip.duration) return;
 
-        const first = {
+        const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const first: Clip = {
             ...clip,
-            id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-a`,
-            duration: splitPoint - clip.start
+            id: `clip-${stamp}-a`,
+            duration: splitPoint - clip.start,
         };
-        const second = {
+        const second: Clip = {
             ...clip,
-            id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-b`,
+            id: `clip-${stamp}-b`,
             start: splitPoint,
-            duration: clip.start + clip.duration - splitPoint
+            duration: clip.start + clip.duration - splitPoint,
         };
+
+        if (clip.notes?.length) {
+            // Note positions are relative to the clip, so the second half's
+            // notes have to be rebased onto its new start.
+            const cut = splitPoint - clip.start;
+            first.notes = clip.notes
+                .filter(n => n.start < cut)
+                .map(n => n.start + n.duration > cut
+                    ? { ...n, duration: cut - n.start }
+                    : { ...n });
+            second.notes = clip.notes
+                .filter(n => n.start >= cut)
+                .map(n => ({ ...n, start: n.start - cut }));
+        }
+
         set({
             clips: [...s.clips.filter(c => c.id !== clipId), first, second],
             selectedClipIds: [first.id, second.id],
-            selectedClipId: second.id
+            selectedClipId: second.id,
+            isDirty: true,
         });
     },
 
@@ -2931,6 +3535,40 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     addNote: (clipId, note) => set(s => ({ clips: s.clips.map(c => c.id === clipId ? { ...c, notes: [...(c.notes || []), note] } : c) })),
 
+    /**
+     * Quantize a whole region's notes.
+     *
+     * The piano roll could already quantize a *selection* (`midiStore
+     * .quantizeSelected`), but tightening a recorded or programmed part from
+     * the arrangement — the normal editing step — had no entry point at all.
+     *
+     * Snapping happens in timeline beats, not clip-relative ones, so a region
+     * that does not itself start on the grid still lands its notes on it.
+     */
+    quantizeClipNotes: (clipId, division, strength = 1, swing = 0) => {
+        const clip = get().clips.find(c => c.id === clipId);
+        if (!clip?.notes?.length) return;
+
+        const grid = getGridSize(division);
+        if (!(grid > 0)) return;
+        const amount = Math.max(0, Math.min(1, strength));
+        const swingOffset = Math.max(0, Math.min(1, swing)) * grid * 0.5;
+
+        const quantized = clip.notes.map(note => {
+            const absolute = clip.start + note.start;
+            const index = Math.round(absolute / grid);
+            // Swing pushes every other grid position later.
+            const target = index * grid + (index % 2 === 1 ? swingOffset : 0);
+            const moved = absolute + (target - absolute) * amount;
+            return { ...note, start: Math.max(0, moved - clip.start) };
+        });
+
+        set(s => ({
+            clips: s.clips.map(c => c.id === clipId ? { ...c, notes: quantized } : c),
+            isDirty: true,
+        }));
+    },
+
 
     updateNote: (clipId, noteId, updates) => set(s => ({ clips: s.clips.map(c => c.id === clipId ? { ...c, notes: c.notes?.map(n => n.id === noteId ? { ...n, ...updates } : n) } : c) })),
 
@@ -2963,10 +3601,45 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     toggleBounceRegionsDialog: (clipIds) => set({ showBounceRegionsDialog: clipIds || null }),
     toggleBounceAllTracksDialog: (show) => set(s => ({ showBounceAllTracksDialog: show !== undefined ? show : !s.showBounceAllTracksDialog })),
 
-    bounceTrackInPlace: (trackId, settings) => set(s => {
+    bounceTrackInPlace: async (trackId, settings) => {
+        const s = get();
         const track = s.tracks.find(t => t.id === trackId);
-        if (!track) return {};
+        if (!track) return;
 
+        // Render the track's material to audio. This used to create an audio
+        // clip with no buffer behind it, so a "bounced" track was silent.
+        const trackClipsToRender = s.clips.filter(c => c.trackId === trackId);
+        let renderedSampleId: string | undefined;
+
+        if (trackClipsToRender.length > 0) {
+            set(state => ({ freezingTrackIds: [...state.freezingTrackIds, trackId] }));
+            try {
+                const result = await renderTrackOffline(
+                    {
+                        id: track.id,
+                        name: track.name,
+                        volume: track.volume,
+                        pan: track.pan,
+                        muted: track.muted,
+                        soloed: track.soloed,
+                        instrument: track.instrument,
+                        plugins: track.plugins,
+                    },
+                    trackClipsToRender as unknown as Parameters<typeof renderTrackOffline>[1],
+                    s.tempo,
+                );
+                if (result) {
+                    renderedSampleId = `bounce:${trackId}:${Date.now()}`;
+                    bufferCacheManager.addBuffer(renderedSampleId, result.buffer);
+                }
+            } catch (error) {
+                console.error('[BounceInPlace] Render failed:', error);
+            } finally {
+                set(state => ({ freezingTrackIds: state.freezingTrackIds.filter(id => id !== trackId) }));
+            }
+        }
+
+        set(s => {
         const newTrackId = `bip-${Date.now()}`;
         const newTrack: Track = {
             ...track,
@@ -3019,7 +3692,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             fadeOut: { duration: 0, curve: 'linear', gain: 1 },
             playbackRate: 1,
             pitchOffset: 0,
-            stretchMode: 'none'
+            stretchMode: 'none',
+            // Points at the freshly rendered buffer so the clip actually sounds.
+            sampleId: renderedSampleId,
         };
 
         return {
@@ -3028,7 +3703,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             showBounceTrackDialog: null,
             isDirty: true
         };
-    }),
+        });
+    },
 
     bounceRegionsInPlace: (clipIds, settings) => set(s => {
         if (clipIds.length === 0) return {};
@@ -3148,17 +3824,140 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     toggleExportDialog: (type) => set({ showExportDialog: type }),
     setShowSettingsDialog: (show, tab, subTab) => set({
         showSettingsDialog: show,
-        settingsActiveTab: tab ?? '',
+        // Default to a real tab. Opening Settings without naming one used to
+        // leave this empty, and every panel renders on an exact match — so the
+        // dialog showed "Settings for '' not available in this version".
+        settingsActiveTab: tab ?? 'General',
         settingsActiveSubTab: subTab ?? '',
     }),
     updatePluginParams: (trackId, pluginId, params) => {
+        // This used to only call the engine — which was itself a no-op — so
+        // `PluginSetting.params` stayed permanently `{}` and every knob move was
+        // lost on both ends. Merge into the store so it persists, then apply.
+        set(s => ({
+            tracks: s.tracks.map(t => t.id !== trackId ? t : {
+                ...t,
+                plugins: t.plugins.map(p => p.id !== pluginId ? p : {
+                    ...p,
+                    params: { ...p.params, ...params },
+                }),
+            }),
+            isDirty: true,
+        }));
         audioEngine.updatePluginParams(trackId, pluginId, params);
-        set({ isDirty: true });
     },
+
+    pluginBrowserTrackId: null,
+    pluginBrowserMode: 'all',
+    setPluginBrowserTrack: (trackId, mode = 'all') =>
+        set({ pluginBrowserTrackId: trackId, pluginBrowserMode: mode }),
+
+    setWamInstrument: async (trackId, entry) => {
+        const ok = await audioEngine.loadWamInstrument(trackId, entry.url, entry.identifier);
+        if (!ok) return false;
+
+        set(s => ({
+            tracks: s.tracks.map(t => t.id === trackId ? {
+                ...t,
+                instrument: entry.name,
+                instrumentLoaded: true,
+                // Recorded so the instrument can be restored on reload.
+                wamInstrument: { url: entry.url, identifier: entry.identifier, name: entry.name },
+            } : t),
+            isDirty: true,
+        }));
+        return true;
+    },
+
+    addWamPlugin: (trackId, entry) => {
+        const newPlugin: PluginSetting = {
+            id: `plugin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            pluginId: entry.identifier,
+            name: entry.name,
+            enabled: true,
+            params: {},
+            format: 'wam',
+            insertPoint: 'pre',
+            wam: { url: entry.url, identifier: entry.identifier },
+        };
+        set(s => ({
+            tracks: s.tracks.map(t => t.id === trackId ? { ...t, plugins: [...t.plugins, newPlugin] } : t),
+            isDirty: true,
+        }));
+        const track = get().tracks.find(t => t.id === trackId);
+        if (track) audioEngine.updateFXChain(trackId, track.plugins);
+        return newPlugin.id;
+    },
+
+    removePlugin: (trackId, pluginId) => {
+        get().saveHistorySnapshot();
+        set(s => ({
+            tracks: s.tracks.map(t => t.id !== trackId ? t : {
+                ...t,
+                plugins: t.plugins.filter(p => p.id !== pluginId),
+            }),
+            isDirty: true,
+        }));
+        const track = get().tracks.find(t => t.id === trackId);
+        if (track) audioEngine.updateFXChain(trackId, track.plugins);
+    },
+
+    reorderPlugins: (trackId, fromIndex, toIndex) => {
+        get().saveHistorySnapshot();
+        set(s => ({
+            tracks: s.tracks.map(t => {
+                if (t.id !== trackId) return t;
+                const plugins = [...t.plugins];
+                if (fromIndex < 0 || fromIndex >= plugins.length) return t;
+                const [moved] = plugins.splice(fromIndex, 1);
+                plugins.splice(Math.max(0, Math.min(toIndex, plugins.length)), 0, moved);
+                return { ...t, plugins };
+            }),
+            isDirty: true,
+        }));
+        const track = get().tracks.find(t => t.id === trackId);
+        if (track) audioEngine.updateFXChain(trackId, track.plugins);
+    },
+    /**
+     * Render the project and save it.
+     *
+     * This used to be a `console.log` that closed the dialog — the final step
+     * of writing a track produced no file at all.
+     */
+    exportProject: async (settings = {}) => {
+        const s = get();
+        const result = await exportProjectAudio(
+            {
+                tracks: s.tracks,
+                clips: s.clips,
+                tempo: s.tempo,
+                projectName: s.name,
+                masterPlugins: s.masterPlugins,
+            },
+            settings,
+        );
+
+        if (result.degradedTracks.length) {
+            console.warn(
+                '[Export] Rendered dry because their plugins failed to load:',
+                result.degradedTracks,
+            );
+        }
+        if (result.formatNotice) console.warn('[Export]', result.formatNotice);
+
+        return result;
+    },
+
     exportAsAudioFiles: (settings) => {
-        console.log('Exporting with settings:', settings);
-        // In a real app, this would trigger a series of downloads or a zip creation
-        set({ showExportDialog: null });
+        void get().exportProject(settings ?? {})
+            .then(result => {
+                downloadExport(result);
+                set({ showExportDialog: null });
+            })
+            .catch(error => {
+                console.error('[Export] Failed:', error);
+                set({ loadError: `Export failed: ${error instanceof Error ? error.message : error}` });
+            });
     },
 
     toggleShareDialog: (show) => set(s => ({ showShareDialog: show !== undefined ? show : !s.showShareDialog })),
@@ -3325,7 +4124,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                     set({ playhead: playhead + duration });
                 }
                 
-                audioEngine.triggerNote(targetTrackId, pitch, velocity);
+                audioEngine.triggerNote(targetTrackId, pitch, velocity, undefined, targetTrack.instrument);
                 setTimeout(() => audioEngine.releaseNote(targetTrackId, pitch), 150);
 
                 // propagate step input? Logic usually doesn't, but for consistency we might.
@@ -3379,7 +4178,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }
 
         const repeatRate = (targetTrackId === focusedTrackId && noteRepeatSettings.enabled) ? noteRepeatSettings.rate : undefined;
-        audioEngine.triggerNote(targetTrackId, pitch, velocity, repeatRate);
+        // Pass the track's instrument: without it the engine cannot reach the
+        // sampler backends and every note fell through to the built-in synth.
+        audioEngine.triggerNote(targetTrackId, pitch, velocity, repeatRate, targetTrack.instrument);
         
         if (recording && (targetTrack.recordEnabled || (targetTrackId === focusedTrackId && !tracks.some(t => t.recordEnabled)))) {
             let liveClipId = liveRecordingClips[targetTrackId];
@@ -3574,35 +4375,44 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     setBottomPanelHeight: (height) => set({ bottomPanelHeight: height }),
     setPianoRollLinkMode: (mode) => set({ pianoRollLinkMode: mode }),
     setPianoRollFocusClipId: (clipId) => set({ pianoRollFocusClipId: clipId }),
-    toggleMetronome: () => set(s => {
-        if (s.settings.metronome.simpleMode) {
-            return { metronomeEnabled: !s.metronomeEnabled };
-        } else {
+    toggleMetronome: () => {
+        set(s => {
+            if (s.settings.metronome.simpleMode) {
+                return { metronomeEnabled: !s.metronomeEnabled };
+            }
             const nextClickPlaying = !s.settings.metronome.clickWhilePlaying;
-            return { 
+            return {
                 metronomeEnabled: nextClickPlaying,
                 settings: { ...s.settings, metronome: { ...s.settings.metronome, clickWhilePlaying: nextClickPlaying } }
             };
-        }
-    }),
+        });
+        // Reflect the change on the running transport so the click starts or
+        // stops immediately rather than at the next play.
+        const s = get();
+        syncMetronome(s.settings, s.metronomeEnabled, s.recording ? 'record' : s.playing ? 'play' : 'stop');
+    },
     toggleCountIn: () => set(s => ({ countInEnabled: !s.countInEnabled })),
     setCountInBars: (bars) => set({ countInBars: bars }),
-    setMetronomeSetting: (key, value) => set(s => {
-        const metronomeUpdate = { ...s.settings.metronome, [key]: value };
-        
-        // Handle dependencies based on Logic Pro logic
-        if (key === 'simpleMode') {
-            // Unhandled dependencies in UI but logic sync:
-            if (value) metronomeUpdate.clickWhilePlaying = s.metronomeEnabled;
-        } else if (key === 'clickWhilePlaying') {
-            return { metronomeEnabled: value, settings: { ...s.settings, metronome: metronomeUpdate } };
-        } else if (key === 'clickWhileRecording' && value === false) {
-            // "Click While Recording must also be chosen for only During Count-In to work"
-            metronomeUpdate.onlyDuringCountIn = false;
-        }
+    setMetronomeSetting: (key, value) => {
+        set(s => {
+            const metronomeUpdate = { ...s.settings.metronome, [key]: value };
 
-        return { settings: { ...s.settings, metronome: metronomeUpdate } };
-    }),
+            // Handle dependencies based on Logic Pro logic
+            if (key === 'simpleMode') {
+                // Unhandled dependencies in UI but logic sync:
+                if (value) metronomeUpdate.clickWhilePlaying = s.metronomeEnabled;
+            } else if (key === 'clickWhilePlaying') {
+                return { metronomeEnabled: value, settings: { ...s.settings, metronome: metronomeUpdate } };
+            } else if (key === 'clickWhileRecording' && value === false) {
+                // "Click While Recording must also be chosen for only During Count-In to work"
+                metronomeUpdate.onlyDuringCountIn = false;
+            }
+
+            return { settings: { ...s.settings, metronome: metronomeUpdate } };
+        });
+        const s = get();
+        syncMetronome(s.settings, s.metronomeEnabled, s.recording ? 'record' : s.playing ? 'play' : 'stop');
+    },
 
     selectTrack: (id, isMulti, isShift) => set(s => {
         if (!id) return { selectedTrackIds: [], focusedTrackId: null };
@@ -3840,6 +4650,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }
 
         updateTrack(trackId, updates);
+
+        // Actually load the instrument. Setting `track.instrument` only renames
+        // what the track claims to be; unless the instrument is registered with
+        // the instrument service, playback falls through to the built-in synth
+        // and the Library selection is inaudible.
+        if (updates.instrument) {
+            void initializeInstruments(
+                [{ id: trackId, instrument: updates.instrument }],
+                (id) => updateTrack(id, { instrumentLoaded: true }),
+            ).catch(err => console.warn('[Library] Instrument load failed:', err));
+        }
     },
 
     toggleArticulationEditor: (show, setId) => set(s => ({
@@ -4100,10 +4921,117 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         });
     },
 
-    updateTrackParameter: (trackId, params) => set(s => ({
-        tracks: s.tracks.map(t => t.id === trackId ? { ...t, ...params } : t),
-        isDirty: true
-    })),
+    updateTrackParameter: (trackId, params) => {
+        // `frozen` is not a flag — it means "render this track and play the
+        // render instead". Route it through the real implementation rather than
+        // silently toggling a boolean that nothing acts on.
+        if (params.frozen !== undefined) {
+            const { frozen, ...rest } = params;
+            if (Object.keys(rest).length > 0) {
+                set(s => ({ tracks: s.tracks.map(t => t.id === trackId ? { ...t, ...rest } : t), isDirty: true }));
+            }
+            if (frozen) void get().freezeTrack(trackId);
+            else get().unfreezeTrack(trackId);
+            return;
+        }
+
+        set(s => ({
+            tracks: s.tracks.map(t => t.id === trackId ? { ...t, ...params } : t),
+            isDirty: true
+        }));
+    },
+
+    /**
+     * Render a track offline and play the render in place of its source
+     * material, freeing the CPU its instrument and inserts were using.
+     *
+     * The source clips are kept and simply hidden from playback, so unfreezing
+     * is lossless. Fader, pan, mute and solo stay live on the channel strip.
+     */
+    freezeTrack: async (trackId) => {
+        const s = get();
+        const track = s.tracks.find(t => t.id === trackId);
+        if (!track || track.frozen) return;
+
+        const own = s.clips.filter(c => c.trackId === trackId);
+        if (own.length === 0) return;
+
+        set({ freezingTrackIds: [...s.freezingTrackIds, trackId] });
+
+        try {
+            const result = await renderTrackOffline(
+                {
+                    id: track.id,
+                    name: track.name,
+                    volume: track.volume,
+                    pan: track.pan,
+                    muted: track.muted,
+                    soloed: track.soloed,
+                    instrument: track.instrument,
+                    plugins: track.plugins,
+                },
+                own as unknown as Parameters<typeof renderTrackOffline>[1],
+                s.tempo,
+            );
+
+            if (!result) return;
+
+            // Publish the render so the scheduler can source it like any clip.
+            bufferCacheManager.addBuffer(freezeBufferId(trackId), result.buffer);
+
+            const frozenClip = {
+                ...(own[0] as Clip),
+                id: freezeClipId(trackId),
+                trackId,
+                type: 'audio' as ClipType,
+                name: `${track.name} (frozen)`,
+                start: result.startBeat,
+                startBeat: result.startBeat,
+                startTime: result.startBeat,
+                duration: result.durationBeats,
+                offset: 0,
+                muted: false,
+                notes: undefined,
+                sampleId: freezeBufferId(trackId),
+                fileUrl: undefined,
+            } as Clip;
+
+            set(state => ({
+                clips: [
+                    // Source clips are hidden from playback, not destroyed.
+                    ...state.clips.map(c => c.trackId === trackId ? { ...c, muted: true } : c),
+                    frozenClip,
+                ],
+                tracks: state.tracks.map(t => t.id === trackId
+                    ? { ...t, frozen: true, frozenSourceClipIds: result.sourceClipIds }
+                    : t),
+                isDirty: true,
+            }));
+        } catch (error) {
+            console.error('[Freeze] Failed to render track:', error);
+        } finally {
+            set(state => ({ freezingTrackIds: state.freezingTrackIds.filter(id => id !== trackId) }));
+        }
+    },
+
+    /** Restore a frozen track's source material and discard the render. */
+    unfreezeTrack: (trackId) => set(s => {
+        const track = s.tracks.find(t => t.id === trackId);
+        if (!track) return {};
+
+        const restored = new Set(track.frozenSourceClipIds ?? []);
+
+        return {
+            clips: s.clips
+                .filter(c => c.id !== freezeClipId(trackId))
+                .map(c => (restored.has(c.id) ? { ...c, muted: false } : c)),
+            tracks: s.tracks.map(t => t.id === trackId
+                ? { ...t, frozen: false, frozenSourceClipIds: undefined }
+                : t),
+            isDirty: true,
+        };
+    }),
+
 
     addTrackAlternative: (trackId, options) => set(s => {
         const track = s.tracks.find(t => t.id === trackId);
@@ -4546,11 +5474,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     startRecording: () => {
         const s = get();
+        // Roll the transport through the normal play path so existing material
+        // is audible while recording. Calling audioEngine.play() directly here
+        // started the transport with an empty clip list, which meant you
+        // recorded against silence.
         if (!s.playing) {
-            set({ playing: true });
-            audioEngine.play(s.metronomeEnabled);
+            get().play();
         }
-        set({ recording: true, recordingStartTime: s.playhead });
+        set({ recording: true, recordingStartTime: get().playhead });
+        // Recording has its own click preference, so re-evaluate now that the
+        // transport is in record mode.
+        syncMetronome(s.settings, s.metronomeEnabled, 'record');
     },
 
     stopRecording: () => {
@@ -4684,6 +5618,51 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             } : c)
         };
     }),
+
+    /**
+     * Turn a set of recorded takes into a single take folder.
+     *
+     * Comping already worked, but only on a folder that already existed —
+     * nothing created one, so "record 4-6 takes then comp them" had no first
+     * step. The takes become alternatives inside one region spanning them all.
+     */
+    createTakeFolder: (trackId, clipIds, name) => {
+        const s = get();
+        const takes = clipIds
+            .map(id => s.clips.find(c => c.id === id))
+            .filter((c): c is Clip => !!c && c.trackId === trackId)
+            .sort((a, b) => a.start - b.start);
+        if (takes.length < 2) return null;
+
+        const start = Math.min(...takes.map(t => t.start));
+        const end = Math.max(...takes.map(t => t.start + t.duration));
+        const folderId = `take-folder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+        const folder = {
+            ...takes[0],
+            id: folderId,
+            name: name || `${takes[0].name} (${takes.length} takes)`,
+            start,
+            duration: end - start,
+            isTakeFolder: true,
+            activeTakeIndex: 0,
+            comps: [],
+            takes: takes.map((t, i) => ({
+                id: t.id,
+                name: t.name || `Take ${i + 1}`,
+                clip: { ...t },
+            })),
+        } as unknown as Clip;
+
+        set(sx => ({
+            // The takes now live inside the folder, so they leave the timeline.
+            clips: [...sx.clips.filter(c => !clipIds.includes(c.id)), folder],
+            selectedClipId: folderId,
+            selectedClipIds: [folderId],
+            isDirty: true,
+        }));
+        return folderId;
+    },
 
     createTakeFolderComp: (clipId, name) => set(s => {
         const clip = s.clips.find(c => c.id === clipId);

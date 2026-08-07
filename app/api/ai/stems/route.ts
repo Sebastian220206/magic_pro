@@ -1,29 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUserId, withApiHandler } from '@/lib/apiAuth'
 
-export async function POST(request: NextRequest) {
-  try {
-    const formData = await request.formData()
-    const file = formData.get('file') as File | null
+/**
+ * Server-side stem separation.
+ *
+ * Not implemented — it needs a hosted source-separation model (e.g. Demucs)
+ * plus a job queue, neither of which exists yet. The endpoint answers 501
+ * without reading the request body so callers do not upload a large file only
+ * to have it discarded. `lib/stemSeparation.ts` provides the client-side
+ * frequency-band splitter used in the meantime.
+ */
+export const POST = withApiHandler('ai.stems', async (_request: NextRequest) => {
+  await requireUserId();
 
-    if (!file) {
-      return NextResponse.json({ error: 'Audio file is required' }, { status: 400 })
-    }
-
-    const allowedTypes = ['audio/wav', 'audio/mpeg', 'audio/ogg', 'audio/flac', 'audio/aiff', 'audio/mp4', 'audio/x-m4a']
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'Unsupported audio format' }, { status: 400 })
-    }
-
-    if (file.size > 100 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File too large (max 100MB)' }, { status: 400 })
-    }
-
-    return NextResponse.json({
-      stems: ['vocals', 'drums', 'bass', 'other'],
-      message: 'Stem separation is not yet available on the server. Use the client-side stem splitter for frequency-based separation.',
-    })
-  } catch (error) {
-    console.error('AI Stems error:', error)
-    return NextResponse.json({ error: 'Failed to separate stems' }, { status: 500 })
-  }
-}
+  return NextResponse.json(
+    {
+      error: 'Server-side stem separation is not available yet.',
+      hint: 'Use the client-side frequency-band splitter (lib/stemSeparation.ts).',
+    },
+    { status: 501 },
+  );
+});

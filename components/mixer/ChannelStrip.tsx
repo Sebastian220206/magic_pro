@@ -1,14 +1,7 @@
 'use client';
 
 /**
- * ChannelStrip Component - Professional mixer channel strip UI
- * 
- * Features:
- * - Volume fader with dB readout
- * - Pan knob/slider
- * - Real-time meter display
- * - Mute/Solo buttons
- * - Send level controls
+ * ChannelStrip Component - Professional Logic Pro style mixer channel strip UI
  */
 
 import React, { useState, useCallback, useRef, useEffect, memo } from 'react';
@@ -23,7 +16,7 @@ export interface ChannelStripProps {
   channelId: string;
   name: string;
   color?: string;
-  volume?: number;       // dB (-60 to +12)
+  volume?: number;       // dB (-60 to +6)
   pan?: number;        // -1 (L) to +1 (R)
   meterData?: {
     peak: number;
@@ -55,45 +48,29 @@ export interface SendInfo {
 // =============================================================================
 
 const MIN_VOLUME = -60;
-const MAX_VOLUME = 12;
+const MAX_VOLUME = 6;
 const DEFAULT_COLOR = '#4a5568';
 
 // =============================================================================
 // Utility Functions
 // =============================================================================
 
-/**
- * Format dB value for display
- */
 function formatDb(db: number): string {
   if (db <= MIN_VOLUME) return '-∞';
-  return `${db > 0 ? '+' : ''}${db.toFixed(1)} dB`;
+  return db.toFixed(1);
 }
 
-/**
- * Convert slider value (0-1) to dB
- */
 function sliderToDb(value: number): number {
-  // Logarithmic curve for better control
   const normalized = Math.max(0, Math.min(1, value));
-  
   if (normalized === 0) return MIN_VOLUME;
-  
-  // Use exponential curve for natural volume feel
-  // 0.7 maps to unity gain (0 dB)
-  const db = Math.log10(normalized / 0.7) * 20;
-  
+  // Non-linear mapping for fader
+  const db = (Math.pow(normalized, 2) * (MAX_VOLUME - MIN_VOLUME)) + MIN_VOLUME;
   return Math.max(MIN_VOLUME, Math.min(MAX_VOLUME, db));
 }
 
-/**
- * Convert dB to slider value
- */
 function dbToSlider(db: number): number {
   if (db <= MIN_VOLUME) return 0;
-  
-  // Inverse of sliderToDb
-  const normalized = Math.pow(10, db / 20) * 0.7;
+  const normalized = Math.sqrt((db - MIN_VOLUME) / (MAX_VOLUME - MIN_VOLUME));
   return Math.max(0, Math.min(1, normalized));
 }
 
@@ -102,9 +79,9 @@ function dbToSlider(db: number): number {
 // =============================================================================
 
 /**
- * Fader Component - Vertical volume slider
+ * Logic-style Fader Component
  */
-const Fader: React.FC<{
+const LogicFader: React.FC<{
   value: number;
   onChange: (value: number) => void;
 }> = memo(({ value, onChange }) => {
@@ -119,11 +96,9 @@ const Fader: React.FC<{
     
     const updateFromEvent = (clientY: number) => {
       if (!sliderRef.current) return;
-      
       const rect = sliderRef.current.getBoundingClientRect();
       const percent = 1 - (clientY - rect.top) / rect.height;
-      const db = sliderToDb(Math.max(0, Math.min(1, percent)));
-      onChange(db);
+      onChange(sliderToDb(percent));
     };
     
     updateFromEvent(e.clientY);
@@ -146,88 +121,56 @@ const Fader: React.FC<{
     <div
       ref={sliderRef}
       onMouseDown={handleMouseDown}
-      style={{
-        width: '30px',
-        height: '160px',
-        background: 'linear-gradient(to top, #1a1a2e, #16213e)',
-        borderRadius: '4px',
-        position: 'relative',
-        cursor: 'pointer',
-        border: '1px solid #333',
-      }}
+      className="relative cursor-pointer flex justify-center w-6"
+      style={{ height: '220px' }}
     >
-      {/* Unity gain marker */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          top: `${(1 - dbToSlider(0)) * 100}%`,
-          height: '2px',
-          background: '#666',
-          zIndex: 1,
-        }}
+      {/* Fader Track Slot */}
+      <div 
+        className="absolute top-0 bottom-0 w-[4px] bg-[#111] rounded-[1px] shadow-inner" 
+        style={{ left: '50%', transform: 'translateX(-50%)' }} 
       />
       
-      {/* Fader handle */}
+      {/* Fader Handle */}
       <div
+        className="absolute w-[24px] h-[34px] rounded-[3px] shadow-[0_4px_6px_rgba(0,0,0,0.8)] border border-[#222]"
         style={{
-          position: 'absolute',
           left: '50%',
           top: `${(1 - sliderValue) * 100}%`,
           transform: 'translate(-50%, -50%)',
-          width: '24px',
-          height: '12px',
-          background: '#e94560',
-          borderRadius: '2px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.5)',
-          zIndex: 2,
+          background: 'linear-gradient(to right, #999 0%, #e0e0e0 20%, #888 50%, #e0e0e0 80%, #999 100%)',
+          zIndex: 10,
         }}
-      />
-      
-      {/* Tick marks */}
-      {[-60, -36, -18, -12, -6, 0, 6].map((db) => (
-        <div
-          key={db}
-          style={{
-            position: 'absolute',
-            left: '2px',
-            right: '2px',
-            top: `${(1 - dbToSlider(db)) * 100}%`,
-            height: '1px',
-            background: '#333',
-          }}
-        />
-      ))}
+      >
+        <div className="absolute top-1/2 left-1/2 w-[85%] h-[2px] bg-white -translate-x-1/2 -translate-y-1/2 shadow-sm rounded-sm opacity-90" />
+      </div>
     </div>
   );
 });
-
-Fader.displayName = 'Fader';
+LogicFader.displayName = 'LogicFader';
 
 /**
- * Pan Knob Component
+ * Logic-style Pan Knob Component
  */
-const PanKnob: React.FC<{
+const LogicPanKnob: React.FC<{
   value: number;
   onChange: (value: number) => void;
 }> = memo(({ value, onChange }) => {
   const knobRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
   
-  const angle = value * 45; // -45 to +45 degrees
+  // -1 to +1 -> -135deg to +135deg
+  const angle = value * 135; 
   
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     isDragging.current = true;
     e.preventDefault();
     
-    const startX = e.clientX;
+    const startY = e.clientY;
     const startValue = value;
     
     const handleMouseMove = (e: MouseEvent) => {
-      const delta = (e.clientX - startX) / 100;
-      const newValue = Math.max(-1, Math.min(1, startValue + delta));
-      onChange(newValue);
+      const delta = (startY - e.clientY) / 100;
+      onChange(Math.max(-1, Math.min(1, startValue + delta)));
     };
     
     const handleMouseUp = () => {
@@ -241,49 +184,37 @@ const PanKnob: React.FC<{
   }, [value, onChange]);
   
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '4px',
-      }}
-    >
+    <div className="flex flex-col items-center">
       <div
         ref={knobRef}
         onMouseDown={handleMouseDown}
-        style={{
-          width: '24px',
-          height: '24px',
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, #2a2a4e, #1a1a2e)',
-          border: '2px solid #4a5568',
-          cursor: 'pointer',
-          position: 'relative',
-          transform: `rotate(${angle}deg)`,
-        }}
+        className="relative w-7 h-7 rounded-full bg-[#3a3a3a] border border-[#111] cursor-pointer shadow-[inset_0_2px_4px_rgba(255,255,255,0.1),_0_2px_4px_rgba(0,0,0,0.5)] flex items-center justify-center"
       >
+        {/* Knob face gradient */}
+        <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-[#555] to-[#333]" />
+        {/* Indicator */}
         <div
-          style={{
-            position: 'absolute',
-            top: '2px',
-            left: '50%',
-            width: '2px',
-            height: '8px',
-            background: '#e94560',
-            transform: 'translateX(-50%)',
-            borderRadius: '1px',
-          }}
-        />
+          className="absolute top-0 left-0 w-full h-full"
+          style={{ transform: `rotate(${angle}deg)` }}
+        >
+          <div className="absolute top-[3px] left-1/2 w-[2px] h-[8px] bg-[#a8e6cf] -translate-x-1/2 rounded-full shadow-[0_0_3px_#a8e6cf]" />
+        </div>
       </div>
-      <span style={{ fontSize: '10px', color: '#888', minWidth: '30px', textAlign: 'center' }}>
-        {value === 0 ? 'C' : value > 0 ? `${Math.round(value * 100)}R` : `${Math.round(Math.abs(value) * 100)}L`}
-      </span>
     </div>
   );
 });
+LogicPanKnob.displayName = 'LogicPanKnob';
 
-PanKnob.displayName = 'PanKnob';
+/**
+ * Empty dark slot
+ */
+const Slot = ({ children, className = "", active = false }: { children?: React.ReactNode, className?: string, active?: boolean }) => (
+  <div className={`w-[60px] min-h-[18px] rounded-[2px] shadow-[inset_0_1px_3px_rgba(0,0,0,0.6)] flex items-center justify-center text-[10px] border border-[#222] my-[2px] cursor-pointer
+    ${active ? 'bg-[#2a72d4] text-white shadow-none border-[#1e5eb3]' : 'bg-[#3a3a3a] text-[#aaa] hover:bg-[#444]'} 
+    ${className}`}>
+    {children}
+  </div>
+);
 
 // =============================================================================
 // Main Component
@@ -321,115 +252,146 @@ export const ChannelStrip: React.FC<ChannelStripProps> = memo(({
   const handleSoloToggle = useCallback(() => {
     onSoloToggle?.(channelId);
   }, [channelId, onSoloToggle]);
-  
-  const handleSendChange = useCallback((sendId: string, level: number) => {
-    onSendChange?.(channelId, sendId, level);
-  }, [channelId, onSendChange]);
-  
+
   return (
     <div
-      className={`channel-strip ${className}`}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        width: '60px',
-        padding: '8px 4px',
-        background: '#0f0f23',
-        borderRadius: '4px',
-        borderLeft: `3px solid ${color}`,
-        gap: '8px',
-      }}
+      className={`flex flex-col items-center bg-[#4a4a4a] border-r border-[#222] pb-2 select-none ${className}`}
+      style={{ width: '74px' }}
     >
-      {/* Channel Name */}
-      <div
-        style={{
-          fontSize: '11px',
-          fontWeight: 'bold',
-          color: '#fff',
-          textAlign: 'center',
-          width: '100%',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {name}
+      {/* Top spacer */}
+      <div className="h-4 w-full" />
+
+      {/* Setting */}
+      <Slot className="mt-1 h-[18px]">Setting</Slot>
+
+      {/* GR Meter */}
+      <div className="w-[60px] h-[6px] bg-[#222] border border-[#111] rounded-[1px] mt-2 mb-2 shadow-inner overflow-hidden">
+        {/* Placeholder for actual GR logic */}
       </div>
-      
-      {/* Mute/Solo Buttons */}
-      <div style={{ display: 'flex', gap: '4px' }}>
-        <button
+
+      {/* EQ */}
+      <Slot className="h-[36px]" />
+
+      {/* MIDI FX */}
+      <Slot className="mt-4" />
+
+      {/* Input */}
+      <div className="w-[60px] h-[18px] bg-[#454545] border border-[#2a2a2a] rounded-[2px] mt-4 flex items-center px-1 cursor-pointer hover:bg-[#555]">
+        <div className="w-[8px] h-[8px] rounded-full border border-[#aaa] mr-1.5 flex-shrink-0" />
+        <span className="text-[10px] text-[#ddd]">In 1</span>
+      </div>
+
+      {/* Audio FX */}
+      <div className="mt-4 flex flex-col gap-[1px]">
+        <Slot active>Comp</Slot>
+        <Slot />
+        <Slot />
+      </div>
+
+      {/* Sends */}
+      <div className="mt-4 flex flex-col gap-[1px]">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="flex items-center gap-1 w-[60px]">
+            <div className="w-[44px] h-[16px] bg-[#3a3a3a] border border-[#222] rounded-[2px] shadow-inner" />
+            <div className="w-[12px] h-[12px] rounded-full bg-[#3a3a3a] border border-[#222] shadow-inner" />
+          </div>
+        ))}
+      </div>
+
+      {/* Output */}
+      <div className="w-[60px] h-[18px] bg-[#666] border border-[#444] rounded-[2px] mt-4 flex items-center justify-center cursor-pointer hover:bg-[#777]">
+        <span className="text-[10px] text-[#eee]">St Out</span>
+      </div>
+
+      {/* Automation */}
+      <div className="w-[60px] h-[18px] bg-[#4a4a4a] border border-[#333] rounded-[2px] mt-1 flex items-center justify-center cursor-pointer hover:bg-[#555]">
+        <span className="text-[10px] text-[#4ade80]">Read</span>
+      </div>
+
+      {/* Group */}
+      <div className="w-[24px] h-[20px] bg-[#2a72d4] border border-[#1e5eb3] rounded-[3px] mt-4 flex items-center justify-center shadow-sm cursor-pointer">
+        {/* Soundwave icon simplified */}
+        <div className="flex gap-[1px] items-center h-[10px]">
+          <div className="w-[2px] h-[4px] bg-white opacity-80" />
+          <div className="w-[2px] h-[8px] bg-white" />
+          <div className="w-[2px] h-[10px] bg-white" />
+          <div className="w-[2px] h-[6px] bg-white opacity-90" />
+        </div>
+      </div>
+
+      {/* Pan Knob */}
+      <div className="mt-4">
+        <LogicPanKnob value={pan} onChange={handlePanChange} />
+      </div>
+
+      {/* dB Readout */}
+      <div className="w-[40px] h-[16px] bg-[#222] border border-[#111] rounded-[2px] mt-3 flex items-center justify-center">
+        <span className="text-[10px] text-white font-mono">{formatDb(volume)}</span>
+      </div>
+
+      {/* Mute / Solo */}
+      <div className="flex gap-[2px] mt-2">
+        <div
           onClick={handleMuteToggle}
-          style={{
-            width: '24px',
-            height: '20px',
-            fontSize: '9px',
-            background: isMuted ? '#e94560' : '#2a2a4e',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '2px',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-          }}
+          className={`w-[26px] h-[18px] flex items-center justify-center rounded-[2px] text-[10px] font-bold cursor-pointer border ${
+            isMuted 
+              ? 'bg-[#2a72d4] text-white border-[#1e5eb3] shadow-[0_0_4px_rgba(42,114,212,0.6)]' 
+              : 'bg-[#444] text-[#888] border-[#222] hover:bg-[#555]'
+          }`}
         >
           M
-        </button>
-        <button
+        </div>
+        <div
           onClick={handleSoloToggle}
-          style={{
-            width: '24px',
-            height: '20px',
-            fontSize: '9px',
-            background: isSolo ? '#ffd700' : '#2a2a4e',
-            color: isSolo ? '#000' : '#fff',
-            border: 'none',
-            borderRadius: '2px',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-          }}
+          className={`w-[26px] h-[18px] flex items-center justify-center rounded-[2px] text-[10px] font-bold cursor-pointer border ${
+            isSolo 
+              ? 'bg-[#fbbf24] text-[#000] border-[#d97706] shadow-[0_0_4px_rgba(251,191,36,0.6)]' 
+              : 'bg-[#444] text-[#888] border-[#222] hover:bg-[#555]'
+          }`}
         >
           S
-        </button>
+        </div>
       </div>
-      
-      {/* Pan */}
-      <PanKnob value={pan} onChange={handlePanChange} />
-      
-      {/* Meter */}
-      <Meter
-        peak={meterData.peak}
-        rms={meterData.rms}
-        peakHold={meterData.peakHold}
-        clipCount={meterData.clipCount}
-        width={12}
-        height={120}
-        showScale={false}
-      />
-      
-      {/* Fader */}
-      <Fader value={volume} onChange={handleVolumeChange} />
-      
-      {/* Volume Readout */}
-      <div
-        style={{
-          fontSize: '10px',
-          color: volume > 0 ? '#e94560' : '#fff',
-          fontFamily: 'monospace',
-          minWidth: '50px',
-          textAlign: 'center',
-        }}
-      >
-        {formatDb(volume)}
+
+      {/* Fader & Meter Container */}
+      <div className="relative flex justify-center mt-3 h-[220px] w-full">
+        {/* Tick marks left */}
+        <div className="absolute left-[4px] top-[10px] bottom-[10px] flex flex-col justify-between items-end w-[10px] text-[8px] text-[#aaa]">
+          <span>6</span>
+          <span>3</span>
+          <span>0</span>
+          <span>-3</span>
+          <span>-6</span>
+          <span>-10</span>
+          <span>-15</span>
+          <span>-20</span>
+          <span>-30</span>
+          <span>-40</span>
+        </div>
+
+        {/* Fader */}
+        <div className="absolute left-[20px]">
+          <LogicFader value={volume} onChange={handleVolumeChange} />
+        </div>
+
+        {/* Meter */}
+        <div className="absolute right-[8px] top-[5px]">
+          <Meter
+            peak={meterData.peak}
+            rms={meterData.rms}
+            peakHold={meterData.peakHold}
+            clipCount={meterData.clipCount}
+            width={10}
+            height={210}
+            showScale={false}
+          />
+        </div>
       </div>
-      
-      {/* Send Controls */}
-      {sends.length > 0 && (
-        <SendControls
-          sends={sends}
-          onSendChange={handleSendChange}
-        />
-      )}
+
+      {/* Track Name */}
+      <div className="mt-4 text-[10px] text-white font-medium truncate w-full px-2 text-center pb-2">
+        {name}
+      </div>
     </div>
   );
 });

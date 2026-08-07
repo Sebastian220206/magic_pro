@@ -1,6 +1,6 @@
 "use client"
-import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { useToast } from "./Toast"
 import { useProjectStore } from "@/store/projectStore"
 import {
     ChevronDown, Save, Share,
@@ -18,9 +18,7 @@ import { renderSongOffline } from "@/engine/export/OfflineRenderer"
 import { encodeWav } from "@/engine/export/wavEncoder"
 
 export function ProjectManager() {
-    const { data: session } = useSession()
-    const currentUserId = session?.user?.id || 'user-1'
-
+    const { toast } = useToast()
     const {
         name, alternatives, currentAlternativeId,
         addAlternative, switchToAlternative,
@@ -46,12 +44,12 @@ export function ProjectManager() {
     const onSaveDialogSubmit = async (data: SaveData) => {
         try {
             if (saveMode === 'SaveAs') {
-                await saveAs(data, currentUserId);
+                await saveAs(data);
                 setShowSaveAs(false);
                 const newId = useProjectStore.getState().id;
                 if (newId) router.push(`/project/${newId}`);
             } else {
-                await saveCopyAs(data, currentUserId);
+                await saveCopyAs(data);
                 setShowSaveAs(false);
             }
         } catch (e) {
@@ -108,6 +106,8 @@ export function ProjectManager() {
                 muted: t.muted,
                 soloed: t.soloed,
                 instrument: t.instrument,
+                // Without this the bounce is dry and silently differs from playback.
+                plugins: t.plugins,
             }));
 
             setExportProgress('Rendering audio (this may take a moment)...');
@@ -115,7 +115,15 @@ export function ProjectManager() {
             await new Promise(r => setTimeout(r, 10));
 
             console.time('[Export] Total render');
-            const rendered = await renderSongOffline(exportClips, exportTracks, tempo);
+            const rendered = await renderSongOffline(exportClips, exportTracks, tempo, {
+                onPluginFailure: (failed) => {
+                    // Never let a plugin silently drop out of an export.
+                    toast(
+                        `Some plugins could not be rendered and were bypassed: ${failed.join(', ')}`,
+                        'error',
+                    );
+                },
+            });
             console.timeEnd('[Export] Total render');
 
             setExportProgress(`Rendered ${rendered.duration.toFixed(1)}s audio, encoding WAV...`);
@@ -154,7 +162,7 @@ export function ProjectManager() {
     const handleCloseProject = () => {
         if (isDirty) {
             if (confirm("You have unsaved changes. Save before closing?")) {
-                saveProject(currentUserId);
+                saveProject();
             }
         }
         closeProject();
@@ -213,7 +221,7 @@ export function ProjectManager() {
 
                     {/* Project Management Section */}
                     <div className="p-1">
-                        <button onClick={() => { saveProject(currentUserId); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-gray-400 hover:text-white hover:bg-white/5 rounded transition-all group">
+                        <button onClick={() => { saveProject(); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-gray-400 hover:text-white hover:bg-white/5 rounded transition-all group">
                             <Save className="w-3.5 h-3.5 text-gray-600 group-hover:text-green-500" />
                             <span>Save Project</span>
                         </button>

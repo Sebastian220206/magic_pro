@@ -13,7 +13,8 @@ import {
     AudioTrack, 
     AudioBus, 
     AudioEffect, 
-    TrackSend, 
+    TrackSend,
+    sendLevel,
     AudioRoute,
     RoutingNode,
     AudioEngineEvent,
@@ -21,6 +22,20 @@ import {
 } from './types';
 import { audioContextManager } from './audioContext';
 import { AudioNodePool } from './nodePool';
+import {
+    MAX_COMPENSATION_SAMPLES,
+    computeCompensation,
+    projectLatencySamples,
+    samplesToSeconds,
+    trackLatencySamples,
+    type PluginDescriptor,
+    type TrackLatencyReport,
+} from './latencyCompensation';
+import { InsertChain, type InsertProcessor } from './insertChain';
+import { SidechainCompressorProcessor } from './dsp/sidechainCompressorNode';
+import { createProcessor } from '../plugins/processorFactory';
+import { toPluginSpecs } from '../plugins/pluginSpec';
+import type { PluginSetting } from '../../models/Track';
 
 // ─── Node Chain Types ────────────────────────────────────────────────────────
 
@@ -32,11 +47,20 @@ interface TrackNodeChain {
     sendGains: Map<string, GainNode>;
     mainGain: GainNode;
     panner: StereoPannerNode;
+    /**
+     * Plugin delay compensation. Sits at the very end of the track's path so
+     * the master and every send see the same aligned signal.
+     */
+    pdcDelay: DelayNode;
+    /** User-set track offset, kept separate from PDC so the two cannot fight. */
+    userDelay: DelayNode;
     analyzer: AnalyserNode;
     output: AudioNode;
     baseVolume: number;
     isMuted: boolean;
     isSoloed: boolean;
+    /** Latency of this track's insert chain, in samples. */
+    latencySamples: number;
 }
 
 interface BusNodeChain {
@@ -69,6 +93,14 @@ class RoutingEngine {
     private nodePool: AudioNodePool | null = null;
     private connections: Map<AudioNode, Set<AudioNode>> = new Map();
     private soloedTracks: Set<string> = new Set();
+    /** Per-track plugin insert chains, keyed by track id. */
+    private insertChains: Map<string, InsertChain> = new Map();
+    /** Inserts on the summed mix, between the master gain and the output fader. */
+    private masterChain: InsertChain | null = null;
+    /** Mono-fold node, present only while the monitor is in mono. */
+    private monoMerger: ChannelMergerNode | null = null;
+    /** Which track keys each sidechain compressor, `trackId:pluginId` -> source. */
+    private sidechainKeys: Map<string, string> = new Map();
 
     constructor() {
         console.log('[RoutingEngine] Initialized');
@@ -107,9 +139,29 @@ class RoutingEngine {
         this.outputNode = this.nodePool!.getGain();
         this.outputNode.gain.value = 1.0;
 
-        // Connect to destination
-        this.safeConnect(this.masterGain, this.outputNode);
+        // Connect to destination, with an insert chain between the summed mix
+        // and the final volume control. This is where bus compression and
+        // limiting go, so mastering plugins sit after every track but before
+        // the master fader.
         this.safeConnect(this.outputNode, this.ctx.destination);
+        this.masterChain = new InsertChain(
+            this.ctx, this.masterGain, this.outputNode, createProcessor);
+    }
+
+    /**
+     * Replace the master insert chain.
+     *
+     * Mirrors `updateTrackPlugins`, but the master bus has no PDC of its own —
+     * every track has already been aligned by the time the signal reaches it.
+     */
+    updateMasterPlugins(plugins: PluginSetting[] | PluginDescriptor[]): void {
+        if (!this.masterChain) return;
+        void this.masterChain.setSpecs(toPluginSpecs(plugins as PluginSetting[]));
+    }
+
+    /** The live processor for a master plugin instance, for parameter updates. */
+    getMasterProcessor(instanceId: string): InsertProcessor | null {
+        return this.masterChain?.getProcessor(instanceId) ?? null;
     }
 
     // ── Input Routing ────────────────────────────────────────────────────────────
@@ -194,13 +246,25 @@ class RoutingEngine {
         const analyzer = this.ctx.createAnalyser();
         analyzer.fftSize = 256;
         analyzer.smoothingTimeConstant = 0.8;
+
+        // Starts at zero delay; recomputed whenever any track's plugin chain
+        // changes. maxDelayTime bounds how much compensation can ever apply.
+        const pdcDelay = this.ctx.createDelay(
+            samplesToSeconds(MAX_COMPENSATION_SAMPLES, this.ctx.sampleRate) || 2,
+        );
+        pdcDelay.delayTime.value = 0;
+
+        // A separate node for the user's own track offset, so a PDC pass
+        // cannot overwrite it (and vice versa).
+        const userDelay = this.ctx.createDelay(0.5);
+        userDelay.delayTime.value = 0;
         
         // Create send gains for each bus send
         const sendGains = new Map<string, GainNode>();
         if (normalizedTrack.sends) {
             normalizedTrack.sends.forEach(send => {
                 const sendGain = this.nodePool!.getGain();
-                sendGain.gain.value = send.amount;
+                sendGain.gain.value = sendLevel(send);
                 sendGains.set(send.busId, sendGain);
             });
         }
@@ -237,14 +301,274 @@ class RoutingEngine {
             sendGains,
             mainGain,
             panner,
+            pdcDelay,
+            userDelay,
             analyzer,
             output: mainGain,
             baseVolume: normalizedTrack.volume,
             isMuted: normalizedTrack.muted,
             isSoloed: normalizedTrack.solo,
+            latencySamples: trackLatencySamples(
+                normalizedTrack.effects as unknown as PluginDescriptor[],
+            ),
         });
 
+        // Plugin inserts live between the track input and the fader, so they
+        // are pre-fader: the fader rides the processed signal, as in a console.
+        this.insertChains.set(
+            normalizedTrack.id,
+            new InsertChain(this.ctx, inputGain, mainGain, createProcessor),
+        );
+
+        // A new track changes the project's worst-case latency.
+        this.recomputeLatencyCompensation();
+
         console.log('[RoutingEngine] Track created:', normalizedTrack.id);
+    }
+
+    // ── Metering, monitoring and sidechain ────────────────────────────────────
+
+    /**
+     * Current peak level of a track or bus, 0-1.
+     *
+     * Read from the per-track analyser the chain already carries; nothing was
+     * exposing it, so a mix could not be metered from the store.
+     */
+    getTrackPeak(trackId: string): number {
+        const chain = this.trackNodes.get(trackId);
+        if (!chain) return 0;
+
+        const data = new Float32Array(chain.analyzer.fftSize);
+        chain.analyzer.getFloatTimeDomainData(data);
+
+        let peak = 0;
+        for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+        return peak;
+    }
+
+    /**
+     * Nudge a track's playback in time, in milliseconds.
+     *
+     * Separate from `pdcDelay`, which belongs to plugin delay compensation —
+     * mixing the two would let a user offset be wiped by the next PDC pass.
+     */
+    setTrackDelay(trackId: string, ms: number): void {
+        const chain = this.trackNodes.get(trackId);
+        if (!chain || !this.ctx) return;
+
+        const seconds = Math.max(0, Math.min(0.5, (Number.isFinite(ms) ? ms : 0) / 1000));
+        chain.userDelay.delayTime.setTargetAtTime(seconds, this.ctx.currentTime, 0.01);
+    }
+
+    /**
+     * Send a track straight to the output, bypassing the master chain.
+     *
+     * This is how a reference track is auditioned: it must not be coloured by
+     * the mix bus processing it is being compared against.
+     */
+    setTrackMonitorMode(trackId: string, mode: 'normal' | 'direct'): void {
+        const chain = this.trackNodes.get(trackId);
+        if (!chain || !this.ctx || !this.masterGain || !this.outputNode) return;
+
+        try { chain.output.disconnect(this.masterGain); } catch { /* not connected */ }
+        try { chain.output.disconnect(this.outputNode); } catch { /* not connected */ }
+        this.safeConnect(chain.output, mode === 'direct' ? this.outputNode : this.masterGain);
+    }
+
+    /**
+     * Collapse the monitor path to mono for a phase check, without touching
+     * the mix itself. A vocal that vanishes here has a polarity problem.
+     */
+    setMonitorMode(mode: 'stereo' | 'mono'): void {
+        if (!this.ctx || !this.outputNode) return;
+
+        if (mode === 'mono') {
+            if (!this.monoMerger) {
+                // Summing both channels into both outputs is the mono fold.
+                const merger = this.ctx.createChannelMerger(2);
+                const splitter = this.ctx.createChannelSplitter(2);
+                const sum = this.ctx.createGain();
+                sum.gain.value = 0.5;
+
+                this.outputNode.disconnect();
+                this.safeConnect(this.outputNode, splitter);
+                splitter.connect(sum, 0);
+                splitter.connect(sum, 1);
+                sum.connect(merger, 0, 0);
+                sum.connect(merger, 0, 1);
+                this.safeConnect(merger, this.ctx.destination);
+                this.monoMerger = merger;
+            }
+        } else if (this.monoMerger) {
+            this.outputNode.disconnect();
+            this.monoMerger.disconnect();
+            this.monoMerger = null;
+            this.safeConnect(this.outputNode, this.ctx.destination);
+        }
+    }
+
+    /**
+     * Key a track's compressor from another track — the kick-to-sub pump.
+     *
+     * Patches `sourceTrackId`'s output into input 1 of the target's sidechain
+     * compressor worklet, which computes gain reduction per sample from it.
+     *
+     * This replaced an envelope follower that drove the target's *fader* at
+     * control rate. That version could not do the things a compressor does —
+     * no ratio, no knee, no threshold, and it fought the mixer for ownership
+     * of the fader, so moving the fader while ducking lost one or the other.
+     *
+     * Requires a `magic.sidechain` plugin on the target track; a plain
+     * compressor has nowhere to put the key.
+     */
+    setSidechainSource(trackId: string, pluginId: string, sourceTrackId: string): void {
+        const source = this.trackNodes.get(sourceTrackId);
+        if (!source || !this.ctx) return;
+
+        const processor = this.insertChains.get(trackId)?.getProcessor(pluginId);
+        if (!processor || !(processor instanceof SidechainCompressorProcessor)) {
+            console.warn(
+                `[Sidechain] Plugin ${pluginId} on ${trackId} is not a sidechain compressor.`,
+            );
+            return;
+        }
+
+        // Key from the track's pre-fader output, so riding the source's fader
+        // does not change how hard it ducks.
+        processor.setKeySource(source.mainGain);
+        this.sidechainKeys.set(`${trackId}:${pluginId}`, sourceTrackId);
+    }
+
+    clearSidechainSource(trackId: string, pluginId: string): void {
+        const processor = this.insertChains.get(trackId)?.getProcessor(pluginId);
+        if (processor instanceof SidechainCompressorProcessor) {
+            processor.setKeySource(null);
+        }
+        this.sidechainKeys.delete(`${trackId}:${pluginId}`);
+    }
+
+    /** Gain reduction a sidechain compressor is applying, in dB. */
+    getSidechainReductionDb(trackId: string, pluginId: string): number {
+        const processor = this.insertChains.get(trackId)?.getProcessor(pluginId);
+        return processor instanceof SidechainCompressorProcessor
+            ? processor.getReductionDb()
+            : 0;
+    }
+
+    /**
+     * Re-patch every key after a chain rebuild.
+     *
+     * `InsertChain.setSpecs` disposes and recreates processors, so a key
+     * connected before an unrelated plugin was added would otherwise be lost.
+     */
+    private restoreSidechainKeys(trackId: string): void {
+        for (const [key, sourceTrackId] of this.sidechainKeys) {
+            const [owner, pluginId] = key.split(':');
+            if (owner !== trackId) continue;
+
+            const processor = this.insertChains.get(trackId)?.getProcessor(pluginId);
+            const source = this.trackNodes.get(sourceTrackId);
+            if (processor instanceof SidechainCompressorProcessor && source) {
+                processor.setKeySource(source.mainGain);
+            }
+        }
+    }
+
+    // ── Plugin Delay Compensation ─────────────────────────────────────────────
+
+    /**
+     * Declare the latency of a track's insert chain and realign the project.
+     *
+     * Called whenever a plugin is added, removed or bypassed.
+     */
+    setTrackLatency(trackId: string, latencySamples: number): void {
+        const chain = this.trackNodes.get(trackId);
+        if (!chain) return;
+
+        const next = Number.isFinite(latencySamples) ? Math.max(0, latencySamples) : 0;
+        if (chain.latencySamples === next) return;
+
+        chain.latencySamples = next;
+        this.recomputeLatencyCompensation();
+    }
+
+    /**
+     * Apply a track's plugin chain: build/reuse/dispose processors, relink the
+     * insert segment, then report the chain's latency for compensation.
+     *
+     * Previously this only recomputed latency — no plugin ever became an audio
+     * node, so nothing a user inserted could be heard.
+     */
+    updateTrackPlugins(trackId: string, plugins: PluginSetting[] | PluginDescriptor[]): void {
+        // Report the declared latency immediately so compensation reacts now
+        // rather than after an async rebuild.
+        this.setTrackLatency(trackId, trackLatencySamples(plugins as PluginDescriptor[]));
+
+        const chain = this.insertChains.get(trackId);
+        if (!chain) return; // Track not instantiated yet; declaration stands.
+
+        const specs = toPluginSpecs(plugins as PluginSetting[]);
+        void chain.setSpecs(specs).then(() => {
+            // Refine with what the processors actually report — but only if the
+            // whole chain was realised. A plugin that failed to instantiate is
+            // not in the signal path, and trusting a partial chain would
+            // under-compensate the track.
+            if (chain.getInstanceIds().length === specs.length) {
+                this.setTrackLatency(trackId, chain.getLatencySamples());
+            }
+            // Processors are recreated by `setSpecs`, so any key patched into
+            // one has to be reconnected or it is silently lost.
+            this.restoreSidechainKeys(trackId);
+        });
+    }
+
+    /** The live processor for a plugin instance, for parameter updates. */
+    getInsertProcessor(trackId: string, instanceId: string): InsertProcessor | null {
+        return this.insertChains.get(trackId)?.getProcessor(instanceId) ?? null;
+    }
+
+    /**
+     * Re-derive every track's compensation delay so all tracks arrive at the
+     * master aligned with the highest-latency one.
+     */
+    recomputeLatencyCompensation(): void {
+        if (!this.ctx || this.trackNodes.size === 0) return;
+
+        const reports: TrackLatencyReport[] = [];
+        this.trackNodes.forEach(chain => {
+            reports.push({ trackId: chain.trackId, latencySamples: chain.latencySamples });
+        });
+
+        const compensation = computeCompensation(reports);
+        const now = this.ctx.currentTime;
+
+        compensation.forEach((samples, trackId) => {
+            const chain = this.trackNodes.get(trackId);
+            if (!chain) return;
+            const seconds = samplesToSeconds(samples, this.ctx!.sampleRate);
+            // Ramp rather than jump: an abrupt delay change would click.
+            chain.pdcDelay.delayTime.setTargetAtTime(seconds, now, 0.01);
+        });
+    }
+
+    /** Latency the project currently imposes, in samples. */
+    getProjectLatencySamples(): number {
+        const reports: TrackLatencyReport[] = [];
+        this.trackNodes.forEach(chain => {
+            reports.push({ trackId: chain.trackId, latencySamples: chain.latencySamples });
+        });
+        return projectLatencySamples(reports);
+    }
+
+    /** Latency the project currently imposes, in seconds. */
+    getProjectLatencySeconds(): number {
+        if (!this.ctx) return 0;
+        return samplesToSeconds(this.getProjectLatencySamples(), this.ctx.sampleRate);
+    }
+
+    /** The master summing node, for metering and mastering inserts. */
+    getMasterGain(): GainNode | null {
+        return this.masterGain;
     }
 
     /**
@@ -320,7 +644,7 @@ class RoutingEngine {
                         this.safeConnect(sendGain, busChain.inputGain);
                     }
                 }
-                sendGain.gain.setValueAtTime(Math.max(0, Math.min(1, send.amount)), now);
+                sendGain.gain.setValueAtTime(sendLevel(send), now);
             });
         }
     }
@@ -356,7 +680,8 @@ class RoutingEngine {
             this.safeDisconnect(trackChain.inputGain);
             this.safeDisconnect(trackChain.mainGain);
             this.safeDisconnect(trackChain.panner);
-            
+            this.safeDisconnect(trackChain.pdcDelay);
+
             // Release nodes to pool
             this.nodePool.releaseGain(trackChain.inputGain);
             this.nodePool.releaseGain(trackChain.mainGain);
@@ -379,8 +704,15 @@ class RoutingEngine {
             });
 
 
+            this.insertChains.get(trackId)?.dispose();
+            this.insertChains.delete(trackId);
+
             this.soloedTracks.delete(trackId);
             this.trackNodes.delete(trackId);
+
+            // Removing the highest-latency track lowers the project's
+            // reference, so every remaining track needs less padding.
+            this.recomputeLatencyCompensation();
             console.log('[RoutingEngine] Track removed:', trackId);
         }
     }
@@ -527,6 +859,11 @@ class RoutingEngine {
         this.safeConnect(currentNode, chain.panner);
         currentNode = chain.panner;
 
+        // Plugin delay compensation, applied once at the end of the chain so
+        // sends and the master receive an already-aligned signal.
+        this.safeConnect(currentNode, chain.pdcDelay);
+        currentNode = chain.pdcDelay;
+
         // Tap analyzer for metering (doesn't pass signal through, just monitors)
         this.safeConnect(currentNode, chain.analyzer);
 
@@ -596,9 +933,17 @@ class RoutingEngine {
      * Set master output volume.
      */
     setMasterVolume(volume: number): void {
-        if (this.outputNode) {
-            this.outputNode.gain.value = Math.max(0, Math.min(1, volume));
+        if (!this.outputNode) return;
+
+        // Writing a non-finite value to an AudioParam throws and takes the whole
+        // render down. A project saved before `masterVolume` existed deserialises
+        // as undefined, so guard here rather than trusting every caller.
+        if (!Number.isFinite(volume)) {
+            console.warn('[RoutingEngine] Ignoring non-finite master volume:', volume);
+            return;
         }
+
+        this.outputNode.gain.value = Math.max(0, Math.min(1, volume));
     }
 
     /**

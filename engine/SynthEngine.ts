@@ -208,18 +208,30 @@ class SynthVoice {
             osc.stop(time + envelope.release);
         });
 
-        // Cleanup after release
+        // Cleanup after the release tail. The delay is measured from `time`,
+        // not from now: a sequenced note may be scheduled to stop seconds in
+        // the future, and disconnecting relative to now would cut it short.
+        const cleanupDelayMs = Math.max(
+            0,
+            (time - this.ctx.currentTime + envelope.release) * 1000 + 100,
+        );
         setTimeout(() => {
             this.oscillators.forEach(osc => osc.disconnect());
             this.gain.disconnect();
             this.filter.disconnect();
-        }, envelope.release * 1000 + 100);
+        }, cleanupDelayMs);
     }
 }
 
 export class SynthEngine {
     private ctx: AudioContext;
     private activeVoices: Map<number, SynthVoice> = new Map();
+    /**
+     * Voices created by `scheduleNote`. Held separately from `activeVoices`
+     * because sequenced notes are keyed by time rather than pitch and several
+     * may overlap on the same note number.
+     */
+    private scheduledVoices: Set<SynthVoice> = new Set();
     private targetNode: AudioNode;
     /** Master gain for real-time volume control (between voices and target) */
     private masterGain: GainNode;
@@ -258,6 +270,33 @@ export class SynthEngine {
         this.activeVoices.set(note, voice);
     }
 
+    /**
+     * Play a note between two absolute AudioContext times.
+     *
+     * Used for sequenced playback, where the note's length is known up front.
+     * Unlike `noteOn`/`noteOff` these voices are not keyed by note number, so
+     * the same pitch can be scheduled repeatedly inside one lookahead window
+     * (a fast repeated note) without each occurrence cancelling the last.
+     */
+    scheduleNote(
+        note: number,
+        velocity: number,
+        presetId: string = 'piano',
+        startTime: number,
+        stopTime: number,
+    ): void {
+        const preset = SYNTH_PRESETS[presetId] || SYNTH_PRESETS.piano;
+        const voice = new SynthVoice(this.ctx, preset, note, this.masterGain);
+
+        voice.start(startTime, velocity);
+        voice.stop(Math.max(stopTime, startTime + 0.01));
+
+        this.scheduledVoices.add(voice);
+        // Release the reference once the voice has finished its release tail.
+        const lifetimeMs = (stopTime - this.ctx.currentTime + preset.envelope.release) * 1000 + 200;
+        setTimeout(() => this.scheduledVoices.delete(voice), Math.max(lifetimeMs, 0));
+    }
+
     setPitchBend(cents: number) {
         this.activeVoices.forEach(voice => voice.setPitchBend(cents));
     }
@@ -271,7 +310,18 @@ export class SynthEngine {
     }
 
     stopAll() {
-        this.activeVoices.forEach(voice => voice.stop(this.ctx.currentTime));
+        const now = this.ctx.currentTime;
+        this.activeVoices.forEach(voice => voice.stop(now));
         this.activeVoices.clear();
+        // Sequenced voices may be mid-note or still pending; stopping at `now`
+        // cancels both cases so transport stop leaves nothing ringing.
+        this.scheduledVoices.forEach(voice => {
+            try {
+                voice.stop(now);
+            } catch {
+                // Voice already stopped — its oscillators are done.
+            }
+        });
+        this.scheduledVoices.clear();
     }
 }

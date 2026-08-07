@@ -8,7 +8,7 @@
  * - Preserve note relationships
  */
 
-import { MidiNote, GridDivision, QuantizeOptions } from './types';
+import { MidiNote, GridDivision, QuantizeOptions, ScaleType, SCALE_INTERVALS, clampPitch } from './types';
 export type { QuantizeOptions } from './types';
 
 // =============================================================================
@@ -440,4 +440,42 @@ export function getPreviousDivision(current: GridDivision): GridDivision | null 
   const index = GRID_DIVISIONS.indexOf(current);
   if (index <= 0) return null;
   return GRID_DIVISIONS[index - 1];
+}
+
+// =============================================================================
+// Scale Quantization
+// =============================================================================
+
+export function snapPitchToScale(
+  pitch: number,
+  root: number,
+  scaleName: ScaleType
+): number {
+  const intervals = SCALE_INTERVALS[scaleName];
+  const octave = Math.floor(pitch / 12);
+  let bestPitch = pitch;
+  let bestDist = Infinity;
+  for (const interval of intervals) {
+    const scaleNote = (root + interval) % 12;
+    for (const octOffset of [-1, 0, 1]) {
+      const candidate = (octave + octOffset) * 12 + scaleNote;
+      const dist = Math.abs(candidate - pitch);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestPitch = candidate;
+      }
+    }
+  }
+  return clampPitch(bestPitch);
+}
+
+export function scaleQuantizeNotes(
+  notes: MidiNote[],
+  root: number,
+  scaleName: ScaleType
+): MidiNote[] {
+  return notes.map(note => ({
+    ...note,
+    pitch: snapPitchToScale(note.pitch, root, scaleName),
+  }));
 }

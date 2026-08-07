@@ -12,8 +12,9 @@ import { PolyphonicSynth } from './synthEngine';
 import { Sampler } from './samplerEngine';
 import { DrumMachine } from './drumMachine';
 import { SoundFontInstrument } from './soundfont/SoundFontInstrument';
+import { MultiSamplerEngine, createSamplerInstrument } from './multiSamplerEngine';
 
-export type InstrumentType = 'synth' | 'sampler' | 'drumkit' | 'soundfont';
+export type InstrumentType = 'synth' | 'sampler' | 'drumkit' | 'soundfont' | 'multisampler';
 
 // Interface for all instrument types
 export interface Instrument {
@@ -78,6 +79,18 @@ export class InstrumentFactory {
       case 'soundfont':
         instrument = new SoundFontInstrument(this.ctx);
         console.log(`SoundFont ${name} created (awaiting font file load)`);
+        break;
+
+      case 'multisampler':
+        const multiEngine = new MultiSamplerEngine(this.ctx);
+        instrument = multiEngine as unknown as Instrument;
+        if (definition.preset) {
+          createSamplerInstrument(this.ctx, definition.preset).then((engine) => {
+            console.log(`MultiSampler ${name} loaded`);
+          }).catch((err) => {
+            console.warn(`MultiSampler ${name} load failed:`, err);
+          });
+        }
         break;
 
       default:

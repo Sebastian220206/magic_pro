@@ -263,7 +263,7 @@ export function TrackList() {
 
     return (
         <div
-            className="border-r border-black bg-[#111] flex flex-col z-20 shrink-0 select-none shadow-[20px_0_40px_rgba(0,0,0,0.5)] relative group"
+            className="border-r border-[var(--accent-cyan)] bg-[#111] flex flex-col z-20 shrink-0 select-none shadow-[20px_0_40px_rgba(0,0,0,0.5),0_0_20px_var(--accent-cyan-glow)] relative group"
             style={{ width: trackHeaderWidth }}
             onContextMenu={(e) => {
                 e.preventDefault();
@@ -272,27 +272,27 @@ export function TrackList() {
         >
             {/* Resize Handle */}
             <div
-                className="absolute top-0 right-0 w-1 h-full cursor-col-resize z-50 hover:bg-sky-500/50 transition-colors"
+                className="absolute top-0 right-0 w-1 h-full cursor-col-resize z-50 hover:bg-[var(--accent-cyan)] transition-colors"
                 onMouseDown={() => setResizingHeader(true)}
             />
             {/* Magic Pro Signature Tracks Header */}
-            <div className="h-9 border-b border-black bg-[#1a1a1a] flex items-center px-4 justify-between shrink-0 sticky top-0 z-30 shadow-sm">
+            <div className="h-[48px] border-b border-[var(--accent-cyan)]/50 bg-[#1a1a1a] flex items-center px-4 justify-between shrink-0 sticky top-0 z-30 shadow-sm">
                 <div className="flex items-center gap-2">
-                    <div className="flex bg-[#000] rounded-sm border border-[#333] p-0.5 h-6">
-                        <button onClick={(e) => handleAddTrack(e)} className="w-7 h-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 transition-all outline-none" title="New Track..."><Plus className="w-4 h-4" /></button>
-                        <div className="w-px h-full bg-[#333]"></div>
-                        <button onClick={(e) => handleDuplicateTrack(e)} className="w-7 h-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 transition-all outline-none" title="Duplicate Track"><Copy className="w-3.5 h-3.5" /></button>
-                        <div className="w-px h-full bg-[#333]"></div>
+                    <div className="flex bg-[#000] rounded-sm border border-[var(--accent-cyan)]/50 p-0.5 h-6">
+                        <button onClick={(e) => handleAddTrack(e)} className="w-7 h-full flex items-center justify-center text-gray-400 hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10 transition-all outline-none" title="New Track..."><Plus className="w-4 h-4" /></button>
+                        <div className="w-px h-full bg-[var(--accent-cyan)]/30"></div>
+                        <button onClick={(e) => handleDuplicateTrack(e)} className="w-7 h-full flex items-center justify-center text-gray-400 hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10 transition-all outline-none" title="Duplicate Track"><Copy className="w-3.5 h-3.5" /></button>
+                        <div className="w-px h-full bg-[var(--accent-cyan)]/30"></div>
                         <div className="relative" ref={menuRef}>
                             <button
                                 onClick={() => setShowTrackMenu(!showTrackMenu)}
-                                className={`w-7 h-full flex items-center justify-center transition-all outline-none ${showTrackMenu ? 'text-white bg-white/10' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                                className={`w-7 h-full flex items-center justify-center transition-all outline-none ${showTrackMenu ? 'text-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10' : 'text-gray-400 hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
                             >
                                 <ChevronDown className="w-3.5 h-3.5" />
                             </button>
 
                             {showTrackMenu && (
-                                <div className="absolute top-full left-0 mt-1 w-72 bg-[#2c2c2e] border border-white/10 rounded-lg shadow-2xl z-[100] py-1 animate-in fade-in zoom-in-95 duration-100">
+                                <div className="absolute top-full left-0 mt-1 w-72 bg-[#2c2c2e] border border-[var(--accent-cyan)]/50 rounded-lg shadow-[0_0_20px_var(--accent-cyan-glow)] z-[100] py-1 animate-in fade-in zoom-in-95 duration-100">
                                     <button
                                         className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors flex items-center justify-between group"
                                         onClick={() => { toggleNewTrackDialog(true); setShowTrackMenu(false); }}
@@ -397,16 +397,16 @@ export function TrackList() {
                 </div>
 
                 <div className="flex items-center gap-2.5">
-                    <button className="p-1 hover:bg-white/5 rounded-full transition-colors group outline-none" onClick={() => toggleColorPalette(true)}><Palette className="w-3.5 h-3.5 text-gray-500 group-hover:text-white" /></button>
-                    <button onClick={handleCreateStack} className="p-1 hover:bg-white/5 rounded-full transition-colors group outline-none"><Layout className="w-3.5 h-3.5 text-gray-500 group-hover:text-white" /></button>
+                    <button className="p-1 hover:bg-[var(--accent-cyan)]/10 rounded-full transition-colors group outline-none" onClick={() => toggleColorPalette(true)}><Palette className="w-3.5 h-3.5 text-gray-500 group-hover:text-[var(--accent-cyan)]" /></button>
+                    <button onClick={handleCreateStack} className="p-1 hover:bg-[var(--accent-cyan)]/10 rounded-full transition-colors group outline-none"><Layout className="w-3.5 h-3.5 text-gray-500 group-hover:text-[var(--accent-cyan)]" /></button>
                     <button
                         onClick={() => toggleHideView()}
-                        className={`p-1 rounded-full transition-colors group outline-none ${hideViewActive ? 'bg-orange-500 text-black' : 'hover:bg-white/5 text-gray-500 hover:text-white'}`}
+                        className={`p-1 rounded-full transition-colors group outline-none ${hideViewActive ? 'bg-orange-500 text-black' : 'hover:bg-[var(--accent-cyan)]/10 text-gray-500 hover:text-[var(--accent-cyan)]'}`}
                         title="Hide View"
                     >
                         <span className="text-[10px] font-black w-3.5 h-3.5 flex items-center justify-center">H</span>
                     </button>
-                    <button onClick={() => toggleTrackHeaderConfig(true)} className="p-1 hover:bg-white/5 rounded-full transition-colors group outline-none"><Settings className="w-3.5 h-3.5 text-gray-500 group-hover:text-white" /></button>
+                    <button onClick={() => toggleTrackHeaderConfig(true)} className="p-1 hover:bg-[var(--accent-cyan)]/10 rounded-full transition-colors group outline-none"><Settings className="w-3.5 h-3.5 text-gray-500 group-hover:text-[var(--accent-cyan)]" /></button>
                 </div>
             </div>
 
@@ -531,7 +531,7 @@ export function TrackList() {
                                     setTrackContextMenu({ id: track.id, x: e.clientX, y: e.clientY });
                                     selectTrack(track.id);
                                 }}
-                                className={`track-row group relative border-b border-black transition-all cursor-default flex ${isSelected ? 'bg-gradient-to-r from-sky-950/40 via-sky-900/40 to-black z-10 shadow-[inset_0_0_20px_rgba(14,165,233,0.1)]' : 'bg-[#111] hover:bg-[#161616]'} ${dropTargetTrackId === track.id ? 'ring-2 ring-sky-500 ring-inset bg-sky-900/20' : ''} ${isFocused ? 'brightness-110' : ''} ${draggedTrackIndex === trackIdx ? 'opacity-50 grayscale scale-[0.98]' : ''} ${recording && track.recordEnabled ? 'ring-inset ring-1 ring-red-500/60 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]' : ''}`}
+                                className={`track-row group relative border-b border-black/50 transition-all cursor-default flex ${isSelected ? 'bg-gradient-to-r from-sky-950/40 via-sky-900/40 to-black z-10 shadow-[inset_0_0_20px_rgba(14,165,233,0.1)] border-r-2 border-[var(--accent-cyan)]' : 'bg-[#111] hover:bg-[#161616]'} ${dropTargetTrackId === track.id ? 'ring-2 ring-inset ring-[var(--accent-cyan)] bg-sky-900/20' : ''} ${isFocused ? 'brightness-110 outline-none ring-1 ring-inset ring-[var(--accent-cyan)] shadow-[inset_0_0_10px_var(--accent-cyan-glow)]' : ''} ${draggedTrackIndex === trackIdx ? 'opacity-50 grayscale scale-[0.98]' : ''} ${recording && track.recordEnabled ? 'ring-inset ring-1 ring-red-500/60 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]' : ''}`}
                                 style={{ height: `${currentHeight}px` }}
                             >
                                 <div className="flex shrink-0 h-full overflow-hidden">
@@ -581,21 +581,21 @@ export function TrackList() {
                                     
                                     {/* Stack Bracket */}
                                     {track.parentId && (
-                                        <div className="absolute left-[12px] top-0 bottom-0 w-[12px] border-l border-b border-white/10 rounded-bl-lg pointer-events-none" />
+                                        <div className="absolute left-[12px] top-0 bottom-0 w-[12px] border-l border-b border-[var(--accent-cyan)]/30 rounded-bl-lg pointer-events-none" />
                                     )}
                                     {/* Row 1: Icon and Name */}
                                     <div className="flex items-center gap-3 h-8">
                                         {track.isStack && (
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); toggleStackCollapse(track.id, e.altKey); }}
-                                                className="w-4 h-4 flex items-center justify-center text-gray-500 hover:text-white transition-colors"
+                                                className="w-4 h-4 flex items-center justify-center text-gray-500 hover:text-[var(--accent-cyan)] transition-colors"
                                             >
                                                 {track.isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                                             </button>
                                         )}
-                                        {trackHeaderConfig.showTrackIcons && (
+{trackHeaderConfig.showTrackIcons && (
                                             <div
-                                                className="w-8 h-8 rounded bg-black/40 border border-white/5 flex items-center justify-center shrink-0 hover:scale-105 transition-all cursor-pointer"
+                                                className="w-8 h-8 rounded bg-black/40 border border-[var(--accent-cyan)]/30 flex items-center justify-center shrink-0 hover:border-[var(--accent-cyan)] hover:shadow-[0_0_10px_var(--accent-cyan-glow)] transition-all cursor-pointer"
                                                 onClick={(e) => { e.stopPropagation(); toggleIconBrowser(track.id); }}
                                             >
                                                 <div className="flex items-center justify-center text-white/40 group-hover:text-white transition-colors">
@@ -617,47 +617,47 @@ export function TrackList() {
                                                     <div className="relative">
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); setOpenAltMenuId(openAltMenuId === track.id ? null : track.id); }}
-                                                            className="flex items-center gap-0.5 px-1 py-0.5 bg-black/40 hover:bg-white/10 rounded text-[8px] font-black text-gray-500 hover:text-white transition-all"
+                                                            className="flex items-center gap-0.5 px-1 py-0.5 bg-black/40 hover:bg-[var(--accent-cyan)]/10 rounded text-[8px] font-black text-gray-500 hover:text-[var(--accent-cyan)] transition-all"
                                                         >
                                                             {track.alternatives.find(a => a.id === track.activeAlternativeId)?.name} <ChevronDown className="w-2 h-2" />
                                                         </button>
                                                         {openAltMenuId === track.id && (
-                                                            <div className="absolute top-full right-0 mt-1 w-40 bg-[#2c2c2e] border border-white/10 rounded-lg shadow-2xl z-[100] py-1">
+                                                            <div className="absolute top-full right-0 mt-1 w-40 bg-[#2c2c2e] border border-[var(--accent-cyan)]/30 rounded-lg shadow-[0_0_20px_var(--accent-cyan-glow)] z-[100] py-1">
                                                                 <div className="px-3 py-1 text-[8px] font-black text-gray-500 uppercase">Alternatives</div>
                                                                 {track.alternatives.map(alt => (
                                                                     <button
                                                                         key={alt.id}
-                                                                        className={`w-full px-3 py-1.5 text-left text-[11px] font-bold flex items-center justify-between ${alt.id === track.activeAlternativeId ? 'text-sky-400 bg-sky-400/10' : 'text-gray-300 hover:bg-white/5'}`}
+                                                                        className={`w-full px-3 py-1.5 text-left text-[11px] font-bold flex items-center justify-between ${alt.id === track.activeAlternativeId ? 'text-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10' : 'text-gray-300 hover:bg-[var(--accent-cyan)]/10 hover:text-[var(--accent-cyan)]'}`}
                                                                         onClick={() => { setActiveAlternative(track.id, alt.id); setOpenAltMenuId(null); }}
                                                                     >
                                                                         {alt.name}
-                                                                        {alt.id === track.activeAlternativeId && <Check className="w-3 h-3" />}
+                                                                        {alt.id === track.activeAlternativeId && <Check className="w-3 h-3 text-[var(--accent-cyan)]" />}
                                                                     </button>
                                                                 ))}
                                                                 <div className="h-px bg-white/5 my-1" />
-                                                                <button className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-gray-300 hover:bg-sky-500 hover:text-white" onClick={() => { addTrackAlternative(track.id); setOpenAltMenuId(null); }}>New</button>
-                                                                <button className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-gray-300 hover:bg-sky-500 hover:text-white" onClick={() => { addTrackAlternative(track.id, { duplicate: true }); setOpenAltMenuId(null); }}>Duplicate</button>
-                                                                <button className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-gray-300 hover:bg-sky-500 hover:text-white" onClick={() => { toggleInactiveAlternatives(track.id); setOpenAltMenuId(null); }}>
+                                                                <button className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-gray-300 hover:bg-[var(--accent-cyan)]/10 hover:text-[var(--accent-cyan)] transition-colors" onClick={() => { addTrackAlternative(track.id); setOpenAltMenuId(null); }}>New</button>
+                                                                <button className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-gray-300 hover:bg-[var(--accent-cyan)]/10 hover:text-[var(--accent-cyan)] transition-colors" onClick={() => { addTrackAlternative(track.id, { duplicate: true }); setOpenAltMenuId(null); }}>Duplicate</button>
+                                                                <button className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-gray-300 hover:bg-[var(--accent-cyan)]/10 hover:text-[var(--accent-cyan)] transition-colors" onClick={() => { toggleInactiveAlternatives(track.id); setOpenAltMenuId(null); }}>
                                                                     {track.showInactiveAlternatives ? 'Hide Inactive' : 'Show Inactive'}
                                                                 </button>
-                                                                <button className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-red-400 hover:bg-red-500 hover:text-white" onClick={() => { deleteInactiveAlternatives(track.id); setOpenAltMenuId(null); }}>Delete Inactive</button>
+                                                                <button className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors" onClick={() => { deleteInactiveAlternatives(track.id); setOpenAltMenuId(null); }}>Delete Inactive</button>
                                                             </div>
                                                         )}
                                                     </div>
                                                 )}
                                                 {track.articulationSetId && (
                                                     <div 
-                                                        className="flex items-center gap-1.5 bg-sky-500/10 border border-sky-500/20 rounded-full px-2 py-0.5 h-4.5 hover:bg-sky-500/20 transition-all cursor-pointer group/art"
+                                                        className="flex items-center gap-1.5 bg-[var(--accent-cyan)]/10 border border-[var(--accent-cyan)]/30 rounded-full px-2 py-0.5 h-4.5 hover:bg-[var(--accent-cyan)]/20 hover:shadow-[0_0_10px_var(--accent-cyan-glow)] transition-all cursor-pointer group/art"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             toggleArticulationEditor(true, track.articulationSetId);
                                                         }}
                                                     >
-                                                        <Activity className="w-2.5 h-2.5 text-sky-400 group-hover/art:scale-110 transition-transform" />
-                                                        <span className="text-[8.5px] font-black text-sky-400 uppercase tracking-tighter truncate max-w-[80px]">
+                                                        <Activity className="w-2.5 h-2.5 text-[var(--accent-cyan)] group-hover/art:scale-110 transition-transform" />
+                                                        <span className="text-[8.5px] font-black text-[var(--accent-cyan)] uppercase tracking-tighter truncate max-w-[80px]">
                                                             {articulationSets.find(s => s.id === track.articulationSetId)?.articulations.find(a => a.id === track.currentArticulationId)?.name || 'Articulation'}
                                                         </span>
-                                                        <ChevronDown className="w-2.5 h-2.5 text-sky-900" />
+                                                        <ChevronDown className="w-2.5 h-2.5 text-[var(--accent-cyan)]/50" />
                                                     </div>
                                                 )}
                                             </div>
@@ -683,13 +683,13 @@ export function TrackList() {
                                             {trackHeaderConfig.showMute && (
                                                 <button
                                                     onMouseDown={(e) => handleTrackAction('muted', !track.muted, e)}
-                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all ${track.muted ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-gray-500 hover:text-gray-200'}`}
+                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all ${track.muted ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-gray-500 hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
                                                 >M</button>
                                             )}
                                             {trackHeaderConfig.showSolo && (
                                                 <button
                                                     onMouseDown={(e) => handleTrackAction('soloed', !track.soloed, e)}
-                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all ${track.soloed ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20' : 'text-gray-500 hover:text-gray-200'}`}
+                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all ${track.soloed ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20' : 'text-gray-500 hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
                                                 >S</button>
                                             )}
                                             {trackHeaderConfig.showRecord && (
@@ -698,31 +698,31 @@ export function TrackList() {
                                                     className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all flex items-center justify-center 
                                                         ${track.recordEnabled ? (recording ? 'bg-red-500 animate-pulse text-white' : 'bg-red-500 text-white shadow-lg shadow-red-500/20') : 
                                                           (isFocused && !tracks.some(t => t.recordEnabled)) ? 'text-red-500' : 
-                                                          'text-gray-500 hover:text-red-400'}`}
+                                                          'text-gray-500 hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
                                                 >R</button>
                                             )}
                                             {trackHeaderConfig.showInput && (
                                                 <button
                                                     onMouseDown={(e) => handleTrackAction('inputMonitoring', !track.inputMonitoring, e)}
-                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all flex items-center justify-center ${track.inputMonitoring ? 'bg-orange-500 text-black shadow-lg shadow-orange-500/20' : 'text-gray-500 hover:text-orange-300'}`}
+                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all flex items-center justify-center ${track.inputMonitoring ? 'bg-orange-500 text-black shadow-lg shadow-orange-500/20' : 'text-gray-500 hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
                                                 >I</button>
                                             )}
                                             {trackHeaderConfig.showProtect && (
                                                 <button
                                                     onMouseDown={(e) => handleTrackAction('protected', !track.protected, e)}
-                                                    className={`w-5 h-4 flex items-center justify-center transition-all ${track.protected ? 'text-green-500' : 'text-gray-500'} hover:text-green-400`}
+                                                    className={`w-5 h-4 flex items-center justify-center transition-all ${track.protected ? 'text-green-500' : 'text-gray-500'} hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10`}
                                                 ><Lock className="w-3 h-3" /></button>
                                             )}
                                             {trackHeaderConfig.showFreeze && (
                                                 <button
                                                     onMouseDown={(e) => handleTrackAction('frozen', !track.frozen, e)}
-                                                    className={`w-5 h-4 flex items-center justify-center transition-all ${track.frozen ? 'text-sky-400' : 'text-gray-500'} hover:text-sky-300`}
+                                                    className={`w-5 h-4 flex items-center justify-center transition-all ${track.frozen ? 'text-sky-400' : 'text-gray-500'} hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10`}
                                                 ><Snowflake className="w-3 h-3" /></button>
                                             )}
                                             {trackHeaderConfig.showHide && (
                                                 <button
                                                     onMouseDown={(e) => handleTrackAction('hidden', !track.hidden, e)}
-                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all ${track.hidden ? 'bg-[#ff9500] text-black shadow-lg shadow-orange-500/20' : 'text-gray-500 hover:text-orange-400'}`}
+                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all ${track.hidden ? 'bg-[#ff9500] text-black shadow-lg shadow-orange-500/20' : 'text-gray-500 hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
                                                 >H</button>
                                             )}
                                         </div>
@@ -732,7 +732,7 @@ export function TrackList() {
                                                 {trackHeaderConfig.showVolume && (
                                                     <div className="flex items-center gap-1 min-w-[80px]">
                                                         <div
-                                                            className="h-4 flex-1 bg-black/60 rounded-full border border-white/5 relative overflow-hidden group/vol cursor-pointer shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
+                                                            className="h-4 flex-1 bg-black/60 rounded-full border border-[var(--accent-cyan)]/30 relative overflow-hidden group/vol cursor-pointer shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                                                             onClick={(e) => e.stopPropagation()}
                                                             onMouseDown={(e) => {
                                                                 if (e.altKey) {
@@ -775,7 +775,7 @@ export function TrackList() {
                                                 )}
                                                 {trackHeaderConfig.showPan && (
                                                     <div
-                                                        className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#111] to-[#2a2a2a] border border-[#333] relative shadow-lg hover:border-gray-500 transition-colors cursor-pointer group/pan"
+                                                        className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#111] to-[#2a2a2a] border border-[var(--accent-cyan)]/50 relative shadow-lg hover:border-[var(--accent-cyan)] hover:shadow-[0_0_10px_var(--accent-cyan-glow)] transition-all cursor-pointer group/pan"
                                                         onMouseDown={(e) => {
                                                             e.stopPropagation();
                                                             if (e.altKey) {
@@ -810,15 +810,15 @@ export function TrackList() {
 
                                 {/* Drop Indicators */}
                                 {dropTargetTrackId === track.id && (
-                                    <div className="absolute inset-x-0 -top-px h-[2px] bg-sky-400 z-50 shadow-[0_0_10px_rgba(14,165,233,0.8)]"></div>
+                                    <div className="absolute inset-x-0 -top-px h-[2px] bg-[var(--accent-cyan)] z-50 shadow-[0_0_10px_var(--accent-cyan-glow-strong)]"></div>
                                 )}
 
                                 {/* Track Selection Halo */}
-                                {isSelected && <div className={`absolute inset-y-0 left-0 w-[3px] shadow-[0_0_12px_rgba(14,165,233,0.8)] z-50 ${isFocused ? 'bg-sky-400' : 'bg-gray-600'}`}></div>}
+                                {isSelected && <div className={`absolute inset-y-0 left-0 w-[3px] shadow-[0_0_12px_var(--accent-cyan-glow)] z-50 ${isFocused ? 'bg-[var(--accent-cyan)]' : 'bg-[var(--accent-cyan)]/70'}`}></div>}
 
                                 {/* Vertical Zoom Handle */}
                                 <div
-                                    className="absolute bottom-0 right-0 w-6 h-4 cursor-ns-resize z-50 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 border-l border-t border-white/10 rounded-tl flex items-center justify-center"
+                                    className="absolute bottom-0 right-0 w-6 h-4 cursor-ns-resize z-50 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 border-l border-t border-[var(--accent-cyan)]/30 rounded-tl flex items-center justify-center"
                                     onMouseDown={(e) => {
                                         e.stopPropagation();
                                         setZoomDraggingTrackId(track.id);
@@ -829,7 +829,7 @@ export function TrackList() {
                             </div>
                             {/* Inactive Alternative Headers */}
                             {track.showInactiveAlternatives && track.alternatives.filter(a => a.id !== track.activeAlternativeId).map(alt => (
-                                <div key={alt.id} className="flex h-[30px] bg-black/40 border-b border-white/5 group/altrow items-center px-4 gap-3">
+                                <div key={alt.id} className="flex h-[30px] bg-black/40 border-b border-[var(--accent-cyan)]/10 group/altrow items-center px-4 gap-3">
                                     <div className="flex shrink-0 h-full">
                                         {trackHeaderConfig.showColorBars && (
                                             <div className="w-[4px] h-full" style={{ backgroundColor: track.color, opacity: 0.3 }} />
@@ -844,12 +844,12 @@ export function TrackList() {
                                     <span className="text-[10px] font-black text-gray-500 uppercase flex-1">{alt.name}</span>
                                     <button
                                         onClick={(e) => { e.stopPropagation(); swapWithActiveAlternative(track.id, alt.id); }}
-                                        className="opacity-0 group-hover/altrow:opacity-100 text-gray-600 hover:text-sky-500 transition-all p-1"
+                                        className="opacity-0 group-hover/altrow:opacity-100 text-gray-600 hover:text-[var(--accent-cyan)] transition-all p-1"
                                         title="Swap with active"
                                     >
                                         <ArrowUp className="w-3 h-3" />
                                     </button>
-                                    <button className="text-gray-600 hover:text-green-500 transition-all p-1">
+                                    <button className="text-gray-600 hover:text-[var(--accent-cyan)] transition-all p-1">
                                         <Power className="w-3 h-3" />
                                     </button>
                                 </div>
@@ -859,14 +859,14 @@ export function TrackList() {
                 })}
 
                 <div
-                    className={`h-20 flex items-center justify-center border-t border-black/20 opacity-0 hover:opacity-100 transition-all group/drop ${dropTargetTrackId === null && showCreateTrackUsing ? 'opacity-100 bg-sky-500/5' : ''}`}
+                    className={`h-20 flex items-center justify-center border-t border-[var(--accent-cyan)]/20 opacity-0 hover:opacity-100 transition-all group/drop ${dropTargetTrackId === null && showCreateTrackUsing ? 'opacity-100 bg-[var(--accent-cyan)]/5' : ''}`}
                     onDragOver={(e) => {
                         e.preventDefault();
                         setDropTargetTrackId(null);
                         setDragPosition({ x: e.clientX, y: e.clientY });
                     }}
                 >
-                    <div className={`text-[10px] font-black text-gray-500 uppercase tracking-widest border border-dashed border-gray-700 px-4 py-2 rounded-lg group-hover/drop:border-sky-500 group-hover/drop:text-sky-500 transition-all ${dropTargetTrackId === null && showCreateTrackUsing ? 'border-sky-400 text-sky-400 scale-105 shadow-[0_0_20px_rgba(14,165,233,0.2)]' : ''}`}>
+                    <div className={`text-[10px] font-black text-gray-500 uppercase tracking-widest border border-dashed border-[var(--accent-cyan)]/30 px-4 py-2 rounded-lg group-hover/drop:border-[var(--accent-cyan)] group-hover/drop:text-[var(--accent-cyan)] transition-all ${dropTargetTrackId === null && showCreateTrackUsing ? 'border-[var(--accent-cyan)] text-[var(--accent-cyan)] scale-105 shadow-[0_0_20px_var(--accent-cyan-glow)]' : ''}`}>
                         {dropTargetTrackId === null && showCreateTrackUsing ? 'Create New Track at End' : 'Drop to Create Track'}
                     </div>
                 </div>
@@ -874,15 +874,15 @@ export function TrackList() {
 
             {showCreateTrackUsing && <CreateNewTrackUsingDialog />}
 
-            {trackContextMenu && (
+{trackContextMenu && (
                 <div
                     ref={contextMenuRef}
-                    className="fixed w-64 bg-[#2c2c2e] border border-white/10 rounded-lg shadow-2xl z-[1000] py-1 animate-in fade-in zoom-in-95 duration-100"
+                    className="fixed w-64 bg-[#2c2c2e] border border-[var(--accent-cyan)]/30 rounded-lg shadow-[0_0_20px_var(--accent-cyan-glow)] z-[1000] py-1 animate-in fade-in zoom-in-95 duration-100"
                     style={{ left: trackContextMenu.x, top: trackContextMenu.y }}
                 >
-                    <div className="px-3 py-1.5 text-[9px] font-black text-gray-500 uppercase tracking-widest border-b border-white/5 mb-1">Track Operations</div>
+                    <div className="px-3 py-1.5 text-[9px] font-black text-gray-500 uppercase tracking-widest border-b border-[var(--accent-cyan)]/20 mb-1">Track Operations</div>
                     <button
-                        className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors flex items-center justify-between group"
+                        className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-[var(--accent-cyan)]/20 hover:text-[var(--accent-cyan)] transition-colors flex items-center justify-between group"
                         onClick={() => {
                             const t = tracks.find(track => track.id === trackContextMenu.id);
                             if (t) addTrack({ ...t, id: Date.now().toString(), name: `${t.name} copy`, orderIndex: t.orderIndex + 1 });
@@ -902,9 +902,9 @@ export function TrackList() {
                     </button>
                     {(tracks.find(t => t.id === trackContextMenu.id)?.isStack || tracks.find(t => t.id === trackContextMenu.id)?.parentId) && (
                         <>
-                            <div className="h-px bg-white/5 my-1" />
+                            <div className="h-px bg-[var(--accent-cyan)]/10 my-1" />
                             <button
-                                className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors flex items-center justify-between group"
+                                className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-[var(--accent-cyan)]/20 hover:text-[var(--accent-cyan)] transition-colors flex items-center justify-between group"
                                 onClick={() => {
                                     const t = tracks.find(track => track.id === trackContextMenu.id);
                                     if (t) flattenStack(t.isStack ? t.id : t.parentId!);
@@ -915,7 +915,7 @@ export function TrackList() {
                             </button>
                             {tracks.find(t => t.id === trackContextMenu.id)?.stackType === 'Folder' && (
                                 <button
-                                    className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors flex items-center justify-between group"
+                                    className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-[var(--accent-cyan)]/20 hover:text-[var(--accent-cyan)] transition-colors flex items-center justify-between group"
                                     onClick={() => {
                                         convertStackType(trackContextMenu.id, 'Summing');
                                         setTrackContextMenu(null);
@@ -926,10 +926,10 @@ export function TrackList() {
                             )}
                         </>
                     )}
-                    <div className="h-px bg-white/5 my-1" />
+                    <div className="h-px bg-[var(--accent-cyan)]/10 my-1" />
                     {tracks.find(t => t.id === trackContextMenu.id)?.articulationSetId ? (
                         <button
-                            className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                            className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-[var(--accent-cyan)]/20 hover:text-[var(--accent-cyan)] transition-colors"
                             onClick={() => {
                                 const t = tracks.find(track => track.id === trackContextMenu.id);
                                 if (t?.articulationSetId) toggleArticulationEditor(true, t.articulationSetId);
@@ -940,7 +940,7 @@ export function TrackList() {
                         </button>
                     ) : (
                         <button
-                            className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                            className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-[var(--accent-cyan)]/20 hover:text-[var(--accent-cyan)] transition-colors"
                             onClick={() => {
                                 addArticulationSet(trackContextMenu.id);
                                 setTrackContextMenu(null);
@@ -949,9 +949,9 @@ export function TrackList() {
                             Add Articulation Set...
                         </button>
                     )}
-                    <div className="h-px bg-white/5 my-1" />
+                    <div className="h-px bg-[var(--accent-cyan)]/10 my-1" />
                     <button
-                        className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                        className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-[var(--accent-cyan)]/20 hover:text-[var(--accent-cyan)] transition-colors"
                         onClick={() => {
                             toggleBounceTrackDialog(trackContextMenu.id);
                             setTrackContextMenu(null);
@@ -961,7 +961,7 @@ export function TrackList() {
                     </button>
                     {selectedClipIds.length > 0 && tracks.find(t => t.id === trackContextMenu.id)?.id === (clips.find((c: Clip) => c.id === selectedClipIds[0])?.trackId) && (
                         <button
-                            className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                            className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-[var(--accent-cyan)]/20 hover:text-[var(--accent-cyan)] transition-colors"
                             onClick={() => {
                                 toggleBounceRegionsDialog(selectedClipIds);
                                 setTrackContextMenu(null);
@@ -970,9 +970,9 @@ export function TrackList() {
                             Bounce Regions in Place...
                         </button>
                     )}
-                    <div className="h-px bg-white/5 my-1" />
+                    <div className="h-px bg-[var(--accent-cyan)]/10 my-1" />
                     <button
-                        className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-red-500 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-between group"
+                        className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-red-500 hover:bg-red-500/20 hover:text-red-400 transition-colors flex items-center justify-between group"
                         onClick={() => {
                             const { deleteTrack } = useProjectStore.getState();
                             deleteTrack(trackContextMenu.id);
@@ -982,9 +982,9 @@ export function TrackList() {
                         Delete Track
                         <span className="text-[9px] text-gray-500 group-hover:text-white/70">⌘⌫</span>
                     </button>
-                    <div className="h-px bg-white/5 my-1" />
+                    <div className="h-px bg-[var(--accent-cyan)]/10 my-1" />
                     <button
-                        className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors flex items-center justify-between group"
+                        className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-gray-200 hover:bg-[var(--accent-cyan)]/20 hover:text-[var(--accent-cyan)] transition-colors flex items-center justify-between group"
                         onClick={() => {
                             toggleTrackHeaderConfig(true);
                             setTrackContextMenu(null);

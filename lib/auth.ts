@@ -25,7 +25,7 @@ export const authOptions: NextAuthOptions = {
           const valid = await bcrypt.compare(credentials.password, user.passwordHash);
           if (!valid) return null;
 
-          return { id: user.id, name: user.name, email: user.email };
+          return { id: user.id, name: user.name, email: user.email, role: user.role };
         } catch (err) {
           console.error("[Auth] Database error during authorize:", err);
           return null;
@@ -44,12 +44,14 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.role = user.role ?? 'user';
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
+        session.user.role = token.role as string;
       }
       return session;
     },

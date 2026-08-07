@@ -55,6 +55,11 @@ Aider-AI-aider-a4be6cc/
 # Continue AI assistant artifacts
 .continue/
 
+# Agent session state — machine-local, and it churns on every run
+.omo/
+.opencode/
+.codegraph
+
 # Temporary exports, renders, and cache
 tmp/
 public/temp/
@@ -109,3 +114,11 @@ sound sample/
 *.cpf
 *.ppi
 
+
+# Agent/Playwright debugging artifacts that kept landing in the repo root
+/*.yml
+!docker-compose.yml
+!vercel.json
+/*.png
+/*.jpg
+/*.log

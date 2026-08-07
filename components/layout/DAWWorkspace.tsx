@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { TopTransport } from './TopTransport';
 import { TimelineCanvas } from '../TimelineCanvas';
-import PianoRoll from '../midi/PianoRoll';
+import PianoRoll from '../PianoRoll';
 import { AutomationRuntimeOverlay } from '../debug/AutomationRuntimeOverlay';
 import { NavigationDebugOverlay } from '../NavigationDebugOverlay';
 import { AIAssistant } from '../AIAssistant';
@@ -55,7 +55,7 @@ export function DAWWorkspace() {
           {/* Bottom Half: Piano Roll Viewport */}
           {showPianoRoll && (
             <div className="h-96 relative shadow-[0_-10px_20px_rgba(0,0,0,0.5)] z-10">
-               <PianoRoll clipId="active_clip" />
+               <PianoRoll />
             </div>
           )}
 

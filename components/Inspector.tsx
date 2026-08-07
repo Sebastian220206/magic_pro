@@ -16,7 +16,8 @@ export function Inspector() {
     const {
         focusedTrackId, tracks, clips, selectedClipId,
         showInspector, updateTrack, updateClip,
-        setInternalMidiIn, setInternalMidiInRecordMode
+        setInternalMidiIn, setInternalMidiInRecordMode,
+        setPluginBrowserTrack
     } = useProjectStore()
 
     const track = tracks.find(t => t.id === focusedTrackId)
@@ -29,7 +30,7 @@ export function Inspector() {
 
     if (!track) {
         return (
-            <div className="w-[280px] bg-[#1a1a1a] border-r border-black flex flex-col items-center justify-center text-gray-700 shrink-0 z-40">
+            <div className="w-[280px] bg-[#1a1a1a] border-r border-[var(--accent-cyan)]/50 flex flex-col items-center justify-center text-gray-700 shrink-0 z-40">
                 <span className="text-[10px] uppercase font-black tracking-widest">No Track Selected</span>
         </div>
     )
@@ -46,9 +47,9 @@ export function Inspector() {
     }
 
     return (
-        <div className="w-[280px] bg-[#1a1a1a] border-r border-black flex flex-col shrink-0 select-none overflow-y-auto custom-scrollbar-v z-40">
+        <div className="w-[280px] bg-[#1a1a1a] border-r border-[var(--accent-cyan)]/50 flex flex-col shrink-0 select-none overflow-y-auto custom-scrollbar-v z-40">
             {/* 1. Region Inspector Section (Professional Logic Implementation) */}
-            <div className="flex flex-col border-b border-black/40">
+            <div className="flex flex-col border-b border-[var(--accent-cyan)]/30">
                 <div
                     onClick={() => setRegionOpen(!regionOpen)}
                     className="h-9 px-3 flex items-center gap-2 hover:bg-white/[0.03] cursor-pointer transition-colors bg-[#252525]/30"
@@ -73,7 +74,7 @@ export function Inspector() {
                         <InspectorField label="Pitch Source" value={clip.pitchSource || "Off"} hasChevron />                        <InspectorField label="Flex Enabled" type="checkbox" checked={clip.flexEnabled || false} onChange={(v: boolean) => handleClipUpdate('flexEnabled', v)} />
                         <InspectorField label="Flex Mode">
                             <select
-                                className="bg-transparent text-[11px] font-black text-gray-200 outline-none cursor-pointer text-right w-[140px] appearance-none"
+                                className="bg-transparent text-[11px] font-black text-gray-200 outline-none cursor-pointer text-right w-[140px] appearance-none focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
                                 value={clip.flexMode || 'off'}
                                 onChange={(e) => handleClipUpdate('flexMode', e.target.value as any)}
                             >
@@ -114,7 +115,7 @@ export function Inspector() {
             </div>
 
             {/* 2. Track Inspector Section (Professional Logic Implementation) */}
-            <div className="flex flex-col border-b border-black/40">
+            <div className="flex flex-col border-b border-[var(--accent-cyan)]/30">
                 <div
                     onClick={() => setTrackOpen(!trackOpen)}
                     className="h-9 px-3 flex items-center gap-2 hover:bg-white/[0.03] cursor-pointer transition-colors bg-[#252525]/30"
@@ -131,6 +132,27 @@ export function Inspector() {
                                 {track.type === 'midi' ? <Keyboard className="w-6 h-6 text-[#63ed63] opacity-80" /> : <Mic className="w-6 h-6 text-sky-400 opacity-80" />}
                             </div>
                         </InspectorField>
+                        {/* The one place to see and change what a track plays.
+                            Instrument selection was previously buried in the
+                            Library panel and the Audio FX menu, with nothing in
+                            the Inspector showing the current instrument. */}
+                        {(track.type === 'midi' || track.type === 'software-instrument' || track.type === 'drummer') && (
+                            <InspectorField label="Instrument">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPluginBrowserTrack(track.id, 'instrument');
+                                    }}
+                                    title="Choose an instrument for this track"
+                                    className="flex items-center gap-1 max-w-[130px] px-1.5 py-0.5 rounded hover:bg-sky-500/20 transition-colors group/inst"
+                                >
+                                    <span className={`text-[11px] font-black truncate ${track.instrument ? 'text-gray-200' : 'text-gray-600 italic'}`}>
+                                        {track.instrument || 'None'}
+                                    </span>
+                                    <ChevronDown className="w-3 h-3 text-gray-500 group-hover/inst:text-sky-400 shrink-0" />
+                                </button>
+                            </InspectorField>
+                        )}
                         <InspectorField label="Channel" value={track.channel || "Inst 1"} hasChevron />
                         <InspectorField label="MIDI Input" value={track.midiInput || "All"} hasChevron />
 
@@ -144,7 +166,7 @@ export function Inspector() {
                         <div className="flex flex-col border-y border-white/5 my-1 py-1 bg-black/10">
                             <InspectorField label="Internal MIDI In">
                                 <select 
-                                    className="bg-transparent text-[11px] font-black text-gray-200 outline-none cursor-pointer text-right w-[140px] appearance-none"
+                                    className="bg-transparent text-[11px] font-black text-gray-200 outline-none cursor-pointer text-right w-[140px] appearance-none focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
                                     value={track.internalMidiInSourceId || ""}
                                     onChange={(e) => {
                                         const sourceId = e.target.value || undefined;
@@ -178,7 +200,7 @@ export function Inspector() {
 
                         <InspectorField label="MIDI In Channel">
                             <select 
-                                className="bg-transparent text-[11px] font-black text-gray-200 outline-none cursor-pointer text-right appearance-none"
+                                className="bg-transparent text-[11px] font-black text-gray-200 outline-none cursor-pointer text-right appearance-none focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
                                 value={track.midiInChannel || "All"}
                                 onChange={(e) => handleTrackUpdate('midiInChannel', e.target.value === 'All' ? 'All' : Number(e.target.value))}
                             >
@@ -310,7 +332,7 @@ const InspectorChannelStrip = memo(function InspectorChannelStrip({ track, isOut
     const analyzer = (isOutput ? audioEngine.getMasterAnalyzer() : (track ? audioEngine.getTrackNodes(track.id)?.analyzer : null)) || null;
 
     return (
-        <div className={`flex-1 flex flex-col border-r border-black/40 ${isOutput ? 'bg-[#1e1e1e]' : 'bg-[#1a1a1a]'}`}>
+        <div className={`flex-1 flex flex-col border-r border-[var(--accent-cyan)]/30 ${isOutput ? 'bg-[#1e1e1e]' : 'bg-[#1a1a1a]'}`}>
             <div className="flex-1 flex flex-col px-1.5 py-3 gap-0.5">
                 <div className="h-6 bg-[#252525] rounded-sm mb-1.5 flex items-center justify-center text-[9px] font-black text-gray-400 uppercase tracking-tighter border border-white/5 truncate px-1">
                     {isOutput ? 'Setting' : (track?.name || 'Analog De...')}
@@ -570,7 +592,7 @@ function PanKnob({ value, onChange, isOutput }: { value: number, onChange: (v: n
 
     return (
         <div 
-            className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#000] to-[#333] border border-[#444] relative shadow-2xl cursor-pointer group active:scale-95 transition-transform"
+            className="w-3 h-3 rounded-full bg-gradient-to-tr from-[#000] to-[#333] border border-[var(--accent-cyan)]/50 relative shadow-2xl cursor-pointer group active:scale-95 transition-transform"
             onMouseDown={(e) => {
                 const startY = e.clientY;
                 const startVal = value;
@@ -583,12 +605,12 @@ function PanKnob({ value, onChange, isOutput }: { value: number, onChange: (v: n
                 window.addEventListener('mouseup', onUp);
             }}
         >
-            <div className="absolute inset-1 rounded-full border border-black/40 shadow-inner bg-gradient-to-tr from-[#111] via-[#222] to-[#2a2a2a]"></div>
+            <div className="absolute inset-1 rounded-full border border-[var(--accent-cyan)]/30 shadow-inner bg-gradient-to-tr from-[#111] via-[#222] to-[#2a2a2a]"></div>
             <div 
-                className="absolute top-1.5 left-[17px] w-[2px] h-3 bg-sky-400 rounded-full origin-[1px_16.5px] transition-transform duration-100 ease-out"
+                className="absolute top-1.5 left-[17px] w-[2px] h-3 bg-[var(--accent-cyan)] rounded-full origin-[1px_16.5px] transition-transform duration-100 ease-out"
                 style={{ transform: `rotate(${rotation}deg)` }}
             >
-                <div className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-sky-400/20 blur-sm rounded-full"></div>
+                <div className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-[var(--accent-cyan)]/20 blur-sm rounded-full"></div>
             </div>
         </div>
     )

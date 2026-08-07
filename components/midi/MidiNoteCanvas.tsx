@@ -61,12 +61,13 @@ export const MidiNoteCanvas = memo(function MidiNoteCanvas({
             const isSelected = selectedNoteIds.has(note.id);
             const isDragging = dragStateNoteId === note.id;
 
-            // Note Box
-            ctx.fillStyle = isSelected ? 'white' : color;
-            ctx.globalAlpha = isDragging ? 0.6 : 1.0;
-            
-            // Rounded rect for notes
-            roundRect(ctx, x, y + 0.5, Math.max(2, w - 1), h, 2, true, isSelected);
+// Note Box
+          const noteColor = note.color || color;
+          ctx.fillStyle = isSelected ? 'white' : noteColor;
+          ctx.globalAlpha = isDragging ? 0.6 : 1.0;
+          
+          // Rounded rect for notes
+          roundRect(ctx, x, y + 0.5, Math.max(2, w - 1), h, 2, true, isSelected);
 
             // Velocity indicator (darker strip at bottom)
             ctx.fillStyle = 'rgba(0,0,0,0.2)';

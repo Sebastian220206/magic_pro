@@ -1,7 +1,11 @@
 /**
  * MultiSamplerEngine
  * Generic sampler engine supporting velocity layers and round robin.
+ * Supports DecentSampler (.dspreset), SFZ, and EXS24 formats.
  */
+
+import { parseSfz } from './sfzParser';
+import { parseExs } from './exsParser';
 
 export type SampleZone = {
   path: string;
@@ -170,6 +174,14 @@ export class MultiSamplerEngine {
         console.log('[MultiSampler] Initialization Ready.');
     }
 
+    public initializeFromZones(zones: SampleZone[], basePath: string = '/') {
+        console.log(`[MultiSampler] Initializing from ${zones.length} zones...`);
+        this.basePath = basePath;
+        this.mapper = new SamplerNoteMapper(zones);
+        this.loaded = true;
+        console.log('[MultiSampler] Initialization Ready.');
+    }
+
     public async playNote(note: number, velocity: number, time?: number): Promise<void> {
         if (!this.loaded || !this.mapper) return;
         const t = time ?? this.ctx.currentTime;
@@ -254,5 +266,27 @@ export async function createSamplerInstrument(ctx: AudioContext, dspPath: string
     // Ensure basePath ends with slash
     let basePath = dspPath.substring(0, dspPath.lastIndexOf('/') + 1);
     await engine.initialize(xml, basePath);
+    return engine;
+}
+
+export async function createSfzInstrument(ctx: AudioContext, sfzPath: string): Promise<MultiSamplerEngine> {
+    const res = await fetch(sfzPath);
+    if (!res.ok) throw new Error(`[MultiSampler] SFZ 404: ${sfzPath}`);
+    const text = await res.text();
+    const zones = parseSfz(text);
+    const engine = new MultiSamplerEngine(ctx);
+    const basePath = sfzPath.substring(0, sfzPath.lastIndexOf('/') + 1);
+    engine.initializeFromZones(zones, basePath);
+    return engine;
+}
+
+export async function createExsInstrument(ctx: AudioContext, exsPath: string): Promise<MultiSamplerEngine> {
+    const res = await fetch(exsPath);
+    if (!res.ok) throw new Error(`[MultiSampler] EXS 404: ${exsPath}`);
+    const buffer = await res.arrayBuffer();
+    const zones = parseExs(buffer);
+    const engine = new MultiSamplerEngine(ctx);
+    const basePath = exsPath.substring(0, exsPath.lastIndexOf('/') + 1);
+    engine.initializeFromZones(zones, basePath);
     return engine;
 }

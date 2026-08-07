@@ -38,8 +38,21 @@ export interface ProjectSyncState {
 // Note Transformation
 // =============================================================================
 
+/** Timeline position of a clip, tolerating the `start` / `startBeat` aliases. */
+export function clipStartBeat(clip: Pick<Clip, 'start' | 'startBeat'>): number {
+  const raw = clip.startBeat ?? clip.start ?? 0;
+  return Number.isFinite(raw) ? raw : 0;
+}
+
 /**
- * Convert projectStore Clip to midiStore notes
+ * Convert projectStore Clip to midiStore notes.
+ *
+ * Notes are stored **clip-relative** in projectStore but the piano roll draws
+ * everything — grid, bar numbers, loop markers and the playhead — in absolute
+ * timeline beats. They are therefore translated to absolute here and back again
+ * on save. Without this, notes in a region that does not begin at bar 1 render
+ * shifted left by the region's start, and the playhead sweeps past them at the
+ * wrong time.
  */
 function clipToNotes(
   clip: Clip,
@@ -47,11 +60,13 @@ function clipToNotes(
   trackId: string
 ): SyncedNote[] {
   if (clip.type !== 'midi' || !clip.notes) return [];
-  
+
+  const offset = clipStartBeat(clip);
+
   return clip.notes.map((note) => ({
     id: note.id,
     pitch: note.pitch,
-    startBeat: note.start,
+    startBeat: offset + note.start,
     duration: note.duration,
     velocity: note.velocity,
     selected: false,
@@ -62,9 +77,12 @@ function clipToNotes(
 }
 
 /**
- * Convert midiStore note back to projectStore format
+ * Convert a midiStore note back to projectStore format.
+ *
+ * `clipStart` is the timeline position of the owning clip; the note's absolute
+ * beat is rebased to clip-relative for storage.
  */
-function noteToClipFormat(note: SyncedNote): {
+function noteToClipFormat(note: SyncedNote, clipStart: number): {
   id: string;
   pitch: number;
   velocity: number;
@@ -75,7 +93,9 @@ function noteToClipFormat(note: SyncedNote): {
     id: note.id,
     pitch: note.pitch,
     velocity: note.velocity,
-    start: note.startBeat,
+    // Never allow a negative offset: dragging a note left of its region start
+    // would otherwise persist as a position before the clip.
+    start: Math.max(0, note.startBeat - clipStart),
     duration: note.duration,
   };
 }
@@ -200,19 +220,16 @@ export function loadFromProjectStore(
     // Determine primary clip for editing
     const primaryClip = clipsToLoad.find(c => c.isActive) || clipsToLoad[0];
 
-    // Load into midiStore
-    // Create a virtual "merged" clip for multi-clip editing
+    // Create virtual clip containing all notes
     const mergedClipId = `merged-${primaryClip.clip.id}`;
     
-    // Clear existing clips and create merged clip
-    midiStore.clips.clear();
-    
-    // Create virtual clip containing all notes
+    // The virtual clip spans absolute timeline beats, matching the notes it
+    // holds and the grid the editor draws.
     const virtualClip = {
       id: mergedClipId,
       trackId: primaryClip.trackId,
-      startBeat: 0,
-      durationBeats: Math.max(...clipsToLoad.map(c => (c.clip.startBeat ?? 0) + c.clip.duration)),
+      startBeat: Math.min(...clipsToLoad.map(c => clipStartBeat(c.clip))),
+      durationBeats: Math.max(...clipsToLoad.map(c => clipStartBeat(c.clip) + c.clip.duration)),
       chunks: [],
       notes: allNotes,
       color: primaryClip.clip.color || '#3B82F6',
@@ -222,18 +239,17 @@ export function loadFromProjectStore(
       isModified: false,
     } as any;
 
-    midiStore.clips.set(mergedClipId, virtualClip);
-    midiStore.currentClipId = mergedClipId;
-    
-    // Store metadata for later sync back
-    (midiStore as any)._syncMetadata = {
-      linkMode,
-      sourceClipIds: clipsToLoad.map(c => c.clip.id),
-      activeClipId: primaryClip.clip.id,
-    };
-
-    // Reset selection
-    midiStore.selectedNoteIds.clear();
+    // Use setState to comply with Immer middleware (state is frozen and cannot be mutated directly)
+    useMidiStore.setState({
+      clips: new Map<string, any>().set(mergedClipId, virtualClip),
+      currentClipId: mergedClipId,
+      selectedNoteIds: new Set(),
+      _syncMetadata: {
+        linkMode,
+        sourceClipIds: clipsToLoad.map(c => c.clip.id),
+        activeClipId: primaryClip.clip.id,
+      },
+    } as any);
 
   } finally {
     isSyncing = false;
@@ -292,8 +308,9 @@ export function saveToProjectStore(): void {
       const clip = projectStore.clips.find(c => c.id === clipId);
       if (!clip || clip.type !== 'midi') return;
 
-      // Convert notes back to project format
-      const updatedNotes = notes.map(noteToClipFormat);
+      // Rebase absolute editor beats back to clip-relative storage.
+      const offset = clipStartBeat(clip);
+      const updatedNotes = notes.map(note => noteToClipFormat(note, offset));
 
       // Update the clip in projectStore
       projectStore.updateClip(clipId, {
@@ -311,7 +328,7 @@ export function saveToProjectStore(): void {
         const targetClip = projectStore.clips.find(c => c.id === note.clipId);
         if (targetClip && targetClip.type === 'midi') {
           const existingNotes = targetClip.notes || [];
-          const newNote = noteToClipFormat(note);
+          const newNote = noteToClipFormat(note, clipStartBeat(targetClip));
           
           // Check if note already exists
           const exists = existingNotes.some(n => n.id === newNote.id);
@@ -324,8 +341,15 @@ export function saveToProjectStore(): void {
       }
     }
 
-    // Mark as saved
-    currentClip.isModified = false;
+    // Mark as saved (use setState because midiStore uses Immer middleware - state is frozen)
+    if (currentClip.id) {
+      useMidiStore.setState({
+        clips: new Map(useMidiStore.getState().clips).set(currentClip.id, {
+          ...currentClip,
+          isModified: false,
+        }),
+      } as any);
+    }
 
   } finally {
     isSyncing = false;
@@ -481,6 +505,19 @@ export function useProjectSync(options: UseProjectSyncOptions = {}) {
       unsubscribeRef.current?.();
     };
   }, [linkMode, autoSave]);
+
+  // Reload when selected clip changes
+  useEffect(() => {
+    let prevSelected = useProjectStore.getState().selectedClipIds;
+    const unsub = useProjectStore.subscribe(() => {
+      const current = useProjectStore.getState().selectedClipIds;
+      if (JSON.stringify(current) !== JSON.stringify(prevSelected)) {
+        prevSelected = current;
+        loadFromProjectStore(linkMode);
+      }
+    });
+    return unsub;
+  }, [linkMode]);
 
   // Manual save callback
   const save = useCallback(() => {

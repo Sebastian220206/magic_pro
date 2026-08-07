@@ -11,6 +11,7 @@ import {
     Music, Volume2, Power, Flag,
     Layers, CornerLeftDown
 } from "lucide-react"
+import { advancedScheduler } from "@/engine/audioEngine/scheduler"
 
 export function Timeline() {
     const {
@@ -32,11 +33,40 @@ export function Timeline() {
     } = useProjectStore()
 
     const containerRef = useRef<HTMLDivElement>(null)
+    const playheadHandleRef = useRef<HTMLDivElement>(null)
+    const playheadLineRef = useRef<HTMLDivElement>(null)
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, clipIds: string[] } | null>(null)
     const [takeFolderMenuClipId, setTakeFolderMenuClipId] = useState<string | null>(null)
 
     const pixelsPerBeat = zoom || 80;
     const playheadX = playhead * pixelsPerBeat;
+
+    useEffect(() => {
+        let frameId: number;
+        const tick = () => {
+            if (playing) {
+                const preciseBeat = advancedScheduler.getPreciseCurrentBeat();
+                const x = preciseBeat * pixelsPerBeat;
+                if (playheadHandleRef.current) {
+                    playheadHandleRef.current.style.transform = `translateX(${x}px)`;
+                }
+                if (playheadLineRef.current) {
+                    playheadLineRef.current.style.transform = `translateX(${x}px)`;
+                }
+            } else {
+                const x = playhead * pixelsPerBeat;
+                if (playheadHandleRef.current) {
+                    playheadHandleRef.current.style.transform = `translateX(${x}px)`;
+                }
+                if (playheadLineRef.current) {
+                    playheadLineRef.current.style.transform = `translateX(${x}px)`;
+                }
+            }
+            frameId = requestAnimationFrame(tick);
+        };
+        frameId = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(frameId);
+    }, [playing, playhead, pixelsPerBeat]);
 
     const [draggingAutomation, setDraggingAutomation] = useState<null | {
         trackId: string;
@@ -265,8 +295,33 @@ export function Timeline() {
 
     const handleRulerMouseDown = (e: React.MouseEvent) => {
         const rect = e.currentTarget.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        movePlayhead(x / pixelsPerBeat);
+        const scrollLeft = containerRef.current?.scrollLeft || 0;
+        
+        const updatePosition = (clientX: number) => {
+            const x = clientX - rect.left + (containerRef.current?.scrollLeft || 0);
+            const beat = Math.max(0, x / pixelsPerBeat);
+            movePlayhead(beat);
+            
+            // Instantly update the DOM refs for ultra-smooth scrubbing feedback
+            // (bypassing React re-render delay)
+            const px = beat * pixelsPerBeat;
+            if (playheadHandleRef.current) playheadHandleRef.current.style.transform = `translateX(${px}px)`;
+            if (playheadLineRef.current) playheadLineRef.current.style.transform = `translateX(${px}px)`;
+        };
+        
+        updatePosition(e.clientX);
+
+        const onMouseMove = (me: MouseEvent) => {
+            updatePosition(me.clientX);
+        };
+
+        const onMouseUp = () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
     };
 
     const handleTimelineMouseDown = (e: React.MouseEvent) => {
@@ -295,13 +350,18 @@ export function Timeline() {
                 const bottom = Math.max(startY, currentY);
 
                 const selectedTrackIds: string[] = [];
-                let currentOffset = 40;
+                let currentOffset = 48; // Timeline ruler height
                 tracks.forEach(track => {
-                    const h = trackHeight * (track.zoom || 1);
-                    if (currentOffset + h > top && currentOffset < bottom) {
+                    const currentHeight = trackHeight * (track.zoom || 1);
+                    const activeClips = clips.filter(c => c.trackId === track.id && c.alternativeId === track.activeAlternativeId);
+                    const openTakeFolders = activeClips.filter(c => c.isTakeFolder && c.isTakeFolderOpen);
+                    const maxTakes = openTakeFolders.reduce((max, c) => Math.max(max, (c.takes?.length || 0)), 0);
+                    const trackTotalHeight = currentHeight + (maxTakes * currentHeight);
+
+                    if (currentOffset + trackTotalHeight > top && currentOffset < bottom) {
                         selectedTrackIds.push(track.id);
                     }
-                    currentOffset += h;
+                    currentOffset += trackTotalHeight;
                 });
 
                 // Find clip IDs within the selection bounds
@@ -332,6 +392,43 @@ export function Timeline() {
 
             window.addEventListener('mousemove', onMouseMove);
             window.addEventListener('mouseup', onMouseUp);
+        } else if (currentTool === 'pencil' || currentTool === 'draw') {
+            const currentY = e.clientY - rect.top + containerRef.current!.scrollTop;
+            let currentOffset = 48; // Timeline ruler height
+            let clickedTrackId: string | null = null;
+            let clickedTrack: any = null;
+
+            for (const track of tracks) {
+                const currentHeight = trackHeight * (track.zoom || 1);
+                const activeClips = clips.filter(c => c.trackId === track.id && c.alternativeId === track.activeAlternativeId);
+                const openTakeFolders = activeClips.filter(c => c.isTakeFolder && c.isTakeFolderOpen);
+                const maxTakes = openTakeFolders.reduce((max, c) => Math.max(max, (c.takes?.length || 0)), 0);
+                const trackTotalHeight = currentHeight + (maxTakes * currentHeight);
+
+                if (currentY >= currentOffset && currentY < currentOffset + trackTotalHeight) {
+                    clickedTrackId = track.id;
+                    clickedTrack = track;
+                    break;
+                }
+                currentOffset += trackTotalHeight;
+            }
+
+            if (clickedTrackId && clickedTrack) {
+                const isMidi = clickedTrack.type === 'midi' || clickedTrack.type === 'software-instrument';
+                if (isMidi) {
+                    const snappedStart = getSnapValue(startTime);
+                    useProjectStore.getState().addClip({
+                        id: `clip-${Date.now()}`,
+                        trackId: clickedTrackId,
+                        name: 'MIDI Region',
+                        start: snappedStart,
+                        duration: 4,
+                        type: 'midi',
+                        color: clickedTrack.color || '#63ed63',
+                        alternativeId: clickedTrack.activeAlternativeId
+                    } as any);
+                }
+            }
         } else {
             selectClips([]);
             selectClip(null);
@@ -442,6 +539,14 @@ export function Timeline() {
     };
     const timelineCursor = TOOL_CURSORS[currentTool] || 'default';
 
+    const totalTracksHeight = tracks.reduce((total, track) => {
+        const currentHeight = trackHeight * (track.zoom || 1);
+        const activeClips = clips.filter(c => c.trackId === track.id && c.alternativeId === track.activeAlternativeId);
+        const openTakeFolders = activeClips.filter(c => c.isTakeFolder && c.isTakeFolderOpen);
+        const maxTakes = openTakeFolders.reduce((max, c) => Math.max(max, (c.takes?.length || 0)), 0);
+        return total + currentHeight + (maxTakes * currentHeight);
+    }, 0);
+
     return (
         <div
             className="flex-1 bg-[#111] overflow-x-auto overflow-y-auto relative flex flex-col custom-scrollbar select-none z-10"
@@ -452,32 +557,51 @@ export function Timeline() {
             onDragOver={handleDragOver}
             onDrop={handleDrop}
         >
-            {/* 1. Logic Signature High-Fidelity Time Ruler */}
+            {/* 1. Logic Pro Time Ruler — Two-Row Design */}
             <div
-                className="h-10 sticky top-0 z-50 shrink-0 bg-[#1a1a1a] shadow-lg cursor-pointer border-b border-black"
+                className="sticky top-0 z-50 shrink-0 cursor-pointer"
+                style={{ height: '48px', width: `${totalWidth}px` }}
                 onMouseDown={handleRulerMouseDown}
             >
-                {/* Yellow Playback Guide Section */}
-                <div className="absolute inset-x-0 h-[3px] bg-sky-500/20 top-0"></div>
+                {/* ── Top Row: Bar Numbers ── */}
+                <div className="absolute inset-x-0 top-0 h-[24px] bg-[#3a3a3a] border-b border-[#2a2a2a]">
+                    <div className="absolute inset-0 flex" style={{ width: `${totalWidth}px` }}>
+                        {[...Array(400)].map((_, i) => (
+                            <div key={i} className="relative h-full border-r border-[#4a4a4a]" style={{ width: `${pixelsPerBeat * 4}px`, flexShrink: 0 }}>
+                                <span className="text-[13px] font-bold text-[#b0b0b0] absolute top-[2px] left-[4px] tabular-nums select-none">
+                                    {1 + i}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
 
-                {/* Ruler Ticks & Numbers Layer */}
-                <div className="absolute inset-0 flex" style={{ width: `${totalWidth}px` }}>
-                    {[...Array(400)].map((_, i) => (
-                        <div key={i} className="flex h-full border-r border-[#222] relative group/ruler" style={{ width: `${pixelsPerBeat * 4}px`, flexShrink: 0 }}>
-                            {/* Bar Label */}
-                            <span className="text-[10px] font-black text-gray-500 absolute top-1.5 left-1 z-50 tabular-nums">
-                                {1 + i}
-                            </span>
-                            {/* Beat subdivisions */}
-                            {[...Array(4)].map((_, j) => (
-                                <div key={j} className={`absolute bottom-0 w-px ${j === 0 ? 'h-full bg-black/10' : 'h-1.5 bg-[#333]'}`} style={{ left: `${j * 25}%` }}></div>
-                            ))}
-                        </div>
-                    ))}
+                {/* ── Bottom Row: Beat Subdivision Ticks ── */}
+                <div className="absolute inset-x-0 top-[24px] h-[24px] bg-[#333] border-b border-[#222]">
+                    {/* Thin horizontal line at the very top of this row */}
+                    <div className="absolute inset-x-0 top-0 h-px bg-[#4a4a4a]"></div>
+                    <div className="absolute inset-0 flex" style={{ width: `${totalWidth}px` }}>
+                        {[...Array(400)].map((_, i) => (
+                            <div key={i} className="relative h-full border-r border-[#4a4a4a]" style={{ width: `${pixelsPerBeat * 4}px`, flexShrink: 0 }}>
+                                {/* 8 subdivision ticks per bar (every half-beat) */}
+                                {[...Array(8)].map((_, j) => (
+                                    <div
+                                        key={j}
+                                        className="absolute top-0 w-px"
+                                        style={{
+                                            left: `${(j / 8) * 100}%`,
+                                            height: j === 0 ? '100%' : j === 4 ? '10px' : '6px',
+                                            backgroundColor: j === 0 ? '#4a4a4a' : '#555'
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Markers Overlay (if present) */}
-                <div className="absolute inset-x-0 bottom-0 h-4 pointer-events-none">
+                <div className="absolute inset-x-0 top-[24px] h-[24px] pointer-events-none">
                     {globalTracks.markers.map(m => (
                         <div key={m.id} className="absolute h-full border-l border-yellow-500/50 bg-yellow-500/10 px-1" style={{ left: `${m.time * pixelsPerBeat}px`, width: `${m.duration * pixelsPerBeat}px` }}>
                             <span className="text-[8px] font-black text-yellow-500/60 uppercase">{m.text}</span>
@@ -485,25 +609,22 @@ export function Timeline() {
                     ))}
                 </div>
 
-                {/* Cycle Area (Logic Signature) */}
+                {/* Cycle Area */}
                 {(cycleEnabled || skipCycleEnabled) && (
                     <div
-                        className={`absolute top-0 h-[30px] z-40 transition-all duration-300 rounded-[1px] ${skipCycleEnabled ? 'bg-[#111] shadow-[inset_0_0_10px_rgba(0,0,0,0.8)] border-x border-[#333]' : 'bg-yellow-500/80 shadow-[0_4px_10px_rgba(234,179,8,0.2)] border-x border-yellow-400'}`}
+                        className={`absolute top-0 h-[24px] z-40 transition-all duration-300 rounded-[1px] ${skipCycleEnabled ? 'bg-[#111] shadow-[inset_0_0_10px_rgba(0,0,0,0.8)] border-x border-[#333]' : 'bg-yellow-500/80 shadow-[0_4px_10px_rgba(234,179,8,0.2)] border-x border-yellow-400'}`}
                         style={{
                             left: `${locatorLeft * pixelsPerBeat}px`,
                             width: `${(locatorRight - locatorLeft) * pixelsPerBeat}px`,
                             backgroundImage: skipCycleEnabled ? 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(234,179,8,0.05) 10px, rgba(234,179,8,0.05) 20px)' : 'none'
                         }}
                     >
-                        {/* Skip Cycle Icons */}
                         {skipCycleEnabled && (
                             <div className="flex items-center justify-center gap-12 w-full h-full opacity-40">
                                 <SkipCycleIcon className="w-3.5 h-3.5 text-yellow-500/80" />
                                 <SkipCycleIcon className="w-3.5 h-3.5 text-yellow-500/80 rotate-180" />
                             </div>
                         )}
-
-                        {/* Handles (Logic Pro Professional Handles) */}
                         <div className="absolute left-0 top-0 bottom-0 w-1 flex items-center justify-center cursor-ew-resize hover:bg-white/20">
                             <div className="w-[1px] h-3 bg-white/40"></div>
                         </div>
@@ -513,37 +634,46 @@ export function Timeline() {
                     </div>
                 )}
 
-                {/* Autopunch Area (Logic Signature) */}
+                {/* Autopunch Area */}
                 {autopunchEnabled && (
                     <div
-                        className="absolute h-[8px] top-[32%] z-45 bg-red-600/60 shadow-[0_0_10px_rgba(220,38,38,0.4)] border-x border-red-500 rounded-[1px] cursor-ew-resize"
+                        className="absolute h-[8px] top-[8px] z-45 bg-red-600/60 shadow-[0_0_10px_rgba(220,38,38,0.4)] border-x border-red-500 rounded-[1px] cursor-ew-resize"
                         style={{
                             left: `${autopunchStart * pixelsPerBeat}px`,
                             width: `${(autopunchEnd - autopunchStart) * pixelsPerBeat}px`
                         }}
                     >
-                        {/* Handles */}
                         <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-white/20"></div>
                         <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-white/20"></div>
                     </div>
                 )}
 
-                {/* Playhead Anchor Handle (Logic Style) */}
+                {/* Playhead — Teardrop / Pick Shape */}
                 <div
-                    className="absolute top-0 bottom-0 w-px bg-white/40 z-50 pointer-events-none"
+                    ref={playheadHandleRef}
+                    className="absolute top-0 bottom-0 w-px bg-[#ccc] z-50 pointer-events-none"
                     style={{ transform: `translateX(${playheadX}px)` }}
                 >
-                    <div className="absolute -top-[1.2rem] -left-[10px] w-5 h-8 bg-gradient-to-b from-[#333] to-[#222] rounded-t-sm border border-[#444] shadow-2xl flex flex-col items-center pointer-events-auto">
-                        <div className="w-full h-[6px] bg-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.8)] rounded-t-[1px]"></div>
-                        <div className="flex-1 flex items-center justify-center opacity-40">
-                            <div className="w-[1px] h-3 bg-white"></div>
-                        </div>
-                    </div>
+                    {/* Teardrop SVG */}
+                    <svg
+                        className="absolute pointer-events-auto"
+                        width="16" height="24"
+                        viewBox="0 0 16 24"
+                        style={{ left: '-8px', top: '24px' }}
+                    >
+                        <path
+                            d="M8 0 C8 0, 15 6, 15 12 C15 16.5 12 20 8 24 C4 20 1 16.5 1 12 C1 6 8 0 8 0Z"
+                            fill="#c0c0c0"
+                            stroke="#999"
+                            strokeWidth="0.5"
+                        />
+                        <line x1="8" y1="6" x2="8" y2="18" stroke="#888" strokeWidth="1" />
+                    </svg>
                 </div>
 
-                {/* Project Start/End Markers (Logic Professional Implementation) */}
+                {/* Project Start/End Markers */}
                 <div
-                    className="absolute top-0 h-[28px] w-2.5 cursor-ew-resize group hover:bg-white/10 z-[55] flex flex-col items-center"
+                    className="absolute top-0 h-[24px] w-2.5 cursor-ew-resize group hover:bg-white/10 z-[55] flex flex-col items-center"
                     style={{ left: `${settings.projectStart * pixelsPerBeat}px` }}
                     onMouseDown={(e) => {
                         e.stopPropagation();
@@ -564,7 +694,7 @@ export function Timeline() {
                 </div>
 
                 <div
-                    className="absolute top-0 h-[28px] w-2.5 cursor-ew-resize group hover:bg-white/10 z-[55] flex flex-col items-center"
+                    className="absolute top-0 h-[24px] w-2.5 cursor-ew-resize group hover:bg-white/10 z-[55] flex flex-col items-center"
                     style={{ left: `${settings.projectEnd * pixelsPerBeat}px` }}
                     onMouseDown={(e) => {
                         e.stopPropagation();
@@ -589,6 +719,7 @@ export function Timeline() {
             <div className="relative flex-1 h-full" style={{ width: `${totalWidth}px` }}>
                 {/* Visual Playhead Content Line */}
                 <div
+                    ref={playheadLineRef}
                     className="absolute inset-y-0 w-px bg-sky-500/40 z-50 pointer-events-none shadow-[0_0_20px_rgba(14,165,233,0.4)]"
                     style={{ transform: `translateX(${playheadX}px)` }}
                 />
@@ -612,11 +743,13 @@ export function Timeline() {
                 )}
 
                 {/* Vertical Rhythm Grids */}
-                <div className="absolute inset-0 flex pointer-events-none z-10 h-full">
-                    {[...Array(800)].map((_, i) => (
-                        <div key={i} className={`h-full border-r ${i % 16 === 0 ? 'border-sky-500/10' : i % 4 === 0 ? 'border-white/[0.03]' : 'border-white/[0.01]'}`} style={{ width: `${pixelsPerBeat}px`, flexShrink: 0 }}></div>
-                    ))}
-                </div>
+                {tracks.length > 0 && (
+                    <div className="absolute left-0 top-0 flex pointer-events-none z-10" style={{ height: `${totalTracksHeight}px` }}>
+                        {[...Array(800)].map((_, i) => (
+                            <div key={i} className={`h-full border-r ${(i + 1) % 16 === 0 ? 'border-sky-500/10' : (i + 1) % 4 === 0 ? 'border-white/[0.03]' : 'border-white/[0.01]'}`} style={{ width: `${pixelsPerBeat}px`, flexShrink: 0 }}></div>
+                        ))}
+                    </div>
+                )}
 
                 {/* Professional Clip & Automation Container Stack */}
                 <div className="flex flex-col relative z-20 w-full overflow-hidden">

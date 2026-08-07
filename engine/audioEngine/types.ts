@@ -52,9 +52,27 @@ export interface AudioEffect {
     insertPoint?: 'pre' | 'post';
 }
 
+/**
+ * A send from a track to a bus.
+ *
+ * `level` is canonical — it is what `models/Track.ts` declares and what gets
+ * persisted. `amount` is accepted because this engine type used to spell it
+ * that way, and the two never agreed: the routing engine read `send.amount`
+ * from objects the store had written as `{ busId, level }`, so every send's
+ * gain came out `undefined`.
+ */
 export interface TrackSend {
     busId: string;
-    amount: number; // 0-1
+    /** 0-1. */
+    level?: number;
+    /** @deprecated legacy spelling of `level`. */
+    amount?: number;
+}
+
+/** Send level as a finite 0-1 gain, whichever spelling it arrived in. */
+export function sendLevel(send: TrackSend): number {
+    const raw = send.level ?? send.amount ?? 0;
+    return Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0;
 }
 
 export interface AudioBus {

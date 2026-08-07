@@ -115,6 +115,128 @@ export enum GenOper {
     endAddrsCoarseOffset2 = 62,
 }
 
+/**
+ * Generators whose `genValue` is an index or a packed pair of unsigned bytes.
+ * Everything else is a signed 16-bit amount.
+ */
+const UNSIGNED_GENERATORS = new Set<number>([
+    GenOper.instrument,
+    GenOper.sampleID,
+    GenOper.keyRange,
+    GenOper.velRange,
+]);
+
+/**
+ * Generators the SF2 spec (§8.1.2) marks as instrument-level only. A value for
+ * one of these in a preset zone is not an offset and must be ignored rather
+ * than added — adding a preset `sampleModes` to an instrument's, for instance,
+ * would turn a looped sample into a one-shot.
+ */
+const PRESET_IGNORED_GENERATORS = new Set<number>([
+    GenOper.startAddrsOffset,
+    GenOper.endAddrsOffset,
+    GenOper.startloopAddrsOffset,
+    GenOper.endloopAddrsOffset,
+    GenOper.startAddrsCoarseOffset,
+    GenOper.endAddrsCoarseOffset,
+    GenOper.startloopAddrsCoarseOffset,
+    GenOper.endloopAddrsCoarseOffset,
+    GenOper.endAddrsCoarseOffset2,
+    GenOper.keynum,
+    GenOper.velocity,
+    GenOper.sampleModes,
+    GenOper.exclusiveClass,
+    GenOper.overridingRootKey,
+    GenOper.sampleID,
+    GenOper.instrument,
+]);
+
+/**
+ * SF2 defaults for generators whose default is not zero. A preset offset is
+ * added on top of these when the instrument zone leaves the generator unset.
+ */
+const GENERATOR_DEFAULTS: Record<number, number> = {
+    [GenOper.initialFilterFc]: 13500,
+    [GenOper.delayModLFO]: -12000,
+    [GenOper.delayVibLFO]: -12000,
+    [GenOper.delayModEnv]: -12000,
+    [GenOper.attackModEnv]: -12000,
+    [GenOper.holdModEnv]: -12000,
+    [GenOper.decayModEnv]: -12000,
+    [GenOper.releaseModEnv]: -12000,
+    [GenOper.delayVolEnv]: -12000,
+    [GenOper.attackVolEnv]: -12000,
+    [GenOper.holdVolEnv]: -12000,
+    [GenOper.decayVolEnv]: -12000,
+    [GenOper.releaseVolEnv]: -12000,
+    [GenOper.scaleTuning]: 100,
+};
+
+/**
+ * Separate a zone list's leading global zone from the real zones.
+ *
+ * SF2 §7.2/§7.6: a preset's or instrument's first zone is global when it lacks
+ * the terminal generator (`instrument` / `sampleID`). Its generators are
+ * defaults for its siblings. Every other zone missing that generator is
+ * malformed and dropped.
+ */
+function splitGlobalZone(
+    zones: Sf2Zone[],
+    terminal: GenOper,
+): { global: Map<number, number>; zones: Sf2Zone[] } {
+    const hasTerminal = (z: Sf2Zone) => z.generators.some(g => g.genOper === terminal);
+
+    if (zones.length > 0 && !hasTerminal(zones[0])) {
+        const global = new Map<number, number>();
+        for (const g of zones[0].generators) global.set(g.genOper, g.genValue);
+        return { global, zones: zones.slice(1).filter(hasTerminal) };
+    }
+    return { global: new Map(), zones: zones.filter(hasTerminal) };
+}
+
+/** A zone's own generators layered over its global zone's, zone wins. */
+function overlayGenerators(global: Map<number, number>, own: Sf2Generator[]): Map<number, number> {
+    const out = new Map(global);
+    for (const g of own) out.set(g.genOper, g.genValue);
+    return out;
+}
+
+/** Intersect two packed SF2 ranges, or null when they do not overlap. */
+function intersectRange(a: number | undefined, b: number | undefined): number | null {
+    if (a === undefined) return b === undefined ? null : b;
+    if (b === undefined) return a;
+    const lo = Math.max(a & 0xff, b & 0xff);
+    const hi = Math.min((a >> 8) & 0xff, (b >> 8) & 0xff);
+    if (lo > hi) return null;
+    return lo | (hi << 8);
+}
+
+/**
+ * Apply preset generators to an instrument zone per §9.4.
+ * Returns null when the preset's key/velocity filter excludes the zone.
+ */
+function combineZone(
+    pgens: Map<number, number>,
+    igens: Map<number, number>,
+): Sf2Generator[] | null {
+    const out = new Map(igens);
+
+    for (const range of [GenOper.keyRange, GenOper.velRange]) {
+        const merged = intersectRange(pgens.get(range), igens.get(range));
+        if (merged === null && pgens.has(range) && igens.has(range)) return null;
+        if (merged !== null) out.set(range, merged);
+    }
+
+    for (const [op, pValue] of pgens) {
+        if (op === GenOper.keyRange || op === GenOper.velRange) continue;
+        if (PRESET_IGNORED_GENERATORS.has(op)) continue;
+        const base = igens.get(op) ?? GENERATOR_DEFAULTS[op] ?? 0;
+        out.set(op, base + pValue);
+    }
+
+    return Array.from(out, ([genOper, genValue]) => ({ genOper, genValue }));
+}
+
 export class SoundFontParser {
     private view!: DataView;
     private data!: ArrayBuffer;
@@ -218,41 +340,72 @@ export class SoundFontParser {
         return headers;
     }
 
+    /**
+     * Read one zone's generator list.
+     *
+     * `genValue` is a signed 16-bit amount for every generator except the four
+     * that carry an index or a packed byte pair; reading those signed is
+     * harmless for this font but reading the rest *unsigned* turned every
+     * negative tuning, pan and envelope amount into a value near 65535.
+     *
+     * There is deliberately no "stop at genOper 0" sentinel: 0 is
+     * `startAddrsOffset`, a real generator that sorts first, so breaking on it
+     * truncated any zone that used one.
+     */
     private parseGenerators(offset: number, count: number): Sf2Generator[] {
         const generators: Sf2Generator[] = [];
         for (let i = 0; i < count; i++) {
             const genOper = this.readWord(offset + i * 4);
-            const genValue = this.readWord(offset + i * 4 + 2);
+            const genValue = UNSIGNED_GENERATORS.has(genOper)
+                ? this.readWord(offset + i * 4 + 2)
+                : this.readShort(offset + i * 4 + 2);
             generators.push({ genOper, genValue });
-            if (genOper === 0) break;
         }
         return generators;
     }
 
+    /**
+     * Read `zoneCount` zones starting at bag record `firstBagIndex`.
+     *
+     * A zone's generators run from its own bag record's index up to the *next
+     * bag record's* index. The bag chunk always carries one terminal record
+     * past the last zone, so that next record always exists.
+     *
+     * This used to bound the final zone of each preset/instrument with the end
+     * of the whole gen chunk instead, so every last zone absorbed every
+     * remaining generator in the file — hundreds of them, from unrelated
+     * instruments. It was masked only by the bogus genOper-0 break above.
+     */
     private parseZones(
-        zoneStartOffset: number,
+        bagStart: number,
+        firstBagIndex: number,
         zoneCount: number,
+        bagCount: number,
         genStartOffset: number,
         modStartOffset: number,
         genSize: number,
         modSize: number
     ): Sf2Zone[] {
+        const readBag = (index: number) => ({
+            gen: this.readWord(bagStart + index * 4),
+            mod: this.readWord(bagStart + index * 4 + 2),
+        });
+
         const zones: Sf2Zone[] = [];
         for (let i = 0; i < zoneCount; i++) {
-            const genIndex = this.readWord(zoneStartOffset + i * 4);
-            const modIndex = this.readWord(zoneStartOffset + i * 4 + 2);
-            const nextGenIndex = i < zoneCount - 1
-                ? this.readWord(zoneStartOffset + (i + 1) * 4)
-                : genSize / 4;
-            const nextModIndex = i < zoneCount - 1
-                ? this.readWord(zoneStartOffset + (i + 1) * 4 + 2)
-                : modSize / 10;
-            const genCount = nextGenIndex - genIndex;
-            const modCount = nextModIndex - modIndex;
-            const generators = this.parseGenerators(genStartOffset + genIndex * 4, genCount);
+            const index = firstBagIndex + i;
+            const here = readBag(index);
+            const next = index + 1 < bagCount
+                ? readBag(index + 1)
+                : { gen: Math.floor(genSize / 4), mod: Math.floor(modSize / 10) };
+
+            const genCount = Math.max(0, next.gen - here.gen);
+            const modCount = Math.max(0, next.mod - here.mod);
+
+            const generators = this.parseGenerators(genStartOffset + here.gen * 4, genCount);
             const modulators: { srcOper: number; destOper: number; amount: number }[] = [];
             for (let m = 0; m < modCount; m++) {
-                const mo = modStartOffset + (modIndex + m) * 10;
+                const mo = modStartOffset + (here.mod + m) * 10;
                 modulators.push({
                     srcOper: this.readWord(mo),
                     destOper: this.readWord(mo + 2),
@@ -273,8 +426,10 @@ export class SoundFontParser {
         if (instOffset < 0 || ibagOffset < 0 || igenOffset < 0) return [];
 
         const instSize = this.readInt(instOffset + 4);
-        const instrumentCount = Math.floor(instSize / 22);
-        if (instrumentCount === 0) return [];
+        // The `inst` chunk ends with a terminal "EOI" record that only marks
+        // where the last instrument's bags stop; it is not an instrument.
+        const instrumentCount = Math.floor(instSize / 22) - 1;
+        if (instrumentCount <= 0) return [];
 
         const ibagSize = this.readInt(ibagOffset + 4);
         const igenSize = this.readInt(igenOffset + 4);
@@ -289,14 +444,14 @@ export class SoundFontParser {
         for (let i = 0; i < instrumentCount; i++) {
             const name = this.readString(instStart + i * 22, 20).replace(/\0/g, '').trim();
             const bagIndex = this.readWord(instStart + i * 22 + 20);
-            const nextBagIndex = i < instrumentCount - 1
-                ? this.readWord(instStart + (i + 1) * 22 + 20)
-                : ibagSize / 4;
-            const zoneCount = nextBagIndex - bagIndex;
+            const nextBagIndex = this.readWord(instStart + (i + 1) * 22 + 20);
+            const zoneCount = Math.max(0, nextBagIndex - bagIndex);
 
             const zones = this.parseZones(
-                ibagStart + bagIndex * 4,
+                ibagStart,
+                bagIndex,
                 zoneCount,
+                Math.floor(ibagSize / 4),
                 igenStart,
                 imodStart,
                 igenSize,
@@ -343,11 +498,13 @@ export class SoundFontParser {
             const library = this.readInt(phdrStart + i * 38 + 28);
             const genre = this.readInt(phdrStart + i * 38 + 32);
             const nextBagIndex = this.readWord(phdrStart + (i + 1) * 38 + 24);
-            const zoneCount = nextBagIndex - bagIndex;
+            const zoneCount = Math.max(0, nextBagIndex - bagIndex);
 
             const zones = this.parseZones(
-                pbagStart + bagIndex * 4,
+                pbagStart,
+                bagIndex,
                 zoneCount,
+                Math.floor(pbagSize / 4),
                 pgenStart,
                 pmodStart,
                 pgenSize,
@@ -361,6 +518,28 @@ export class SoundFontParser {
         return presets;
     }
 
+    /**
+     * Flatten preset zones → instrument zones → sample zones, following the
+     * combination rules in SF2 2.04 §9.4.
+     *
+     * The rules are not "instrument overrides preset". They are:
+     *
+     *  - `keyRange`/`velRange` at preset level are *filters*: the playable
+     *    range is the **intersection** with the instrument zone's range, and a
+     *    zone whose intersection is empty never sounds and is dropped.
+     *  - Every other preset generator is an **offset added** to the instrument
+     *    value (or to the SF2 default when the instrument does not set it).
+     *  - A handful of generators are meaningless at preset level and are
+     *    ignored there entirely (sample addressing, `sampleModes`, and so on).
+     *  - The first zone of a preset (no `instrument` gen) or of an instrument
+     *    (no `sampleID` gen) is a **global zone** supplying defaults to its
+     *    siblings, not a zone of its own.
+     *
+     * Treating preset generators as overrides — as this used to — silently
+     * discards the preset's range filtering, so every instrument zone answers
+     * every key. On GeneralUser GS that made one middle C on "Grand Piano"
+     * fire 27 sample voices instead of one.
+     */
     private resolvePresetZones(
         presetZones: Sf2Zone[],
         instruments: Sf2Instrument[],
@@ -368,37 +547,35 @@ export class SoundFontParser {
     ): Sf2Zone[] {
         const resolved: Sf2Zone[] = [];
 
-        for (const pzone of presetZones) {
-            const globalGens = [...pzone.generators];
-            const instrumentGen = globalGens.find(g => g.genOper === GenOper.instrument);
-            if (!instrumentGen) {
-                resolved.push({ generators: globalGens, modulators: pzone.modulators });
-                continue;
-            }
-            const instIndex = instrumentGen.genValue;
-            if (instIndex >= instruments.length) {
-                resolved.push({ generators: globalGens, modulators: [] });
-                continue;
-            }
-            const inst = instruments[instIndex];
-            for (const izone of inst.zones) {
-                const mergedGens = [...globalGens.filter(g => g.genOper !== GenOper.instrument)];
-                for (const ig of izone.generators) {
-                    const existing = mergedGens.findIndex(mg => mg.genOper === ig.genOper);
-                    if (existing >= 0) {
-                        mergedGens[existing] = ig;
-                    } else {
-                        mergedGens.push(ig);
-                    }
-                }
+        const { global: presetGlobal, zones: realPresetZones } =
+            splitGlobalZone(presetZones, GenOper.instrument);
 
-                const sampleIdGen = mergedGens.find(g => g.genOper === GenOper.sampleID);
-                if (sampleIdGen && sampleIdGen.genValue < sampleHeaders.length) {
-                    resolved.push({
-                        generators: mergedGens,
-                        modulators: [...pzone.modulators, ...izone.modulators]
-                    });
-                }
+
+
+        for (const pzone of realPresetZones) {
+            const pgens = overlayGenerators(presetGlobal, pzone.generators);
+
+            const instrumentGen = pgens.get(GenOper.instrument);
+            if (instrumentGen === undefined) continue;
+            const inst = instruments[instrumentGen];
+            if (!inst) continue;
+
+            const { global: instGlobal, zones: realInstZones } =
+                splitGlobalZone(inst.zones, GenOper.sampleID);
+
+            for (const izone of realInstZones) {
+                const igens = overlayGenerators(instGlobal, izone.generators);
+
+                const sampleId = igens.get(GenOper.sampleID);
+                if (sampleId === undefined || sampleId >= sampleHeaders.length) continue;
+
+                const combined = combineZone(pgens, igens);
+                if (!combined) continue; // empty key/velocity intersection
+
+                resolved.push({
+                    generators: combined,
+                    modulators: [...pzone.modulators, ...izone.modulators],
+                });
             }
         }
         return resolved;

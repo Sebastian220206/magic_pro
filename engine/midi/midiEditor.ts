@@ -590,8 +590,107 @@ export function getNoteAtPosition(
 }
 
 // =============================================================================
-// Clip Operations
+// Note Splitting & Joining
 // =============================================================================
+
+/**
+ * Split a note at a specific beat position, creating two notes.
+ * Returns the original clip with the note split, or the clip unchanged if split point is invalid.
+ */
+export function splitNote(
+  clip: MidiClip,
+  noteId: string,
+  splitBeat: number
+): MidiClip {
+  const note = clip.notes.find(n => n.id === noteId);
+  if (!note) return clip;
+
+  const noteEnd = note.startBeat + note.duration;
+  // Split point must be strictly inside the note
+  if (splitBeat <= note.startBeat + 0.001 || splitBeat >= noteEnd - 0.001) {
+    return clip;
+  }
+
+  const leftDuration = splitBeat - note.startBeat;
+  const rightDuration = noteEnd - splitBeat;
+
+  const leftNote: MidiNote = {
+    ...note,
+    id: generateNoteId(),
+    startBeat: note.startBeat,
+    duration: leftDuration,
+    selected: false,
+  };
+
+  const rightNote: MidiNote = {
+    ...note,
+    id: generateNoteId(),
+    startBeat: splitBeat,
+    duration: rightDuration,
+    selected: false,
+  };
+
+  const newNotes = clip.notes.flatMap(n => {
+    if (n.id === noteId) {
+      return [leftNote, rightNote];
+    }
+    return [n];
+  });
+
+  return { ...clip, notes: newNotes };
+}
+
+/**
+ * Join adjacent notes of the same pitch into a single sustained note.
+ * Notes must be exactly adjacent (end of one = start of next) and same pitch.
+ */
+export function joinNotes(clip: MidiClip, noteIds: string[]): MidiClip {
+  if (noteIds.length < 2) return clip;
+
+  const idSet = new Set(noteIds);
+  const selectedNotes = clip.notes.filter(n => idSet.has(n.id));
+
+  if (selectedNotes.length < 2) return clip;
+
+  // All selected notes must be the same pitch
+  const firstPitch = selectedNotes[0].pitch;
+  if (!selectedNotes.every(n => n.pitch === firstPitch)) return clip;
+
+  // Sort by start beat
+  const sorted = [...selectedNotes].sort((a, b) => a.startBeat - b.startBeat);
+
+  // Check that all notes are adjacent (end of one = start of next)
+  for (let i = 1; i < sorted.length; i++) {
+    const prevEnd = sorted[i - 1].startBeat + sorted[i - 1].duration;
+    if (Math.abs(sorted[i].startBeat - prevEnd) > 0.001) return clip;
+  }
+
+  const joinedStart = sorted[0].startBeat;
+  const joinedEnd = sorted[sorted.length - 1].startBeat + sorted[sorted.length - 1].duration;
+  const joinedDuration = joinedEnd - joinedStart;
+
+  // Use velocity of the first note (most common convention)
+  const joinedVelocity = sorted[0].velocity;
+
+  const joinedNote: MidiNote = {
+    ...sorted[0],
+    id: generateNoteId(),
+    startBeat: joinedStart,
+    duration: joinedDuration,
+    velocity: joinedVelocity,
+    selected: false,
+  };
+
+  const newNotes = clip.notes.filter(n => !idSet.has(n.id));
+  const insertIndex = newNotes.findIndex(n => n.startBeat >= joinedStart);
+  if (insertIndex === -1) {
+    newNotes.push(joinedNote);
+  } else {
+    newNotes.splice(insertIndex, 0, joinedNote);
+  }
+
+  return { ...clip, notes: newNotes };
+}
 
 /**
  * Create a new empty clip
@@ -612,6 +711,7 @@ export function createMidiClip(
     name: name || 'MIDI Clip',
     color: '#3B82F6',
     loop: false,
+    timeSignatures: [],
   };
 }
 

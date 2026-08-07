@@ -12,12 +12,43 @@ export interface AutomationLane {
     points: AutomationPoint[];
 }
 
+/** How a plugin's DSP is provided. */
+export type PluginFormat =
+    /** Built-in Web Audio implementation from `engine/effects/plugins`. */
+    | 'builtin'
+    /** Third-party Web Audio Module loaded at runtime. */
+    | 'wam';
+
 export interface PluginSetting {
+    /** Instance id — unique per slot, stable across reorder. */
     id: string;
+    /** Which plugin this is an instance of. */
     pluginId: string;
     name: string;
+    /** False bypasses the plugin without removing it from the chain. */
     enabled: boolean;
     params: Record<string, number>;
+
+    // --- Optional so existing saved projects load unchanged ---
+
+    /** Defaults to 'builtin'. */
+    format?: PluginFormat;
+    /** Defaults to 'pre' (before the fader). */
+    insertPoint?: 'pre' | 'post';
+    /**
+     * Latency the plugin introduces, written back by the engine so delay
+     * compensation can realign the track. See `engine/audioEngine/latencyCompensation.ts`.
+     */
+    latencySamples?: number;
+    /** Opaque plugin-owned state (WAM `getState()`), persisted verbatim. */
+    state?: unknown;
+    /** Where a WAM plugin was loaded from. */
+    wam?: { url: string; identifier: string; version?: string };
+    /**
+     * Track whose signal keys this plugin — a compressor's sidechain input,
+     * e.g. the sub ducking to the kick.
+     */
+    sidechainSourceId?: string;
 }
 
 export interface TrackAlternative {
@@ -39,6 +70,11 @@ export interface Track {
     inputMonitoring: boolean;
     protected: boolean;
     frozen: boolean;
+    /**
+     * Clips hidden by a freeze, so unfreezing can restore exactly what was
+     * there. Absent when the track is not frozen.
+     */
+    frozenSourceClipIds?: string[];
     enabled: boolean; // On/Off
     freezeMode: 'Source Only' | 'Pre Fader';
 
@@ -50,6 +86,23 @@ export interface Track {
     // --- Track Instrument (for MIDI/software-instrument tracks) ---
     instrument?: string; // e.g., "Grand Piano", "Deep Bass", "Trap Drum Kit"
     instrumentLoaded?: boolean;
+    /**
+     * `direct` sends the track straight to the monitor output, bypassing the
+     * master chain — how a reference track is auditioned against the mix.
+     */
+    monitorMode?: 'normal' | 'direct';
+
+    /** Set when the track's instrument is a Web Audio Module, so it can be reloaded. */
+    wamInstrument?: { url: string; identifier: string; name: string };
+    /**
+     * Set when the track's instrument is a SoundFont preset.
+     *
+     * `instrument` alone only holds the preset's display name, which is not
+     * enough to rebuild anything — the engine needs the bank and the preset
+     * index. Without this a reload left the track showing "Grand Piano" while
+     * playing the fallback synth.
+     */
+    soundFont?: { id?: string; url: string; presetIndex: number; presetName?: string };
 
     // --- Track Inspector Parameters (Logic Pro) ---
     icon?: string;

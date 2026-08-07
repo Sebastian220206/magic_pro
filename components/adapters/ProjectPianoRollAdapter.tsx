@@ -33,8 +33,8 @@ export interface ProjectPianoRollAdapterProps {
 }
 
 export function ProjectPianoRollAdapter({
-  width = 800,
-  height = 500,
+  width,
+  height,
   linkMode = 'single',
   autoSave = true,
 }: ProjectPianoRollAdapterProps) {
@@ -72,6 +72,31 @@ export function ProjectPianoRollAdapter({
     }
   }, [projectStore.pianoRollLinkMode, linkMode]);
 
+  // ── Transport bridge ──────────────────────────────────────────────────────
+  //
+  // The piano roll renders its playhead from midiStore's `isPlaying` /
+  // `currentBeat`. Those were only ever written by `midiStore.play()`, which
+  // nothing calls — so the main transport rolled while the piano roll sat at
+  // beat 0 forever. Mirror the project transport into midiStore so the editor
+  // follows the same clock as the timeline and the audio engine.
+  useEffect(() => {
+    const sync = (playing: boolean, playhead: number) => {
+      const midi = useMidiStore.getState();
+      if (midi.isPlaying !== playing) midi.setIsPlaying(playing);
+      if (midi.currentBeat !== playhead) midi.setCurrentBeat(playhead);
+    };
+
+    // Seed from the current state, then follow every change.
+    const { playing, playhead } = useProjectStore.getState();
+    sync(playing, playhead);
+
+    return useProjectStore.subscribe((state, prev) => {
+      if (state.playing !== prev.playing || state.playhead !== prev.playhead) {
+        sync(state.playing, state.playhead);
+      }
+    });
+  }, []);
+
   // Handle explicit save (e.g., Ctrl+S)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -84,6 +109,27 @@ export function ProjectPianoRollAdapter({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [save]);
+
+  const handleNoteOn = useCallback((pitch: number) => {
+    const state = useProjectStore.getState();
+    const clip = state.clips.find(c => c.id === effectiveClipId);
+    const targetTrackId = clip?.trackId ?? state.focusedTrackId ?? undefined;
+    if (!targetTrackId) return;
+    state.triggerNote(pitch, 100, targetTrackId);
+  }, [effectiveClipId]);
+
+  const handleNoteOff = useCallback((pitch: number) => {
+    const state = useProjectStore.getState();
+    const clip = state.clips.find(c => c.id === effectiveClipId);
+    const targetTrackId = clip?.trackId ?? state.focusedTrackId ?? undefined;
+    if (!targetTrackId) return;
+    state.releaseNote(pitch, targetTrackId);
+  }, [effectiveClipId]);
+
+  const handleLinkModeChange = useCallback((mode: PianoRollLinkMode) => {
+    const state = useProjectStore.getState();
+    state.setPianoRollLinkMode(mode);
+  }, []);
 
   // No MIDI clip selected state
   if (!effectiveClipId) {
@@ -102,20 +148,8 @@ export function ProjectPianoRollAdapter({
     );
   }
 
-  const handleNoteOn = useCallback((pitch: number) => {
-    const state = useProjectStore.getState();
-    const targetTrackId = state.focusedTrackId ?? undefined;
-    if (!targetTrackId) return;
-    state.triggerNote(pitch, 100, targetTrackId);
-  }, []);
-
-  const handleNoteOff = useCallback((pitch: number) => {
-    const state = useProjectStore.getState();
-    state.releaseNote(pitch, state.focusedTrackId ?? undefined);
-  }, []);
-
   return (
-    <div className="relative">
+    <div className="relative h-full w-full">
       {/* Unsaved changes indicator */}
       {hasUnsavedChanges() && (
         <div className="absolute top-2 right-2 z-50">
@@ -132,6 +166,8 @@ export function ProjectPianoRollAdapter({
         height={height}
         onNoteOn={handleNoteOn}
         onNoteOff={handleNoteOff}
+        linkMode={linkMode}
+        onLinkModeChange={handleLinkModeChange}
       />
     </div>
   );

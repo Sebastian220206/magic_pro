@@ -40,6 +40,7 @@ import { StepInputKeyboard } from "@/components/StepInputKeyboard"
 import { AudioTrackEditor } from "@/components/AudioTrackEditor"
 import { ViewControlBar } from "@/components/ViewControlBar"
 import { PluginEditorWindow } from "@/components/PluginEditorWindow"
+import { PluginBrowser } from "@/components/plugins/PluginBrowser"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 
 import { AppMenuBar } from "@/components/AppMenuBar"
@@ -141,10 +142,14 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
     }, [bottomPanelHeight, setBottomPanelHeight]);
 
     const showBottomPanel = showSmartControls || showMixer || showEditors;
+    const pluginBrowserTrackId = useProjectStore(s => s.pluginBrowserTrackId);
+    const pluginBrowserMode = useProjectStore(s => s.pluginBrowserMode);
+    const setPluginBrowserTrack = useProjectStore(s => s.setPluginBrowserTrack);
     const showRightSidebar = showListEditors || showNotePad || showLoopBrowser || showBrowsers;
 
     return (
-        <div className="flex flex-col h-screen w-full bg-[#000] overflow-hidden text-sm selection:bg-sky-500/30">
+        <div className="h-screen w-full bg-[#050505] p-4 flex flex-col box-border">
+            <div className="flex flex-col h-full w-full bg-[#000] overflow-hidden text-sm selection:bg-sky-500/30 daw-shell box-border relative">
             {loadError && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80">
                     <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-8 max-w-md text-center">
@@ -394,10 +399,21 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
             )}
             <ErrorBoundary name="PluginEditor">
                 <PluginEditorWindow />
+
+                {pluginBrowserTrackId && (
+                    <ErrorBoundary zone="panel" name="PluginBrowser">
+                        <PluginBrowser
+                            trackId={pluginBrowserTrackId}
+                            mode={pluginBrowserMode}
+                            onClose={() => setPluginBrowserTrack(null)}
+                        />
+                    </ErrorBoundary>
+                )}
             </ErrorBoundary>
             <ErrorBoundary name="Preferences">
                 <PreferencesDialog />
             </ErrorBoundary>
+        </div>
         </div>
     )
 }

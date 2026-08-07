@@ -26,14 +26,54 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The Prisma client is imported by API routes, so it must exist before
+      # typecheck and build. No database connection is required to generate it.
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: TypeScript type check
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Lint
         run: npm run lint
 
       - name: Run tests
-        run: npx jest --passWithNoTests
+        run: npm run test:ci
 
+      # Dead code typechecks and passes tests, so nothing else catches it.
+      # Fails only if the count rises above the recorded baseline.
+      - name: Check for newly unreachable modules
+        run: python3 scripts/find-unreachable.py --check --count
+
+      # Also fetches the General MIDI bank via `prebuild`, which the manifest
+      # check below then reads.
       - name: Build
         run: npm run build
+
+      # data/soundfontManifest.json is committed but generated. If the upstream
+      # bank changes and the manifest is not regenerated, the deployed app lists
+      # presets that no longer match the file it plays — silently, since the
+      # indices stay in range.
+      - name: Check the soundfont manifest is up to date
+        run: npm run soundfont:check
+
+  # Vulnerable dependencies are not caught by any of the above.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+
+      # Production dependencies only: a vulnerability in a build tool is worth
+      # knowing about, but it is not reachable by a user of the deployed app.
+      # Fails on critical, reports anything lower.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=critical
+
+      - name: Report lower-severity advisories
+        if: always()
+        run: npm audit --omit=dev || true

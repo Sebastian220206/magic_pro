@@ -19,6 +19,14 @@ export class NavigationLoop {
   }
 
   // 1. INPUT COLLECTION (Asynchronous via DOM listeners)
+  public setViewport(partial: Partial<ViewportState>) {
+    this.state = { ...this.state, ...partial };
+    this.state = ConstraintPass.apply(this.state);
+    for (const fn of this.listeners) {
+      fn(this.state);
+    }
+  }
+
   public queueInput(event: Event) {
     this.inputQueue.push(event);
     if (!this.isLoopRunning) this.startLoop();

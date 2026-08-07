@@ -5,6 +5,9 @@ import { Track } from "@/models/Track"
 import { audioEngine2 } from "@/engine/AudioEngineAdapter"
 import { audioEngine } from "@/engine/AudioEngineAdapter"
 import { VerticalMeter } from "./VerticalMeter"
+import { LoudnessReadout } from "./MasterOutput"
+import { SendsSlot, OutputRouting, MonitorControls, SidechainPicker } from "./mixer/RoutingControls"
+import { BUILTIN_PLUGIN_IDS } from "@/engine/plugins/pluginIds"
 import {
     ChevronDown, Filter, MoreHorizontal,
     Settings2, Sliders, LayoutList,
@@ -74,62 +77,67 @@ export function Mixer() {
     }
 
     return (
-        <div className="h-full flex flex-col bg-[#1a1a1a] select-none text-gray-400 border-t border-black shadow-[0_-10px_30px_rgba(0,0,0,0.3)]">
+        <div className="h-full flex flex-col bg-[#1a1a1a] select-none text-gray-400 border-t border-[var(--accent-cyan)]/50 shadow-[0_-10px_30px_var(--accent-cyan-glow),0_-10px_30px_rgba(0,0,0,0.3)]">
             {/* 1. Mixer Command Header (High Fidelity Menu Bar) */}
-            <div className="h-9 bg-[#222] border-b border-black flex items-center px-4 justify-between shrink-0">
+            <div className="h-9 bg-[#222] border-b border-[var(--accent-cyan)]/30 flex items-center px-4 justify-between shrink-0">
                 <div className="flex items-center gap-1">
-                    <div className="flex items-center gap-1.5 bg-[#000] border border-[#333] rounded px-2.5 h-7 cursor-pointer hover:border-gray-500 transition-colors group">
+                    <div className="flex items-center gap-1.5 bg-[#000] border border-[var(--accent-cyan)]/40 rounded px-2.5 h-7 cursor-pointer hover:border-[var(--accent-cyan)] hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all group">
                         <span className="text-[10px] font-black text-gray-400 group-hover:text-white uppercase tracking-tighter">Edit</span>
                         <ChevronDown className="w-3 h-3 text-gray-600" />
                     </div>
-                    <div className="flex items-center gap-1.5 bg-[#000] border border-[#333] rounded px-2.5 h-7 cursor-pointer hover:border-gray-500 transition-colors group">
-                        <span className="text-[10px] font-black text-gray-400 group-hover:text-white uppercase tracking-tighter">Options</span>
+                    <div className="flex items-center gap-1.5 bg-[#000] border border-[var(--accent-cyan)]/40 rounded px-2.5 h-7 cursor-pointer hover:border-[var(--accent-cyan)] hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all group">
+                        <span className="text-[10px] font-black text-gray-400 group-hover:text-[var(--accent-cyan)] uppercase tracking-tighter">Options</span>
                         <ChevronDown className="w-3 h-3 text-gray-600" />
                     </div>
-                    <div className="flex items-center gap-1.5 bg-[#000] border border-[#333] rounded px-2.5 h-7 cursor-pointer hover:border-gray-500 transition-colors group">
-                        <span className="text-[10px] font-black text-gray-400 group-hover:text-white uppercase tracking-tighter">View</span>
+                    <div className="flex items-center gap-1.5 bg-[#000] border border-[var(--accent-cyan)]/40 rounded px-2.5 h-7 cursor-pointer hover:border-[var(--accent-cyan)] hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all group">
+                        <span className="text-[10px] font-black text-gray-400 group-hover:text-[var(--accent-cyan)] uppercase tracking-tighter">View</span>
                         <ChevronDown className="w-3 h-3 text-gray-600" />
                     </div>
 
-                    <div className="w-px h-5 bg-[#333] mx-2"></div>
+                    <div className="w-px h-5 bg-[var(--accent-cyan)]/30 mx-2"></div>
 
-                    <div className="flex bg-[#000] rounded-md border border-[#333] p-0.5 h-7 shadow-inner">
+                    {/* Monitor path — mono-sum phase check and reference direct-out. */}
+                    <MonitorControls />
+
+                    <div className="w-px h-5 bg-[var(--accent-cyan)]/30 mx-2"></div>
+
+                    <div className="flex bg-[#000] rounded-md border border-[var(--accent-cyan)]/50 p-0.5 h-7 shadow-inner">
                         <button
                             onClick={() => setMixerMode('single')}
-                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'single' ? 'text-sky-400 bg-[#333] shadow-md border border-[#444]' : 'text-gray-500 hover:text-white'}`}
+                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'single' ? 'text-[var(--accent-cyan)] bg-[#333] shadow-md border border-[var(--accent-cyan)]/50' : 'text-gray-500 hover:text-[var(--accent-cyan)]'}`}
                         >Single</button>
                         <button
                             onClick={() => setMixerMode('tracks')}
-                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'tracks' ? 'text-sky-400 bg-[#333] shadow-md border border-[#444]' : 'text-gray-500 hover:text-white'}`}
+                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'tracks' ? 'text-[var(--accent-cyan)] bg-[#333] shadow-md border border-[var(--accent-cyan)]/50' : 'text-gray-500 hover:text-[var(--accent-cyan)]'}`}
                         >Tracks</button>
                         <button
                             onClick={() => setMixerMode('all')}
-                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'all' ? 'text-sky-400 bg-[#333] shadow-md border border-[#444]' : 'text-gray-500 hover:text-white'}`}
+                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'all' ? 'text-[var(--accent-cyan)] bg-[#333] shadow-md border border-[var(--accent-cyan)]/50' : 'text-gray-500 hover:text-[var(--accent-cyan)]'}`}
                         >All</button>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center bg-[#000] rounded-md border border-[#333] p-0.5 h-7">
+                    <div className="flex items-center bg-[#000] rounded-md border border-[var(--accent-cyan)]/50 p-0.5 h-7">
                         {filterTypes.map(type => (
                             <button
                                 key={type}
                                 onClick={() => setTrackTypeFilter(type as any)}
-                                className={`px-2.5 h-full text-[9px] font-black uppercase rounded transition-all ${trackTypeFilter === type ? 'text-sky-400 bg-[#333]' : 'text-gray-500 hover:text-white'}`}
+                                className={`px-2.5 h-full text-[9px] font-black uppercase rounded transition-all ${trackTypeFilter === type ? 'text-[var(--accent-cyan)] bg-[#333]' : 'text-gray-500 hover:text-[var(--accent-cyan)]'}`}
                             >
                                 {type}
                             </button>
                         ))}
                     </div>
-                    <div className="w-px h-5 bg-[#333] mx-1"></div>
+                    <div className="w-px h-5 bg-[var(--accent-cyan)]/30 mx-1"></div>
                     <button
                         onClick={() => setShowTrackStacks(!showTrackStacks)}
-                        className={`p-1 rounded transition-all ${showTrackStacks ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
+                        className={`p-1 rounded transition-all ${showTrackStacks ? 'bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)]' : 'text-gray-400 hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
                         title="Show/Hide track stacks"
                     >
                         {showTrackStacks ? 'Stacks On' : 'Stacks Off'}
                     </button>
-                    <button className="p-1 hover:bg-white/5 rounded transition-all"><MoreHorizontal className="w-4 h-4 text-gray-500" /></button>
+                    <button className="p-1 hover:bg-[var(--accent-cyan)]/10 rounded transition-all"><MoreHorizontal className="w-4 h-4 text-gray-500 hover:text-[var(--accent-cyan)]" /></button>
                 </div>
             </div>
 
@@ -178,6 +186,12 @@ export function Mixer() {
                     masterPan={settings.masterPan}
                     masterMuted={settings.masterMuted}
                 />
+            </div>
+
+            {/* EBU R128 loudness on the master bus — the figures needed to
+                master to a streaming target rather than by eye. */}
+            <div className="shrink-0 border-t border-white/5 px-2 py-1 flex justify-end">
+                <LoudnessReadout />
             </div>
 
             <style jsx>{`
@@ -305,7 +319,7 @@ interface MixerChannelStripProps {
     isSelected: boolean;
     onSelect: (e?: React.MouseEvent) => void;
     onUpdate: (updates: Partial<Track>) => void;
-    onAddPlugin: (type: 'comp' | 'eq' | 'reverb' | 'delay') => void;
+    onAddPlugin: (type: string) => void;
     onTogglePlugin: (pid: string) => void;
     setOpenPluginEditor: (editor: { trackId: string, pluginId: string } | null) => void;
     saveHistorySnapshot: () => void;
@@ -327,7 +341,7 @@ function TrackMixerChannelStrip({ track, isSelected, focusedTrackId }: { track: 
 
     const onSelect = useCallback((e?: React.MouseEvent) => selectTrack(track.id, e?.metaKey || e?.ctrlKey, e?.shiftKey), [track.id, selectTrack]);
     const onUpdate = useCallback((updates: Partial<Track>) => updateTrack(track.id, updates), [track.id, updateTrack]);
-    const onAddPluginFn = useCallback((type: 'comp' | 'eq' | 'reverb' | 'delay') => addPlugin(track.id, type), [track.id, addPlugin]);
+    const onAddPluginFn = useCallback((type: string) => addPlugin(track.id, type), [track.id, addPlugin]);
     const onTogglePluginFn = useCallback((pid: string) => togglePlugin(track.id, pid), [track.id, togglePlugin]);
 
     return (
@@ -355,7 +369,17 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
     const initialPan = isMaster ? masterPan : (track?.pan || 0);
     const initialMuted = isMaster ? masterMuted : (track?.muted || false);
     const isDraggingRef = useRef(false);
-    
+
+    // The master strip has no Track, so its inserts come from `masterPlugins`.
+    // Before this it read `track?.plugins` — always undefined — so the master
+    // rack rendered empty however many plugins the chain actually held.
+    const masterPlugins = useProjectStore(s => s.masterPlugins);
+    const addMasterPlugin = useProjectStore(s => s.addMasterPlugin);
+    const toggleMasterPlugin = useProjectStore(s => s.toggleMasterPlugin);
+    const fxChain = isMaster ? (masterPlugins ?? []) : (track?.plugins ?? []);
+    const addToChain = isMaster ? addMasterPlugin : onAddPlugin;
+    const toggleInChain = isMaster ? toggleMasterPlugin : onTogglePlugin;
+
     useEffect(() => {
         if (!isDraggingRef.current && faderCapRef.current) {
             faderCapRef.current.style.bottom = `${initialVolume * 100}%`;
@@ -389,15 +413,15 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                 </div>
 
                 {/* FX Rack (Professional Dynamic Stack) */}
-                <div className="flex flex-col gap-0.5 h-[100px] mb-1">
-                    {track?.plugins.map((p: any) => (
+                <div className="flex flex-col gap-0.5 h-[100px] mb-1 overflow-y-auto no-scrollbar">
+                    {fxChain.map((p: any) => (
                         <div
                             key={p.id}
-                            onClick={(e) => { e.stopPropagation(); setOpenPluginEditor({ trackId: track.id, pluginId: p.id }); }}
+                            onClick={(e) => { e.stopPropagation(); if (track) setOpenPluginEditor({ trackId: track.id, pluginId: p.id }); }}
                             className={`h-5 rounded-sm flex items-center px-2 text-[9px] font-black shadow-sm border-t border-white/10 cursor-pointer hover:brightness-125 transition-all ${p.enabled ? (p.name.includes('EQ') ? 'bg-sky-500 text-white shadow-[0_0_10px_rgba(14,165,233,0.3)]' : 'bg-sky-600 text-white') : 'bg-gray-800 text-gray-500 opacity-60'}`}
                         >
                             <div 
-                                onClick={(e) => { e.stopPropagation(); onTogglePlugin(p.id); }}
+                                onClick={(e) => { e.stopPropagation(); toggleInChain(p.id); }}
                                 className="mr-1.5 p-0.5 hover:bg-white/10 rounded"
                             >
                                 <Power className={`w-2 h-2 ${p.enabled ? 'text-white' : 'text-gray-600'}`} fill="currentColor" />
@@ -406,25 +430,31 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                         </div>
                     ))}
 
-                    {track && track.plugins.length < 5 && (
-                        <PluginMenu onSelect={(type) => onAddPlugin(type)} />
+                    {/* Dynamics plugins can be keyed from another track. */}
+                    {track && fxChain
+                        .filter((p: any) => p.pluginId === BUILTIN_PLUGIN_IDS.sidechainCompressor)
+                        .map((p: any) => (
+                            <SidechainPicker key={`sc-${p.id}`} track={track} pluginId={p.id} />
+                        ))}
+
+                    {fxChain.length < 8 && (
+                        <PluginMenu
+                            onSelect={(type) => addToChain(type)}
+                            onBrowse={() => {
+                                const id = isMaster ? null : track?.id;
+                                // The FX menu is about effects; instruments are
+                                // chosen from the Inspector's Instrument slot.
+                                if (id) useProjectStore.getState().setPluginBrowserTrack(id, 'effect');
+                            }}
+                        />
                     )}
                 </div>
 
-                {/* Sends Slot */}
-                <div className="flex flex-col gap-0.5 h-16 mb-2">
-                    <div className="h-5 bg-sky-500/10 border border-sky-400/20 rounded-sm flex items-center px-1.5 justify-between opacity-50 hover:opacity-100 transition-opacity">
-                        <span className="text-[8px] font-black text-sky-400 uppercase">Bus 1</span>
-                        <div className="w-2 h-2 rounded-full bg-sky-500 shadow-sm"></div>
-                    </div>
-                    <button className="h-4 bg-black/10 rounded-sm border border-white/5 text-[7px] font-black text-gray-700 flex items-center justify-center uppercase">Sends</button>
-                </div>
+                {/* Sends */}
+                <SendsSlot track={track} />
 
                 {/* Output Routing */}
-                <div className="h-6 bg-[#252525] border border-white/5 rounded-sm flex items-center px-2 justify-between text-[9px] font-black text-gray-400 shadow-sm mb-1 group-hover:border-gray-500 transition-colors">
-                    <span className="truncate uppercase">{isMaster ? 'Output' : (track?.outputBusId || 'Stereo Out')}</span>
-                    <ChevronDownSmall className="w-2.5 h-2.5 text-gray-600" />
-                </div>
+                <OutputRouting track={track} isMaster={isMaster} />
 
                 <div className="h-6 bg-black/40 border border-white/5 rounded-sm flex items-center justify-center text-[9px] font-black text-gray-600 uppercase mb-1">None</div>
 
@@ -620,7 +650,11 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
     )
 })
 
-function PluginMenu({ onSelect }: { onSelect: (type: 'comp' | 'eq' | 'reverb' | 'delay') => void }) {
+function PluginMenu({ onSelect, onBrowse }: {
+    onSelect: (type: string) => void;
+    /** Open the full third-party plugin catalogue. */
+    onBrowse: () => void;
+}) {
     const [open, setOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0 });
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -648,9 +682,12 @@ function PluginMenu({ onSelect }: { onSelect: (type: 'comp' | 'eq' | 'reverb' | 
 
     const plugins = [
         { id: 'comp', name: 'Compressor', category: 'Dynamics' },
+        { id: 'sidechain', name: 'Sidechain Comp', category: 'Dynamics' },
+        { id: 'limiter', name: 'Limiter', category: 'Dynamics' },
         { id: 'eq', name: 'Channel EQ', category: 'EQ' },
         { id: 'reverb', name: 'ChromaVerb', category: 'Reverb' },
         { id: 'delay', name: 'Delay Designer', category: 'Delay' },
+        { id: 'widener', name: 'Stereo Widener', category: 'Imaging' },
     ];
 
     return (
@@ -680,7 +717,12 @@ function PluginMenu({ onSelect }: { onSelect: (type: 'comp' | 'eq' | 'reverb' | 
                         </button>
                     ))}
                     <div className="mt-1 pt-1 border-t border-white/5">
-                        <button className="w-full text-left px-3 py-1 hover:bg-white/5 text-[9px] font-bold text-gray-500 uppercase italic">Show All...</button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onBrowse(); setOpen(false); }}
+                            className="w-full text-left px-3 py-1 hover:bg-sky-500 hover:text-white text-[9px] font-bold text-gray-500 uppercase transition-colors"
+                        >
+                            Browse Plug-ins…
+                        </button>
                     </div>
                 </div>
             )}

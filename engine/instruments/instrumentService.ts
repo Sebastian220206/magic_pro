@@ -46,6 +46,56 @@ export class InstrumentService {
   }
 
   /**
+   * Assign a custom instrument instance to a track (for SoundFonts, etc.)
+   */
+  setCustomInstrument(trackId: string, instrumentName: string, instrument: Instrument): boolean {
+    if (!this.initialized) {
+      console.warn('Instrument service not initialized');
+      return false;
+    }
+
+    this.removeInstrument(trackId);
+
+    const adapter = createInstrumentAdapter(instrument);
+    this.connectToTrack(trackId, instrument);
+
+    this.assignments.set(trackId, {
+      trackId,
+      instrumentName,
+      adapter,
+      connected: true,
+    });
+
+    console.log(`Assigned custom instrument ${instrumentName} to track ${trackId}`);
+    return true;
+  }
+
+  /**
+   * Route an instrument's output through its track's channel strip.
+   *
+   * Connecting straight to `ctx.destination` (the previous behaviour) bypassed
+   * the channel strip entirely, so track volume, pan, mute, solo and inserts
+   * had no effect on the instrument and it could not be bounced.
+   */
+  private connectToTrack(trackId: string, instrument: Instrument): void {
+    const ctx = audioContextManager.getContext();
+    if (!ctx) return;
+
+    let nodes = (routingEngine as any).trackNodes?.get(trackId);
+    if (!nodes) {
+      routingEngine.createTrack({ id: trackId } as any);
+      nodes = (routingEngine as any).trackNodes?.get(trackId);
+    }
+
+    const target: AudioNode = nodes?.inputGain ?? nodes?.mainGain ?? ctx.destination;
+    try {
+      instrument.getOutput().connect(target);
+    } catch (error) {
+      console.warn(`[InstrumentService] Could not connect instrument for ${trackId}:`, error);
+    }
+  }
+
+  /**
    * Assign an instrument to a track
    */
   assignInstrument(trackId: string, instrumentName: string): boolean {
@@ -73,11 +123,8 @@ export class InstrumentService {
     // Create adapter
     const adapter = createInstrumentAdapter(instrument);
 
-    // Connect to audio engine destination
-    const ctx = audioContextManager.getContext();
-    if (ctx) {
-      instrument.getOutput().connect(ctx.destination);
-    }
+    // Route through the track's channel strip, not straight to the speakers.
+    this.connectToTrack(trackId, instrument);
 
     // Store assignment
     this.assignments.set(trackId, {

@@ -5,52 +5,53 @@
  * Integrates instrument system with React components and Zustand store
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useProjectStore } from '@/store/projectStore';
 import { getInstrumentService } from '@/engine/instruments/instrumentService';
 import { audioContextManager } from '@/engine/audioEngine/audioContext';
+import { loadSoundFontForTrack, releaseTrackFont } from '@/engine/instruments/soundfont/loadSoundFontForTrack';
+import { initializeInstruments } from '@/engine/instruments/instrumentBootstrap';
 
 export function useInstruments() {
   const { tracks, updateTrack } = useProjectStore();
-  const initialized = useRef(false);
 
-  // Initialize instrument service on mount
+  // Make sure the service is ready. `initializeInstruments` is idempotent and
+  // is also called at app boot, so this only matters if a consumer mounts
+  // before boot has finished.
+  //
+  // This deliberately does NOT dispose on unmount. It used to, which meant the
+  // instrument graph's lifetime was tied to the Library panel's: closing the
+  // panel destroyed every loaded instrument, and under React StrictMode the
+  // mount/unmount/mount cycle tore it down immediately after loading. Playback
+  // then fell back to the built-in synth. A UI panel must not own the audio
+  // graph — `AudioEngineAdapter.dispose()` owns teardown.
   useEffect(() => {
-    if (initialized.current) return;
+    void initializeInstruments(tracks, updateTrack);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    const init = async () => {
-      // Ensure audio context is initialized
-      const ctx = audioContextManager.getContext();
-      if (!ctx) {
-        await audioContextManager.initialize();
-      }
-
-      // Initialize instrument service
-      const service = getInstrumentService();
-      await service.initialize();
-
-      // Assign instruments to tracks that have them configured
-      tracks.forEach((track) => {
-        if (track.instrument && !service.hasInstrument(track.id)) {
-          const success = service.assignInstrument(track.id, track.instrument);
-          if (success) {
-            updateTrack(track.id, { instrumentLoaded: true });
-          }
-        }
-      });
-
-      initialized.current = true;
-    };
-
-    init();
-
-    // Cleanup on unmount
-    return () => {
-      const service = getInstrumentService();
-      service.dispose();
-      initialized.current = false;
-    };
-  }, []); // Run once on mount
+  // Load a SoundFont for a track and select a specific preset.
+  // The real work lives in the engine so it does not depend on this component.
+  const loadSoundFont = useCallback(async (
+    trackId: string,
+    fileUrl: string,
+    presetIndex: number,
+    fontId?: string,
+  ): Promise<boolean> => {
+    const result = await loadSoundFontForTrack(trackId, fileUrl, presetIndex);
+    if (!result.ok) {
+      console.error('[SoundFont] Load failed:', result.error);
+      return false;
+    }
+    // Record the bank and preset, not just the display name, so opening the
+    // project again can rebuild this instrument.
+    updateTrack(trackId, {
+      instrument: result.label,
+      instrumentLoaded: true,
+      soundFont: { id: fontId, url: fileUrl, presetIndex, presetName: result.label },
+    });
+    return true;
+  }, [updateTrack]);
 
   // Assign instrument to track
   const assignInstrument = useCallback((trackId: string, instrumentName: string): boolean => {
@@ -72,9 +73,11 @@ export function useInstruments() {
     const service = getInstrumentService();
     service.removeInstrument(trackId);
 
+    releaseTrackFont(trackId);
     updateTrack(trackId, {
       instrument: undefined,
       instrumentLoaded: false,
+      soundFont: undefined,
     });
   }, [updateTrack]);
 
@@ -120,6 +123,7 @@ export function useInstruments() {
   return {
     assignInstrument,
     removeInstrument,
+    loadSoundFont,
     playTestNote,
     handleNoteOn,
     handleNoteOff,

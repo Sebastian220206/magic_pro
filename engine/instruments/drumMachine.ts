@@ -7,16 +7,20 @@ export interface DrumPad {
   note: number;       // MIDI note number
   name: string;       // Drum name (e.g., "Kick", "Snare")
   buffer?: AudioBuffer;
-  url?: string;       // Path to sample file
+  url?: string;       // Path to sample file (single sample)
+  samples?: string[]; // Multiple sample URLs for round-robin
   velocity: number;   // Default velocity sensitivity
   tune?: number;      // Pitch adjustment in semitones
   volume?: number;    // 0-1 volume
+  chokeGroup?: number; // Choke group ID (e.g., open hat chokes closed hat)
+  outputChannel?: number; // Multi-out channel index (0 = main, 1-8 = aux)
 }
 
 export interface DrumKit {
   name: string;
   pads: DrumPad[];
   masterVolume: number;
+  outputChannels?: number; // Number of output channels (default 1)
 }
 
 // Standard drum kit mappings
@@ -49,107 +53,113 @@ export const drumKitPresets: Record<string, DrumKit> = {
   trap: {
     name: 'Trap Drum Kit',
     masterVolume: 0.7,
+    outputChannels: 4, // main + 3 aux
     pads: [
-      { note: 36, name: 'Kick', velocity: 1.0, tune: 0, volume: 1.0 },
-      { note: 38, name: 'Snare', velocity: 0.9, tune: 0, volume: 0.9 },
-      { note: 40, name: 'Snare Rim', velocity: 0.7, tune: 0, volume: 0.6 },
-      { note: 42, name: 'Closed Hat', velocity: 0.8, tune: 0, volume: 0.7 },
-      { note: 46, name: 'Open Hat', velocity: 0.8, tune: 0, volume: 0.7 },
-      { note: 39, name: 'Clap', velocity: 0.9, tune: 0, volume: 0.8 },
-      { note: 75, name: 'Claves', velocity: 0.7, tune: 0, volume: 0.5 },
-      { note: 41, name: '808', velocity: 1.0, tune: -12, volume: 1.0 },
-      { note: 49, name: 'Crash', velocity: 0.8, tune: 0, volume: 0.8 },
-      { note: 35, name: 'Sub Kick', velocity: 1.0, tune: -24, volume: 0.9 },
+      { note: 36, name: 'Kick', velocity: 1.0, tune: 0, volume: 1.0, outputChannel: 1 },
+      { note: 38, name: 'Snare', velocity: 0.9, tune: 0, volume: 0.9, outputChannel: 2 },
+      { note: 40, name: 'Snare Rim', velocity: 0.7, tune: 0, volume: 0.6, outputChannel: 2 },
+      { note: 42, name: 'Closed Hat', velocity: 0.8, tune: 0, volume: 0.7, chokeGroup: 1, outputChannel: 3 },
+      { note: 46, name: 'Open Hat', velocity: 0.8, tune: 0, volume: 0.7, chokeGroup: 1, outputChannel: 3 },
+      { note: 39, name: 'Clap', velocity: 0.9, tune: 0, volume: 0.8, outputChannel: 2 },
+      { note: 75, name: 'Claves', velocity: 0.7, tune: 0, volume: 0.5, outputChannel: 0 },
+      { note: 41, name: '808', velocity: 1.0, tune: -12, volume: 1.0, outputChannel: 1 },
+      { note: 49, name: 'Crash', velocity: 0.8, tune: 0, volume: 0.8, outputChannel: 0 },
+      { note: 35, name: 'Sub Kick', velocity: 1.0, tune: -24, volume: 0.9, outputChannel: 1 },
     ],
   },
   acoustic: {
     name: 'Acoustic Kit',
     masterVolume: 0.75,
+    outputChannels: 4,
     pads: [
-      { note: 36, name: 'Kick', velocity: 1.0, tune: 0, volume: 1.0 },
-      { note: 38, name: 'Snare', velocity: 0.9, tune: 0, volume: 0.9 },
-      { note: 40, name: 'Snare Rim', velocity: 0.8, tune: 0, volume: 0.7 },
-      { note: 42, name: 'Closed Hat', velocity: 0.7, tune: 0, volume: 0.6 },
-      { note: 46, name: 'Open Hat', velocity: 0.7, tune: 0, volume: 0.6 },
-      { note: 43, name: 'Tom Low', velocity: 0.8, tune: 0, volume: 0.8 },
-      { note: 47, name: 'Tom Hi', velocity: 0.8, tune: 0, volume: 0.8 },
-      { note: 41, name: 'Tom Floor', velocity: 0.8, tune: 0, volume: 0.8 },
-      { note: 49, name: 'Crash', velocity: 0.9, tune: 0, volume: 0.8 },
-      { note: 51, name: 'Ride', velocity: 0.8, tune: 0, volume: 0.7 },
-      { note: 53, name: 'Ride Bell', velocity: 0.8, tune: 0, volume: 0.6 },
-      { note: 52, name: 'China', velocity: 0.9, tune: 0, volume: 0.8 },
+      { note: 36, name: 'Kick', velocity: 1.0, tune: 0, volume: 1.0, outputChannel: 1 },
+      { note: 38, name: 'Snare', velocity: 0.9, tune: 0, volume: 0.9, outputChannel: 2 },
+      { note: 40, name: 'Snare Rim', velocity: 0.8, tune: 0, volume: 0.7, outputChannel: 2 },
+      { note: 42, name: 'Closed Hat', velocity: 0.7, tune: 0, volume: 0.6, chokeGroup: 1, outputChannel: 3 },
+      { note: 46, name: 'Open Hat', velocity: 0.7, tune: 0, volume: 0.6, chokeGroup: 1, outputChannel: 3 },
+      { note: 43, name: 'Tom Low', velocity: 0.8, tune: 0, volume: 0.8, outputChannel: 0 },
+      { note: 47, name: 'Tom Hi', velocity: 0.8, tune: 0, volume: 0.8, outputChannel: 0 },
+      { note: 41, name: 'Tom Floor', velocity: 0.8, tune: 0, volume: 0.8, outputChannel: 0 },
+      { note: 49, name: 'Crash', velocity: 0.9, tune: 0, volume: 0.8, outputChannel: 0 },
+      { note: 51, name: 'Ride', velocity: 0.8, tune: 0, volume: 0.7, outputChannel: 0 },
+      { note: 53, name: 'Ride Bell', velocity: 0.8, tune: 0, volume: 0.6, chokeGroup: 2, outputChannel: 0 },
+      { note: 52, name: 'China', velocity: 0.9, tune: 0, volume: 0.8, outputChannel: 0 },
     ],
   },
   '808': {
     name: '808 Classic',
     masterVolume: 0.8,
+    outputChannels: 4,
     pads: [
-      { note: 35, name: 'Sub Kick', velocity: 1.0, tune: 0, volume: 1.0 },
-      { note: 36, name: 'Kick', velocity: 1.0, tune: 0, volume: 1.0 },
-      { note: 38, name: 'Snare', velocity: 0.9, tune: 0, volume: 0.9 },
-      { note: 40, name: 'Snare Rim', velocity: 0.8, tune: 0, volume: 0.7 },
-      { note: 42, name: 'Closed Hat', velocity: 0.7, tune: 0, volume: 0.6 },
-      { note: 46, name: 'Open Hat', velocity: 0.7, tune: 0, volume: 0.6 },
-      { note: 39, name: 'Clap', velocity: 0.9, tune: 0, volume: 0.8 },
-      { note: 75, name: 'Claves', velocity: 0.7, tune: 0, volume: 0.5 },
-      { note: 70, name: 'Maraca', velocity: 0.6, tune: 0, volume: 0.4 },
-      { note: 56, name: 'Cowbell', velocity: 0.8, tune: 0, volume: 0.7 },
-      { note: 62, name: 'Conga Hi', velocity: 0.8, tune: 0, volume: 0.6 },
-      { note: 63, name: 'Conga Low', velocity: 0.8, tune: 0, volume: 0.6 },
+      { note: 35, name: 'Sub Kick', velocity: 1.0, tune: 0, volume: 1.0, outputChannel: 1 },
+      { note: 36, name: 'Kick', velocity: 1.0, tune: 0, volume: 1.0, outputChannel: 1 },
+      { note: 38, name: 'Snare', velocity: 0.9, tune: 0, volume: 0.9, outputChannel: 2 },
+      { note: 40, name: 'Snare Rim', velocity: 0.8, tune: 0, volume: 0.7, outputChannel: 2 },
+      { note: 42, name: 'Closed Hat', velocity: 0.7, tune: 0, volume: 0.6, chokeGroup: 1, outputChannel: 3 },
+      { note: 46, name: 'Open Hat', velocity: 0.7, tune: 0, volume: 0.6, chokeGroup: 1, outputChannel: 3 },
+      { note: 39, name: 'Clap', velocity: 0.9, tune: 0, volume: 0.8, outputChannel: 2 },
+      { note: 75, name: 'Claves', velocity: 0.7, tune: 0, volume: 0.5, outputChannel: 0 },
+      { note: 70, name: 'Maraca', velocity: 0.6, tune: 0, volume: 0.4, outputChannel: 0 },
+      { note: 56, name: 'Cowbell', velocity: 0.8, tune: 0, volume: 0.7, outputChannel: 0 },
+      { note: 62, name: 'Conga Hi', velocity: 0.8, tune: 0, volume: 0.6, outputChannel: 0 },
+      { note: 63, name: 'Conga Low', velocity: 0.8, tune: 0, volume: 0.6, outputChannel: 0 },
     ],
   },
   electronic: {
     name: 'Electronic Kit',
     masterVolume: 0.8,
+    outputChannels: 4,
     pads: [
-      { note: 36, name: 'Kick', velocity: 1.0, tune: 0, volume: 1.0 },
-      { note: 38, name: 'Snare', velocity: 0.9, tune: 2, volume: 0.85 },
-      { note: 42, name: 'Closed Hat', velocity: 0.7, tune: 0, volume: 0.6 },
-      { note: 46, name: 'Open Hat', velocity: 0.7, tune: 0, volume: 0.6 },
-      { note: 39, name: 'Clap', velocity: 0.9, tune: 0, volume: 0.8 },
-      { note: 41, name: 'Tom Low', velocity: 0.8, tune: 3, volume: 0.7 },
-      { note: 47, name: 'Tom Hi', velocity: 0.8, tune: 3, volume: 0.7 },
-      { note: 49, name: 'Crash', velocity: 0.9, tune: 0, volume: 0.8 },
-      { note: 51, name: 'Ride', velocity: 0.8, tune: 0, volume: 0.7 },
-      { note: 82, name: 'Shaker', velocity: 0.6, tune: 0, volume: 0.5 },
-      { note: 54, name: 'Tambourine', velocity: 0.7, tune: 0, volume: 0.6 },
-      { note: 56, name: 'Cowbell', velocity: 0.8, tune: 0, volume: 0.6 },
+      { note: 36, name: 'Kick', velocity: 1.0, tune: 0, volume: 1.0, outputChannel: 1 },
+      { note: 38, name: 'Snare', velocity: 0.9, tune: 2, volume: 0.85, outputChannel: 2 },
+      { note: 42, name: 'Closed Hat', velocity: 0.7, tune: 0, volume: 0.6, chokeGroup: 1, outputChannel: 3 },
+      { note: 46, name: 'Open Hat', velocity: 0.7, tune: 0, volume: 0.6, chokeGroup: 1, outputChannel: 3 },
+      { note: 39, name: 'Clap', velocity: 0.9, tune: 0, volume: 0.8, outputChannel: 2 },
+      { note: 41, name: 'Tom Low', velocity: 0.8, tune: 3, volume: 0.7, outputChannel: 0 },
+      { note: 47, name: 'Tom Hi', velocity: 0.8, tune: 3, volume: 0.7, outputChannel: 0 },
+      { note: 49, name: 'Crash', velocity: 0.9, tune: 0, volume: 0.8, outputChannel: 0 },
+      { note: 51, name: 'Ride', velocity: 0.8, tune: 0, volume: 0.7, outputChannel: 0 },
+      { note: 82, name: 'Shaker', velocity: 0.6, tune: 0, volume: 0.5, outputChannel: 0 },
+      { note: 54, name: 'Tambourine', velocity: 0.7, tune: 0, volume: 0.6, outputChannel: 0 },
+      { note: 56, name: 'Cowbell', velocity: 0.8, tune: 0, volume: 0.6, outputChannel: 0 },
     ],
   },
   jazz: {
     name: 'Jazz Kit',
     masterVolume: 0.65,
+    outputChannels: 4,
     pads: [
-      { note: 36, name: 'Kick', velocity: 1.0, tune: -1, volume: 0.9 },
-      { note: 38, name: 'Snare', velocity: 0.8, tune: -1, volume: 0.8 },
-      { note: 40, name: 'Snare Rim', velocity: 0.7, tune: 0, volume: 0.6 },
-      { note: 42, name: 'Closed Hat', velocity: 0.6, tune: 0, volume: 0.5 },
-      { note: 46, name: 'Open Hat', velocity: 0.6, tune: 0, volume: 0.5 },
-      { note: 41, name: 'Tom Low', velocity: 0.7, tune: -2, volume: 0.7 },
-      { note: 47, name: 'Tom Hi', velocity: 0.7, tune: -2, volume: 0.7 },
-      { note: 49, name: 'Crash', velocity: 0.8, tune: 0, volume: 0.7 },
-      { note: 51, name: 'Ride', velocity: 0.8, tune: 0, volume: 0.6 },
-      { note: 53, name: 'Ride Bell', velocity: 0.7, tune: 0, volume: 0.5 },
-      { note: 82, name: 'Shaker', velocity: 0.5, tune: 0, volume: 0.4 },
-      { note: 54, name: 'Tambourine', velocity: 0.6, tune: 0, volume: 0.5 },
+      { note: 36, name: 'Kick', velocity: 1.0, tune: -1, volume: 0.9, outputChannel: 1 },
+      { note: 38, name: 'Snare', velocity: 0.8, tune: -1, volume: 0.8, outputChannel: 2 },
+      { note: 40, name: 'Snare Rim', velocity: 0.7, tune: 0, volume: 0.6, outputChannel: 2 },
+      { note: 42, name: 'Closed Hat', velocity: 0.6, tune: 0, volume: 0.5, chokeGroup: 1, outputChannel: 3 },
+      { note: 46, name: 'Open Hat', velocity: 0.6, tune: 0, volume: 0.5, chokeGroup: 1, outputChannel: 3 },
+      { note: 41, name: 'Tom Low', velocity: 0.7, tune: -2, volume: 0.7, outputChannel: 0 },
+      { note: 47, name: 'Tom Hi', velocity: 0.7, tune: -2, volume: 0.7, outputChannel: 0 },
+      { note: 49, name: 'Crash', velocity: 0.8, tune: 0, volume: 0.7, outputChannel: 0 },
+      { note: 51, name: 'Ride', velocity: 0.8, tune: 0, volume: 0.6, outputChannel: 0 },
+      { note: 53, name: 'Ride Bell', velocity: 0.7, tune: 0, volume: 0.5, chokeGroup: 2, outputChannel: 0 },
+      { note: 82, name: 'Shaker', velocity: 0.5, tune: 0, volume: 0.4, outputChannel: 0 },
+      { note: 54, name: 'Tambourine', velocity: 0.6, tune: 0, volume: 0.5, outputChannel: 0 },
     ],
   },
   percussion: {
     name: 'World Percussion',
     masterVolume: 0.7,
+    outputChannels: 2,
     pads: [
-      { note: 62, name: 'Conga Hi', velocity: 0.8, tune: 0, volume: 0.7 },
-      { note: 63, name: 'Conga Low', velocity: 0.8, tune: -2, volume: 0.7 },
-      { note: 64, name: 'Conga Mute', velocity: 0.7, tune: 0, volume: 0.6 },
-      { note: 65, name: 'Bongo Hi', velocity: 0.8, tune: 5, volume: 0.6 },
-      { note: 66, name: 'Bongo Low', velocity: 0.7, tune: 3, volume: 0.6 },
-      { note: 67, name: 'Djembe', velocity: 0.9, tune: 0, volume: 0.8 },
-      { note: 68, name: 'Djembe Slap', velocity: 0.8, tune: 7, volume: 0.7 },
-      { note: 69, name: 'Tabla', velocity: 0.8, tune: 0, volume: 0.7 },
-      { note: 70, name: 'Maraca', velocity: 0.6, tune: 0, volume: 0.5 },
-      { note: 54, name: 'Tambourine', velocity: 0.7, tune: 0, volume: 0.5 },
-      { note: 82, name: 'Shaker', velocity: 0.5, tune: 0, volume: 0.4 },
-      { note: 75, name: 'Claves', velocity: 0.7, tune: 0, volume: 0.5 },
+      { note: 62, name: 'Conga Hi', velocity: 0.8, tune: 0, volume: 0.7, outputChannel: 0 },
+      { note: 63, name: 'Conga Low', velocity: 0.8, tune: -2, volume: 0.7, outputChannel: 0 },
+      { note: 64, name: 'Conga Mute', velocity: 0.7, tune: 0, volume: 0.6, chokeGroup: 3, outputChannel: 0 },
+      { note: 65, name: 'Bongo Hi', velocity: 0.8, tune: 5, volume: 0.6, outputChannel: 1 },
+      { note: 66, name: 'Bongo Low', velocity: 0.7, tune: 3, volume: 0.6, outputChannel: 1 },
+      { note: 67, name: 'Djembe', velocity: 0.9, tune: 0, volume: 0.8, outputChannel: 0 },
+      { note: 68, name: 'Djembe Slap', velocity: 0.8, tune: 7, volume: 0.7, chokeGroup: 4, outputChannel: 0 },
+      { note: 69, name: 'Tabla', velocity: 0.8, tune: 0, volume: 0.7, outputChannel: 1 },
+      { note: 70, name: 'Maraca', velocity: 0.6, tune: 0, volume: 0.5, outputChannel: 0 },
+      { note: 54, name: 'Tambourine', velocity: 0.7, tune: 0, volume: 0.5, outputChannel: 0 },
+      { note: 82, name: 'Shaker', velocity: 0.5, tune: 0, volume: 0.4, outputChannel: 0 },
+      { note: 75, name: 'Claves', velocity: 0.7, tune: 0, volume: 0.5, outputChannel: 1 },
     ],
   },
 };
@@ -361,6 +371,7 @@ class DrumVoice {
   private output: GainNode;
   private panner: StereoPannerNode;
   private isActive = false;
+  private currentPadNote: number = -1;
 
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
@@ -380,10 +391,12 @@ class DrumVoice {
     velocity: number,
     tune = 0,
     pan = 0,
-    startTime?: number
+    startTime?: number,
+    padNote: number = -1
   ): void {
     const time = startTime ?? this.ctx.currentTime;
     this.isActive = true;
+    this.currentPadNote = padNote;
 
     // Calculate playback rate for pitch adjustment
     const rate = Math.pow(2, tune / 12);
@@ -408,7 +421,26 @@ class DrumVoice {
     this.source.onended = () => {
       this.cleanup();
       this.isActive = false;
+      this.currentPadNote = -1;
     };
+  }
+
+  /**
+   * Stop the voice immediately (for choke groups)
+   */
+  stop(time?: number): void {
+    if (!this.isActive || !this.source) return;
+    const t = time ?? this.ctx.currentTime;
+
+    try {
+      // Fade out quickly to avoid click
+      this.output.gain.cancelScheduledValues(t);
+      this.output.gain.setValueAtTime(this.output.gain.value, t);
+      this.output.gain.exponentialRampToValueAtTime(0.001, t + 0.01);
+      this.source.stop(t + 0.015);
+    } catch {
+      // Already stopped
+    }
   }
 
   /**
@@ -416,6 +448,13 @@ class DrumVoice {
    */
   isPlaying(): boolean {
     return this.isActive;
+  }
+
+  /**
+   * Get the pad note this voice is playing
+   */
+  getCurrentPadNote(): number {
+    return this.currentPadNote;
   }
 
   /**
@@ -456,14 +495,19 @@ class DrumVoice {
 
 /**
  * Drum Machine
+ * Maps MIDI notes to individual drum samples with polyphonic playback,
+ * choke groups, round-robin, and multi-out routing.
  */
 export class DrumMachine {
   private ctx: AudioContext;
   private kit: DrumKit;
   private voices: DrumVoice[] = [];
   private masterGain: GainNode;
-  private loadedPads = new Map<number, AudioBuffer>();
+  private outputChannels: GainNode[] = []; // Multi-out channels
+  private loadedPads = new Map<number, AudioBuffer>(); // note -> primary buffer
+  private loadedRoundRobin = new Map<number, AudioBuffer[]>(); // note -> array of buffers
   private isLoaded = false;
+  private roundRobinIndices = new Map<number, number>(); // note -> current RR index
 
   constructor(ctx: AudioContext, presetName: string) {
     this.ctx = ctx;
@@ -472,6 +516,15 @@ export class DrumMachine {
     // Create master output
     this.masterGain = ctx.createGain();
     this.masterGain.gain.value = this.kit.masterVolume;
+
+    // Create output channels for multi-out
+    const numChannels = this.kit.outputChannels ?? 1;
+    for (let i = 0; i < numChannels; i++) {
+      const channelGain = ctx.createGain();
+      channelGain.gain.value = 1.0;
+      channelGain.connect(this.masterGain);
+      this.outputChannels.push(channelGain);
+    }
 
     // Allocate voice pool (drums need many voices for flams/rolls)
     this.allocateVoices();
@@ -484,7 +537,6 @@ export class DrumMachine {
     const polyphony = 32; // Drums can overlap a lot
     for (let i = 0; i < polyphony; i++) {
       const voice = new DrumVoice(this.ctx);
-      voice.getOutput().connect(this.masterGain);
       this.voices.push(voice);
     }
   }
@@ -500,7 +552,24 @@ export class DrumMachine {
       const buffer = generateDrumSound(this.ctx, pad.name, pad.tune ?? 0);
       this.loadedPads.set(pad.note, buffer);
 
-      if (pad.url) {
+      // Load round-robin samples if specified
+      if (pad.samples && pad.samples.length > 0) {
+        const rrBuffers: AudioBuffer[] = [];
+        for (const url of pad.samples) {
+          try {
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+            rrBuffers.push(audioBuffer);
+          } catch (error) {
+            console.warn(`Failed to load round-robin sample: ${url}`, error);
+          }
+        }
+        if (rrBuffers.length > 0) {
+          this.loadedRoundRobin.set(pad.note, rrBuffers);
+        }
+      } else if (pad.url) {
+        // Load single custom sample
         try {
           const response = await fetch(pad.url);
           const arrayBuffer = await response.arrayBuffer();
@@ -508,7 +577,6 @@ export class DrumMachine {
           this.loadedPads.set(pad.note, audioBuffer);
         } catch (error) {
           console.warn(`Failed to load drum sample: ${pad.url}`, error);
-          // Keep the generated fallback
         }
       }
     });
@@ -522,6 +590,19 @@ export class DrumMachine {
    */
   private findPad(note: number): DrumPad | undefined {
     return this.kit.pads.find((pad) => pad.note === note);
+  }
+
+  /**
+   * Get the next round-robin buffer for a pad
+   */
+  private getNextRRBuffer(note: number): AudioBuffer | null {
+    const buffers = this.loadedRoundRobin.get(note);
+    if (!buffers || buffers.length === 0) return null;
+
+    const idx = this.roundRobinIndices.get(note) ?? 0;
+    const buffer = buffers[idx % buffers.length];
+    this.roundRobinIndices.set(note, idx + 1);
+    return buffer;
   }
 
   /**
@@ -539,6 +620,27 @@ export class DrumMachine {
   }
 
   /**
+   * Stop all voices playing a specific pad (for choke groups)
+   */
+  private chokePad(note: number, time?: number): void {
+    const t = time ?? this.ctx.currentTime;
+    this.voices.forEach((voice) => {
+      if (voice.isPlaying() && voice.getCurrentPadNote() === note) {
+        voice.stop(t);
+      }
+    });
+  }
+
+  /**
+   * Get the output GainNode for a specific channel.
+   * Channel 0 = main (masterGain), channels 1+ = aux outputs.
+   */
+  getOutputChannel(channel: number): GainNode {
+    if (channel === 0) return this.masterGain;
+    return this.outputChannels[channel] ?? this.masterGain;
+  }
+
+  /**
    * Play a drum note
    */
   noteOn(note: number, velocity = 100, time?: number): void {
@@ -553,7 +655,24 @@ export class DrumMachine {
       return;
     }
 
-    const buffer = this.loadedPads.get(note);
+    // Handle choke groups: stop other voices in the same group
+    if (pad.chokeGroup !== undefined) {
+      this.kit.pads.forEach((otherPad) => {
+        if (
+          otherPad.chokeGroup === pad.chokeGroup &&
+          otherPad.note !== note &&
+          otherPad.chokeGroup !== undefined
+        ) {
+          this.chokePad(otherPad.note, time);
+        }
+      });
+    }
+
+    // Get buffer: try round-robin first, then primary, then fallback
+    let buffer = this.getNextRRBuffer(note);
+    if (!buffer) {
+      buffer = this.loadedPads.get(note) ?? null;
+    }
     if (!buffer) {
       console.warn(`Sample not loaded for note ${note}`);
       return;
@@ -567,12 +686,20 @@ export class DrumMachine {
       Math.round(velocity * (pad.velocity ?? 1))
     );
 
+    // Determine output channel
+    const outputChannel = pad.outputChannel ?? 0;
+
+    // Connect voice to appropriate output channel
+    voice.getOutput().disconnect();
+    voice.getOutput().connect(this.getOutputChannel(outputChannel));
+
     voice.play(
       buffer,
       effectiveVel,
       pad.tune,
       0, // pan (can be extended)
-      time
+      time,
+      note // pass pad note for choke tracking
     );
   }
 
@@ -639,8 +766,11 @@ export class DrumMachine {
     this.voices.forEach((v) => v.dispose());
     this.voices = [];
     this.loadedPads.clear();
+    this.loadedRoundRobin.clear();
+    this.roundRobinIndices.clear();
     try {
       this.masterGain.disconnect();
+      this.outputChannels.forEach((ch) => ch.disconnect());
     } catch {
       // Already disconnected
     }

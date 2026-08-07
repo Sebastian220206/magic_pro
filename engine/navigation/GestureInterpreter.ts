@@ -26,6 +26,11 @@ export class GestureInterpreter {
       dy *= 16; 
     } 
 
+    if (isPinch && e.shiftKey) {
+      // Ctrl+Shift+Scroll -> Vertical (pitch) zoom
+      return { type: 'zoom-vertical', dx: 0, dy: dy, anchorX: e.clientX, anchorY: e.clientY };
+    }
+
     if (isPinch) {
       // Zoom: dy contains the pinch delta
       return { type: 'zoom', dx: 0, dy: dy, anchorX: e.clientX, anchorY: e.clientY };

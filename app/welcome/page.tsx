@@ -54,10 +54,11 @@ export default function WelcomePage() {
 
   return (
     <div className="min-h-screen bg-daw-bg flex flex-col">
+      <main className="flex-1 flex flex-col">
       {/* Hero */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-8">
         <div className="max-w-4xl w-full text-center">
-          <div className="inline-flex items-center gap-2 bg-daw-primary/10 text-daw-primary px-4 py-1.5 rounded-full text-sm font-medium mb-8">
+          <div className="inline-flex items-center gap-2 bg-daw-primary/10 text-fuchsia-300 px-4 py-1.5 rounded-full text-sm font-medium mb-8">
             <Sparkles className="w-4 h-4" />
             Make music in 30 seconds
           </div>
@@ -86,8 +87,8 @@ export default function WelcomePage() {
                 <div className={`h-24 rounded-lg bg-gradient-to-br ${gradientMap[tpl.id] || 'from-gray-800 to-gray-900'} border border-daw-border mb-3 flex items-center justify-center`}>
                   <Music className={`w-7 h-7 ${iconColors[tpl.id] || 'text-gray-400'}`} />
                 </div>
-                <h3 className="text-sm font-semibold text-white group-hover:text-daw-primary transition-colors">{tpl.name}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">{tpl.bpm} BPM</p>
+                <h2 className="text-sm font-semibold text-white group-hover:text-daw-primary transition-colors">{tpl.name}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{tpl.bpm} BPM</p>
               </button>
             ))}
           </div>
@@ -115,10 +116,11 @@ export default function WelcomePage() {
 
       {/* Footer */}
       <div className="text-center pb-6">
-        <p className="text-xs text-gray-600">
+        <p className="text-xs text-gray-400">
           No account needed. Everything runs in your browser.
         </p>
       </div>
+      </main>
     </div>
   );
 }

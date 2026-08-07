@@ -179,14 +179,28 @@ export function useAudioPlayer() {
 
     // ── 4. Live tempo sync ─────────────────────────────────────────────────────
     //
-    // Forward tempo changes to the running scheduler so future clip scheduling
-    // uses the correct BPM without restarting playback.
+    // Push the project's whole tempo track, not just the current BPM. The
+    // scheduler integrates it to convert beats to time, so tempo changes and
+    // ramps actually move the audio rather than only the readout.
+
+    const tempoPoints = useProjectStore(s => s.globalTracks.tempo);
 
     useEffect(() => {
-        if (playing) {
+        const points = (tempoPoints ?? [])
+            .filter(p => typeof p.value === 'number')
+            .map(p => ({
+                time: p.time,
+                value: p.value as number,
+                type: p.type === 'ramp' ? ('ramp' as const) : ('jump' as const),
+            }));
+
+        if (points.length > 0) {
+            scheduler.setTempoMap(points);
+        } else {
+            // No tempo track — fall back to the project's scalar BPM.
             scheduler.setTempo(tempo);
         }
-    }, [tempo, playing]);
+    }, [tempoPoints, tempo]);
 
     // ── 5. Master volume ───────────────────────────────────────────────────────
 

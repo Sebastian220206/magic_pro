@@ -126,6 +126,7 @@ export async function createProjectFromTemplate(template: ProjectTemplate): Prom
     tempo: template.bpm,
     tracks,
     clips,
+    isDirty: true,
   });
 
   audioEngine.setTempo(template.bpm);

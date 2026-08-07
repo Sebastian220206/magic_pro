@@ -34,8 +34,11 @@ export class VoiceAllocator {
     }
 
     acquireVoice(): Voice {
-        const idleVoice = this.voices.find(v => v.state === VoiceState.Idle);
-        if (idleVoice) return idleVoice;
+        // Finished voices are as good as idle. Without this the pool filled up
+        // with spent voices and every new note stole a sounding one.
+        const free = this.voices.find(v =>
+            v.state === VoiceState.Idle || v.state === VoiceState.Done);
+        if (free) return free;
 
         if (this.voices.length < this.maxVoices) {
             const voice = new Voice(this.ctx);
@@ -61,11 +64,20 @@ export class VoiceAllocator {
         }
     }
 
-    releaseAll(delay: number = 0) {
+    /**
+     * Release every sounding voice at absolute time `when` (0 = now).
+     *
+     * Voices whose note-on has not happened yet are cancelled outright rather
+     * than released: they have made no sound, and `Voice.release` clamps a
+     * release to the note's own start, so releasing them would let a stopped
+     * transport still blip out every note it had queued.
+     */
+    releaseAll(when: number = 0) {
+        const at = when > 0 ? when : this.ctx.currentTime;
         for (const v of this.voices) {
-            if (v.state === VoiceState.Playing) {
-                v.release(delay);
-            }
+            if (v.state !== VoiceState.Playing) continue;
+            if (v.startTime > at) v.stop();
+            else v.release(when);
         }
     }
 
@@ -100,14 +112,16 @@ export class VoiceAllocator {
     }
 
     private stealOldestVoice(): Voice {
-        const playing = this.voices.filter(v => v.state === VoiceState.Playing);
-        if (playing.length === 0) {
-            const idle = this.voices[0];
-            idle.stop();
-            return idle;
-        }
-        playing.sort((a, b) => ((a as any)._order ?? 0) - ((b as any)._order ?? 0));
-        const target = playing[0];
+        const byAge = (a: Voice, b: Voice) =>
+            ((a as any)._order ?? 0) - ((b as any)._order ?? 0);
+
+        // Steal a voice that is already fading out before one still held down,
+        // so voice exhaustion cuts a tail rather than a note the user is playing.
+        const releasing = this.voices.filter(v => v.state === VoiceState.Release).sort(byAge);
+        const target = releasing[0]
+            ?? this.voices.filter(v => v.state === VoiceState.Playing).sort(byAge)[0]
+            ?? this.voices[0];
+
         target.stop();
         return target;
     }

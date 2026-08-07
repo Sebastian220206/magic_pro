@@ -228,22 +228,6 @@ export function Browsers() {
                                     useProjectStore.getState().updateTrack(tid, { instrument: name } as any)
                                 }
                             }}
-                            onSelectLoop={(loop) => {
-                                const tid = focusedTrackId || tracks.find(t => t.type === 'audio')?.id
-                                if (tid) {
-                                    addClip({
-                                        id: `clip-${Date.now()}`,
-                                        trackId: tid,
-                                        name: loop.name,
-                                        start: 0,
-                                        duration: loop.duration * (120 / loop.bpm),
-                                        type: 'audio',
-                                        filePath: loop.path,
-                                        muted: false,
-                                        loop: false,
-                                    } as any)
-                                }
-                            }}
                         />
                     ) : (
                         filteredAllFiles.map((item, idx) => (

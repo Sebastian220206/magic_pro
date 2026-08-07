@@ -11,6 +11,9 @@ const config: Config = {
             colors: {
                 background: "var(--daw-bg)",
                 foreground: "var(--daw-text)",
+                "accent-cyan": "var(--accent-cyan)",
+                "accent-cyan-glow": "var(--accent-cyan-glow)",
+                "accent-cyan-glow-strong": "var(--accent-cyan-glow-strong)",
                 daw: {
                     bg: "var(--daw-bg)",
                     panel: "var(--daw-panel)",
