@@ -87,8 +87,22 @@ The essentials:
 ### Before the first deploy
 
 1. **Provision Postgres** and set `DATABASE_URL`.
-2. **Run migrations** — `npx prisma migrate deploy`. Use a direct connection
-   (Supabase port 5432), not the transaction pooler.
+
+   On Supabase, use the **transaction pooler — port 6543** — for the deployed
+   app, with `?pgbouncer=true&connection_limit=1`:
+
+   ```
+   postgresql://…@…pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+   ```
+
+   The **session** pooler on port 5432 is capped at about 15 clients. Every
+   warm serverless instance holds its own connections, so that ceiling is
+   reached under fairly light traffic and then every request fails with
+   `max clients reached in session mode` — not a slow request, a hard error.
+   Reserve port 5432 for migrations and local work.
+
+2. **Run migrations** — `npx prisma migrate deploy`. This one needs the direct
+   or session connection (port 5432); the transaction pooler cannot run DDL.
 3. **Set `NEXTAUTH_SECRET` and `NEXTAUTH_URL`.** `NEXTAUTH_URL` must be the real
    public URL; share links are generated from it.
 4. **Point the Stripe webhook** at `https://your-domain/api/stripe/webhook` and
