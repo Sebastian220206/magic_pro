@@ -157,16 +157,49 @@ describe('reduced motion', () => {
 });
 
 describe('overlay', () => {
-    it('darkens heavily by default, for text laid over footage', () => {
+    /**
+     * Scrim layers: `absolute inset-0` and aria-hidden, excluding the video and
+     * the fallback's own decoration. Counted rather than matched on class names,
+     * which are a styling detail and were changed once already.
+     */
+    function scrimCount(container: HTMLElement): number {
+        return Array.from(container.querySelectorAll('div[aria-hidden="true"]'))
+            .filter(el => el.className.includes('absolute inset-0')
+                && !el.className.includes('overflow-hidden'))
+            .length;
+    }
+
+    it('lays two scrims over the footage by default', () => {
+        // Two, not one: a flat colour and a gradient cannot share an element —
+        // the gradient is a background-image and paints over the colour, so
+        // combining them leaves the footage at nearly full brightness and white
+        // text unreadable.
         const { container } = render(<BackgroundVideo src={SRC} />);
 
-        expect(container.querySelector('[class*="bg-daw-bg/70"]')).not.toBeNull();
+        expect(scrimCount(container)).toBeGreaterThanOrEqual(2);
     });
 
-    it('can be omitted entirely', () => {
-        const { container } = render(<BackgroundVideo src={SRC} overlay="none" />);
+    it('lays none when overlay is "none"', () => {
+        const withOverlay = render(<BackgroundVideo src={SRC} />);
+        const without = render(<BackgroundVideo src={SRC} overlay="none" />);
 
-        expect(container.querySelector('[class*="bg-daw-bg/70"]')).toBeNull();
+        expect(scrimCount(without.container))
+            .toBeLessThan(scrimCount(withOverlay.container));
+    });
+});
+
+describe('layout', () => {
+    it('makes the content wrapper full width', () => {
+        // Callers use this as a flex container to centre the hero vertically,
+        // which makes the wrapper a flex item. Without an explicit width it
+        // shrinks to its content, and `mx-auto max-w-*` inside has nothing to
+        // centre against — the hero renders hard against the left edge.
+        const { container } = render(
+            <BackgroundVideo src={SRC}><p>hi</p></BackgroundVideo>,
+        );
+
+        const wrapper = container.querySelector('.z-10');
+        expect(wrapper?.className).toContain('w-full');
     });
 });
 

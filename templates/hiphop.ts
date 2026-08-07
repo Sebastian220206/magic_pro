@@ -11,7 +11,7 @@ export const hiphopTemplate: ProjectTemplate = {
   timeSignature: '4/4',
   keySignature: 'C minor',
   accentColor: '#f59e0b',
-  previewIcon: 'music',
+  previewIcon: '🥁',
   tracks: [
     {
       name: '808 Kick',

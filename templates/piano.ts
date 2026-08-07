@@ -11,7 +11,7 @@ export const pianoSketchTemplate: ProjectTemplate = {
   timeSignature: '4/4',
   keySignature: 'C Major',
   accentColor: '#34d399',
-  previewIcon: 'music',
+  previewIcon: '🎼',
   tracks: [
     {
       name: 'Steinway Piano',

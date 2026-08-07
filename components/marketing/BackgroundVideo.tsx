@@ -68,12 +68,34 @@ function usePrefersReducedMotion(): boolean | undefined {
     return reduced;
 }
 
-const OVERLAYS: Record<NonNullable<BackgroundVideoProps["overlay"]>, string> = {
-    // Two layers: a flat scrim for contrast, and a vertical gradient so text
-    // near the bottom stays readable without dimming the whole frame.
-    heavy: "bg-daw-bg/70 bg-gradient-to-b from-daw-bg/80 via-daw-bg/60 to-daw-bg",
-    light: "bg-gradient-to-r from-daw-bg/90 via-daw-bg/60 to-daw-bg/30",
-    none: "",
+/**
+ * Scrims, as two stacked layers.
+ *
+ * A flat colour and a gradient cannot be combined in one element: the gradient
+ * is a background-image and paints over the background-colour, so the flat
+ * layer is simply invisible. They have to be separate elements — the first
+ * attempt at this put both on one div and the footage stayed at nearly full
+ * brightness, which made white text over bright gold unreadable.
+ *
+ * `heavy` is genuinely heavy. It sits under a headline, and legibility beats
+ * showing off the footage.
+ */
+const OVERLAYS: Record<
+    NonNullable<BackgroundVideoProps["overlay"]>,
+    { scrim: string; gradient: string }
+> = {
+    heavy: {
+        scrim: "bg-black/60",
+        // Darkest at the edges so the frame is contained, and fully opaque at
+        // the bottom so the section below meets it without a seam.
+        gradient: "bg-gradient-to-b from-daw-bg/70 via-daw-bg/30 to-daw-bg",
+    },
+    light: {
+        scrim: "bg-black/30",
+        // Horizontal: the dashboard strip carries text on the left only.
+        gradient: "bg-gradient-to-r from-daw-bg via-daw-bg/70 to-daw-bg/20",
+    },
+    none: { scrim: "", gradient: "" },
 };
 
 export default function BackgroundVideo({
@@ -146,10 +168,20 @@ export default function BackgroundVideo({
             )}
 
             {overlay !== "none" && (
-                <div className={`absolute inset-0 ${OVERLAYS[overlay]}`} aria-hidden="true" />
+                <>
+                    <div className={`absolute inset-0 ${OVERLAYS[overlay].scrim}`} aria-hidden="true" />
+                    <div className={`absolute inset-0 ${OVERLAYS[overlay].gradient}`} aria-hidden="true" />
+                </>
             )}
 
-            <div className="relative z-10">{children}</div>
+            {/*
+              * `w-full` matters: callers use this component as a flex container
+              * (`flex items-center`) to centre the hero vertically, which makes
+              * this wrapper a flex item. Without an explicit width it shrinks to
+              * its content, and any `mx-auto max-w-*` inside then has nothing to
+              * centre against — the hero renders hard against the left edge.
+              */}
+            <div className="relative z-10 w-full">{children}</div>
         </div>
     );
 }
