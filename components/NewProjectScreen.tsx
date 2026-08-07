@@ -2,28 +2,18 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Music, Mic, Zap, Plus, Drum, Piano, X, Loader2 } from 'lucide-react';
-import { templateCatalog, createProjectFromTemplate } from '@/templates';
+import { Plus, X, Loader2 } from 'lucide-react';
+import { templateCatalog, createProjectFromTemplate, starterTemplates } from '@/templates';
 import { useProjectStore } from '@/store/projectStore';
 import { audioEngine } from '@/engine/AudioEngineAdapter';
 
-const templateIcons: Record<string, React.ReactNode> = {
-  'lo-fi': <Music className="w-8 h-8 text-purple-300" />,
-  'podcast': <Mic className="w-8 h-8 text-orange-300" />,
-  'edm': <Zap className="w-8 h-8 text-cyan-300" />,
-  'hip-hop': <Drum className="w-8 h-8 text-amber-300" />,
-  'piano-sketch': <Piano className="w-8 h-8 text-emerald-300" />,
-};
-
-const templateGradients: Record<string, string> = {
-  'lo-fi': 'from-purple-900/30 to-indigo-900/30',
-  'podcast': 'from-orange-900/30 to-amber-900/30',
-  'edm': 'from-cyan-900/30 to-blue-900/30',
-  'hip-hop': 'from-amber-900/30 to-orange-900/30',
-  'piano-sketch': 'from-emerald-900/30 to-teal-900/30',
-};
-
-const starterTemplates = templateCatalog.filter(t => t.id !== 'podcast');
+/*
+ * The icon and gradient lookup tables that used to live here were keyed
+ * 'lo-fi', but the template's id is 'lofi-beat', so that card always fell
+ * through to the grey default. Every template already carries its own
+ * `previewIcon` and `accentColor`; using those removes the chance of the two
+ * drifting again.
+ */
 
 interface NewProjectScreenProps {
   onClose?: () => void;
@@ -102,8 +92,11 @@ export function NewProjectScreen({ onClose }: NewProjectScreenProps) {
                 onClick={() => handleSelectTemplate(tpl.id)}
                 className="group relative bg-daw-panel border border-daw-border rounded-xl p-6 hover:border-gray-500 transition-all hover:scale-[1.02] text-left disabled:opacity-50 disabled:pointer-events-none"
               >
-                <div className={`h-32 rounded-lg bg-gradient-to-br ${templateGradients[tpl.id] || 'from-gray-800 to-gray-900'} border border-daw-border mb-4 flex items-center justify-center`}>
-                  {templateIcons[tpl.id] || <Music className="w-8 h-8 text-gray-400" />}
+                <div
+                  className="h-32 rounded-lg border border-daw-border mb-4 flex items-center justify-center text-4xl"
+                  style={{ background: `linear-gradient(135deg, ${tpl.accentColor}33, transparent 70%)` }}
+                >
+                  {tpl.previewIcon}
                 </div>
                 <h3 className="text-lg text-white font-semibold group-hover:text-daw-primary transition-colors">{tpl.name}</h3>
                 <p className="text-gray-400 text-sm mt-1">{tpl.description}</p>

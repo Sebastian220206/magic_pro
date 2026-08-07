@@ -79,6 +79,16 @@ class AudioContextStub {
 (globalThis as any).AudioContext = AudioContextStub;
 (globalThis as any).OfflineAudioContext = AudioContextStub;
 
+// --- Media elements ---------------------------------------------------------
+// jsdom parses <video>/<audio> but implements none of their playback methods —
+// calling play() raises "Not implemented" on stderr and returns undefined, so a
+// component awaiting the promise would throw. Return a resolved promise so the
+// autoplay path can be exercised; individual tests override it to simulate a
+// browser refusing autoplay.
+HTMLMediaElement.prototype.play = jest.fn(() => Promise.resolve());
+HTMLMediaElement.prototype.pause = jest.fn();
+HTMLMediaElement.prototype.load = jest.fn();
+
 // --- Layout / observers -----------------------------------------------------
 (globalThis as any).ResizeObserver = class {
   observe = jest.fn();

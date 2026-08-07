@@ -26,7 +26,7 @@
         box-sizing: border-box;
     }
     body {
-        @apply bg-[--daw-bg] text-[--daw-text] antialiased overflow-hidden select-none;
+        @apply bg-[--daw-bg] text-[--daw-text] antialiased select-none;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 }
@@ -162,63 +162,26 @@
     background: #111;
 }
 
-@layer base {
-    body {
-        @apply bg-[--daw-bg] text-[--daw-text] antialiased overflow-hidden select-none;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+/*
+ * Respect the OS "reduce motion" setting.
+ *
+ * This matters more than usual here: tailwindcss-animate is enabled, which means
+ * roughly forty-five components animate on mount. For a user with a vestibular
+ * disorder that is not a polish detail, it is the difference between a usable
+ * app and an unusable one. Nothing in this project handled the preference until
+ * now.
+ *
+ * Durations are near-zero rather than `none` so that animationend/transitionend
+ * listeners still fire — several components wait on them to clean up.
+ */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
-}
-
-@layer components {
-    .logic-button {
-        @apply flex items-center justify-center rounded transition-all duration-75 active:scale-95;
-        background: linear-gradient(to bottom, #4a4a4a, #333);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 3px rgba(0, 0, 0, 0.5);
-        border: 1px solid #1a1a1a;
-    }
-
-    .logic-button:hover {
-        background: linear-gradient(to bottom, #555, #3a3a3a);
-    }
-
-    .logic-button.active {
-        background: #555;
-        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
-    }
-
-    .logic-lcd {
-        background: #000;
-        box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.05);
-        border: 1px solid #111;
-    }
-
-    .logic-fader-track {
-        background: #111;
-        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 1);
-        border: 1px solid #333;
-    }
-
-    .logic-knob {
-        background: radial-gradient(circle at 30% 30%, #555, #222);
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    }
-}
-
-/* Scrollbar styles */
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: #111;
-}
-
-::-webkit-scrollbar-thumb {
-    background: #444;
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: #555;
 }

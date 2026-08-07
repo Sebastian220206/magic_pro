@@ -156,6 +156,43 @@ It answers **503** when the database is unreachable. `soundfonts: "missing"`
 does not fail the probe but means the build shipped no instruments — worth an
 alert, because nothing else surfaces it.
 
+### Hero video
+
+`/welcome` and `/dashboard` can play a looping background video. It is entirely
+optional — without it an animated CSS/SVG fallback renders, which is a designed
+state rather than an empty one.
+
+Put the source film at `media/source/welcome-vision.mp4` (`media/` is gitignored;
+video does not belong in the repo), then:
+
+```bash
+node scripts/build-hero-video.mjs --thumbs    # stills every 5s, to pick a segment
+node scripts/build-hero-video.mjs --start 20  # encode from there
+```
+
+That produces `media/dist/hero-loop.mp4` (~1.8 MB) and `hero-poster.jpg`. Upload
+them to a **public** Supabase Storage bucket and set `NEXT_PUBLIC_HERO_LOOP_URL`,
+`NEXT_PUBLIC_HERO_POSTER_URL` and `NEXT_PUBLIC_DASHBOARD_LOOP_URL`.
+
+Three things the script exists to get right:
+
+- **`-movflags +faststart`.** ffmpeg writes the `moov` index at the *end* of a
+  file by default, which means a browser must download the whole thing before
+  showing a single frame. The script asserts `moov` precedes `mdat` afterwards,
+  because the symptom is invisible locally — the file loads instantly from disk.
+- **Length.** A 100 s source at ~50 MB would exhaust Supabase's 5 GB free egress
+  in about a hundred page loads. A 12 s loop of the same footage is ~1.8 MB.
+- **Resolution.** The loop sits under a dark overlay, so 720p at CRF 33 is
+  visually identical to 1080p at CRF 30 and less than half the size. There is no
+  WebM sibling: VP9 was measured on this footage and lost at every setting.
+
+> **The video element must be loaded in CORS mode.** The app sends
+> `Cross-Origin-Embedder-Policy: require-corp`, and Supabase Storage sends
+> `Access-Control-Allow-Origin: *` but no `Cross-Origin-Resource-Policy` header.
+> `BackgroundVideo` therefore sets `crossOrigin="anonymous"`; removing it makes
+> the element silently blank with only a console warning — nothing throws, and
+> `onError` never fires. YouTube and Vimeo iframes cannot work here at all.
+
 ### Google sign-in
 
 Optional. Without `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` the provider is

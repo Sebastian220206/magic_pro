@@ -1,25 +1,26 @@
+/**
+ * index.ts
+ * Creating a real project from a template.
+ *
+ * This module reaches the audio engine and the project store, so importing it
+ * pulls the whole DAW. Anything that only needs to *list* templates should
+ * import `./catalog` instead — see the note there.
+ *
+ * The catalogue is re-exported so existing importers keep working unchanged.
+ */
+
 import { ProjectTemplate, TemplateTrackDef, TemplateClipDef } from './types';
-import { lofiTemplate } from './lofi';
-import { podcastTemplate } from './podcast';
-import { edmTemplate } from './edm';
-import { hiphopTemplate } from './hiphop';
-import { pianoSketchTemplate } from './piano';
 import { audioEngine } from '@/engine/AudioEngineAdapter';
 import { useProjectStore } from '@/store/projectStore';
 import type { Track } from '@/models/Track';
 import type { Clip } from '@/models/Clip';
 
-export const templateCatalog: ProjectTemplate[] = [
-  lofiTemplate,
-  hiphopTemplate,
-  pianoSketchTemplate,
-  edmTemplate,
-  podcastTemplate,
-];
-
-export function getTemplateById(id: string): ProjectTemplate | undefined {
-  return templateCatalog.find(t => t.id === id);
-}
+export {
+  templateCatalog,
+  getTemplateById,
+  starterTemplates,
+  defaultTemplate,
+} from './catalog';
 
 function freshId(prefix = ''): string {
   return `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

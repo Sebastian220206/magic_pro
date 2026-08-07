@@ -100,6 +100,15 @@ out/
 *.pdf
 *.node
 
+# Video. The source vision film is ~50 MB and its encoded derivatives are
+# several MB more; all of it is served from object storage, never from the repo.
+# media/ holds both the source and the build outputs.
+*.mp4
+*.webm
+*.mov
+*.m4v
+media/
+
 # Playwright MCP test artifacts
 .playwright-mcp/
 playwright-report/
