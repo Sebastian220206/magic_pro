@@ -75,8 +75,13 @@ export function OnboardingOverlay({ onComplete, onDismiss }: Props) {
     <div className="fixed inset-0 z-[9999] pointer-events-none">
       <div className="absolute inset-0 bg-black/40" />
 
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 pointer-events-auto w-full max-w-md px-4">
-        <div className="bg-daw-panel border border-daw-border rounded-xl p-5 shadow-2xl">
+      {/*
+        * Tight to the bottom edge on short screens. At `bottom-8` with `p-5`
+        * this card covered close to half of a landscape phone, hiding the very
+        * tracks area the tour is pointing at.
+        */}
+      <div className="absolute bottom-2 sm:bottom-8 left-1/2 -translate-x-1/2 pointer-events-auto w-full max-w-md px-3 sm:px-4">
+        <div className="bg-daw-panel/95 backdrop-blur-sm border border-daw-border rounded-xl p-3 sm:p-5 shadow-2xl">
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-daw-surface flex items-center justify-center">

@@ -62,6 +62,7 @@ module.exports = {
       testMatch: [
         '<rootDir>/components/**/*.test.tsx',
         '<rootDir>/components/**/__tests__/**/*.test.tsx',
+        '<rootDir>/hooks/**/__tests__/**/*.test.{ts,tsx}',
         '<rootDir>/app/**/*.test.tsx',
         '<rootDir>/store/**/__tests__/**/*.test.ts',
       ],

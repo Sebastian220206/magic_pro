@@ -272,7 +272,17 @@ export function TransportBar() {
 
     return (
         <div
-            className="h-[52px] bg-gradient-to-b from-[#3a3a3a] to-[#252525] border-b border-black flex items-center px-4 justify-between shrink-0 z-[100] shadow-[0_4px_10px_rgba(0,0,0,0.5)] select-none"
+            /*
+             * `overflow-x-auto` with `justify-start` below the width where
+             * everything fits: this row holds more controls than a phone is
+             * wide, and it used to simply clip — the tempo display and the
+             * right-hand group ran off the edge with no way to reach them.
+             * Scrolling keeps every control reachable instead of hiding some.
+             *
+             * `daw-scrollbar-thin` keeps the scrollbar from stealing height
+             * from a 52px row.
+             */
+            className="h-[52px] bg-gradient-to-b from-[#3a3a3a] to-[#252525] border-b border-black flex items-center px-4 gap-4 justify-start xl:justify-between overflow-x-auto overflow-y-hidden daw-scrollbar-thin shrink-0 z-[100] shadow-[0_4px_10px_rgba(0,0,0,0.5)] select-none"
             onContextMenu={onContextMenu}
         >
 

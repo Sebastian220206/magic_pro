@@ -40,7 +40,19 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
     width: "device-width",
     initialScale: 1,
+    /*
+     * `cover` lets content reach under the notch and home indicator; the studio
+     * shell pads itself back out with `env(safe-area-inset-*)` (see
+     * globals.css). Without it a landscape phone loses a strip down each side.
+     */
     viewportFit: "cover",
+    /*
+     * Zoom is deliberately left enabled — `maximumScale: 1` would block
+     * pinch-zoom, which is an accessibility failure and something a DAW's dense
+     * timeline genuinely benefits from. The iOS zoom-on-focus problem is solved
+     * properly instead, by giving inputs a 16px font size (globals.css); iOS
+     * only zooms when the field's text is smaller than that.
+     */
     themeColor: "#1a1a2e",
 };
 

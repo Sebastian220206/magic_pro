@@ -71,9 +71,17 @@ export default function SignupForm({ googleEnabled = false }: { googleEnabled?: 
     }
   };
 
+  /*
+   * `min-h-screen` with padding, not `h-screen`. A flex container of fixed
+   * height centring content taller than itself pushes the overflow equally in
+   * both directions — on a landscape phone the top of this card sat at -115px,
+   * above the scroll origin and therefore unreachable, while the submit button
+   * fell below the fold. `min-h-screen` lets the container grow instead, so the
+   * card simply flows and the page scrolls normally.
+   */
   return (
-    <div className="flex h-screen items-center justify-center bg-daw-bg">
-      <div className="bg-daw-panel p-10 rounded-xl shadow-2xl border border-daw-border w-96">
+    <div className="flex min-h-screen items-center justify-center bg-daw-bg px-4 py-8">
+      <div className="w-full max-w-sm rounded-xl border border-daw-border bg-daw-panel p-6 shadow-2xl sm:p-10">
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 bg-daw-primary rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20">
             <Music className="text-white w-8 h-8" />

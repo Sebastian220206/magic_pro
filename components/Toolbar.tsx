@@ -48,7 +48,12 @@ export function Toolbar() {
 
     return (
         <>
-        <div className="h-[44px] bg-[#1a1a1a] border-b border-[#000] flex items-center px-6 gap-6 shadow-md shrink-0 z-10 transition-all animate-in slide-in-from-top duration-200">
+        {/*
+          * Scrolls horizontally rather than clipping — see the same note on
+          * TransportBar. `px-3 sm:px-6` buys back a little width on a phone,
+          * where 48px of horizontal padding is a meaningful share of the row.
+          */}
+        <div className="h-[44px] bg-[#1a1a1a] border-b border-[#000] flex items-center px-3 sm:px-6 gap-6 shadow-md shrink-0 z-10 overflow-x-auto overflow-y-hidden daw-scrollbar-thin transition-all animate-in slide-in-from-top duration-200">
             {/* Context Tool Palette */}
             <div
                 ref={toolMenuAnchorRef}

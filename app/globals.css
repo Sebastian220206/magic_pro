@@ -163,6 +163,75 @@
 }
 
 /*
+ * Stop iOS zooming in when a field is focused.
+ *
+ * Safari zooms the page whenever a focused input's text is smaller than 16px,
+ * and does not zoom back out — the user is left scrolled and magnified with no
+ * obvious way back. The studio's fields are 11-13px by design, so this raises
+ * them only where the pointer is coarse, leaving the desktop layout untouched.
+ *
+ * The alternative, `maximum-scale=1` on the viewport, also works and is what
+ * most sites reach for, but it disables pinch-zoom for everyone.
+ */
+@media (pointer: coarse) {
+
+    input,
+    select,
+    textarea {
+        font-size: 16px;
+    }
+}
+
+/*
+ * Keep the studio clear of the notch and home indicator.
+ *
+ * `viewportFit: cover` lets the page reach the physical edges, which is what
+ * makes a landscape phone usable at all — otherwise a strip is lost down each
+ * side. The trade is that content can slide under the hardware, so the shell
+ * pads itself back out by however much the device reports.
+ */
+.daw-safe-area {
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/*
+ * A scrollbar thin enough for a 44px control row.
+ *
+ * The transport and toolbar rows scroll horizontally on narrow screens. At the
+ * default 8px a scrollbar eats a fifth of their height; `overlay`-style thin
+ * scrollbars sit over the content instead of reserving space. Touch devices
+ * hide it entirely and scroll by drag.
+ */
+.daw-scrollbar-thin {
+    scrollbar-width: thin;
+}
+
+.daw-scrollbar-thin::-webkit-scrollbar {
+    height: 4px;
+}
+
+.daw-scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.daw-scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 2px;
+}
+
+@media (pointer: coarse) {
+    .daw-scrollbar-thin::-webkit-scrollbar {
+        display: none;
+    }
+
+    .daw-scrollbar-thin {
+        scrollbar-width: none;
+    }
+}
+
+/*
  * Respect the OS "reduce motion" setting.
  *
  * This matters more than usual here: tailwindcss-animate is enabled, which means

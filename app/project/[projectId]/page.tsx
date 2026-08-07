@@ -44,6 +44,8 @@ import { PluginBrowser } from "@/components/plugins/PluginBrowser"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 
 import { AppMenuBar } from "@/components/AppMenuBar"
+import RotateToLandscape from "@/components/studio/RotateToLandscape"
+import { useViewport } from "@/hooks/useViewport"
 import { PreferencesDialog } from "@/components/PreferencesDialog"
 import { OnboardingOverlay } from "@/components/OnboardingOverlay"
 import { tutorialStore } from "@/store/tutorialStore"
@@ -147,9 +149,24 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
     const setPluginBrowserTrack = useProjectStore(s => s.setPluginBrowserTrack);
     const showRightSidebar = showListEditors || showNotePad || showLoopBrowser || showBrowsers;
 
+    // Drives the small-screen trims below. `ready` gates the portrait overlay so
+    // it cannot flash on a desktop during the first paint, when media queries
+    // have not been read yet.
+    const { compact, portrait, ready } = useViewport();
+
     return (
-        <div className="h-screen w-full bg-[#050505] p-4 flex flex-col box-border">
-            <div className="flex flex-col h-full w-full bg-[#000] overflow-hidden text-sm selection:bg-sky-500/30 daw-shell box-border relative">
+        /*
+         * The framing — 16px of padding and the cyan glow border — is a desktop
+         * flourish that costs 32px of height and 32px of width. On a landscape
+         * phone that is roughly a tenth of the screen spent on decoration, while
+         * the tracks area gets under half. Both go on small screens.
+         */
+        <div className={`h-screen w-full bg-[#050505] flex flex-col box-border ${compact ? "daw-safe-area" : "p-4"
+            }`}>
+            {compact && portrait && ready && <RotateToLandscape />}
+
+            <div className={`flex flex-col h-full w-full bg-[#000] overflow-hidden text-sm selection:bg-sky-500/30 box-border relative ${compact ? "" : "daw-shell"
+                }`}>
             {loadError && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80">
                     <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-8 max-w-md text-center">
@@ -161,8 +178,13 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
                     </div>
                 </div>
             )}
-            {/* macOS Menu Bar */}
-            <AppMenuBar />
+            {/*
+              * A simulated macOS menu bar, complete with a clock, a battery
+              * gauge and a wifi indicator. On a phone the device already draws
+              * all three for real, so this is 24px of screen spent restating
+              * them — hidden when there is no room to spare.
+              */}
+            {!compact && <AppMenuBar />}
 
             {/* Top: Control Bar (Transport) */}
             <ErrorBoundary name="TransportBar">
