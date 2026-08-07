@@ -53,6 +53,16 @@
       ]
     },
     {
+      "_comment": "The GM bank is ~31 MB and is the largest thing a user downloads. Without this it inherits max-age=0, must-revalidate, so every page load costs a round trip before any instrument can sound. The file is a fixed release of GeneralUser GS — if it is ever replaced, change the filename rather than weakening this.",
+      "source": "/soundfonts/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
       "source": "/api/auth/(.*)",
       "headers": [
         {
