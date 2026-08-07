@@ -1,0 +1,23 @@
+# Generated files are compared against freshly generated output, so their line
+# endings have to survive a checkout unchanged. Without this, Git hands Windows
+# a CRLF copy of a file the generator writes as LF, and the freshness check
+# fails on a file nobody edited.
+data/soundfontManifest.json text eol=lf
+
+# Shell scripts and anything with a shebang break outright with CRLF — most
+# visibly inside the Linux container built from this repo.
+*.sh text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+Dockerfile text eol=lf
+
+# Binary: never touch these, and never try to diff them.
+*.sf2 binary
+*.sf3 binary
+*.wav binary
+*.mp3 binary
+*.wasm binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.pdf binary

@@ -120,7 +120,13 @@ async function main() {
             // Treated as a mismatch below.
         }
 
-        if (existing !== serialised) {
+        // Compare content, not bytes. Git rewrites line endings on checkout,
+        // so on Windows the committed file comes back as CRLF while this
+        // script writes LF — a byte comparison then reports "out of date"
+        // forever, on a file nobody touched.
+        const normalise = text => text.replace(/\r\n/g, '\n');
+
+        if (normalise(existing) !== normalise(serialised)) {
             console.error(
                 '\ndata/soundfontManifest.json is out of date.\n' +
                 'Run: npm run soundfont:manifest\n');
