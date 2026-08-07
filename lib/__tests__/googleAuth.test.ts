@@ -90,6 +90,57 @@ describe('provider registration', () => {
     });
 });
 
+describe('credentials read from the environment', () => {
+    /** The client_id the Google provider will actually send. */
+    function clientIdSentToGoogle(env: Record<string, string | undefined>) {
+        const provider = loadAuth(env).options.providers
+            .find(p => p.id === 'google') as unknown as { options: { clientId: string } };
+        return provider?.options.clientId;
+    }
+
+    it('strips a trailing newline from a pasted value', () => {
+        // Exactly what broke production: pasting into a hosting dashboard
+        // carried a newline, and Google answered `invalid_client` — which reads
+        // like a deleted client, not one extra byte.
+        const id = clientIdSentToGoogle({
+            GOOGLE_CLIENT_ID: '278715348010-abc.apps.googleusercontent.com\n',
+            GOOGLE_CLIENT_SECRET: 'GOCSPX-secret\n',
+        });
+
+        expect(id).toBe('278715348010-abc.apps.googleusercontent.com');
+        expect(id).not.toMatch(/\s/);
+    });
+
+    it('strips surrounding spaces and carriage returns', () => {
+        expect(clientIdSentToGoogle({
+            GOOGLE_CLIENT_ID: '  id.apps.googleusercontent.com \r\n',
+            GOOGLE_CLIENT_SECRET: ' secret ',
+        })).toBe('id.apps.googleusercontent.com');
+    });
+
+    it('trims the secret too, since the token exchange would fail on it', () => {
+        const provider = loadAuth({
+            GOOGLE_CLIENT_ID: 'id',
+            GOOGLE_CLIENT_SECRET: 'GOCSPX-secret\n',
+        }).options.providers.find(p => p.id === 'google') as unknown as {
+            options: { clientSecret: string };
+        };
+
+        expect(provider.options.clientSecret).toBe('GOCSPX-secret');
+    });
+
+    it('treats a whitespace-only value as unset', () => {
+        // Otherwise the provider registers and every sign-in fails.
+        expect(loadAuth({
+            GOOGLE_CLIENT_ID: '   ', GOOGLE_CLIENT_SECRET: 'secret',
+        }).enabled).toBe(false);
+
+        expect(loadAuth({
+            GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: '\n',
+        }).enabled).toBe(false);
+    });
+});
+
 describe('error routing', () => {
     it('sends failures to the login page, not NextAuth\'s own error page', () => {
         const { options } = loadAuth(WITH_GOOGLE);

@@ -5,8 +5,28 @@ import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
 
-const googleClientId = process.env.GOOGLE_CLIENT_ID;
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+/**
+ * Read a credential from the environment, ignoring surrounding whitespace.
+ *
+ * Pasting a value into a hosting dashboard very easily carries a trailing
+ * newline, and the resulting failure names nothing: Google answers
+ * `invalid_client` / "The OAuth client was not found", which reads exactly like
+ * a deleted or mistyped client rather than one extra byte. The id and secret
+ * are opaque tokens with no meaningful whitespace, so trimming can only help.
+ *
+ * A value that is empty once trimmed counts as unset, so a variable left blank
+ * does not register a provider that cannot work.
+ */
+function readCredential(name: string): string | undefined {
+  const raw = process.env[name];
+  if (raw === undefined) return undefined;
+
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+const googleClientId = readCredential("GOOGLE_CLIENT_ID");
+const googleClientSecret = readCredential("GOOGLE_CLIENT_SECRET");
 
 /**
  * Whether Google sign-in is configured.
