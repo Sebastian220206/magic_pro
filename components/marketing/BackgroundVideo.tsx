@@ -34,8 +34,6 @@ interface BackgroundVideoProps {
      * headline text; `light` for a decorative strip.
      */
     overlay?: "heavy" | "light" | "none";
-    /** Slow zoom, so a short loop reads as less repetitive. */
-    kenBurns?: boolean;
     className?: string;
     /** Content laid over the video. */
     children?: ReactNode;
@@ -102,7 +100,6 @@ export default function BackgroundVideo({
     src,
     poster,
     overlay = "heavy",
-    kenBurns = false,
     className = "",
     children,
 }: BackgroundVideoProps) {
@@ -163,7 +160,7 @@ export default function BackgroundVideo({
                     onCanPlay={() => setReady(true)}
                     onError={() => setFailed(true)}
                     className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${ready ? "opacity-100" : "opacity-0"
-                        } ${kenBurns ? "animate-ken-burns" : ""}`}
+                        }`}
                 />
             )}
 

@@ -179,18 +179,18 @@ export default function Dashboard() {
       </header>
 
       {/* ── Greeting strip ───────────────────────────────────────────── */}
+      {/* Undimmed and unscaled, matching the welcome hero. */}
       <BackgroundVideo
         src={mediaConfig.dashboardLoopUrl}
-        overlay="light"
-        kenBurns
+        overlay="none"
         className="border-b border-daw-border"
       >
         <div className="mx-auto flex max-w-6xl flex-col gap-5 px-6 py-12 sm:flex-row sm:items-end sm:justify-between">
           <div className="animate-in fade-in slide-in-from-bottom-3 duration-500">
-            <h1 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            <h1 className="font-display text-3xl font-bold tracking-tight text-white [text-shadow:0_2px_20px_rgba(0,0,0,0.9)] sm:text-4xl">
               {greeting()}, {name}
             </h1>
-            <p className="mt-2 text-sm text-gray-300">
+            <p className="mt-2 text-sm text-gray-200 [text-shadow:0_1px_10px_rgba(0,0,0,0.95)]">
               {loadingProjects
                 ? "Loading your projects…"
                 : projects.length > 0

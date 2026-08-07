@@ -106,28 +106,48 @@ export default function WelcomeHero({ templates, loopUrl, posterUrl }: WelcomeHe
     return (
         <div className="min-h-screen bg-daw-bg select-text">
             {/* ── Hero ─────────────────────────────────────────────────── */}
+            {/*
+              * No overlay and no zoom: the footage plays at full brightness,
+              * unscaled. Legibility comes from `drop-shadow` on the text itself
+              * rather than from dimming the video.
+              */}
             <BackgroundVideo
                 src={loopUrl}
                 poster={posterUrl}
-                overlay="heavy"
-                kenBurns
+                overlay="none"
                 className="min-h-[92vh] flex items-center"
             >
                 <div className="mx-auto w-full max-w-5xl px-6 py-24 text-center">
-                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-4 py-1.5 text-sm font-medium text-amber-200 backdrop-blur-sm">
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-black/50 px-4 py-1.5 text-sm font-medium text-amber-200 backdrop-blur-md">
                         <Sparkles className="h-4 w-4" />
                         Make music in 30 seconds
                     </div>
 
-                    <h1 className="animate-in fade-in slide-in-from-bottom-6 duration-700 [animation-delay:120ms] fill-mode-backwards mt-8 font-display text-5xl font-bold leading-[1.05] tracking-tight text-white md:text-7xl">
+                    <h1 className="animate-in fade-in slide-in-from-bottom-6 duration-700 [animation-delay:120ms] fill-mode-backwards mt-8 font-display text-5xl font-bold leading-[1.05] tracking-tight text-white [text-shadow:0_2px_24px_rgba(0,0,0,0.9),0_1px_4px_rgba(0,0,0,0.8)] md:text-7xl">
                         Make your first beat
                         <br />
-                        <span className="bg-gradient-to-r from-amber-300 via-amber-200 to-fuchsia-300 bg-[length:200%_auto] bg-clip-text text-transparent animate-shimmer">
+                        {/*
+                          * Deliberately a plain colour, not a clipped gradient.
+                          *
+                          * Three attempts at a gradient here failed over the
+                          * undimmed footage. Amber-on-amber vanished into it. A
+                          * sweeping one (`animate-shimmer`) slid through its own
+                          * dark stops and faded out once per cycle. Adding
+                          * `drop-shadow` to rescue contrast made it worse: a
+                          * `filter` on an element using `background-clip: text`
+                          * with a transparent colour breaks the clip in
+                          * Chromium, and the line rendered grey.
+                          *
+                          * A solid tint with a text-shadow has none of those
+                          * failure modes, and stays readable whatever frame of
+                          * the video happens to be behind it.
+                          */}
+                        <span className="text-fuchsia-200 [text-shadow:0_2px_24px_rgba(0,0,0,0.9),0_1px_4px_rgba(0,0,0,0.8)]">
                             in 30 seconds
                         </span>
                     </h1>
 
-                    <p className="animate-in fade-in slide-in-from-bottom-6 duration-700 [animation-delay:240ms] fill-mode-backwards mx-auto mt-6 max-w-xl text-lg text-gray-300">
+                    <p className="animate-in fade-in slide-in-from-bottom-6 duration-700 [animation-delay:240ms] fill-mode-backwards mx-auto mt-6 max-w-xl text-lg text-gray-200 [text-shadow:0_1px_12px_rgba(0,0,0,0.95)]">
                         Pick a starter template, press play, and hear music instantly.
                         No setup. No manual routing. Just sound.
                     </p>
@@ -149,7 +169,7 @@ export default function WelcomeHero({ templates, loopUrl, posterUrl }: WelcomeHe
                         <button
                             onClick={startBlank}
                             disabled={!!busy}
-                            className="flex items-center gap-2 rounded-xl border border-white/15 px-6 py-3.5 text-gray-200 backdrop-blur-sm transition hover:border-white/35 hover:bg-white/5 disabled:opacity-60"
+                            className="flex items-center gap-2 rounded-xl border border-white/20 bg-black/40 px-6 py-3.5 text-gray-100 backdrop-blur-md transition hover:border-white/40 hover:bg-black/60 disabled:opacity-60"
                         >
                             <FilePlus2 className="h-4 w-4" />
                             Start blank
@@ -158,7 +178,7 @@ export default function WelcomeHero({ templates, loopUrl, posterUrl }: WelcomeHe
                         <button
                             onClick={skip}
                             disabled={!!busy}
-                            className="flex items-center gap-2 rounded-xl px-6 py-3.5 text-gray-400 transition hover:text-white disabled:opacity-60"
+                            className="flex items-center gap-2 rounded-xl bg-black/40 px-6 py-3.5 text-gray-200 backdrop-blur-md transition hover:bg-black/60 hover:text-white disabled:opacity-60"
                         >
                             <SkipForward className="h-4 w-4" />
                             Skip to Studio
