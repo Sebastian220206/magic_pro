@@ -9,11 +9,14 @@ out/
 build/
 
 # environment files
+#
+# Deny everything env-shaped and allow templates back in by name. The repo is
+# public, so a variant nobody thought to list — .env.mcp was one — is a leak
+# the moment it is created. Opting in beats enumerating.
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
+!.env.mcp.example
 
 # Prisma
 prisma/dev.db
