@@ -88,24 +88,35 @@ The essentials:
 
 1. **Provision Postgres** and set `DATABASE_URL`.
 
-   On Supabase, use the **transaction pooler — port 6543** — for the deployed
-   app, with `?pgbouncer=true&connection_limit=1`:
+   On Supabase, the deployed app wants the **transaction pooler — port 6543**
+   — with `pgbouncer=true`. The **session** pooler on port 5432 is capped at
+   about 15 clients, and exceeding it is a hard
+   `max clients reached in session mode` error, not a slow request.
+
+   `connection_limit` depends on how the app is run, and getting it backwards
+   is easy:
+
+   | Deployment | `connection_limit` | Why |
+   |---|---|---|
+   | Vercel / serverless | `1` | Each instance serves one request at a time. More per instance multiplies by the instance count and exhausts the pooler. |
+   | Docker / `next start` | `10` or so | One process serves many requests concurrently. At `1` they queue behind a single connection and time out under trivial load. |
 
    ```
+   # serverless
    postgresql://…@…pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+   # single long-lived server
+   postgresql://…@…pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=10
    ```
 
-   The **session** pooler on port 5432 is capped at about 15 clients. Every
-   warm serverless instance holds its own connections, so that ceiling is
-   reached under fairly light traffic and then every request fails with
-   `max clients reached in session mode` — not a slow request, a hard error.
-   Reserve port 5432 for migrations and local work.
+2. **Set `DIRECT_URL`** to the same database on **port 5432**. `prisma migrate`
+   uses it, because the transaction pooler cannot run DDL. `schema.prisma`
+   declares it as `directUrl`; without it, migrations fail as soon as
+   `DATABASE_URL` points at 6543.
 
-2. **Run migrations** — `npx prisma migrate deploy`. This one needs the direct
-   or session connection (port 5432); the transaction pooler cannot run DDL.
-3. **Set `NEXTAUTH_SECRET` and `NEXTAUTH_URL`.** `NEXTAUTH_URL` must be the real
+3. **Run migrations** — `npx prisma migrate deploy`.
+4. **Set `NEXTAUTH_SECRET` and `NEXTAUTH_URL`.** `NEXTAUTH_URL` must be the real
    public URL; share links are generated from it.
-4. **Point the Stripe webhook** at `https://your-domain/api/stripe/webhook` and
+5. **Point the Stripe webhook** at `https://your-domain/api/stripe/webhook` and
    set `STRIPE_WEBHOOK_SECRET`. Without it, payments succeed and nobody is ever
    upgraded.
 

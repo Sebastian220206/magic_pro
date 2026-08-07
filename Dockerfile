@@ -46,7 +46,11 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Healthy once the app answers and can reach its database.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+#
+# The timeout must exceed the endpoint's own 8s dependency budget, or Docker
+# kills the probe before it can distinguish "slow" from "down" — every cold
+# connection would then read as a failure.
+HEALTHCHECK --interval=30s --timeout=12s --start-period=40s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "server.js"]

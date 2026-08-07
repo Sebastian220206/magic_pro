@@ -4,7 +4,17 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+
+  /// The app's connection. In production this is Supabase's transaction pooler
+  /// (port 6543), which is the only one that survives serverless concurrency —
+  /// the session pooler caps out around 15 clients and then fails hard with
+  /// "max clients reached in session mode".
+  url = env("DATABASE_URL")
+
+  /// Migrations and introspection. The transaction pooler cannot run DDL, so
+  /// these need a session or direct connection (port 5432). Without this,
+  /// `prisma migrate deploy` fails once DATABASE_URL points at 6543.
+  directUrl = env("DIRECT_URL")
 }
 
 model User {

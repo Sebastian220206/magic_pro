@@ -18,8 +18,18 @@ import { bundledSoundfontCount } from '@/lib/localSoundfonts';
  */
 export const dynamic = 'force-dynamic';
 
-/** How long a dependency gets before it is treated as down. */
-const CHECK_TIMEOUT_MS = 3000;
+/**
+ * How long a dependency gets before it is treated as down.
+ *
+ * Generous on purpose. Opening a fresh connection to a pooler in another
+ * region measurably takes 1–4 seconds here, and more when the pool is cold or
+ * contended. A tighter budget does not detect outages sooner — it reports
+ * healthy instances as dead, and a load balancer acting on that pulls working
+ * capacity precisely when the system is busiest.
+ *
+ * The probe's own timeout is the real deadline; this only has to be under it.
+ */
+const CHECK_TIMEOUT_MS = 8000;
 
 async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
