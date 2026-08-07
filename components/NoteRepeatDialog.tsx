@@ -19,7 +19,7 @@ export function NoteRepeatDialog() {
     const rates = ["1/4", "1/4T", "1/4.", "1/8", "1/8T", "1/8.", "1/16", "1/16T", "1/16.", "1/32", "1/32T", "1/64"]
 
     return (
-        <div className="fixed top-32 left-[400px] z-[600] w-[500px] animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 lg:top-32 lg:left-[400px] lg:translate-x-0 z-[600] w-[500px] max-w-[calc(100vw-16px)] animate-in fade-in zoom-in-95 duration-200">
             <div className="bg-[#2c2c2e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_30px_90px_rgba(0,0,0,0.8)] overflow-hidden">
                 {/* Header */}
                 <div className="h-9 flex items-center justify-between px-3 bg-white/5 border-b border-black/40">

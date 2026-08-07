@@ -210,7 +210,7 @@ export function StepInputKeyboard() {
     }
 
     return (
-        <div className="fixed bottom-32 right-12 z-[600] w-[540px] min-w-[420px] animate-in slide-in-from-right-4 duration-300">
+        <div className="fixed bottom-4 right-2 left-2 lg:bottom-32 lg:right-12 lg:left-auto z-[600] w-auto lg:w-[540px] min-w-0 lg:min-w-[420px] animate-in slide-in-from-right-4 duration-300">
             <div className="bg-[#2c2c2e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_30px_90px_rgba(0,0,0,0.8)] overflow-hidden">
                 <div className="h-10 flex items-center justify-between px-3 bg-white/5 border-b border-black/30">
                     <div className="flex items-center gap-2">

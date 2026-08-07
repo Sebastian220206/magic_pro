@@ -130,7 +130,7 @@ export function VirtualKeyboard() {
     return (
         <div 
             ref={windowRef}
-            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[1000] animate-in slide-in-from-bottom-4 duration-300"
+            className="fixed bottom-4 sm:bottom-24 left-1/2 -translate-x-1/2 z-[1000] max-w-[calc(100vw-16px)] animate-in slide-in-from-bottom-4 duration-300"
         >
             <div className="bg-[#2c2c2e]/90 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden w-[720px]">
                 {/* Header */}

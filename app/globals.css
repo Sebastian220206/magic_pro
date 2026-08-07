@@ -197,6 +197,82 @@
 }
 
 /*
+ * Make every modal fit a small screen.
+ *
+ * The studio has ~20 dialogs, all built to the same shape: a
+ * `fixed inset-0 flex items-center justify-center` backdrop wrapping one panel
+ * with an explicit pixel width — 420px, 720px, 900px, 940px. On a phone every
+ * one of them was wider than the screen, and several also set a fixed height.
+ *
+ * Two things go wrong, and only one of them is visible:
+ *
+ *   1. The panel is wider than the viewport, so its edges are cut off.
+ *   2. Worse, `items-center` on a container of viewport height centres a panel
+ *      taller than itself by pushing the overflow equally in both directions.
+ *      The top half ends up above the scroll origin, where nothing can reach
+ *      it — the same bug that made the login form's submit button
+ *      unreachable. Adding `overflow-y: auto` alone does not fix it; the
+ *      alignment has to change to `flex-start`.
+ *
+ * This is done here rather than by editing twenty components because it then
+ * also covers the twenty-first. `!important` is needed to beat the utility
+ * classes setting those widths, which is exactly what an override layer is for.
+ *
+ * Scoped to the same 900px breakpoint `useViewport` uses for `compact`.
+ */
+@media (max-width: 900px) {
+
+    /*
+     * Attribute selectors, not `.fixed.inset-0.items-center`.
+     *
+     * Those are Tailwind utility class names, and using them as hooks in
+     * hand-written CSS is not safe: the build rewrote the selector to
+     * `.fixed.inset-0.logic-button`, because `.logic-button` is a component
+     * class that `@apply`s `items-center`. The rule then targeted every Logic
+     * button instead of a dialog. `[class~="..."]` matches the literal class
+     * token and nothing gets to reinterpret it.
+     */
+    /*
+     * Any flex backdrop, whether it centres or top-aligns. PluginEditorWindow
+     * and SearchAndSelectDialog already use `items-start` and scroll correctly;
+     * their panels are still too wide, so they need the child rule below.
+     */
+    [class~="fixed"][class~="inset-0"][class~="flex"] {
+        /* Top-aligned, not centred — see (2) above. */
+        align-items: flex-start !important;
+        overflow-y: auto;
+        padding: 12px;
+        /* dvh tracks the mobile URL bar; vh does not, and would clip. */
+        max-height: 100dvh;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    [class~="fixed"][class~="inset-0"][class~="flex"]>* {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        /* Panels with a fixed height must be free to shrink. */
+        height: auto !important;
+        max-height: none !important;
+        margin: auto;
+    }
+
+    /*
+     * Free-floating panels — the virtual keyboard, step input, note repeat —
+     * are positioned rather than centred in a backdrop, so the rule above never
+     * sees them. They carry widths of 500-720px and, in one case, a hard
+     * `left: 400px` that puts the whole panel off the side of a 390px screen.
+     *
+     * Pinning them to the viewport is better than letting them sit somewhere
+     * unreachable. `inset-x` with `auto` margins keeps them centred when they
+     * do fit.
+     */
+    [class~="fixed"]:not([class~="inset-0"]) {
+        max-width: calc(100vw - 16px) !important;
+    }
+}
+
+/*
  * A scrollbar thin enough for a 44px control row.
  *
  * The transport and toolbar rows scroll horizontally on narrow screens. At the
