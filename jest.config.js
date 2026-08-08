@@ -49,6 +49,7 @@ module.exports = {
         '<rootDir>/engine/**/__tests__/**/*.test.ts',
         '<rootDir>/lib/**/__tests__/**/*.test.ts',
         '<rootDir>/templates/**/__tests__/**/*.test.ts',
+        '<rootDir>/data/**/__tests__/**/*.test.ts',
         '<rootDir>/tests/integration/**/*.test.ts',
         '<rootDir>/tests/smoke/**/*.test.ts',
       ],

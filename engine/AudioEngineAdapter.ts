@@ -567,6 +567,86 @@ export class AudioEngineAdapter implements MidiSink {
             this.previewSource.disconnect();
             this.previewSource = null;
         }
+        this.stopMidiPreview();
+    }
+
+    /**
+     * Track id the loop browser auditions MIDI loops on.
+     *
+     * A dedicated hidden track rather than the focused one: previewing must not
+     * disturb whatever instrument the user has loaded on the track they are
+     * about to drop the loop onto.
+     */
+    private static readonly MIDI_PREVIEW_TRACK = '__loop-preview__';
+
+    /** Timers for notes already scheduled, so a second click can cancel them. */
+    private midiPreviewTimers: ReturnType<typeof setTimeout>[] = [];
+
+    /**
+     * Audition a MIDI loop through the General MIDI bank.
+     *
+     * Audio loops are previewed by playing a file; a MIDI loop has no file, so
+     * its notes are scheduled against the audio clock instead. Beats are
+     * converted using the loop's own tempo rather than the project's, because
+     * the browser is showing the loop as authored — dropping it on the timeline
+     * is when it adopts the project tempo.
+     */
+    async previewMidiLoop(
+        notes: { pitch: number; velocity: number; start: number; duration: number }[],
+        bpm: number,
+        instrument = 'piano',
+    ): Promise<void> {
+        const ctx = this.getContext();
+        if (!ctx || notes.length === 0) return;
+
+        this.stopMidiPreview();
+
+        const trackId = AudioEngineAdapter.MIDI_PREVIEW_TRACK;
+        if (!this.getTrackNodes(trackId)) this.createTrack(trackId);
+        await this.loadInstrument(trackId, instrument).catch(() => {
+            // A missing instrument should not silence the preview entirely —
+            // scheduleNote falls back to the built-in synth.
+        });
+
+        const secondsPerBeat = 60 / bpm;
+        const startAt = ctx.currentTime + 0.08; // a beat of headroom to schedule into
+
+        for (const [index, note] of notes.entries()) {
+            this.scheduleNote({
+                key: `preview-${index}`,
+                clipId: 'preview',
+                trackId,
+                pitch: note.pitch,
+                velocity: note.velocity,
+                startTime: startAt + note.start * secondsPerBeat,
+                stopTime: startAt + (note.start + note.duration) * secondsPerBeat,
+                instrument,
+            });
+        }
+    }
+
+    /**
+     * Silence an in-flight MIDI preview.
+     *
+     * Only the preview track. `allNotesOff()` is global and would cut the
+     * user's playback too, which is very much not what stopping an audition
+     * should do.
+     */
+    stopMidiPreview(): void {
+        for (const timer of this.midiPreviewTimers) clearTimeout(timer);
+        this.midiPreviewTimers = [];
+
+        const ctx = this.getContext();
+        const now = ctx?.currentTime ?? 0;
+        const trackId = AudioEngineAdapter.MIDI_PREVIEW_TRACK;
+
+        try {
+            getInstrumentService().allNotesOff(trackId, now);
+        } catch {
+            // No instrument was assigned; nothing to release.
+        }
+        this.synthEngines.get(trackId)?.stopAll();
+        this.samplerEngines.get(trackId)?.stopAll(now);
     }
 
     async previewLoop(path: string): Promise<void> {

@@ -1,15 +1,83 @@
+import midiLoops from './midiLoops.json';
+
+/** A loop exactly as `generate-midi-loops.mjs` writes it. */
+interface GeneratedLoop {
+  id: string;
+  name: string;
+  category: string;
+  genre: string;
+  instrument: string;
+  bpm: number;
+  beats: number;
+  key?: string;
+  program?: number;
+  drums?: boolean;
+  /** [pitch, velocity, startBeat, durationBeats] */
+  notes: [number, number, number, number][];
+}
+
+/**
+ * A single note in a MIDI loop.
+ *
+ * Stored on disk as a compact tuple — `[pitch, velocity, startBeat,
+ * durationBeats]` — because the generated library holds several thousand of
+ * them and object keys would roughly triple the file. Expanded to this shape
+ * on load.
+ */
+export interface LoopNote {
+  /** MIDI note number, 0-127. */
+  pitch: number;
+  /** 1-127. */
+  velocity: number;
+  /** Beats from the start of the loop. */
+  start: number;
+  /** Length in beats. */
+  duration: number;
+}
+
 export interface LoopAsset {
   id: string;
   name: string;
   category: 'drums' | 'bass' | 'melodic';
   bpm: number;
   key?: string;
-  path: string;
+  /**
+   * Audio file, for sample-based loops.
+   *
+   * Absent on MIDI loops, which is now most of the library — see `notes`.
+   */
+  path?: string;
   duration: number;
   beats: number;
   genre: string;
   instrument: string;
   pack?: string;
+
+  /**
+   * The loop as MIDI, when it has one.
+   *
+   * Present on generated loops, absent on the sampled ones. A MIDI loop is
+   * dropped onto the timeline as an editable MIDI clip rather than an audio
+   * region, so the user can transpose it, change the instrument or fix a
+   * single note — none of which an audio loop allows.
+   */
+  notes?: LoopNote[];
+
+  /**
+   * General MIDI program the loop was written for, 0-127.
+   *
+   * A suggestion, not a requirement: the clip plays on whatever instrument the
+   * target track already has, and this is used only when the track has none.
+   */
+  program?: number;
+
+  /**
+   * True when pitches are General MIDI drum-map notes rather than pitches.
+   *
+   * 36 is a kick, 38 a snare, 42 a closed hat. Both the SoundFont's bank-128
+   * kits and the built-in drum machine use these same numbers.
+   */
+  drums?: boolean;
 }
 
 export interface GenrePack {
@@ -21,7 +89,7 @@ export interface GenrePack {
   loopIds: string[];
 }
 
-export const loopLibrary: LoopAsset[] = [
+const sampledLoops: LoopAsset[] = [
   // ── Drums ──────────────────────────────────────────────────────────────
   {
     id: 'drums_house_01',
@@ -304,6 +372,41 @@ export const loopLibrary: LoopAsset[] = [
     pack: 'ambient_textures',
   },
 ];
+
+/**
+ * The generated MIDI library.
+ *
+ * Built by `scripts/generate-midi-loops.mjs` from chord progressions, drum
+ * grids and scale theory, then committed. Notes arrive as compact tuples and
+ * are expanded here — see `LoopNote` for why they are stored that way.
+ */
+const generatedLoops: LoopAsset[] = (midiLoops.loops as GeneratedLoop[]).map(loop => ({
+  id: loop.id,
+  name: loop.name,
+  category: loop.category as LoopAsset['category'],
+  bpm: loop.bpm,
+  key: loop.key,
+  // Beats are the source of truth for a MIDI loop; seconds are derived so the
+  // browser can show a duration without knowing the project tempo.
+  duration: (loop.beats * 60) / loop.bpm,
+  beats: loop.beats,
+  genre: loop.genre,
+  instrument: loop.instrument,
+  pack: `${loop.genre.toLowerCase().replace(/[^a-z]/g, '')}_generated`,
+  program: loop.program,
+  drums: loop.drums,
+  notes: loop.notes.map(([pitch, velocity, start, duration]) => ({
+    pitch, velocity, start, duration,
+  })),
+}));
+
+/**
+ * Everything the loop browser offers.
+ *
+ * Sampled loops first: they are recordings, and a recording beats a
+ * synthesised approximation of the same thing when both exist.
+ */
+export const loopLibrary: LoopAsset[] = [...sampledLoops, ...generatedLoops];
 
 export const genrePacks: GenrePack[] = [
   { id: 'house_essentials', name: 'House Essentials', genre: 'House', description: 'Four-on-the-floor house grooves and keys', color: '#f59e0b', loopIds: ['drums_house_01', 'drums_house_02', 'melodic_keys_01', 'melodic_keys_02'] },

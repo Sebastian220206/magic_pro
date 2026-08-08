@@ -17,6 +17,42 @@ const categories = [
   { key: 'melodic', name: 'Melodic' },
 ];
 
+/**
+ * General MIDI program numbers to the instrument names the engine knows.
+ *
+ * The generator records which GM program each loop was written for, but
+ * `loadInstrument` takes a name. Anything unmapped falls back to piano, which
+ * is always available.
+ */
+const PROGRAM_TO_INSTRUMENT: Record<number, string> = {
+    0: 'piano', 4: 'piano', 7: 'piano', 11: 'piano', 18: 'organ',
+    24: 'guitar', 27: 'guitar', 28: 'guitar', 29: 'guitar',
+    33: 'bass', 34: 'bass', 35: 'bass', 36: 'bass', 38: 'bass',
+    48: 'strings', 50: 'strings', 52: 'strings', 61: 'brass', 65: 'brass',
+    80: 'synth', 81: 'synth', 89: 'synth', 95: 'synth',
+};
+
+function instrumentForLoop(loop: LoopAsset): string {
+    if (loop.drums) return 'drums';
+    return (loop.program !== undefined && PROGRAM_TO_INSTRUMENT[loop.program]) || 'piano';
+}
+
+/**
+ * Play a loop, whichever kind it is.
+ *
+ * Sampled loops have a file to play. Generated ones are MIDI and have to be
+ * scheduled against the audio clock through an instrument instead.
+ */
+async function auditionLoop(loop: LoopAsset): Promise<void> {
+    if (loop.notes?.length) {
+        await audioEngine.previewMidiLoop(loop.notes, loop.bpm, instrumentForLoop(loop));
+        return;
+    }
+    if (loop.path) {
+        await audioEngine.previewLoop(loop.path);
+    }
+}
+
 export function LoopBrowser() {
     const { showLoopBrowser, toggleLoopBrowser, addClip, focusedTrackId, tracks } = useProjectStore()
     const [searchQuery, setSearchQuery] = useState('')
@@ -48,7 +84,7 @@ export function LoopBrowser() {
 
         setActiveLoop(loop);
         setIsPlaying(true);
-        await audioEngine.previewLoop(loop.path);
+        await auditionLoop(loop);
     }, [activeLoop, isPlaying]);
 
     const toggleFavoriteLoop = useCallback((loopId: string) => {
@@ -67,26 +103,48 @@ export function LoopBrowser() {
         if (!targetTrack) return;
 
         const baseKey = playInKeyMode === 'project' ? 'C' : playInKeyMode === 'original' ? (loop.key || 'C') : playKey;
+        const isMidi = Boolean(loop.notes?.length);
 
+        /*
+         * A MIDI loop becomes a real MIDI clip, not an audio region. That is
+         * the whole reason the library is MIDI: the notes land in the piano
+         * roll where they can be transposed, re-voiced or corrected. Notes are
+         * given fresh ids so two copies of the same loop never share them.
+         */
         addClip({
             id: Date.now().toString(),
             trackId: focusedTrackId,
             name: loop.name,
-            type: 'audio',
+            type: isMidi ? 'midi' : 'audio',
             alternativeId: targetTrack.activeAlternativeId || 'default',
             start: 0,
             duration: loop.beats || 4,
-            color: '#64D2FF',
-            fileUrl: loop.path,
+            color: isMidi ? '#A78BFA' : '#64D2FF',
+            fileUrl: isMidi ? undefined : loop.path,
             offset: 0,
             muted: false,
             loop: true,
             qSwing: 0,
             transpose: 0,
             velocityOffset: 0,
-            notes: undefined,
+            notes: isMidi
+                ? loop.notes!.map((n, i) => ({
+                    id: `${Date.now()}-${i}`,
+                    pitch: n.pitch,
+                    velocity: n.velocity,
+                    start: n.start,
+                    duration: n.duration,
+                }))
+                : undefined,
             key: baseKey,
         } as any);
+
+        // Give the track an instrument if it has none, so the loop makes a
+        // sound on the first press of play rather than dropping in silent.
+        if (isMidi && !targetTrack.instrument) {
+            audioEngine.loadInstrument(focusedTrackId, instrumentForLoop(loop))
+                .catch(err => console.warn('[LoopBrowser] Could not load instrument:', err));
+        }
     }, [focusedTrackId, tracks, playInKeyMode, playKey, addClip]);
 
     const categoryCounts = useMemo(() => {
@@ -235,7 +293,7 @@ export function LoopBrowser() {
                                     setIsPlaying(false);
                                 } else if (activeLoop) {
                                     setIsPlaying(true);
-                                    await audioEngine.previewLoop(activeLoop.path);
+                                    await auditionLoop(activeLoop);
                                 }
                             }}
                             className={`w-9 h-9 rounded-lg bg-sky-500 shadow-[0_0_20px_rgba(14,165,233,0.4)] border border-sky-400 flex items-center justify-center text-white active:scale-95 transition-all ${!activeLoop && 'opacity-30 cursor-not-allowed'}`}
