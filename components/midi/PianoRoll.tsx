@@ -18,6 +18,7 @@ import { PitchGridRenderer } from '../../engine/midi/grid/PitchGridRenderer';
 import { MidiRenderer } from '../../engine/midi/MidiRenderer';
 import { globalSpatialNoteCache } from '../../engine/midi/cache/SpatialNoteCache';
 import StepInputKeyboard from './StepInputKeyboard';
+import { StepSequencer } from './StepSequencer';
 import NoteEditPopover from './NoteEditPopover';
 import { detectChord, pitchToNoteName as chordPitchToNoteName } from '../../engine/midi/chordDetection';
 import { ChevronDown, ChevronRight, Link as LinkIcon, MousePointer2, Pencil, LogIn, LogOut, ArrowRightToLine, ZoomIn, ZoomOut, ArrowUpDown, Maximize2, Search, Circle, GitMerge, Repeat, KeyboardMusic, FoldHorizontal, Play, SkipBack, Palette, Eraser, Hand, Scissors, VolumeX, Activity, Paintbrush, Check } from 'lucide-react';
@@ -1440,6 +1441,9 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
       </div>
 
       {/* ── Main Layout (Sidebar + Canvas) ── */}
+      {activeTab === 'step-sequencer' ? (
+        <StepSequencer />
+      ) : (
       <div className="flex flex-1 overflow-hidden">
         
         {/* ── Left Inspector Sidebar ── */}
@@ -1888,6 +1892,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
         </div>
         </div>
       </div>
+      )}
 
       <StepInputKeyboard
         isOpen={showStepKeyboard}
