@@ -191,7 +191,7 @@ useEffect(() => {
     }, [showSfPresets, currentSfItem, sfPresets, selectedCategory])
 
     return (
-        <div className="w-[320px] h-full bg-[#1e1e1e] border-r border-[var(--accent-cyan)]/40 flex flex-col shrink-0 z-50 overflow-hidden shadow-2xl select-none text-gray-300">
+        <div className="w-[320px] h-full bg-studio-panel border-r border-[var(--accent-cyan)]/40 flex flex-col shrink-0 z-50 overflow-hidden shadow-2xl select-none text-studio-text">
 
             {/* 1. Header Area */}
             <div className="pt-2 px-4 flex flex-col items-center gap-1 shrink-0 pb-4">
@@ -220,25 +220,25 @@ useEffect(() => {
                 {/* Search Bar */}
                 <div className="w-full relative px-1">
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                        <Search className="w-3 h-3 text-gray-500" />
-                        <ChevronDown className="w-2.5 h-2.5 text-gray-700" />
+                        <Search className="w-3 h-3 text-studio-text-dim" />
+                        <ChevronDown className="w-2.5 h-2.5 text-studio-text-dim" />
                     </div>
                     <input
                         type="text"
                         placeholder="Search Sounds"
                         value={librarySearchQuery}
                         onChange={(e) => setLibrarySearchQuery(e.target.value)}
-                        className="w-full bg-black/40 border border-[var(--accent-cyan)]/40 rounded h-[26px] pl-10 pr-3 text-[11px] font-bold text-gray-200 placeholder-gray-700 focus:outline-none focus:border-[var(--accent-cyan)] focus:shadow-[0_0_10px_var(--accent-cyan-glow)] transition-all shadow-inner"
+                        className="w-full bg-black/40 border border-[var(--accent-cyan)]/40 rounded h-[26px] pl-10 pr-3 text-[11px] font-bold text-studio-text placeholder-studio-text-dim focus:outline-none focus:border-[var(--accent-cyan)] focus:shadow-[0_0_10px_var(--accent-cyan-glow)] transition-all shadow-inner"
                     />
                 </div>
             </div>
 
             {/* 2. Dual List Area */}
-            <div className="flex-1 flex min-h-0 border-t border-black bg-[#1a1a1a]">
+            <div className="flex-1 flex min-h-0 border-t border-black bg-studio-panel">
                 {/* Categories Column */}
-                <div className="w-[140px] h-full overflow-y-auto custom-scrollbar border-r border-black/50 bg-[#1e1e1e]">
+                <div className="w-[140px] h-full overflow-y-auto custom-scrollbar border-r border-black/50 bg-studio-panel">
                     {loadingSoundFonts && (
-                        <div className="h-7 px-2 flex items-center text-gray-600 text-[10px]">Loading…</div>
+                        <div className="h-7 px-2 flex items-center text-studio-text-dim text-[10px]">Loading…</div>
                     )}
                     {soundFontsError && (
                         <div className="h-7 px-2 flex items-center text-red-500 text-[10px]">Error</div>
@@ -251,22 +251,22 @@ onClick={() => handleCategoryClick(cat)}
                         >
                             <div className="flex items-center gap-2 truncate">
                                 <span className="text-[10px] font-bold text-white/30 tabular-nums">{(idx + 1).toString().padStart(2, '0')}</span>
-                                <span className={`text-[11px] font-bold truncate ${selectedCategory?.name === cat.name ? 'text-[var(--accent-cyan)]' : 'text-gray-400'}`}>
+                                <span className={`text-[11px] font-bold truncate ${selectedCategory?.name === cat.name ? 'text-[var(--accent-cyan)]' : 'text-studio-text-mid'}`}>
                                     {cat.name}
                                 </span>
                             </div>
-                            <ChevronRight className={`w-3 h-3 ${selectedCategory?.name === cat.name ? 'text-[var(--accent-cyan)]' : 'text-gray-700 group-hover:text-gray-500'}`} />
+                            <ChevronRight className={`w-3 h-3 ${selectedCategory?.name === cat.name ? 'text-[var(--accent-cyan)]' : 'text-studio-text-dim group-hover:text-studio-text-dim'}`} />
                         </div>
                     ))}
                     {!loadingSoundFonts && !soundFontsError && filteredCategories.length === 0 && (
-                        <div className="text-gray-800 text-[11px] text-center pt-4">No categories match your search.</div>
+                        <div className="text-studio-text text-[11px] text-center pt-4">No categories match your search.</div>
                     )}
                 </div>
 
                 {/* Patches Column */}
-                <div className="flex-1 h-full overflow-y-auto custom-scrollbar bg-[#161616]">
+                <div className="flex-1 h-full overflow-y-auto custom-scrollbar bg-studio-panel">
                     {loadingSoundFonts && (
-                        <div className="h-7 px-4 flex items-center text-gray-600 text-[11px]">Loading SoundFonts…</div>
+                        <div className="h-7 px-4 flex items-center text-studio-text-dim text-[11px]">Loading SoundFonts…</div>
                     )}
                     {soundFontsError && (
                         <div className="h-7 px-4 flex items-center text-red-500 text-[11px]">Error: {soundFontsError}</div>
@@ -274,7 +274,7 @@ onClick={() => handleCategoryClick(cat)}
                     {!loadingSoundFonts && !soundFontsError && (
                         <>
                             {showSfPresets && loadingSfPresets && (
-                                <div className="h-7 px-4 flex items-center text-gray-600 text-[11px]">Loading presets…</div>
+                                <div className="h-7 px-4 flex items-center text-studio-text-dim text-[11px]">Loading presets…</div>
                             )}
                             {presetsToShow.map((preset, idx) => (
                                 <div
@@ -288,19 +288,19 @@ onClick={() => {
                                 }}
                                 className={`h-7 px-4 flex items-center justify-between group cursor-pointer border-b border-black/10 transition-colors ${librarySelectedPresetId === preset.id ? 'bg-[var(--accent-cyan)]/15 text-white shadow-[inset_0_0_10px_var(--accent-cyan-glow)]' : 'hover:bg-white/[0.03]'}`}
                                 >
-                                    <span className={`text-[11px] font-bold truncate ${librarySelectedPresetId === preset.id ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
+                                    <span className={`text-[11px] font-bold truncate ${librarySelectedPresetId === preset.id ? 'text-white' : 'text-studio-text-mid group-hover:text-studio-text'}`}>
                                         {preset.name}
                                     </span>
                                 </div>
                             ))}
                             {!showSfPresets && selectedCategory?.presets?.length === 0 && (
-                                <div className="text-gray-800 text-[11px] text-center pt-8">No sounds in this category.</div>
+                                <div className="text-studio-text text-[11px] text-center pt-8">No sounds in this category.</div>
                             )}
                             {showSfPresets && !loadingSfPresets && sfPresets.length === 0 && (
-                                <div className="text-gray-800 text-[11px] text-center pt-8">No presets found in this SoundFont.</div>
+                                <div className="text-studio-text text-[11px] text-center pt-8">No presets found in this SoundFont.</div>
                             )}
                             {!selectedCategory && !showSfPresets && (
-                                <div className="text-gray-800 text-[11px] text-center pt-8">Select a category.</div>
+                                <div className="text-studio-text text-[11px] text-center pt-8">Select a category.</div>
                             )}
                         </>
                     )}
@@ -309,13 +309,13 @@ onClick={() => {
 
             {/* 2.5 Patch Merging Area */}
             {libraryPatchMerging && (
-                <div className="h-10 bg-[#2c2c2e] border-t border-black flex items-center px-2 gap-1 animate-in slide-in-from-bottom-2 duration-200">
+                <div className="h-10 bg-studio-control border-t border-black flex items-center px-2 gap-1 animate-in slide-in-from-bottom-2 duration-200">
                     <button onClick={() => toggleLibraryPatchMerging()} className="p-1 hover:text-white transition-colors"><X className="w-3 h-3" /></button>
                     {(['midiEffects', 'instruments', 'audioEffects', 'sends'] as const).map(opt => (
                         <button
 key={opt}
                                         onClick={() => setLibraryMergingOption(opt, !libraryMergingOptions[opt])}
-                                        className={`flex-1 h-7 rounded text-[8px] font-black uppercase transition-all ${libraryMergingOptions[opt] ? 'bg-[var(--accent-cyan)] text-black shadow-lg' : 'bg-black/40 text-gray-500 hover:text-[var(--accent-cyan)]'}`}
+                                        className={`flex-1 h-7 rounded text-[8px] font-black uppercase transition-all ${libraryMergingOptions[opt] ? 'bg-[var(--accent-cyan)] text-black shadow-lg' : 'bg-black/40 text-studio-text-dim hover:text-[var(--accent-cyan)]'}`}
                         >
                             {opt.replace('Effects', ' FX')}
                         </button>
@@ -324,14 +324,14 @@ key={opt}
             )}
 
             {/* 3. Footer Area */}
-            <div className="h-[70px] bg-[#222] border-t border-black flex flex-col shrink-0 px-3">
+            <div className="h-[70px] bg-studio-raised border-t border-black flex flex-col shrink-0 px-3">
                 {/* Breadcrumbs */}
-                <div className="h-6 flex items-center gap-1.5 text-[9px] font-bold text-gray-500 overflow-hidden">
-                    <span className="hover:text-gray-300 cursor-pointer">Legacy</span>
+                <div className="h-6 flex items-center gap-1.5 text-[9px] font-bold text-studio-text-dim overflow-hidden">
+                    <span className="hover:text-studio-text cursor-pointer">Legacy</span>
                     <ChevronRight className="w-2 h-2 opacity-50" />
-                    <span className="hover:text-gray-300 cursor-pointer">Logic</span>
+                    <span className="hover:text-studio-text cursor-pointer">Logic</span>
                     <ChevronRight className="w-2 h-2 opacity-50" />
-                    <span className="text-gray-400 truncate">{selectedCategory?.name || 'Synthesizers'}</span>
+                    <span className="text-studio-text-mid truncate">{selectedCategory?.name || 'Synthesizers'}</span>
                     <ChevronRight className="w-2 h-2 opacity-30" />
                 </div>
 
@@ -341,45 +341,41 @@ key={opt}
                         <div className="relative">
                             <button
 onClick={() => setShowActionsMenu(!showActionsMenu)}
-                                                className={`w-8 h-[24px] flex items-center justify-center border border-[var(--accent-cyan)]/40 rounded shadow-sm transition-all ${showActionsMenu ? 'bg-[var(--accent-cyan)] text-black' : 'bg-[#111] hover:bg-[var(--accent-cyan)]/10 hover:text-[var(--accent-cyan)]'}`}
+                                                className={`w-8 h-[24px] flex items-center justify-center border border-[var(--accent-cyan)]/40 rounded shadow-sm transition-all ${showActionsMenu ? 'bg-[var(--accent-cyan)] text-black' : 'bg-studio-sunken hover:bg-[var(--accent-cyan)]/10 hover:text-[var(--accent-cyan)]'}`}
                             >
                                 <MoreHorizontal className="w-3.5 h-3.5" />
                                 <ChevronDown className="w-2 h-2 ml-0.5 opacity-50" />
                             </button>
                             {showActionsMenu && (
-                                <div className="absolute bottom-full left-0 mb-2 w-48 bg-[#2c2c2e] border border-white/10 rounded-lg shadow-2xl z-[100] py-1 overflow-hidden">
+                                <div className="absolute bottom-full left-0 mb-2 w-48 bg-studio-control border border-white/10 rounded-lg shadow-2xl z-[100] py-1 overflow-hidden">
                                     <button
-                                        className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors flex items-center justify-between"
+                                        className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors flex items-center justify-between"
                                         onClick={() => { toggleLibraryPatchMerging(!libraryPatchMerging); setShowActionsMenu(false); }}
                                     >
                                         {libraryPatchMerging ? 'Disable Patch Merging' : 'Enable Patch Merging'}
                                     </button>
                                     <div className="h-px bg-white/5 my-1" />
-                                    <button className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors">Search Results to Track...</button>
+                                    <button className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors">Search Results to Track...</button>
                                 </div>
                             )}
                         </div>
-                        <button className="px-3 h-[24px] flex items-center justify-center bg-[#111] border border-black/40 rounded shadow-sm text-[10px] font-bold text-gray-400 hover:text-white hover:bg-[#333] transition-colors">
+                        <button className="px-3 h-[24px] flex items-center justify-center bg-studio-sunken border border-black/40 rounded shadow-sm text-[10px] font-bold text-studio-text-mid hover:text-white hover:bg-studio-control transition-colors">
                             Revert
                         </button>
                     </div>
 
                     <div className="flex gap-1 items-center">
-                        <button className="px-3 h-[24px] flex items-center justify-center text-[10px] font-bold text-gray-400 hover:text-red-400 transition-colors">
+                        <button className="px-3 h-[24px] flex items-center justify-center text-[10px] font-bold text-studio-text-mid hover:text-red-400 transition-colors">
                             Delete
                         </button>
-                        <button className="px-3 h-[24px] flex items-center justify-center bg-[#333] border border-white/5 rounded shadow-md text-[10px] font-bold text-white hover:bg-[#444] transition-colors">
+                        <button className="px-3 h-[24px] flex items-center justify-center bg-studio-control border border-white/5 rounded shadow-md text-[10px] font-bold text-white hover:bg-studio-control transition-colors">
                             Save...
                         </button>
                     </div>
                 </div>
             </div>
 
-            <style jsx>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-            `}</style>
+
         </div>
     )
 }

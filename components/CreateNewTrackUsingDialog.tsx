@@ -39,34 +39,34 @@ export function CreateNewTrackUsingDialog() {
             onClick={() => toggleCreateTrackUsing(false)}
         >
             <div
-                className="absolute bg-[#1c1c1e] border border-white/10 rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.6)] w-[260px] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+                className="absolute bg-studio-panel border border-white/10 rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.6)] w-[260px] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
                 style={{ left: `${x}px`, top: `${y}px` }}
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="px-3 py-2 border-b border-white/5 bg-[#2c2c2e]/50 flex items-center justify-between">
-                    <h3 className="text-[10px] font-black uppercase tracking-wider text-gray-500">Create Track using:</h3>
-                    {draggedItems.length > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 bg-sky-500 rounded text-white">{draggedItems.length}</span>}
+                <div className="px-3 py-2 border-b border-white/5 bg-studio-control/50 flex items-center justify-between">
+                    <h3 className="text-[10px] font-black uppercase tracking-wider text-studio-text-dim">Create Track using:</h3>
+                    {draggedItems.length > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 bg-accent-cyan rounded text-white">{draggedItems.length}</span>}
                 </div>
 
                 <div className="py-1">
                     {options.map((opt) => (
                         <button
                             key={opt.id}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-sky-500 group transition-colors text-left"
+                            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-accent-cyan group transition-colors text-left"
                             onClick={() => createTrackFromSamplerType(opt.id as any, draggedItems)}
-                            onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('bg-sky-500'); }}
-                            onDragLeave={(e) => { e.currentTarget.classList.remove('bg-sky-500'); }}
+                            onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('bg-accent-cyan'); }}
+                            onDragLeave={(e) => { e.currentTarget.classList.remove('bg-accent-cyan'); }}
                             onDrop={(e) => { e.preventDefault(); createTrackFromSamplerType(opt.id as any, draggedItems); }}
                         >
                             <opt.icon className={`w-3.5 h-3.5 ${opt.color} group-hover:text-white transition-colors`} />
-                            <span className="text-[12px] font-bold text-gray-200 group-hover:text-white truncate">{opt.name}</span>
+                            <span className="text-[12px] font-bold text-studio-text group-hover:text-white truncate">{opt.name}</span>
                         </button>
                     ))}
 
                     <div className="h-px bg-white/5 my-1 mx-2" />
 
                     <button
-                        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-sky-500 group transition-colors text-left"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-accent-cyan group transition-colors text-left"
                         onClick={() => {
                             if (dropTargetTrackId) {
                                 duplicateWithSharedChannelStrip(dropTargetTrackId);
@@ -77,15 +77,15 @@ export function CreateNewTrackUsingDialog() {
                             toggleCreateTrackUsing(false);
                         }}
                     >
-                        <Music className="w-3.5 h-3.5 text-gray-400 group-hover:text-white" />
-                        <span className="text-[12px] font-bold text-gray-200 group-hover:text-white">Existing Channel Strip</span>
+                        <Music className="w-3.5 h-3.5 text-studio-text-mid group-hover:text-white" />
+                        <span className="text-[12px] font-bold text-studio-text group-hover:text-white">Existing Channel Strip</span>
                     </button>
                 </div>
 
-                <div className="px-3 py-1.5 border-t border-white/5 bg-[#2c2c2e]/30">
+                <div className="px-3 py-1.5 border-t border-white/5 bg-studio-control/30">
                     <div className="flex items-center gap-1.5 opacity-40">
-                        <Binary className="w-3 h-3 text-gray-400" />
-                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Advanced Import</span>
+                        <Binary className="w-3 h-3 text-studio-text-mid" />
+                        <span className="text-[9px] font-bold text-studio-text-mid uppercase tracking-widest">Advanced Import</span>
                     </div>
                 </div>
             </div>

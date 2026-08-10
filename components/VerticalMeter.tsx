@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { meterBandColor, METER_NOMINAL } from "@/lib/meterPalette"
 
 interface VerticalMeterProps {
   analyzer: AnalyserNode | null
@@ -61,11 +62,11 @@ export function VerticalMeter({ analyzer, side, className = "" }: VerticalMeterP
             }
 
             if (barRef.current) {
+                const band = meterBandColor(level);
                 barRef.current.style.height = `${percent}%`;
-                // Color based on height
-                if (percent > 90) barRef.current.style.backgroundColor = '#ef4444'; // Red
-                else if (percent > 70) barRef.current.style.backgroundColor = '#eab308'; // Yellow
-                else barRef.current.style.backgroundColor = '#22c55e'; // Green
+                barRef.current.style.backgroundColor = band;
+                // The glow tracks the band, so a clipping meter flares red.
+                barRef.current.style.boxShadow = `0 0 8px ${band}`;
             }
             if (peakRef.current) {
                 peakRef.current.style.bottom = `${lastPeak.current}%`;
@@ -80,11 +81,11 @@ export function VerticalMeter({ analyzer, side, className = "" }: VerticalMeterP
     }, [analyzer]);
 
     return (
-        <div className={`h-full w-1.5 bg-black/60 rounded-full border border-white/5 relative overflow-hidden flex flex-col justify-end ${className}`}>
+        <div className={`h-full w-1.5 bg-studio-void rounded-full border border-studio-line relative overflow-hidden flex flex-col justify-end ${className}`}>
             <div 
                 ref={barRef} 
-                className="w-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)] transition-all duration-75 ease-out rounded-t-[1px]" 
-                style={{ height: '0%' }}
+                className="w-full transition-all duration-75 ease-out rounded-t-[1px]"
+                style={{ height: '0%', backgroundColor: METER_NOMINAL, boxShadow: `0 0 8px ${METER_NOMINAL}` }}
             ></div>
             <div 
                 ref={peakRef}

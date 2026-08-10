@@ -106,8 +106,8 @@ const StepInputKeyboard = memo(function StepInputKeyboard({
       <g key={`w-${pitch}`}>
         <rect
           x={x} y={0} width={KEY_WIDTH - 1} height={KEY_HEIGHT}
-          fill={isActive ? '#bbdefb' : '#ffffff'}
-          stroke="#999" strokeWidth={0.5}
+          fill={isActive ? '#22d3ee' : '#cfe1ea'}
+          stroke="#04070b" strokeWidth={0.5}
           rx={2} ry={2}
           style={{ cursor: 'pointer', transition: 'fill 0.1s' }}
           onMouseDown={() => handleNoteOn(pitch)}
@@ -116,7 +116,7 @@ const StepInputKeyboard = memo(function StepInputKeyboard({
         />
         <text
           x={x + KEY_WIDTH / 2} y={KEY_HEIGHT - 8}
-          textAnchor="middle" fill="#666"
+          textAnchor="middle" fill="#04070b"
           fontSize={9} fontFamily="sans-serif"
         >{noteName(pitch)}</text>
       </g>
@@ -132,15 +132,15 @@ const StepInputKeyboard = memo(function StepInputKeyboard({
       <g key={`b-${pitch}`}>
         <rect
           x={x} y={0} width={BLACK_KEY_WIDTH} height={BLACK_KEY_HEIGHT}
-          fill={isActive ? '#555' : '#222'}
-          stroke="#111" strokeWidth={0.5}
+          fill={isActive ? '#22d3ee' : '#141f2b'}
+          stroke="#04070b" strokeWidth={0.5}
           rx={2} ry={2}
           style={{ cursor: 'pointer', transition: 'fill 0.1s' }}
           onMouseDown={() => handleNoteOn(pitch)}
         />
         <text
           x={x + BLACK_KEY_WIDTH / 2} y={12}
-          textAnchor="middle" fill="#888"
+          textAnchor="middle" fill="#7d94a8"
           fontSize={7} fontFamily="sans-serif"
         >{noteName(pitch)}</text>
       </g>
@@ -151,15 +151,15 @@ const StepInputKeyboard = memo(function StepInputKeyboard({
     <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
       <div
         ref={panelRef}
-        className="pointer-events-auto bg-[#1e1e1e] border border-[#444] rounded-lg shadow-2xl p-3"
+        className="pointer-events-auto bg-studio-panel border border-studio-line-strong rounded-lg shadow-2xl p-3"
         style={{ width: 480 }}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
-          <span className="text-gray-300 text-xs font-bold">Step Input Keyboard</span>
+          <span className="text-studio-text text-xs font-bold">Step Input Keyboard</span>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-200 text-sm leading-none px-1"
+            className="text-studio-text-dim hover:text-studio-text text-sm leading-none px-1"
           >✕</button>
         </div>
 
@@ -173,16 +173,16 @@ const StepInputKeyboard = memo(function StepInputKeyboard({
         <div className="flex items-center gap-3">
           {/* Velocity */}
           <div className="flex items-center gap-1">
-            <span className="text-gray-500 text-[10px]">Vel:</span>
+            <span className="text-studio-text-dim text-[10px]">Vel:</span>
             <input
               type="range" min={1} max={127} value={velocity}
               onChange={e => setVelocity(Number(e.target.value))}
               className="w-20 h-1"
             />
-            <span className="text-gray-300 text-[10px] w-6 text-right tabular-nums">{velocity}</span>
+            <span className="text-studio-text text-[10px] w-6 text-right tabular-nums">{velocity}</span>
           </div>
 
-          <div className="w-px h-4 bg-gray-700" />
+          <div className="w-px h-4 bg-studio-raised" />
 
           {/* Duration buttons */}
           <div className="flex gap-1">
@@ -192,8 +192,8 @@ const StepInputKeyboard = memo(function StepInputKeyboard({
                 onClick={() => setDuration(opt.value)}
                 className={`px-2 py-0.5 text-[10px] rounded ${
                   duration === opt.value
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-[#333] text-gray-400 hover:bg-[#444]'
+                    ? 'bg-accent-cyan text-white'
+                    : 'bg-studio-control text-studio-text-mid hover:bg-studio-control'
                 }`}
               >{opt.label}</button>
             ))}
@@ -202,7 +202,7 @@ const StepInputKeyboard = memo(function StepInputKeyboard({
           <div className="flex-1" />
 
           {/* Close hint */}
-          <span className="text-gray-600 text-[9px]">Esc to close</span>
+          <span className="text-studio-text-dim text-[9px]">Esc to close</span>
         </div>
       </div>
     </div>,

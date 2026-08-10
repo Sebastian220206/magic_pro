@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { useProjectStore } from "@/store/projectStore"
 import { WaveformSVG } from "./WaveformSVG"
+import { neonTrackColor, neonTrackAlpha, neonTrackTextColor } from "@/lib/trackColor"
 import { X, ChevronLeft, ChevronRight, Scissors, Link2, Minus, Plus } from "lucide-react"
 
 export function AudioTrackEditor() {
@@ -101,27 +102,27 @@ export function AudioTrackEditor() {
     const canJoin = selectedClipIds.length > 1
 
     return (
-        <div className="absolute left-0 right-0 bottom-0 h-full bg-[#101010] border-t border-white/10 z-40 pointer-events-auto" style={{ minHeight: `${audioTrackEditorHeight}px`, height: `${audioTrackEditorHeight}px` }}>
-            <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-[#161616]">
+        <div className="absolute left-0 right-0 bottom-0 h-full bg-studio-sunken border-t border-white/10 z-40 pointer-events-auto" style={{ minHeight: `${audioTrackEditorHeight}px`, height: `${audioTrackEditorHeight}px` }}>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-studio-panel">
                 <div className="flex items-center gap-2">
                     <button className="px-2 py-1 rounded-md border border-white/10 text-white/80 hover:bg-white/10" onClick={() => { setShowAudioTrackEditor(false); setAudioTrackEditorTrackId(null) }}><X className="w-3.5 h-3.5" /></button>
                     <span className="text-xs font-bold uppercase tracking-wide">Audio Track Editor - {track.name}</span>
                 </div>
 
-                <div className="flex items-center gap-2 text-xs text-gray-300">
-                    <button className="px-2 py-1 rounded-sm bg-gray-700/80 hover:bg-gray-600" onClick={() => setAudioTrackEditorZoom(Math.max(0.25, audioTrackEditorZoom - 0.25))}><Minus className="w-3 h-3" /></button>
+                <div className="flex items-center gap-2 text-xs text-studio-text">
+                    <button className="px-2 py-1 rounded-sm bg-studio-raised/80 hover:bg-studio-control" onClick={() => setAudioTrackEditorZoom(Math.max(0.25, audioTrackEditorZoom - 0.25))}><Minus className="w-3 h-3" /></button>
                     <span>Zoom {audioTrackEditorZoom.toFixed(2)}x</span>
-                    <button className="px-2 py-1 rounded-sm bg-gray-700/80 hover:bg-gray-600" onClick={() => setAudioTrackEditorZoom(Math.min(8, audioTrackEditorZoom + 0.25))}><Plus className="w-3 h-3" /></button>
+                    <button className="px-2 py-1 rounded-sm bg-studio-raised/80 hover:bg-studio-control" onClick={() => setAudioTrackEditorZoom(Math.min(8, audioTrackEditorZoom + 0.25))}><Plus className="w-3 h-3" /></button>
 
-                    <button className="px-2 py-1 rounded-sm bg-gray-700/80 hover:bg-gray-600" onClick={() => setAudioTrackEditorWaveformZoom(Math.max(0.5, audioTrackEditorWaveformZoom - 0.2))}><Minus className="w-3 h-3" /></button>
+                    <button className="px-2 py-1 rounded-sm bg-studio-raised/80 hover:bg-studio-control" onClick={() => setAudioTrackEditorWaveformZoom(Math.max(0.5, audioTrackEditorWaveformZoom - 0.2))}><Minus className="w-3 h-3" /></button>
                     <span>Waveform {audioTrackEditorWaveformZoom.toFixed(1)}x</span>
-                    <button className="px-2 py-1 rounded-sm bg-gray-700/80 hover:bg-gray-600" onClick={() => setAudioTrackEditorWaveformZoom(Math.min(8, audioTrackEditorWaveformZoom + 0.2))}><Plus className="w-3 h-3" /></button>
+                    <button className="px-2 py-1 rounded-sm bg-studio-raised/80 hover:bg-studio-control" onClick={() => setAudioTrackEditorWaveformZoom(Math.min(8, audioTrackEditorWaveformZoom + 0.2))}><Plus className="w-3 h-3" /></button>
                 </div>
             </div>
 
-            <div className="px-3 py-2 text-[11px] text-gray-300 border-b border-white/10 flex gap-2">
-                <button className="px-2 py-1 rounded-sm border bg-[#202020] hover:bg-[#2a2a2a]" onClick={() => selectedClipId && splitClipAtPlayhead(selectedClipId)}><Scissors className="w-3 h-3 inline-block mr-1"/>Split at Playhead</button>
-                <button className="px-2 py-1 rounded-sm border bg-[#202020] hover:bg-[#2a2a2a]" onClick={() => {
+            <div className="px-3 py-2 text-[11px] text-studio-text border-b border-white/10 flex gap-2">
+                <button className="px-2 py-1 rounded-sm border bg-studio-raised hover:bg-studio-control" onClick={() => selectedClipId && splitClipAtPlayhead(selectedClipId)}><Scissors className="w-3 h-3 inline-block mr-1"/>Split at Playhead</button>
+                <button className="px-2 py-1 rounded-sm border bg-studio-raised hover:bg-studio-control" onClick={() => {
                     const id = selectedClipId || selectedClipIds[0];
                     const raw = prompt('Split time in beats (absolute)', String(playhead));
                     if (!id || !raw) return;
@@ -129,8 +130,8 @@ export function AudioTrackEditor() {
                     if (Number.isNaN(t)) return;
                     splitClipAtTime(id, t);
                 }}><Scissors className="w-3 h-3 inline-block mr-1"/>Split at Time</button>
-                <button disabled={!canJoin} className={`px-2 py-1 rounded-sm border ${canJoin ? 'bg-[#202020] hover:bg-[#2a2a2a]' : 'bg-[#111] text-gray-500 cursor-not-allowed'}`} onClick={() => canJoin && joinClips(selectedClipIds)}><Link2 className="w-3 h-3 inline-block mr-1"/>Join</button>
-                <button className="px-2 py-1 rounded-sm border bg-[#202020] hover:bg-[#2a2a2a]" onClick={() => {
+                <button disabled={!canJoin} className={`px-2 py-1 rounded-sm border ${canJoin ? 'bg-studio-raised hover:bg-studio-control' : 'bg-studio-sunken text-studio-text-dim cursor-not-allowed'}`} onClick={() => canJoin && joinClips(selectedClipIds)}><Link2 className="w-3 h-3 inline-block mr-1"/>Join</button>
+                <button className="px-2 py-1 rounded-sm border bg-studio-raised hover:bg-studio-control" onClick={() => {
                     const id = selectedClipId || selectedClipIds[0];
                     if (!id) return;
                     const left = parseFloat(prompt('Trim left (beats)', '0') || '0');
@@ -148,7 +149,7 @@ export function AudioTrackEditor() {
                         ))}
                     </div>
                     <div className="absolute inset-0 pointer-events-none" style={{ left: `${playhead * pixelsPerBeat}px` }}>
-                        <div className="w-px h-full bg-cyan-300/70" />
+                        <div className="w-px h-full studio-playhead" />
                         <div className="absolute -top-4 left-[-10px] text-[10px] text-cyan-200">Playhead</div>
                     </div>
 
@@ -156,14 +157,14 @@ export function AudioTrackEditor() {
                         const isSelected = selectedSet.has(clip.id)
                         return (
                             <div key={clip.id}
-                                className={`absolute top-8 rounded-lg border ${isSelected ? 'border-sky-400/80 ring-1 ring-sky-500/50' : 'border-white/15'} bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(0,0,0,0.2))] text-xs text-white shadow-inner cursor-move`}
-                                style={{ left: `${clip.start * pixelsPerBeat}px`, width: `${clip.duration * pixelsPerBeat}px`, height: `${audioTrackEditorHeight - 80}px`, backgroundColor: clip.color || '#38bdf8' }}
+                                className={`absolute top-8 rounded-lg border ${isSelected ? 'border-accent-cyan/80 ring-1 ring-accent-cyan/50' : 'border-white/15'} bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(0,0,0,0.2))] text-xs text-white shadow-inner cursor-move`}
+                                style={{ left: `${clip.start * pixelsPerBeat}px`, width: `${clip.duration * pixelsPerBeat}px`, height: `${audioTrackEditorHeight - 80}px`, backgroundColor: neonTrackAlpha(clip.color, 0.16), borderColor: neonTrackAlpha(clip.color, 0.55) }}
                                 onMouseDown={(e) => onClipMouseDown(clip.id, e)}
                             >
                                 <div className="h-full relative">
                                     <div className="absolute left-0 top-0 w-2 h-full cursor-ew-resize" onMouseDown={(e) => onTrim(clip.id, 'left', e)} />
                                     <div className="absolute right-0 top-0 w-2 h-full cursor-ew-resize" onMouseDown={(e) => onTrim(clip.id, 'right', e)} />
-                                    <div className="absolute bottom-1 left-1 right-1 text-[10px] text-black/90 font-bold uppercase truncate" style={{ fontFamily: 'sans-serif' }}>{clip.name}</div>
+                                    <div className="absolute bottom-1 left-1 right-1 text-[10px] font-bold uppercase truncate" style={{ fontFamily: 'sans-serif', color: neonTrackTextColor(clip.color) }}>{clip.name}</div>
                                 </div>
                             </div>
                         )

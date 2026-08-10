@@ -132,25 +132,25 @@ export function VirtualKeyboard() {
             ref={windowRef}
             className="fixed bottom-4 sm:bottom-24 left-1/2 -translate-x-1/2 z-[1000] max-w-[calc(100vw-16px)] animate-in slide-in-from-bottom-4 duration-300"
         >
-            <div className="bg-[#2c2c2e]/90 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden w-[720px]">
+            <div className="bg-studio-control/90 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden w-[720px]">
                 {/* Header */}
                 <div className="h-10 border-b border-black/20 bg-white/5 flex items-center justify-between px-4">
-                    <div className="flex bg-[#1a1a1a] rounded-lg p-0.5 border border-white/5">
+                    <div className="flex bg-studio-panel rounded-lg p-0.5 border border-white/5">
                         <button 
                             onClick={() => setVirtualKeyboardMode('piano-keyboard')}
-                            className={`p-1.5 rounded-md transition-all ${virtualKeyboardMode === 'piano-keyboard' ? 'bg-sky-500 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                            className={`p-1.5 rounded-md transition-all ${virtualKeyboardMode === 'piano-keyboard' ? 'bg-accent-cyan text-white shadow-lg' : 'text-studio-text-dim hover:text-studio-text'}`}
                         >
                             <Piano className="w-4 h-4" />
                         </button>
                         <button 
                             onClick={() => setVirtualKeyboardMode('musical-typing')}
-                            className={`p-1.5 rounded-md transition-all ${virtualKeyboardMode === 'musical-typing' ? 'bg-sky-500 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                            className={`p-1.5 rounded-md transition-all ${virtualKeyboardMode === 'musical-typing' ? 'bg-accent-cyan text-white shadow-lg' : 'text-studio-text-dim hover:text-studio-text'}`}
                         >
                             <Keyboard className="w-4 h-4" />
                         </button>
                     </div>
 
-                    <div className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <div className="text-[11px] font-black text-studio-text-mid uppercase tracking-widest flex items-center gap-2">
                         {virtualKeyboardMode === 'musical-typing' ? 'Musical Typing' : 'Keyboard'} 
                         <span className="opacity-40">—</span> 
                         <span className="text-white">{focusedTrack?.name || "No Track Selected"}</span>
@@ -158,7 +158,7 @@ export function VirtualKeyboard() {
 
                     <button 
                         onClick={() => toggleVirtualKeyboard(false)}
-                        className="p-1 hover:bg-white/10 rounded-full transition-colors text-gray-500 hover:text-white"
+                        className="p-1 hover:bg-white/10 rounded-full transition-colors text-studio-text-dim hover:text-white"
                     >
                         <X className="w-4 h-4" />
                     </button>
@@ -187,15 +187,15 @@ export function VirtualKeyboard() {
                 <div className="px-6 py-3 border-t border-white/5 bg-black/40 flex items-center justify-between">
                     <div className="flex items-center gap-6">
                         <div className="flex flex-col gap-0.5">
-                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">Octave</span>
+                            <span className="text-[9px] font-bold text-studio-text-dim uppercase tracking-tighter">Octave</span>
                             <div className="flex items-center gap-2">
-                                <button className="w-6 h-6 rounded bg-[#333] border border-white/5 flex items-center justify-center text-gray-400 hover:text-white" onClick={() => updateVirtualKeyboardParams({ octave: Math.max(0, virtualKeyboardOctave-1) })}><Minus className="w-3 h-3" /></button>
-                                <span className="text-xs font-black text-sky-400 w-6 text-center">C{virtualKeyboardOctave}</span>
-                                <button className="w-6 h-6 rounded bg-[#333] border border-white/5 flex items-center justify-center text-gray-400 hover:text-white" onClick={() => updateVirtualKeyboardParams({ octave: Math.min(8, virtualKeyboardOctave+1) })}><Plus className="w-3 h-3" /></button>
+                                <button className="w-6 h-6 rounded bg-studio-control border border-white/5 flex items-center justify-center text-studio-text-mid hover:text-white" onClick={() => updateVirtualKeyboardParams({ octave: Math.max(0, virtualKeyboardOctave-1) })}><Minus className="w-3 h-3" /></button>
+                                <span className="text-xs font-black text-accent-cyan w-6 text-center">C{virtualKeyboardOctave}</span>
+                                <button className="w-6 h-6 rounded bg-studio-control border border-white/5 flex items-center justify-center text-studio-text-mid hover:text-white" onClick={() => updateVirtualKeyboardParams({ octave: Math.min(8, virtualKeyboardOctave+1) })}><Plus className="w-3 h-3" /></button>
                             </div>
                         </div>
                         <div className="flex flex-col gap-0.5 min-w-[140px]">
-                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">Volume</span>
+                            <span className="text-[9px] font-bold text-studio-text-dim uppercase tracking-tighter">Volume</span>
                             <div className="flex items-center gap-2">
                                 <input
                                     type="range"
@@ -203,7 +203,7 @@ export function VirtualKeyboard() {
                                     max={127}
                                     value={virtualKeyboardVelocity}
                                     onChange={(e) => updateVirtualKeyboardParams({ velocity: Number(e.target.value) })}
-                                    className="w-full h-1.5 appearance-none bg-[#1a1a1a] rounded-full cursor-pointer
+                                    className="w-full h-1.5 appearance-none bg-studio-panel rounded-full cursor-pointer
                                         [&::-webkit-slider-thumb]:appearance-none
                                         [&::-webkit-slider-thumb]:w-3.5
                                         [&::-webkit-slider-thumb]:h-3.5
@@ -241,13 +241,13 @@ export function VirtualKeyboard() {
     )
 }
 
-function StatusPill({ label, value, active, color = "bg-sky-500", onClick }: { label: string, value: string, active: boolean, color?: string, onClick?: () => void }) {
+function StatusPill({ label, value, active, color = "bg-accent-cyan", onClick }: { label: string, value: string, active: boolean, color?: string, onClick?: () => void }) {
     return (
         <div className="flex flex-col gap-0.5 items-end">
-            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">{label}</span>
+            <span className="text-[9px] font-bold text-studio-text-dim uppercase tracking-tighter">{label}</span>
             <div 
                 onClick={onClick}
-                className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${onClick ? 'cursor-pointer hover:brightness-125 active:scale-95' : ''} ${active ? `${color} text-white shadow-[0_0_10px_rgba(0,0,0,0.3)]` : 'bg-white/5 text-gray-600'}`}
+                className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${onClick ? 'cursor-pointer hover:brightness-125 active:scale-95' : ''} ${active ? `${color} text-white shadow-[0_0_10px_rgba(0,0,0,0.3)]` : 'bg-white/5 text-studio-text-dim'}`}
             >
                 {value}
             </div>
@@ -268,41 +268,41 @@ function MusicalTypingView({ activeKeys, octave, velocity, sustain }: { activeKe
             {/* Control Keys Row */}
             <div className="flex gap-4 items-center mb-2">
                 <div className="flex gap-1.5">
-                    {renderKey('Pitch', '1', 'bg-blue-600 border-blue-400/30', activeKeys.has('1'))}
-                    {renderKey('Bend', '2', 'bg-blue-600 border-blue-400/30', activeKeys.has('2'))}
+                    {renderKey('Pitch', '1', 'bg-accent-cyan border-accent-cyan/30', activeKeys.has('1'))}
+                    {renderKey('Bend', '2', 'bg-accent-cyan border-accent-cyan/30', activeKeys.has('2'))}
                 </div>
                 <div className="w-px h-8 bg-white/10 mx-2"></div>
                 <div className="flex gap-1.5">
                     {['3', '4', '5', '6', '7', '8'].map(k => (
                         <div key={k} className={`w-9 h-12 rounded-lg border flex items-center justify-center transition-all bg-purple-600 border-purple-400/30 font-black text-xs ${activeKeys.has(k) ? 'brightness-150 scale-90' : 'opacity-80'}`}>{k}</div>
                     ))}
-                    <div className="text-[9px] font-bold text-gray-500 uppercase ml-2 self-center">Modulation</div>
+                    <div className="text-[9px] font-bold text-studio-text-dim uppercase ml-2 self-center">Modulation</div>
                 </div>
             </div>
 
             {/* Main Key Layout */}
             <div className="relative flex flex-col gap-1.5 items-center">
                 <div className="flex gap-1.5 ml-14">
-                    {renderKey('tab', 'sustain', sustain ? 'bg-emerald-600 border-emerald-400/30 w-16' : 'bg-gray-700 border-white/10 w-16 opacity-40', false)}
+                    {renderKey('tab', 'sustain', sustain ? 'bg-emerald-600 border-emerald-400/30 w-16' : 'bg-studio-raised border-white/10 w-16 opacity-40', false)}
                     <div className="w-6"></div>
-                    {renderKey('w', 'C#', activeKeys.has('w') ? 'bg-white border-black text-black' : 'bg-black border-white/20 text-white', activeKeys.has('w'))}
-                    {renderKey('e', 'D#', activeKeys.has('e') ? 'bg-white border-black text-black' : 'bg-black border-white/20 text-white', activeKeys.has('e'))}
+                    {renderKey('w', 'C#', activeKeys.has('w') ? 'bg-accent-cyan border-accent-cyan text-[#04070b]' : 'bg-black border-white/20 text-white', activeKeys.has('w'))}
+                    {renderKey('e', 'D#', activeKeys.has('e') ? 'bg-accent-cyan border-accent-cyan text-[#04070b]' : 'bg-black border-white/20 text-white', activeKeys.has('e'))}
                     <div className="w-12"></div>
-                    {renderKey('t', 'F#', activeKeys.has('t') ? 'bg-white border-black text-black' : 'bg-black border-white/20 text-white', activeKeys.has('t'))}
-                    {renderKey('y', 'G#', activeKeys.has('y') ? 'bg-white border-black text-black' : 'bg-black border-white/20 text-white', activeKeys.has('y'))}
-                    {renderKey('u', 'A#', activeKeys.has('u') ? 'bg-white border-black text-black' : 'bg-black border-white/20 text-white', activeKeys.has('u'))}
+                    {renderKey('t', 'F#', activeKeys.has('t') ? 'bg-accent-cyan border-accent-cyan text-[#04070b]' : 'bg-black border-white/20 text-white', activeKeys.has('t'))}
+                    {renderKey('y', 'G#', activeKeys.has('y') ? 'bg-accent-cyan border-accent-cyan text-[#04070b]' : 'bg-black border-white/20 text-white', activeKeys.has('y'))}
+                    {renderKey('u', 'A#', activeKeys.has('u') ? 'bg-accent-cyan border-accent-cyan text-[#04070b]' : 'bg-black border-white/20 text-white', activeKeys.has('u'))}
                 </div>
                 <div className="flex gap-1.5">
-                    {renderKey('a', 'C', activeKeys.has('a') ? 'bg-sky-400 border-sky-300 text-white' : 'bg-white/90 border-black/20 text-black', activeKeys.has('a'))}
-                    {renderKey('s', 'D', activeKeys.has('s') ? 'bg-sky-400 border-sky-300 text-white' : 'bg-white/90 border-black/20 text-black', activeKeys.has('s'))}
-                    {renderKey('d', 'E', activeKeys.has('d') ? 'bg-sky-400 border-sky-300 text-white' : 'bg-white/90 border-black/20 text-black', activeKeys.has('d'))}
-                    {renderKey('f', 'F', activeKeys.has('f') ? 'bg-sky-400 border-sky-300 text-white' : 'bg-white/90 border-black/20 text-black', activeKeys.has('f'))}
-                    {renderKey('g', 'G', activeKeys.has('g') ? 'bg-sky-400 border-sky-300 text-white' : 'bg-white/90 border-black/20 text-black', activeKeys.has('g'))}
-                    {renderKey('h', 'A', activeKeys.has('h') ? 'bg-sky-400 border-sky-300 text-white' : 'bg-white/90 border-black/20 text-black', activeKeys.has('h'))}
-                    {renderKey('j', 'B', activeKeys.has('j') ? 'bg-sky-400 border-sky-300 text-white' : 'bg-white/90 border-black/20 text-black', activeKeys.has('j'))}
-                    {renderKey('k', 'C', activeKeys.has('k') ? 'bg-sky-400 border-sky-300 text-white' : 'bg-white/90 border-black/20 text-black', activeKeys.has('k'))}
-                    {renderKey('l', 'D', activeKeys.has('l') ? 'bg-sky-400 border-sky-300 text-white' : 'bg-white/90 border-black/20 text-black', activeKeys.has('l'))}
-                    {renderKey(';', 'E', activeKeys.has(';') ? 'bg-sky-400 border-sky-300 text-white' : 'bg-white/90 border-black/20 text-black', activeKeys.has(';'))}
+                    {renderKey('a', 'C', activeKeys.has('a') ? 'bg-accent-cyan border-accent-cyan text-white' : 'bg-[#cfe1ea] border-black/40 text-[#04070b]', activeKeys.has('a'))}
+                    {renderKey('s', 'D', activeKeys.has('s') ? 'bg-accent-cyan border-accent-cyan text-white' : 'bg-[#cfe1ea] border-black/40 text-[#04070b]', activeKeys.has('s'))}
+                    {renderKey('d', 'E', activeKeys.has('d') ? 'bg-accent-cyan border-accent-cyan text-white' : 'bg-[#cfe1ea] border-black/40 text-[#04070b]', activeKeys.has('d'))}
+                    {renderKey('f', 'F', activeKeys.has('f') ? 'bg-accent-cyan border-accent-cyan text-white' : 'bg-[#cfe1ea] border-black/40 text-[#04070b]', activeKeys.has('f'))}
+                    {renderKey('g', 'G', activeKeys.has('g') ? 'bg-accent-cyan border-accent-cyan text-white' : 'bg-[#cfe1ea] border-black/40 text-[#04070b]', activeKeys.has('g'))}
+                    {renderKey('h', 'A', activeKeys.has('h') ? 'bg-accent-cyan border-accent-cyan text-white' : 'bg-[#cfe1ea] border-black/40 text-[#04070b]', activeKeys.has('h'))}
+                    {renderKey('j', 'B', activeKeys.has('j') ? 'bg-accent-cyan border-accent-cyan text-white' : 'bg-[#cfe1ea] border-black/40 text-[#04070b]', activeKeys.has('j'))}
+                    {renderKey('k', 'C', activeKeys.has('k') ? 'bg-accent-cyan border-accent-cyan text-white' : 'bg-[#cfe1ea] border-black/40 text-[#04070b]', activeKeys.has('k'))}
+                    {renderKey('l', 'D', activeKeys.has('l') ? 'bg-accent-cyan border-accent-cyan text-white' : 'bg-[#cfe1ea] border-black/40 text-[#04070b]', activeKeys.has('l'))}
+                    {renderKey(';', 'E', activeKeys.has(';') ? 'bg-accent-cyan border-accent-cyan text-white' : 'bg-[#cfe1ea] border-black/40 text-[#04070b]', activeKeys.has(';'))}
                 </div>
             </div>
 
@@ -311,12 +311,12 @@ function MusicalTypingView({ activeKeys, octave, velocity, sustain }: { activeKe
                 <div className="flex items-center gap-2">
                     {renderKey('z', '-', 'bg-orange-600 border-orange-400/30', activeKeys.has('z'))}
                     {renderKey('x', '+', 'bg-orange-600 border-orange-400/30', activeKeys.has('x'))}
-                    <div className="text-[9px] font-bold text-gray-500 uppercase ml-1">Octave</div>
+                    <div className="text-[9px] font-bold text-studio-text-dim uppercase ml-1">Octave</div>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
                     {renderKey('c', '-', 'bg-orange-500 border-orange-300/30', activeKeys.has('c'))}
                     {renderKey('v', '+', 'bg-orange-500 border-orange-300/30', activeKeys.has('v'))}
-                    <div className="text-[9px] font-bold text-gray-500 uppercase ml-1">Velocity</div>
+                    <div className="text-[9px] font-bold text-studio-text-dim uppercase ml-1">Velocity</div>
                 </div>
             </div>
         </div>
@@ -334,11 +334,11 @@ function PianoView({ octave, triggerNote, releaseNote, velocity }: { octave: num
             {/* Overview Ruler (Logic-style) */}
             <div className="w-full h-8 bg-black/40 rounded border border-white/10 relative overflow-hidden flex items-center">
                 {Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} className="flex-1 border-r border-white/5 h-full flex items-center justify-center text-[8px] text-gray-600 font-bold">C{i-1}</div>
+                    <div key={i} className="flex-1 border-r border-white/5 h-full flex items-center justify-center text-[8px] text-studio-text-dim font-bold">C{i-1}</div>
                 ))}
                 {/* Active Range Overlay */}
                 <div 
-                    className="absolute h-full bg-sky-500/40 border-x-2 border-sky-400 shadow-[0_0_20px_rgba(14,165,233,0.3)] transition-all"
+                    className="absolute h-full bg-accent-cyan/40 border-x-2 border-accent-cyan shadow-[0_0_20px_rgba(14,165,233,0.3)] transition-all"
                     style={{ left: `${(octave + 1) * 10}%`, width: '20%' }}
                 ></div>
             </div>
@@ -356,9 +356,9 @@ function PianoView({ octave, triggerNote, releaseNote, velocity }: { octave: num
                             onMouseDown={() => triggerNote(pitch, velocity)}
                             onMouseUp={() => releaseNote(pitch)}
                             onMouseLeave={() => releaseNote(pitch)}
-                            className="w-12 border-r border-black/40 bg-white hover:bg-sky-50 transition-colors rounded-b shadow-[0_4px_10px_rgba(0,0,0,0.3)] active:bg-sky-200 cursor-pointer flex items-end justify-center pb-2"
+                            className="w-12 border-r border-black/40 bg-[#cfe1ea] hover:bg-accent-cyan/10 transition-colors rounded-b shadow-[0_4px_10px_rgba(0,0,0,0.3)] active:bg-accent-cyan/30 cursor-pointer flex items-end justify-center pb-2"
                         >
-                            {pitch % 12 === 0 && <span className="text-[9px] font-black text-gray-400">C{Math.floor(pitch/12)-1}</span>}
+                            {pitch % 12 === 0 && <span className="text-[9px] font-black text-studio-text-mid">C{Math.floor(pitch/12)-1}</span>}
                         </div>
                     )
                 })}
@@ -375,7 +375,7 @@ function PianoView({ octave, triggerNote, releaseNote, velocity }: { octave: num
                                 onMouseDown={(e) => { e.stopPropagation(); triggerNote(pitch, velocity); }}
                                 onMouseUp={() => releaseNote(pitch)}
                                 onMouseLeave={() => releaseNote(pitch)}
-                                className="w-8 h-28 bg-black border border-white/10 hover:bg-[#222] transition-colors rounded-b shadow-2xl absolute pointer-events-auto active:bg-[#111] cursor-pointer"
+                                className="w-8 h-28 bg-black border border-white/10 hover:bg-studio-raised transition-colors rounded-b shadow-2xl absolute pointer-events-auto active:bg-studio-sunken cursor-pointer"
                                 style={{ 
                                     left: `${Math.floor(i / 1.7) * 48 + 32}px`, // Simple approximation
                                     transform: 'translateX(-50%)'

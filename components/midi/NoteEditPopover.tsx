@@ -127,7 +127,7 @@ export default function NoteEditPopover({
   return createPortal(
     <div
       ref={popoverRef}
-      className="fixed z-[100] bg-[#2d2d2d] border border-[#444] rounded-lg shadow-2xl transition-opacity duration-150"
+      className="fixed z-[100] bg-studio-control border border-studio-line-strong rounded-lg shadow-2xl transition-opacity duration-150"
       style={{
         left: adjustedPos.x,
         top: adjustedPos.y,
@@ -136,63 +136,63 @@ export default function NoteEditPopover({
       }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#444]">
-        <span className="text-gray-200 text-xs font-bold">Note Properties</span>
-        <button onClick={onClose} className="text-gray-500 hover:text-gray-200 text-sm">✕</button>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-studio-line-strong">
+        <span className="text-studio-text text-xs font-bold">Note Properties</span>
+        <button onClick={onClose} className="text-studio-text-dim hover:text-studio-text text-sm">✕</button>
       </div>
 
       <div className="p-3 space-y-2 text-xs">
         {/* Pitch */}
         <div className="flex items-center gap-2">
-          <label className="text-gray-400 w-16">Pitch</label>
+          <label className="text-studio-text-mid w-16">Pitch</label>
           <input
             type="number" min={0} max={127} value={pitch}
             onChange={e => setPitch(Number(e.target.value))}
-            className="w-14 bg-[#1a1a1a] border border-[#333] rounded px-1 py-0.5 text-gray-200 text-center"
+            className="w-14 bg-studio-panel border border-studio-line rounded px-1 py-0.5 text-studio-text text-center"
           />
-          <span className="text-gray-500">{noteName}</span>
+          <span className="text-studio-text-dim">{noteName}</span>
         </div>
 
         {/* Velocity */}
         <div className="flex items-center gap-2">
-          <label className="text-gray-400 w-16">Velocity</label>
+          <label className="text-studio-text-mid w-16">Velocity</label>
           <input
             type="range" min={0} max={127} value={velocity}
             onChange={e => setVelocity(Number(e.target.value))}
             className="flex-1 h-1"
           />
-          <span className="text-gray-300 w-6 text-right tabular-nums">{velocity}</span>
+          <span className="text-studio-text w-6 text-right tabular-nums">{velocity}</span>
         </div>
 
         {/* Duration */}
         <div className="flex items-center gap-2">
-          <label className="text-gray-400 w-16">Duration</label>
+          <label className="text-studio-text-mid w-16">Duration</label>
           <input
             type="number" min={0.125} step={0.125} value={duration}
             onChange={e => setDuration(Math.max(0.125, Number(e.target.value)))}
-            className="w-20 bg-[#1a1a1a] border border-[#333] rounded px-1 py-0.5 text-gray-200"
+            className="w-20 bg-studio-panel border border-studio-line rounded px-1 py-0.5 text-studio-text"
           />
-          <span className="text-gray-500">beats</span>
+          <span className="text-studio-text-dim">beats</span>
         </div>
 
         {/* Start Beat */}
         <div className="flex items-center gap-2">
-          <label className="text-gray-400 w-16">Start</label>
+          <label className="text-studio-text-mid w-16">Start</label>
           <input
             type="number" min={0} step={0.125} value={startBeat}
             onChange={e => setStartBeat(Math.max(0, Number(e.target.value)))}
-            className="w-20 bg-[#1a1a1a] border border-[#333] rounded px-1 py-0.5 text-gray-200"
+            className="w-20 bg-studio-panel border border-studio-line rounded px-1 py-0.5 text-studio-text"
           />
-          <span className="text-gray-500">beats</span>
+          <span className="text-studio-text-dim">beats</span>
         </div>
 
         {/* Channel */}
         <div className="flex items-center gap-2">
-          <label className="text-gray-400 w-16">Channel</label>
+          <label className="text-studio-text-mid w-16">Channel</label>
           <select
             value={channel}
             onChange={e => setChannel(Number(e.target.value))}
-            className="bg-[#1a1a1a] border border-[#333] rounded px-1 py-0.5 text-gray-200 flex-1"
+            className="bg-studio-panel border border-studio-line rounded px-1 py-0.5 text-studio-text flex-1"
           >
             {Array.from({ length: 16 }).map((_, i) => (
               <option key={i} value={i}>Ch {i + 1}</option>
@@ -202,25 +202,25 @@ export default function NoteEditPopover({
 
         {/* Checkboxes */}
         <div className="flex items-center gap-3 pt-1">
-          <label className="flex items-center gap-1 text-gray-400 cursor-pointer">
+          <label className="flex items-center gap-1 text-studio-text-mid cursor-pointer">
             <input type="checkbox" checked={muted} onChange={e => setMuted(e.target.checked)} className="w-3 h-3" />
             Muted
           </label>
-          <label className="flex items-center gap-1 text-gray-400 cursor-pointer">
+          <label className="flex items-center gap-1 text-studio-text-mid cursor-pointer">
             <input type="checkbox" checked={slide} onChange={e => setSlide(e.target.checked)} className="w-3 h-3" />
             Slide
           </label>
-          <label className="flex items-center gap-1 text-gray-400 cursor-pointer">
+          <label className="flex items-center gap-1 text-studio-text-mid cursor-pointer">
             <input type="checkbox" checked={portamento} onChange={e => setPortamento(e.target.checked)} className="w-3 h-3" />
             Portamento
           </label>
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 pt-2 border-t border-[#444]">
+        <div className="flex gap-2 pt-2 border-t border-studio-line-strong">
           <button
             onClick={handleSave}
-            className="flex-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
+            className="flex-1 px-2 py-1 bg-accent-cyan hover:bg-accent-cyan text-white text-xs rounded"
           >Apply</button>
           <button
             onClick={handleDelete}

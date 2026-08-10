@@ -20,7 +20,7 @@ export function NoteRepeatDialog() {
 
     return (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 lg:top-32 lg:left-[400px] lg:translate-x-0 z-[600] w-[500px] max-w-[calc(100vw-16px)] animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-[#2c2c2e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_30px_90px_rgba(0,0,0,0.8)] overflow-hidden">
+            <div className="bg-studio-control/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_30px_90px_rgba(0,0,0,0.8)] overflow-hidden">
                 {/* Header */}
                 <div className="h-9 flex items-center justify-between px-3 bg-white/5 border-b border-black/40">
                     <div className="flex items-center gap-2">
@@ -28,20 +28,20 @@ export function NoteRepeatDialog() {
                             onClick={() => setIsExpanded(!isExpanded)}
                             className="p-1 hover:bg-white/10 rounded transition-colors"
                         >
-                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
+                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-studio-text-mid" /> : <ChevronRight className="w-3.5 h-3.5 text-studio-text-mid" />}
                         </button>
-                        <span className="text-[11px] font-black uppercase tracking-widest text-gray-300">Note Repeat</span>
+                        <span className="text-[11px] font-black uppercase tracking-widest text-studio-text">Note Repeat</span>
                     </div>
                     <div className="flex items-center gap-1">
                         <button 
                             onClick={() => updateNoteRepeatSettings({ enabled: !noteRepeatSettings.enabled })}
-                            className={`w-6 h-6 flex items-center justify-center rounded-full transition-all ${noteRepeatSettings.enabled ? 'bg-sky-500 text-white shadow-[0_0_10px_rgba(14,165,233,0.5)]' : 'text-gray-500 hover:text-gray-300 bg-white/5'}`}
+                            className={`w-6 h-6 flex items-center justify-center rounded-full transition-all ${noteRepeatSettings.enabled ? 'bg-accent-cyan text-white shadow-[0_0_10px_rgba(14,165,233,0.5)]' : 'text-studio-text-dim hover:text-studio-text bg-white/5'}`}
                         >
                             <Power className="w-3 h-3" />
                         </button>
                         <button 
                             onClick={() => toggleNoteRepeat(false)}
-                            className="p-1.5 hover:bg-red-500/20 text-gray-500 hover:text-red-400 rounded-full transition-all"
+                            className="p-1.5 hover:bg-red-500/20 text-studio-text-dim hover:text-red-400 rounded-full transition-all"
                         >
                             <X className="w-3.5 h-3.5" />
                         </button>
@@ -53,16 +53,16 @@ export function NoteRepeatDialog() {
                     <div className="grid grid-cols-3 gap-8">
                         {/* Rate Column */}
                         <div className="flex flex-col gap-2">
-                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-tight">Rate:</label>
+                            <label className="text-[10px] font-bold text-studio-text-dim uppercase tracking-tight">Rate:</label>
                             <div className="relative group">
                                 <select 
                                     value={noteRepeatSettings.rate}
                                     onChange={(e) => updateNoteRepeatSettings({ rate: e.target.value })}
-                                    className="w-full bg-black/40 border border-white/10 rounded px-2 py-1.5 text-[12px] font-black text-sky-400 appearance-none hover:bg-black/60 transition-colors"
+                                    className="w-full bg-black/40 border border-white/10 rounded px-2 py-1.5 text-[12px] font-black text-accent-cyan appearance-none hover:bg-black/60 transition-colors"
                                 >
                                     {rates.map(r => <option key={r} value={r}>{r} Note</option>)}
                                 </select>
-                                <ChevronDown className="w-3 h-3 text-gray-600 absolute right-2 top-2.5 pointer-events-none group-hover:text-sky-500" />
+                                <ChevronDown className="w-3 h-3 text-studio-text-dim absolute right-2 top-2.5 pointer-events-none group-hover:text-accent-cyan" />
                             </div>
                             <div className="flex gap-1 mt-1">
                                 <NoteTypeButton active={!noteRepeatSettings.rate.includes('T') && !noteRepeatSettings.rate.includes('.')} label="♩" />
@@ -73,24 +73,24 @@ export function NoteRepeatDialog() {
 
                         {/* Velocity Column */}
                         <div className="flex flex-col gap-2">
-                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-tight">Velocity:</label>
+                            <label className="text-[10px] font-bold text-studio-text-dim uppercase tracking-tight">Velocity:</label>
                             <div className="bg-black/40 border border-white/10 rounded h-8 flex items-center justify-between px-2">
-                                <span className="text-[12px] font-black text-gray-300">{noteRepeatSettings.velocity}</span>
+                                <span className="text-[12px] font-black text-studio-text">{noteRepeatSettings.velocity}</span>
                                 <div className="flex flex-col">
-                                    <button className="text-gray-600 hover:text-sky-400"><ChevronDown className="w-3 h-3 rotate-180" /></button>
-                                    <button className="text-gray-600 hover:text-sky-400"><ChevronDown className="w-3 h-3" /></button>
+                                    <button className="text-studio-text-dim hover:text-accent-cyan"><ChevronDown className="w-3 h-3 rotate-180" /></button>
+                                    <button className="text-studio-text-dim hover:text-accent-cyan"><ChevronDown className="w-3 h-3" /></button>
                                 </div>
                             </div>
                         </div>
 
                         {/* Gate Column */}
                         <div className="flex flex-col gap-2">
-                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-tight">Gate:</label>
+                            <label className="text-[10px] font-bold text-studio-text-dim uppercase tracking-tight">Gate:</label>
                             <div className="bg-black/40 border border-white/10 rounded h-8 flex items-center justify-between px-2">
-                                <span className="text-[12px] font-black text-gray-300">{noteRepeatSettings.gate}%</span>
+                                <span className="text-[12px] font-black text-studio-text">{noteRepeatSettings.gate}%</span>
                                 <div className="flex flex-col">
-                                    <button className="text-gray-600 hover:text-sky-400"><ChevronDown className="w-3 h-3 rotate-180" /></button>
-                                    <button className="text-gray-600 hover:text-sky-400"><ChevronDown className="w-3 h-3" /></button>
+                                    <button className="text-studio-text-dim hover:text-accent-cyan"><ChevronDown className="w-3 h-3 rotate-180" /></button>
+                                    <button className="text-studio-text-dim hover:text-accent-cyan"><ChevronDown className="w-3 h-3" /></button>
                                 </div>
                             </div>
                         </div>
@@ -106,16 +106,16 @@ export function NoteRepeatDialog() {
                             </div>
                             <div className="mt-4 grid grid-cols-3 gap-8">
                                 <div className="flex flex-col gap-1">
-                                    <span className="text-[9px] font-bold text-gray-600">MAX: {noteRepeatSettings.rate}</span>
-                                    <span className="text-[9px] font-bold text-gray-600">MIN: 1/16</span>
+                                    <span className="text-[9px] font-bold text-studio-text-dim">MAX: {noteRepeatSettings.rate}</span>
+                                    <span className="text-[9px] font-bold text-studio-text-dim">MIN: 1/16</span>
                                 </div>
                                 <div className="flex flex-col gap-1">
-                                    <span className="text-[9px] font-bold text-gray-600">MAX OFFSET: +0</span>
-                                    <span className="text-[9px] font-bold text-gray-600">MIN OFFSET: -0</span>
+                                    <span className="text-[9px] font-bold text-studio-text-dim">MAX OFFSET: +0</span>
+                                    <span className="text-[9px] font-bold text-studio-text-dim">MIN OFFSET: -0</span>
                                 </div>
                                 <div className="flex flex-col gap-1">
-                                    <span className="text-[9px] font-bold text-gray-600">MAX: 100%</span>
-                                    <span className="text-[9px] font-bold text-gray-600">MIN: 100%</span>
+                                    <span className="text-[9px] font-bold text-studio-text-dim">MAX: 100%</span>
+                                    <span className="text-[9px] font-bold text-studio-text-dim">MIN: 100%</span>
                                 </div>
                             </div>
                         </div>
@@ -129,9 +129,9 @@ export function NoteRepeatDialog() {
                             type="checkbox" 
                             checked={noteRepeatSettings.keyRemote} 
                             onChange={(e) => updateNoteRepeatSettings({ keyRemote: e.target.checked })}
-                            className="w-3 h-3 rounded bg-black/60 border-white/10 text-sky-500 focus:ring-sky-500"
+                            className="w-3 h-3 rounded bg-black/60 border-white/10 text-accent-cyan focus:ring-accent-cyan"
                         />
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Key Remote</span>
+                        <span className="text-[10px] font-bold text-studio-text-mid uppercase tracking-tighter">Key Remote</span>
                     </div>
 
                     {/* Miniature Piano Mapping */}
@@ -155,7 +155,7 @@ export function NoteRepeatDialog() {
 
 function NoteTypeButton({ active, label }: { active: boolean, label: string }) {
     return (
-        <button className={`flex-1 h-6 flex items-center justify-center rounded border text-[11px] transition-all ${active ? 'bg-sky-500 border-sky-400 text-white shadow-lg' : 'bg-black/20 border-white/5 text-gray-600 hover:text-gray-400'}`}>
+        <button className={`flex-1 h-6 flex items-center justify-center rounded border text-[11px] transition-all ${active ? 'bg-accent-cyan border-accent-cyan text-white shadow-lg' : 'bg-black/20 border-white/5 text-studio-text-dim hover:text-studio-text-mid'}`}>
             {label}
         </button>
     )
@@ -165,7 +165,7 @@ function ControllerSelect({ label }: { label: string }) {
     return (
         <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-sm border border-white/20 bg-black/20"></div>
-            <div className="flex-1 bg-black/40 border border-white/10 rounded h-7 flex items-center px-2 text-[10px] font-bold text-gray-500 justify-between">
+            <div className="flex-1 bg-black/40 border border-white/10 rounded h-7 flex items-center px-2 text-[10px] font-bold text-studio-text-dim justify-between">
                 {label}
                 <ChevronDown className="w-3 h-3" />
             </div>
@@ -178,10 +178,10 @@ function RemoteKey({ note, label, active, secondary, rate, onClick }: { note: st
     return (
         <div 
             onClick={onClick}
-            className={`flex-1 flex flex-col items-center justify-end pb-1 border-r border-black/20 group relative cursor-pointer ${active ? 'bg-sky-500/40' : secondary ? 'bg-red-500/10' : 'bg-[#e2e2e2] hover:bg-white'} transition-colors`}
+            className={`flex-1 flex flex-col items-center justify-end pb-1 border-r border-black/20 group relative cursor-pointer ${active ? 'bg-accent-cyan/40' : secondary ? 'bg-red-500/10' : 'bg-studio-raised hover:bg-studio-raised'} transition-colors`}
         >
-            <span className="text-[7px] font-black text-gray-400 absolute top-1 left-1">{note}</span>
-            <div className={`px-1 py-0.5 rounded-[1px] text-[7px] font-black leading-none text-center ${active ? 'bg-sky-500 text-white' : 'bg-black/10 text-black group-hover:bg-black/20'}`}>
+            <span className="text-[7px] font-black text-studio-text-mid absolute top-1 left-1">{note}</span>
+            <div className={`px-1 py-0.5 rounded-[1px] text-[7px] font-black leading-none text-center ${active ? 'bg-accent-cyan text-white' : 'bg-white/10 text-studio-text group-hover:bg-white/20'}`}>
                 {label}
             </div>
         </div>

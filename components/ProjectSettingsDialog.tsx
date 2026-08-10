@@ -44,17 +44,17 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
 
     const renderField = (label: string, value: any, onChange: (v: any) => void, type: 'text' | 'number' | 'select' | 'checkbox' = 'text', options?: any[], disabled = false) => (
         <div className="flex items-center justify-between py-1 group h-8 opacity-100" style={{ opacity: disabled ? 0.5 : 1 }}>
-            <span className="text-[13px] font-medium text-[#1c1c1e]">{label}:</span>
+            <span className="text-[13px] font-medium text-studio-text">{label}:</span>
             <div className="flex-1 flex justify-end">
-                {type === 'text' && <input disabled={disabled} className="w-32 bg-white border border-[#d1d1d6] rounded px-2 py-0.5 text-[13px] text-right focus:ring-1 focus:ring-sky-500 outline-none" value={value} onChange={e => onChange(e.target.value)} />}
-                {type === 'number' && <input disabled={disabled} type="number" className="w-20 bg-white border border-[#d1d1d6] rounded px-2 py-0.5 text-[13px] text-right focus:ring-1 focus:ring-sky-500 outline-none" value={value} onChange={e => onChange(Number(e.target.value))} />}
+                {type === 'text' && <input disabled={disabled} className="w-32 bg-studio-control border border-studio-line rounded px-2 py-0.5 text-[13px] text-right focus:ring-1 focus:ring-accent-cyan outline-none" value={value} onChange={e => onChange(e.target.value)} />}
+                {type === 'number' && <input disabled={disabled} type="number" className="w-20 bg-studio-control border border-studio-line rounded px-2 py-0.5 text-[13px] text-right focus:ring-1 focus:ring-accent-cyan outline-none" value={value} onChange={e => onChange(Number(e.target.value))} />}
                 {type === 'select' && (
-                    <select disabled={disabled} className="w-32 bg-white border border-[#d1d1d6] rounded px-1 py-0.5 text-[13px] outline-none" value={value} onChange={e => onChange(e.target.value)}>
+                    <select disabled={disabled} className="w-32 bg-studio-control border border-studio-line rounded px-1 py-0.5 text-[13px] outline-none" value={value} onChange={e => onChange(e.target.value)}>
                         {options?.map(o => <option key={o.value || o} value={o.value || o}>{o.label || o}</option>)}
                     </select>
                 )}
                 {type === 'checkbox' && (
-                    <div onClick={() => !disabled && onChange(!value)} className={`w-4 h-4 rounded border transition-all flex items-center justify-center cursor-pointer ${value ? 'bg-sky-500 border-sky-600 shadow-[0_0_8px_rgba(14,165,233,0.4)]' : 'bg-white border-[#d1d1d6] group-hover:border-gray-400'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    <div onClick={() => !disabled && onChange(!value)} className={`w-4 h-4 rounded border transition-all flex items-center justify-center cursor-pointer ${value ? 'bg-accent-cyan border-accent-cyan shadow-[0_0_8px_rgba(14,165,233,0.4)]' : 'bg-studio-control border-studio-line group-hover:border-studio-line'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                         {value && <div className="w-1.5 h-1.5 bg-white rounded-[1px]"></div>}
                     </div>
                 )}
@@ -64,28 +64,28 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
 
     const renderChaseOption = (label: string, value: boolean, onChange: () => void, indent = false, disabled = false) => (
         <label className={`flex items-center gap-3 py-1 cursor-pointer group ${indent ? 'pl-8' : ''} ${disabled ? 'opacity-40 cursor-default' : ''}`}>
-            <div className={`w-3.5 h-3.5 rounded border transition-all flex items-center justify-center ${value ? 'bg-sky-500 border-sky-600 shadow-[0_0_8px_rgba(14,165,233,0.4)]' : 'bg-white border-[#d1d1d6] group-hover:border-gray-400'}`}>
+            <div className={`w-3.5 h-3.5 rounded border transition-all flex items-center justify-center ${value ? 'bg-accent-cyan border-accent-cyan shadow-[0_0_8px_rgba(14,165,233,0.4)]' : 'bg-studio-control border-studio-line group-hover:border-studio-line'}`}>
                 {value && <div className="w-1.5 h-1.5 bg-white rounded-[1px]"></div>}
             </div>
-            <span className="text-[13px] font-medium text-[#1c1c1e]">{label}</span>
+            <span className="text-[13px] font-medium text-studio-text">{label}</span>
             <input type="checkbox" className="hidden" checked={value} onChange={onChange} disabled={disabled} />
         </label>
     );
 
     return (
         <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-[#f2f2f7] w-[720px] h-[580px] rounded-xl shadow-[0_30px_90px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden text-[#1c1c1e] animate-in zoom-in-95 duration-200 border border-white/20">
+            <div className="bg-studio-panel w-[720px] h-[580px] rounded-xl shadow-[0_30px_90px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden text-studio-text animate-in zoom-in-95 duration-200 border border-white/20">
 
                 {/* Header with Tool Icons */}
                 <div className="pt-4 pb-2 px-4 flex flex-col items-center">
                     <div className="flex w-full justify-between items-start mb-4">
                         <div className="w-10"></div>
                         <div className="flex flex-col items-center gap-1">
-                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-tighter opacity-60">Logic DAW Project</span>
+                            <span className="text-[11px] font-bold text-studio-text-dim uppercase tracking-tighter opacity-60">Logic DAW Project</span>
                             <span className="text-[15px] font-bold">Project Settings</span>
                         </div>
                         <button onClick={onClose} className="p-1 hover:bg-black/5 rounded-full transition-colors">
-                            <X className="w-5 h-5 text-gray-400" />
+                            <X className="w-5 h-5 text-studio-text-mid" />
                         </button>
                     </div>
 
@@ -102,38 +102,38 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                                 onClick={() => setActiveTab(t.name as MainTab)}
                                 className={`flex flex-col items-center gap-1 group transition-all ${activeTab === t.name ? 'scale-110' : 'opacity-50 hover:opacity-100'}`}
                             >
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm border ${activeTab === t.name ? 'bg-sky-500 text-white border-sky-600' : 'bg-white text-gray-500 border-gray-200'}`}>
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm border ${activeTab === t.name ? 'bg-accent-cyan text-white border-accent-cyan' : 'bg-studio-control text-studio-text-dim border-studio-line'}`}>
                                     <t.icon className="w-4 h-4" />
                                 </div>
-                                <span className={`text-[9px] font-bold ${activeTab === t.name ? 'text-sky-600' : 'text-gray-500'}`}>{t.name}</span>
+                                <span className={`text-[9px] font-bold ${activeTab === t.name ? 'text-accent-cyan' : 'text-studio-text-dim'}`}>{t.name}</span>
                             </button>
                         ))}
                     </div>
                 </div>
 
-                <div className="px-4 py-2 border-b border-[#d1d1d6] flex items-center justify-between gap-2 bg-white">
+                <div className="px-4 py-2 border-b border-studio-line flex items-center justify-between gap-2 bg-studio-panel">
                     <div className="flex items-center gap-2">
-                        <span className="text-[11px] uppercase tracking-wider text-gray-500">Settings Scope:</span>
+                        <span className="text-[11px] uppercase tracking-wider text-studio-text-dim">Settings Scope:</span>
                         <button
                             onClick={() => { setSettingsMode('global'); updateGlobalSettings({ useProjectSettings: false }); }}
-                            className={`px-2 py-1 rounded-md text-[12px] ${settingsMode === 'global' ? 'bg-sky-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                            className={`px-2 py-1 rounded-md text-[12px] ${settingsMode === 'global' ? 'bg-accent-cyan text-white' : 'bg-white/10 text-studio-text-dim hover:bg-white/[0.14]'}`}
                         >Global</button>
                         <button
                             onClick={() => { setSettingsMode('project'); updateGlobalSettings({ useProjectSettings: true }); }}
-                            className={`px-2 py-1 rounded-md text-[12px] ${settingsMode === 'project' ? 'bg-sky-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                            className={`px-2 py-1 rounded-md text-[12px] ${settingsMode === 'project' ? 'bg-accent-cyan text-white' : 'bg-white/10 text-studio-text-dim hover:bg-white/[0.14]'}`}
                         >Project</button>
                     </div>
-                    <span className="text-xs text-gray-600">{settingsMode === 'project' ? 'Project overrides active' : 'Global preferences enforced (project fields locked)'}</span>
+                    <span className="text-xs text-studio-text-dim">{settingsMode === 'project' ? 'Project overrides active' : 'Global preferences enforced (project fields locked)'}</span>
                 </div>
 
                 {/* Sub-Tabs */}
                 {activeTab === 'General' && (
-                    <div className="flex justify-center border-b border-[#d1d1d6] gap-1 py-1">
+                    <div className="flex justify-center border-b border-studio-line gap-1 py-1">
                         {['General', 'Project'].map((st) => (
                             <button
                                 key={st}
                                 onClick={() => setGeneralSubTab(st as GeneralSubTab)}
-                                className={`px-4 py-1 text-[12px] font-bold rounded-md transition-all ${generalSubTab === st ? 'bg-white shadow-sm ring-1 ring-black/5' : 'text-gray-500 hover:text-black'}`}
+                                className={`px-4 py-1 text-[12px] font-bold rounded-md transition-all ${generalSubTab === st ? 'bg-studio-control shadow-sm ring-1 ring-white/10' : 'text-studio-text-dim hover:text-white'}`}
                             >
                                 {st}
                             </button>
@@ -141,12 +141,12 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                     </div>
                 )}
                 {activeTab === 'MIDI' && (
-                    <div className="flex justify-center border-b border-[#d1d1d6] gap-1 py-1">
+                    <div className="flex justify-center border-b border-studio-line gap-1 py-1">
                         {['General', 'Input Filter', 'Chase', 'Clip Length'].map((st) => (
                             <button
                                 key={st}
                                 onClick={() => setMidiSubTab(st as MidiSubTab)}
-                                className={`px-4 py-1 text-[12px] font-bold rounded-md transition-all ${midiSubTab === st ? 'bg-white shadow-sm ring-1 ring-black/5' : 'text-gray-500 hover:text-black'}`}
+                                className={`px-4 py-1 text-[12px] font-bold rounded-md transition-all ${midiSubTab === st ? 'bg-studio-control shadow-sm ring-1 ring-white/10' : 'text-studio-text-dim hover:text-white'}`}
                             >
                                 {st}
                             </button>
@@ -155,11 +155,11 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                 )}
 
                 {/* Tab Content */}
-                <div className="flex-1 overflow-y-auto bg-white/50 p-8">
+                <div className="flex-1 overflow-y-auto bg-studio-sunken/60 p-8">
                     {activeTab === 'General' && generalSubTab === 'Project' && (
                         <div className="max-w-md space-y-4">
                             <div className="space-y-1">
-                                <h3 className="text-[14px] font-bold border-b border-black/5 pb-1 mb-2">Project Settings</h3>
+                                <h3 className="text-[14px] font-bold border-b border-white/5 pb-1 mb-2">Project Settings</h3>
                                 {renderField('Tempo', tempo, (v) => setTempo(v), 'number', undefined, !isProjectMode)}
                                 {renderField('Key', globalTracks.key[0].root, (v) => { }, 'select', ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'], !isProjectMode)}
                                 {renderField('Scale', globalTracks.key[0].mode, (v) => { }, 'select', ['major', 'minor'], !isProjectMode)}
@@ -167,14 +167,14 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                             </div>
 
                             <div className="space-y-1 pt-4">
-                                <h3 className="text-[14px] font-bold border-b border-black/5 pb-1 mb-2">Project Bounds</h3>
+                                <h3 className="text-[14px] font-bold border-b border-white/5 pb-1 mb-2">Project Bounds</h3>
                                 {renderField('Project Start', settings.projectStart, (v) => updateProjectSettings({ projectStart: v }), 'number', undefined, !isProjectMode)}
                                 {renderField('Project End', settings.projectEnd, (v) => updateProjectSettings({ projectEnd: v }), 'number', undefined, !isProjectMode)}
                                 {renderField('Use Auto Project End', settings.autoProjectEnd, (v) => updateProjectSettings({ autoProjectEnd: v }), 'checkbox', undefined, !isProjectMode)}
                             </div>
 
                             <div className="space-y-1 pt-4">
-                                <h3 className="text-[14px] font-bold border-b border-black/5 pb-1 mb-2">Audio</h3>
+                                <h3 className="text-[14px] font-bold border-b border-white/5 pb-1 mb-2">Audio</h3>
                                 {renderField('Master Volume', Math.round(settings.masterVolume * 100), (v) => updateProjectSettings({ masterVolume: v / 100 }), 'number', undefined, !isProjectMode)}
                             </div>
                         </div>
@@ -182,9 +182,9 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
 
                     {activeTab === 'Audio' && (
                         <div className="max-w-xl space-y-4">
-                            <h3 className="text-[14px] font-bold border-b border-black/5 pb-1 mb-2">Audio Settings</h3>
+                            <h3 className="text-[14px] font-bold border-b border-white/5 pb-1 mb-2">Audio Settings</h3>
 
-                            <div className="p-3 border border-[#d1d1d6] rounded-md bg-white">
+                            <div className="p-3 border border-studio-line rounded-md bg-studio-control">
                                 <h4 className="text-[13px] font-semibold mb-2">Project Audio (override when project enabled)</h4>
                                 {renderField('Project Format', projectFormat, (v) => updateProjectSettings({ projectFormat: v } as any), 'select', ['stereo', 'surround', 'dolby-atmos'], !isProjectMode)}
                                 {renderField('Surround Format', surroundFormat, (v) => updateProjectSettings({ surroundFormat: v } as any), 'select', ['Quadraphonic', 'LCR (Pro Logic)', '5.1 (ITU 775)', '6.1 (ES/EX)', '7.1', '7.1 (SDDS)', '5.1.2', '5.1.4', '7.1.2', '7.1.4'], !isProjectMode)}
@@ -193,7 +193,7 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                                 {renderField('Frame Rate', settings.frameRate, (v) => updateProjectSettings({ frameRate: v } as any), 'number', undefined, !isProjectMode)}
                             </div>
 
-                            <div className="p-3 border border-[#d1d1d6] rounded-md bg-white">
+                            <div className="p-3 border border-studio-line rounded-md bg-studio-control">
                                 <h4 className="text-[13px] font-semibold mb-2">Global Audio Preferences</h4>
                                 {renderField('Input Device', globalSettings.audio.inputDevice, (v) => updateGlobalSettings({ audio: { ...globalSettings.audio, inputDevice: v } }), 'text')}
                                 {renderField('Output Device', globalSettings.audio.outputDevice, (v) => updateGlobalSettings({ audio: { ...globalSettings.audio, outputDevice: v } }), 'text')}
@@ -219,10 +219,10 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
 
                             <div className="py-1">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-3.5 h-3.5 rounded border bg-sky-500 border-sky-600 flex items-center justify-center">
+                                    <div className="w-3.5 h-3.5 rounded border bg-accent-cyan border-accent-cyan flex items-center justify-center">
                                         <div className="w-1.5 h-1.5 bg-white rounded-[1px]"></div>
                                     </div>
-                                    <span className="text-[13px] font-medium text-[#1c1c1e]">Control Changes</span>
+                                    <span className="text-[13px] font-medium text-studio-text">Control Changes</span>
                                 </div>
                                 <div className="space-y-1 mt-1">
                                     {renderChaseOption('0-15', settings.midi.chase.controlChanges.cc0_15, () => toggleChase('controlChanges', 'cc0_15'), true)}
@@ -242,10 +242,10 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
 
                             <div className="py-1">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-3.5 h-3.5 rounded border bg-sky-500 border-sky-600 flex items-center justify-center">
+                                    <div className="w-3.5 h-3.5 rounded border bg-accent-cyan border-accent-cyan flex items-center justify-center">
                                         <div className="w-1.5 h-1.5 bg-white rounded-[1px]"></div>
                                     </div>
-                                    <span className="text-[13px] font-medium text-[#1c1c1e]">Chase on cycle jump</span>
+                                    <span className="text-[13px] font-medium text-studio-text">Chase on cycle jump</span>
                                 </div>
                                 <div className="mt-1">
                                     {renderChaseOption('Notes', settings.midi.chase.chaseOnCycleNotes, () => toggleChase('chaseOnCycleNotes'), true)}
@@ -258,8 +258,8 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
 
                     {activeTab === 'Control Surfaces' && (
                         <div className="max-w-xl space-y-4">
-                            <h3 className="text-[14px] font-bold border-b border-black/5 pb-1 mb-2">Control Surfaces</h3>
-                            <p className="text-[12px] text-gray-600 mb-3">Add hardware devices and map their MIDI/OSC messages to existing commands.</p>
+                            <h3 className="text-[14px] font-bold border-b border-white/5 pb-1 mb-2">Control Surfaces</h3>
+                            <p className="text-[12px] text-studio-text-dim mb-3">Add hardware devices and map their MIDI/OSC messages to existing commands.</p>
                             <label className="flex items-center gap-2 mb-2 cursor-pointer">
                                 <input type="checkbox" checked={globalSettings.controlSurfaces.bypassed} onChange={() => toggleControlSurfacesBypass()} className="w-4 h-4" />
                                 <span className="text-[13px] font-medium">Bypass Control Surfaces</span>
@@ -269,7 +269,7 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                                     <div key={device.id} className="flex flex-col gap-1 py-1 text-[13px] border-b last:border-b-0">
                                         <div className="flex items-center gap-2">
                                             <input
-                                                className="flex-1 bg-white border border-[#d1d1d6] rounded px-2 py-1 text-[12px]"
+                                                className="flex-1 bg-studio-control border border-studio-line rounded px-2 py-1 text-[12px]"
                                                 value={device.name}
                                                 onChange={e => updateControlSurface(device.id, { name: e.target.value })}
                                             />
@@ -286,19 +286,19 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                                                 <input type="checkbox" checked={device.enabled} onChange={e => updateControlSurface(device.id, { enabled: e.target.checked })} /> Enabled
                                             </label>
                                             <button
-                                                className="px-2 py-1 rounded border hover:bg-gray-100 text-[12px]"
+                                                className="px-2 py-1 rounded border hover:bg-white/5 text-[12px]"
                                                 onClick={() => removeControlSurface(device.id)}
                                             >Remove</button>
                                         </div>
                                         <div className="flex items-center gap-2 text-[11px]">
                                             <input
-                                                className="w-32 bg-white border border-[#d1d1d6] rounded px-2 py-1"
+                                                className="w-32 bg-studio-control border border-studio-line rounded px-2 py-1"
                                                 placeholder="input id"
                                                 value={device.inputId || ''}
                                                 onChange={e => updateControlSurface(device.id, { inputId: e.target.value || undefined })}
                                             />
                                             <input
-                                                className="w-32 bg-white border border-[#d1d1d6] rounded px-2 py-1"
+                                                className="w-32 bg-studio-control border border-studio-line rounded px-2 py-1"
                                                 placeholder="output id"
                                                 value={device.outputId || ''}
                                                 onChange={e => updateControlSurface(device.id, { outputId: e.target.value || undefined })}
@@ -307,7 +307,7 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                                     </div>
                                 ))}
                                 <button
-                                    className="mt-1 px-3 py-1.5 rounded border bg-white text-[12px]"
+                                    className="mt-1 px-3 py-1.5 rounded border bg-studio-control text-[12px]"
                                     onClick={() => {
                                         const id = `cs-${Date.now()}`;
                                         addControlSurface({ id, name: 'New Device', type: 'MIDI', enabled: true, inputId: '', outputId: '' });
@@ -316,7 +316,7 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                             </div>
 
                             <h4 className="text-[13px] font-bold pt-4">Assignments</h4>
-                            <div className="overflow-y-auto max-h-[200px] border border-[#d1d1d6] rounded-md bg-white p-2">
+                            <div className="overflow-y-auto max-h-[200px] border border-studio-line rounded-md bg-studio-control p-2">
                                 {globalSettings.controlSurfaces.assignments.map((assn) => (
                                     <div key={assn.id} className="flex flex-col gap-1 py-1 border-b last:border-b-0">
                                         <div className="flex items-center gap-2">
@@ -344,12 +344,12 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                                                     <option key={cmd.id} value={cmd.id}>{cmd.name}</option>
                                                 ))}
                                             </select>
-                                            <button className="px-2 py-1 rounded border hover:bg-gray-100 text-[12px]" onClick={() => removeControlSurfaceAssignment(assn.id)}>X</button>
+                                            <button className="px-2 py-1 rounded border hover:bg-white/5 text-[12px]" onClick={() => removeControlSurfaceAssignment(assn.id)}>X</button>
                                         </div>
                                     </div>
                                 ))}
                                 <button
-                                    className="mt-1 px-3 py-1.5 rounded border bg-white text-[12px]"
+                                    className="mt-1 px-3 py-1.5 rounded border bg-studio-control text-[12px]"
                                     onClick={() => {
                                         const id = `csa-${Date.now()}`;
                                         addControlSurfaceAssignment({ id, status: 0x90, channel: 0, data1: 0, mode: 'direct', commandId: globalSettings.keyCommands[0]?.id || '' });
@@ -367,34 +367,34 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
 
                     {activeTab === 'Key Commands' && (
                         <div className="max-w-xl space-y-4">
-                            <h3 className="text-[14px] font-bold border-b border-black/5 pb-1 mb-2">Key Commands</h3>
+                            <h3 className="text-[14px] font-bold border-b border-white/5 pb-1 mb-2">Key Commands</h3>
 
-                            <div className="max-h-[260px] overflow-y-auto border border-[#d1d1d6] rounded-md bg-white p-2">
+                            <div className="max-h-[260px] overflow-y-auto border border-studio-line rounded-md bg-studio-control p-2">
                                 {globalSettings.keyCommands.map(cmd => (
                                     <div key={cmd.id} className="flex items-center gap-2 py-1 px-2 border-b last:border-b-0">
-                                        <div className="w-36 text-xs font-semibold text-gray-700">{cmd.name}</div>
+                                        <div className="w-36 text-xs font-semibold text-studio-text-dim">{cmd.name}</div>
                                         <input
                                             type="text"
                                             value={cmd.shortcut}
                                             onChange={e => assignKeyCommand(cmd.id, e.target.value)}
-                                            className="w-28 text-xs border border-gray-200 rounded px-2 py-1"
+                                            className="w-28 text-xs border border-studio-line rounded px-2 py-1"
                                             placeholder="Shortcut"
                                         />
-                                        <button className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200" onClick={() => assignKeyCommand(cmd.id, cmd.defaultShortcut)}>Default</button>
+                                        <button className="px-2 py-1 text-xs bg-white/5 rounded hover:bg-white/10" onClick={() => assignKeyCommand(cmd.id, cmd.defaultShortcut)}>Default</button>
                                         <button className="px-2 py-1 text-xs bg-red-100 rounded hover:bg-red-200" onClick={() => removeKeyCommand(cmd.id)}>Clear</button>
-                                        <span className="text-[11px] text-gray-500">{cmd.description}</span>
+                                        <span className="text-[11px] text-studio-text-dim">{cmd.description}</span>
                                     </div>
                                 ))}
                             </div>
 
                             <div className="flex items-center gap-2">
-                                <button className="px-4 py-2 text-xs font-bold bg-sky-500 text-white rounded hover:bg-sky-400" onClick={() => { resetKeyCommands(); setKeyCommandImport('') }}>Reset All to Defaults</button>
-                                <button className="px-4 py-2 text-xs font-bold bg-gray-200 text-gray-800 rounded hover:bg-gray-300" onClick={() => { const json = exportKeyCommands(); setKeyCommandImport(json); navigator.clipboard?.writeText(json); }}>Export to Clipboard</button>
-                                <button className="px-4 py-2 text-xs font-bold bg-gray-200 text-gray-800 rounded hover:bg-gray-300" onClick={() => { try { const data = JSON.parse(keyCommandImport); importKeyCommands(data); } catch (e) { alert('Invalid key commands JSON'); } }}>Import</button>
+                                <button className="px-4 py-2 text-xs font-bold bg-accent-cyan text-white rounded hover:bg-accent-cyan" onClick={() => { resetKeyCommands(); setKeyCommandImport('') }}>Reset All to Defaults</button>
+                                <button className="px-4 py-2 text-xs font-bold bg-white/10 text-studio-text rounded hover:bg-white/[0.14]" onClick={() => { const json = exportKeyCommands(); setKeyCommandImport(json); navigator.clipboard?.writeText(json); }}>Export to Clipboard</button>
+                                <button className="px-4 py-2 text-xs font-bold bg-white/10 text-studio-text rounded hover:bg-white/[0.14]" onClick={() => { try { const data = JSON.parse(keyCommandImport); importKeyCommands(data); } catch (e) { alert('Invalid key commands JSON'); } }}>Import</button>
                             </div>
 
                             <textarea
-                                className="w-full h-24 bg-white border border-gray-200 rounded p-2 text-xs"
+                                className="w-full h-24 bg-studio-control border border-studio-line rounded p-2 text-xs"
                                 value={keyCommandImport}
                                 onChange={e => setKeyCommandImport(e.target.value)}
                                 placeholder='Paste key commands JSON here'
@@ -403,7 +403,7 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                     )}
 
                     {activeTab !== 'General' && activeTab !== 'Audio' && activeTab !== 'MIDI' && activeTab !== 'Key Commands' && activeTab !== 'Control Surfaces' && (
-                        <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-4">
+                        <div className="flex flex-col items-center justify-center h-full text-studio-text-mid gap-4">
                             <Settings className="w-12 h-12 opacity-10" />
                             <span className="text-sm font-medium">"{activeTab}" settings are not available in this version.</span>
                         </div>
@@ -411,8 +411,8 @@ export function ProjectSettingsDialog({ onClose }: ProjectSettingsDialogProps) {
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 bg-[#e5e5ea] flex justify-end">
-                    <button onClick={onClose} className="px-8 py-1.5 rounded bg-[#007aff] text-white text-[13px] font-bold shadow-sm active:bg-[#0062cc]">Done</button>
+                <div className="p-4 bg-studio-raised flex justify-end">
+                    <button onClick={onClose} className="px-8 py-1.5 rounded bg-accent-cyan text-white text-[13px] font-bold shadow-sm active:bg-cyan-300">Done</button>
                 </div>
             </div>
         </div>

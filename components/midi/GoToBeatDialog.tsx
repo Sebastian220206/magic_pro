@@ -48,12 +48,12 @@ export function GoToBeatDialog({ isOpen, onClose, onGoToBeat, currentBeat }: GoT
       onClick={onClose}
     >
       <div
-        className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-5 w-72"
+        className="bg-studio-panel border border-studio-line rounded-lg shadow-xl p-5 w-72"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-200">Go to Beat/Measure</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white p-0.5">
+          <h3 className="text-sm font-semibold text-studio-text">Go to Beat/Measure</h3>
+          <button onClick={onClose} className="text-studio-text-dim hover:text-white p-0.5">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -61,13 +61,13 @@ export function GoToBeatDialog({ isOpen, onClose, onGoToBeat, currentBeat }: GoT
         <div className="flex items-center gap-2 mb-3">
           <button
             onClick={() => setMode('beat')}
-            className={`px-3 py-1 text-xs rounded transition-colors ${mode === 'beat' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'}`}
+            className={`px-3 py-1 text-xs rounded transition-colors ${mode === 'beat' ? 'bg-accent-cyan text-white' : 'bg-studio-raised text-studio-text-mid hover:text-white'}`}
           >
             Beat
           </button>
           <button
             onClick={() => setMode('bar')}
-            className={`px-3 py-1 text-xs rounded transition-colors ${mode === 'bar' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'}`}
+            className={`px-3 py-1 text-xs rounded transition-colors ${mode === 'bar' ? 'bg-accent-cyan text-white' : 'bg-studio-raised text-studio-text-mid hover:text-white'}`}
           >
             Bar
           </button>
@@ -80,20 +80,20 @@ export function GoToBeatDialog({ isOpen, onClose, onGoToBeat, currentBeat }: GoT
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleGo(); }}
-          className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-200 text-sm mb-4 focus:outline-none focus:border-blue-500"
+          className="w-full bg-studio-sunken border border-studio-line rounded px-3 py-2 text-studio-text text-sm mb-4 focus:outline-none focus:border-accent-cyan"
           placeholder={mode === 'beat' ? 'Enter beat number...' : 'Enter bar number...'}
         />
 
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600 rounded transition-colors"
+            className="px-3 py-1.5 text-xs text-studio-text-mid hover:text-white bg-studio-raised hover:bg-studio-control rounded transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleGo}
-            className="px-4 py-1.5 text-xs text-white bg-blue-600 hover:bg-blue-500 rounded transition-colors"
+            className="px-4 py-1.5 text-xs text-white bg-accent-cyan hover:bg-accent-cyan rounded transition-colors"
           >
             Go
           </button>

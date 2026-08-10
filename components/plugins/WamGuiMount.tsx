@@ -62,7 +62,7 @@ export function WamGuiMount({ processor }: WamGuiMountProps) {
     return (
         <div className="relative">
             {status === 'loading' && (
-                <div className="py-10 text-center text-[11px] text-gray-500">
+                <div className="py-10 text-center text-[11px] text-studio-text-dim">
                     Loading plugin interface…
                 </div>
             )}

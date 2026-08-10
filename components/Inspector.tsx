@@ -30,7 +30,7 @@ export function Inspector() {
 
     if (!track) {
         return (
-            <div className="w-[280px] bg-[#1a1a1a] border-r border-[var(--accent-cyan)]/50 flex flex-col items-center justify-center text-gray-700 shrink-0 z-40">
+            <div className="w-[280px] bg-studio-panel border-r border-[var(--accent-cyan)]/50 flex flex-col items-center justify-center text-studio-text-dim shrink-0 z-40">
                 <span className="text-[10px] uppercase font-black tracking-widest">No Track Selected</span>
         </div>
     )
@@ -47,20 +47,20 @@ export function Inspector() {
     }
 
     return (
-        <div className="w-[280px] bg-[#1a1a1a] border-r border-[var(--accent-cyan)]/50 flex flex-col shrink-0 select-none overflow-y-auto custom-scrollbar-v z-40">
+        <div className="w-[280px] bg-studio-panel border-r border-[var(--accent-cyan)]/50 flex flex-col shrink-0 select-none overflow-y-auto custom-scrollbar-v z-40">
             {/* 1. Region Inspector Section (Professional Logic Implementation) */}
             <div className="flex flex-col border-b border-[var(--accent-cyan)]/30">
                 <div
                     onClick={() => setRegionOpen(!regionOpen)}
-                    className="h-9 px-3 flex items-center gap-2 hover:bg-white/[0.03] cursor-pointer transition-colors bg-[#252525]/30"
+                    className="h-9 px-3 flex items-center gap-2 hover:bg-white/[0.03] cursor-pointer transition-colors bg-studio-raised/30"
                 >
-                    {regionOpen ? <ChevronDown className="w-3.5 h-3.5 text-gray-500" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-500" />}
-                    <span className="text-[11px] font-bold text-gray-400">Region:</span>
+                    {regionOpen ? <ChevronDown className="w-3.5 h-3.5 text-studio-text-dim" /> : <ChevronRight className="w-3.5 h-3.5 text-studio-text-dim" />}
+                    <span className="text-[11px] font-bold text-studio-text-mid">Region:</span>
                     <span className="text-[11px] font-black text-white/90 truncate">{clip ? clip.name : "Analog Bass"}</span>
                 </div>
 
                 {regionOpen && clip && (
-                    <div className="flex flex-col py-1 bg-[#161616]/50">
+                    <div className="flex flex-col py-1 bg-studio-panel/50">
                         <InspectorField label="Mute" type="checkbox" checked={clip.muted} onChange={(v: boolean) => handleClipUpdate('muted', v)} />
                         <InspectorField label="Loop" type="checkbox" checked={clip.loop} onChange={(v: boolean) => handleClipUpdate('loop', v)} />
                         <InspectorField label="Quantize" value={clip.quantize || "Off"} hasChevron />
@@ -74,7 +74,7 @@ export function Inspector() {
                         <InspectorField label="Pitch Source" value={clip.pitchSource || "Off"} hasChevron />                        <InspectorField label="Flex Enabled" type="checkbox" checked={clip.flexEnabled || false} onChange={(v: boolean) => handleClipUpdate('flexEnabled', v)} />
                         <InspectorField label="Flex Mode">
                             <select
-                                className="bg-transparent text-[11px] font-black text-gray-200 outline-none cursor-pointer text-right w-[140px] appearance-none focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
+                                className="bg-transparent text-[11px] font-black text-studio-text outline-none cursor-pointer text-right w-[140px] appearance-none focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
                                 value={clip.flexMode || 'off'}
                                 onChange={(e) => handleClipUpdate('flexMode', e.target.value as any)}
                             >
@@ -94,7 +94,7 @@ export function Inspector() {
                                 onChange={(e) => handleClipUpdate('flexTimeFactor', parseFloat(e.target.value))}
                                 className="w-[140px]"
                             />
-                            <span className="text-[11px] font-black text-gray-200">{(clip.flexTimeFactor || 1).toFixed(2)}x</span>
+                            <span className="text-[11px] font-black text-studio-text">{(clip.flexTimeFactor || 1).toFixed(2)}x</span>
                         </InspectorField>
                         <InspectorField
                             label="Flex Pitch Offset"
@@ -107,8 +107,8 @@ export function Inspector() {
                             onUpdate={(inc: number) => handleClipUpdate('velocityOffset', (clip.velocityOffset || 0) + inc * 5)}
                         />
                         <div className="px-6 py-1 flex items-center gap-1 cursor-pointer group">
-                            <ChevronRight className="w-3 h-3 text-gray-600 group-hover:text-gray-400" />
-                            <span className="text-[9px] font-black text-gray-500 group-hover:text-gray-400 uppercase">More</span>
+                            <ChevronRight className="w-3 h-3 text-studio-text-dim group-hover:text-studio-text-mid" />
+                            <span className="text-[9px] font-black text-studio-text-dim group-hover:text-studio-text-mid uppercase">More</span>
                         </div>
                     </div>
                 )}
@@ -118,18 +118,18 @@ export function Inspector() {
             <div className="flex flex-col border-b border-[var(--accent-cyan)]/30">
                 <div
                     onClick={() => setTrackOpen(!trackOpen)}
-                    className="h-9 px-3 flex items-center gap-2 hover:bg-white/[0.03] cursor-pointer transition-colors bg-[#252525]/30"
+                    className="h-9 px-3 flex items-center gap-2 hover:bg-white/[0.03] cursor-pointer transition-colors bg-studio-raised/30"
                 >
-                    {trackOpen ? <ChevronDown className="w-3.5 h-3.5 text-gray-500" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-500" />}
-                    <span className="text-[11px] font-bold text-gray-400">Track:</span>
+                    {trackOpen ? <ChevronDown className="w-3.5 h-3.5 text-studio-text-dim" /> : <ChevronRight className="w-3.5 h-3.5 text-studio-text-dim" />}
+                    <span className="text-[11px] font-bold text-studio-text-mid">Track:</span>
                     <span className="text-[11px] font-black text-white/90 truncate">{track.name}</span>
                 </div>
 
                 {trackOpen && (
-                    <div className="flex flex-col py-2 bg-[#161616]/50">
+                    <div className="flex flex-col py-2 bg-studio-panel/50">
                         <InspectorField label="Icon">
                             <div className="w-10 h-10 border border-[#63ed63]/40 rounded bg-black/40 flex items-center justify-center shadow-lg">
-                                {track.type === 'midi' ? <Keyboard className="w-6 h-6 text-[#63ed63] opacity-80" /> : <Mic className="w-6 h-6 text-sky-400 opacity-80" />}
+                                {track.type === 'midi' ? <Keyboard className="w-6 h-6 text-[#63ed63] opacity-80" /> : <Mic className="w-6 h-6 text-accent-cyan opacity-80" />}
                             </div>
                         </InspectorField>
                         {/* The one place to see and change what a track plays.
@@ -144,12 +144,12 @@ export function Inspector() {
                                         setPluginBrowserTrack(track.id, 'instrument');
                                     }}
                                     title="Choose an instrument for this track"
-                                    className="flex items-center gap-1 max-w-[130px] px-1.5 py-0.5 rounded hover:bg-sky-500/20 transition-colors group/inst"
+                                    className="flex items-center gap-1 max-w-[130px] px-1.5 py-0.5 rounded hover:bg-accent-cyan/20 transition-colors group/inst"
                                 >
-                                    <span className={`text-[11px] font-black truncate ${track.instrument ? 'text-gray-200' : 'text-gray-600 italic'}`}>
+                                    <span className={`text-[11px] font-black truncate ${track.instrument ? 'text-studio-text' : 'text-studio-text-dim italic'}`}>
                                         {track.instrument || 'None'}
                                     </span>
-                                    <ChevronDown className="w-3 h-3 text-gray-500 group-hover/inst:text-sky-400 shrink-0" />
+                                    <ChevronDown className="w-3 h-3 text-studio-text-dim group-hover/inst:text-accent-cyan shrink-0" />
                                 </button>
                             </InspectorField>
                         )}
@@ -166,17 +166,17 @@ export function Inspector() {
                         <div className="flex flex-col border-y border-white/5 my-1 py-1 bg-black/10">
                             <InspectorField label="Internal MIDI In">
                                 <select 
-                                    className="bg-transparent text-[11px] font-black text-gray-200 outline-none cursor-pointer text-right w-[140px] appearance-none focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
+                                    className="bg-transparent text-[11px] font-black text-studio-text outline-none cursor-pointer text-right w-[140px] appearance-none focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
                                     value={track.internalMidiInSourceId || ""}
                                     onChange={(e) => {
                                         const sourceId = e.target.value || undefined;
                                         setInternalMidiIn(track.id, sourceId, sourceId ? 'Instrument Input' : 'Off');
                                     }}
                                 >
-                                    <option value="" className="bg-[#1a1a1a]">Off</option>
-                                    <optgroup label="Instrument Input" className="bg-[#1a1a1a]">
+                                    <option value="" className="bg-studio-panel">Off</option>
+                                    <optgroup label="Instrument Input" className="bg-studio-panel">
                                         {tracks.filter(t => t.id !== track.id && (t.type === 'software-instrument' || t.type === 'midi')).map(t => (
-                                            <option key={t.id} value={t.id} className="bg-[#1a1a1a]">{t.name}</option>
+                                            <option key={t.id} value={t.id} className="bg-studio-panel">{t.name}</option>
                                         ))}
                                     </optgroup>
                                 </select>
@@ -186,12 +186,12 @@ export function Inspector() {
                                 <>
                                     <InspectorField label="Record">
                                         <select 
-                                            className="bg-transparent text-[11px] font-black text-sky-400 outline-none cursor-pointer text-right w-[140px] appearance-none"
+                                            className="bg-transparent text-[11px] font-black text-accent-cyan outline-none cursor-pointer text-right w-[140px] appearance-none"
                                             value={track.internalMidiInRecordMode || "Internal Only"}
                                             onChange={(e) => setInternalMidiInRecordMode(track.id, e.target.value as any)}
                                         >
-                                            <option value="Internal Only" className="bg-[#1a1a1a]">Internal Only</option>
-                                            <option value="Internal + External" className="bg-[#1a1a1a]">Int + External</option>
+                                            <option value="Internal Only" className="bg-studio-panel">Internal Only</option>
+                                            <option value="Internal + External" className="bg-studio-panel">Int + External</option>
                                         </select>
                                     </InspectorField>
                                 </>
@@ -200,13 +200,13 @@ export function Inspector() {
 
                         <InspectorField label="MIDI In Channel">
                             <select 
-                                className="bg-transparent text-[11px] font-black text-gray-200 outline-none cursor-pointer text-right appearance-none focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
+                                className="bg-transparent text-[11px] font-black text-studio-text outline-none cursor-pointer text-right appearance-none focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
                                 value={track.midiInChannel || "All"}
                                 onChange={(e) => handleTrackUpdate('midiInChannel', e.target.value === 'All' ? 'All' : Number(e.target.value))}
                             >
-                                <option value="All" className="bg-[#1a1a1a]">All</option>
+                                <option value="All" className="bg-studio-panel">All</option>
                                 {Array.from({length: 16}).map((_, i) => (
-                                    <option key={i+1} value={i+1} className="bg-[#1a1a1a]">{i+1}</option>
+                                    <option key={i+1} value={i+1} className="bg-studio-panel">{i+1}</option>
                                 ))}
                             </select>
                         </InspectorField>
@@ -240,16 +240,12 @@ export function Inspector() {
             </div>
 
             {/* 3. Dual Channel Strips Area */}
-            <div className="flex-1 flex bg-[#1a1a1a] min-h-0">
+            <div className="flex-1 flex bg-studio-panel min-h-0">
                 <InspectorChannelStrip track={track} />
                 <InspectorChannelStrip track={null} isOutput />
             </div>
 
-            <style jsx>{`
-                .custom-scrollbar-v::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar-v::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar-v::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-            `}</style>
+
         </div>
     )
 }
@@ -268,12 +264,12 @@ interface InspectorFieldProps {
 function InspectorField({ label, value, children, hasChevron, type = 'text', checked, onChange, onUpdate }: InspectorFieldProps) {
     return (
         <div className="flex items-center justify-between px-6 h-6 leading-none group hover:bg-white/[0.02]">
-            <span className="text-[11px] font-bold text-gray-500 group-hover:text-gray-400 truncate pr-2">{label}:</span>
+            <span className="text-[11px] font-bold text-studio-text-dim group-hover:text-studio-text-mid truncate pr-2">{label}:</span>
             <div className="flex items-center gap-1 cursor-pointer shrink-0">
                 {children}
                 {!children && type === 'text' && (
                     <>
-                        <span className="text-[11px] font-black text-gray-200 tabular-nums">{value}</span>
+                        <span className="text-[11px] font-black text-studio-text tabular-nums">{value}</span>
                         {hasChevron && (
                             <div className="flex flex-col -gap-1 opacity-40 group-hover:opacity-80">
                                 <button onClick={(e) => { e.stopPropagation(); onUpdate?.(1); }}><ChevronUpSmall className="w-2 h-2" /></button>
@@ -285,7 +281,7 @@ function InspectorField({ label, value, children, hasChevron, type = 'text', che
                 {!children && type === 'checkbox' && (
                     <div
                         onClick={() => onChange?.(!checked)}
-                        className={`w-3 h-3 border border-gray-700 rounded-sm transition-colors ${checked ? 'bg-sky-500 border-sky-400' : 'bg-black/40'}`}
+                        className={`w-3 h-3 border border-studio-line rounded-sm transition-colors ${checked ? 'bg-accent-cyan border-accent-cyan' : 'bg-black/40'}`}
                     ></div>
                 )}
             </div>
@@ -332,9 +328,9 @@ const InspectorChannelStrip = memo(function InspectorChannelStrip({ track, isOut
     const analyzer = (isOutput ? audioEngine.getMasterAnalyzer() : (track ? audioEngine.getTrackNodes(track.id)?.analyzer : null)) || null;
 
     return (
-        <div className={`flex-1 flex flex-col border-r border-[var(--accent-cyan)]/30 ${isOutput ? 'bg-[#1e1e1e]' : 'bg-[#1a1a1a]'}`}>
+        <div className={`flex-1 flex flex-col border-r border-[var(--accent-cyan)]/30 ${isOutput ? 'bg-studio-panel' : 'bg-studio-panel'}`}>
             <div className="flex-1 flex flex-col px-1.5 py-3 gap-0.5">
-                <div className="h-6 bg-[#252525] rounded-sm mb-1.5 flex items-center justify-center text-[9px] font-black text-gray-400 uppercase tracking-tighter border border-white/5 truncate px-1">
+                <div className="h-6 bg-studio-raised rounded-sm mb-1.5 flex items-center justify-center text-[9px] font-black text-studio-text-mid uppercase tracking-tighter border border-white/5 truncate px-1">
                     {isOutput ? 'Setting' : (track?.name || 'Analog De...')}
                 </div>
 
@@ -346,7 +342,7 @@ const InspectorChannelStrip = memo(function InspectorChannelStrip({ track, isOut
 
                 {/* Dynamic Signal Chain (Logic Implementation) */}
                 <div className="flex flex-col gap-0.5 mb-2 h-[100px] overflow-y-auto custom-scrollbar-v relative">
-                    {!isOutput && <div className="h-4 flex items-center justify-center text-[8px] font-black text-gray-600 uppercase tracking-widest relative">
+                    {!isOutput && <div className="h-4 flex items-center justify-center text-[8px] font-black text-studio-text-dim uppercase tracking-widest relative">
                         MIDI FX
                         {track && track.midiOutToTrackSlot === -1 && (
                             <div className="absolute right-0 top-1 w-0 h-0 border-t-[4px] border-t-transparent border-l-[6px] border-l-orange-500 border-b-[4px] border-b-transparent" title="Record MIDI to Track Here"></div>
@@ -374,13 +370,13 @@ const InspectorChannelStrip = memo(function InspectorChannelStrip({ track, isOut
                         <div
                             key={p.id}
                             onClick={() => setOpenPluginEditor({ trackId: track.id, pluginId: p.id })}
-                            className={`h-5 rounded-sm flex items-center px-1 text-[9px] font-black shadow-sm border-t border-white/10 cursor-pointer hover:brightness-110 transition-all ${p.enabled ? (p.name.includes('EQ') ? 'bg-sky-500 text-white' : 'bg-sky-600 text-white') : 'bg-gray-800 text-gray-500 opacity-60'}`}
+                            className={`h-5 rounded-sm flex items-center px-1 text-[9px] font-black shadow-sm border-t border-white/10 cursor-pointer hover:brightness-110 transition-all ${p.enabled ? (p.name.includes('EQ') ? 'bg-accent-cyan text-white' : 'bg-accent-cyan text-white') : 'bg-studio-panel text-studio-text-dim opacity-60'}`}
                         >
                             <div 
                                 onClick={(e) => { e.stopPropagation(); togglePlugin(track.id, p.id); }}
                                 className="mr-1 p-0.5 hover:bg-white/10 rounded cursor-pointer"
                             >
-                                <Circle className={`w-1.5 h-1.5 ${p.enabled ? 'fill-white text-white' : 'text-gray-600'}`} />
+                                <Circle className={`w-1.5 h-1.5 ${p.enabled ? 'fill-white text-white' : 'text-studio-text-dim'}`} />
                             </div>
                             <span className="truncate">{p.name}</span>
                         </div>
@@ -393,12 +389,12 @@ const InspectorChannelStrip = memo(function InspectorChannelStrip({ track, isOut
                     )}
                 </div>
 
-                <div className="h-5 bg-[#2563eb]/20 border border-blue-500/20 rounded-md flex items-center px-2 justify-between mb-2">
-                    <span className="text-[9px] font-black text-blue-400 uppercase">Bus 1</span>
-                    <div className="w-2.5 h-2.5 rounded-full border border-blue-400 bg-blue-500/40"></div>
+                <div className="h-5 bg-accent-cyan/20 border border-accent-cyan/20 rounded-md flex items-center px-2 justify-between mb-2">
+                    <span className="text-[9px] font-black text-accent-cyan uppercase">Bus 1</span>
+                    <div className="w-2.5 h-2.5 rounded-full border border-accent-cyan bg-accent-cyan/40"></div>
                 </div>
 
-                <div className="h-6 bg-[#252525] rounded-sm flex items-center justify-center text-[9px] font-black text-gray-400 uppercase border border-white/5 mb-1">
+                <div className="h-6 bg-studio-raised rounded-sm flex items-center justify-center text-[9px] font-black text-studio-text-mid uppercase border border-white/5 mb-1">
                     {isOutput ? 'Mastering' : 'Stereo Out'}
                 </div>
 
@@ -412,13 +408,13 @@ const InspectorChannelStrip = memo(function InspectorChannelStrip({ track, isOut
                             onChange={handlePanChange} 
                             isOutput={false} // Now making it a functional knob even for master
                         />
-                        <span className="text-[8px] font-black text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">PAN</span>
+                        <span className="text-[8px] font-black text-studio-text-dim opacity-0 group-hover:opacity-100 transition-opacity">PAN</span>
                     </div>
 
                     <div className="flex gap-2 items-end relative h-40">
                         <VerticalMeter analyzer={analyzer} side="L" />
                         
-                        <div className="h-40 w-5 bg-[#0a0a0a] rounded-sm border border-[#222]/50 relative group shadow-inner">
+                        <div className="h-40 w-5 bg-studio-sunken rounded-sm border border-studio-line/50 relative group shadow-inner">
                             {/* Fader Track Details (Ticks) */}
                             <div className="absolute inset-y-2 left-[45%] w-[1px] bg-white/5 flex flex-col justify-between opacity-30">
                                 {[...Array(11)].map((_, i) => (
@@ -478,7 +474,7 @@ const InspectorChannelStrip = memo(function InspectorChannelStrip({ track, isOut
                                     window.addEventListener('mouseup', onUp);
                                 }}
                             >
-                                <div className="w-full h-full bg-gradient-to-b from-[#444] via-[#222] to-[#111] border border-[#555] rounded shadow-xl relative overflow-hidden">
+                                <div className="w-full h-full bg-gradient-to-b from-studio-control via-studio-raised to-studio-sunken border border-studio-line-strong rounded shadow-xl relative overflow-hidden">
                                     <div className="absolute top-[50%] left-0 right-0 h-[1x] bg-white/20 shadow-[0_0_2px_rgba(255,255,255,0.5)]"></div>
                                     <div className="absolute top-0 left-[2px] right-[2px] h-[1px] bg-white/10"></div>
                                 </div>
@@ -490,13 +486,13 @@ const InspectorChannelStrip = memo(function InspectorChannelStrip({ track, isOut
 
                     <div className="flex gap-1 h-6 w-full px-1 pt-2">
                         <button 
-                            className={`flex-1 border rounded-sm text-[10px] font-black transition-colors ${track?.muted ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-[#1a1a1a] border-[#333] text-gray-500'}`} 
+                            className={`flex-1 border rounded-sm text-[10px] font-black transition-colors ${track?.muted ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-studio-panel border-studio-line text-studio-text-dim'}`} 
                             onClick={() => track && updateTrack(track.id, { muted: !track.muted })}
                         >
                             M
                         </button>
                         <button 
-                            className={`flex-1 border rounded-sm text-[10px] font-black transition-colors ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500]' : 'bg-[#1a1a1a] border-[#333] text-gray-500'}`} 
+                            className={`flex-1 border rounded-sm text-[10px] font-black transition-colors ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500]' : 'bg-studio-panel border-studio-line text-studio-text-dim'}`} 
                             onClick={() => track && updateTrack(track.id, { soloed: !track.soloed })}
                         >
                             S
@@ -505,8 +501,8 @@ const InspectorChannelStrip = memo(function InspectorChannelStrip({ track, isOut
                 </div>
             </div>
 
-            <div className="h-[22px] bg-[#111] border-t border-black flex items-center justify-center shrink-0">
-                <span className="text-[10px] font-black text-[#888] uppercase truncate px-2 leading-none">
+            <div className="h-[22px] bg-studio-sunken border-t border-black flex items-center justify-center shrink-0">
+                <span className="text-[10px] font-black text-studio-text-dim uppercase truncate px-2 leading-none">
                     {isOutput ? 'Output' : (track?.name || 'Track')}
                 </span>
             </div>
@@ -552,7 +548,7 @@ function PluginMenu({ onSelect }: { onSelect: (type: 'comp' | 'eq' | 'reverb' | 
             <button
                 ref={buttonRef}
                 onClick={handleToggle}
-                className="h-5 bg-black/20 rounded-sm border border-white/5 text-[8px] font-black text-gray-700 hover:text-gray-400 hover:bg-white/5 uppercase flex items-center justify-center transition-all w-full"
+                className="h-5 bg-black/20 rounded-sm border border-white/5 text-[8px] font-black text-studio-text-dim hover:text-studio-text-mid hover:bg-white/5 uppercase flex items-center justify-center transition-all w-full"
             >
                 Audio FX
             </button>
@@ -560,17 +556,17 @@ function PluginMenu({ onSelect }: { onSelect: (type: 'comp' | 'eq' | 'reverb' | 
                 <div 
                     ref={menuRef}
                     style={{ top: coords.top, left: coords.left }}
-                    className="fixed z-[999] w-[180px] bg-[#1a1a1a] border border-[#444] rounded shadow-[0_15px_50px_rgba(0,0,0,1)] p-1 overflow-hidden"
+                    className="fixed z-[999] w-[180px] bg-studio-panel border border-studio-line-strong rounded shadow-[0_15px_50px_rgba(0,0,0,1)] p-1 overflow-hidden"
                 >
-                    <div className="text-[7px] uppercase text-gray-600 font-black px-2 py-1 border-b border-white/5 mb-1 tracking-widest">Plug-ins</div>
+                    <div className="text-[7px] uppercase text-studio-text-dim font-black px-2 py-1 border-b border-white/5 mb-1 tracking-widest">Plug-ins</div>
                     {plugins.map(p => (
                         <button
                             key={p.id}
                             onClick={(e) => { e.stopPropagation(); onSelect(p.id as any); setOpen(false); }}
-                            className="w-full text-left px-3 py-1.5 hover:bg-sky-500 hover:text-white text-[10px] font-black text-gray-300 transition-colors flex items-center justify-between group"
+                            className="w-full text-left px-3 py-1.5 hover:bg-accent-cyan hover:text-white text-[10px] font-black text-studio-text transition-colors flex items-center justify-between group"
                         >
                             <span>{p.name}</span>
-                            <span className="text-[8px] text-gray-600 group-hover:text-sky-200">{p.category}</span>
+                            <span className="text-[8px] text-studio-text-dim group-hover:text-accent-cyan">{p.category}</span>
                         </button>
                     ))}
                 </div>
@@ -582,8 +578,8 @@ function PluginMenu({ onSelect }: { onSelect: (type: 'comp' | 'eq' | 'reverb' | 
 function PanKnob({ value, onChange, isOutput }: { value: number, onChange: (v: number) => void, isOutput?: boolean }) {
     if (isOutput) {
         return (
-             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#111] to-[#222] border border-white/5 relative shadow-inner flex items-center justify-center">
-                 <div className="w-7 h-7 rounded-full bg-[#111] border border-black flex items-center justify-center text-[7px] font-black text-gray-700 uppercase">Mst</div>
+             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-studio-sunken to-studio-raised border border-white/5 relative shadow-inner flex items-center justify-center">
+                 <div className="w-7 h-7 rounded-full bg-studio-sunken border border-black flex items-center justify-center text-[7px] font-black text-studio-text-dim uppercase">Mst</div>
         </div>
     )
 }
@@ -592,7 +588,7 @@ function PanKnob({ value, onChange, isOutput }: { value: number, onChange: (v: n
 
     return (
         <div 
-            className="w-3 h-3 rounded-full bg-gradient-to-tr from-[#000] to-[#333] border border-[var(--accent-cyan)]/50 relative shadow-2xl cursor-pointer group active:scale-95 transition-transform"
+            className="w-3 h-3 rounded-full bg-gradient-to-tr from-studio-void to-studio-control border border-[var(--accent-cyan)]/50 relative shadow-2xl cursor-pointer group active:scale-95 transition-transform"
             onMouseDown={(e) => {
                 const startY = e.clientY;
                 const startVal = value;
@@ -605,7 +601,7 @@ function PanKnob({ value, onChange, isOutput }: { value: number, onChange: (v: n
                 window.addEventListener('mouseup', onUp);
             }}
         >
-            <div className="absolute inset-1 rounded-full border border-[var(--accent-cyan)]/30 shadow-inner bg-gradient-to-tr from-[#111] via-[#222] to-[#2a2a2a]"></div>
+            <div className="absolute inset-1 rounded-full border border-[var(--accent-cyan)]/30 shadow-inner bg-gradient-to-tr from-studio-sunken via-studio-raised to-studio-control"></div>
             <div 
                 className="absolute top-1.5 left-[17px] w-[2px] h-3 bg-[var(--accent-cyan)] rounded-full origin-[1px_16.5px] transition-transform duration-100 ease-out"
                 style={{ transform: `rotate(${rotation}deg)` }}

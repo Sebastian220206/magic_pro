@@ -10,17 +10,17 @@ type AutoGenProps = Pick<PluginUIContract, 'manifest' | 'params' | 'onParamChang
 
 export function AutoGenPluginUI({ manifest, params, onParamChange }: AutoGenProps) {
   return (
-    <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 p-6 text-white select-none" style={{ width: 400 }}>
-      <div className="flex items-center gap-3 mb-6 border-b border-gray-800 pb-3">
+    <div className="bg-studio-panel rounded-lg border border-studio-line p-6 text-white select-none" style={{ width: 400 }}>
+      <div className="flex items-center gap-3 mb-6 border-b border-studio-line pb-3">
         <div className="w-2 h-2 rounded-full bg-emerald-500" />
-        <h2 className="text-sm font-bold uppercase tracking-widest text-gray-300">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-studio-text">
           {manifest.name}
         </h2>
-        <span className="text-[10px] text-gray-600 ml-auto">{manifest.version}</span>
+        <span className="text-[10px] text-studio-text-dim ml-auto">{manifest.version}</span>
       </div>
 
       {manifest.parameters.length === 0 && (
-        <div className="text-gray-500 text-xs text-center py-8">
+        <div className="text-studio-text-dim text-xs text-center py-8">
           No parameters defined
         </div>
       )}
@@ -39,7 +39,7 @@ export function AutoGenPluginUI({ manifest, params, onParamChange }: AutoGenProp
           return (
             <div key={param.id}>
               <div className="flex justify-between items-center mb-1">
-                <label className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">
+                <label className="text-[11px] font-medium text-studio-text-mid uppercase tracking-wider">
                   {param.name}
                 </label>
                 <span className="text-[11px] font-mono text-amber-500">
@@ -60,7 +60,7 @@ export function AutoGenPluginUI({ manifest, params, onParamChange }: AutoGenProp
                 <select
                   value={value}
                   onChange={handleChange}
-                  className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white cursor-pointer"
+                  className="w-full bg-studio-sunken border border-studio-line rounded px-2 py-1 text-xs text-white cursor-pointer"
                 >
                   {param.enumValues.map((label, i) => (
                     <option key={i} value={i}>{label}</option>
@@ -76,7 +76,7 @@ export function AutoGenPluginUI({ manifest, params, onParamChange }: AutoGenProp
                   step={param.step ?? (param.type === 'int' ? 1 : 0.1)}
                   value={value}
                   onChange={handleChange}
-                  className="w-full accent-amber-500 bg-gray-900 appearance-none h-1.5 rounded cursor-pointer"
+                  className="w-full accent-amber-500 bg-studio-sunken appearance-none h-1.5 rounded cursor-pointer"
                 />
               )}
             </div>

@@ -49,10 +49,10 @@ export function SaveDialog({ projectName, onClose, onSave }: SaveDialogProps) {
 
     return (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-            <div className="bg-[#F2F2F7] w-[600px] rounded-xl shadow-2xl flex flex-col overflow-hidden text-[#1C1C1E] animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-studio-panel w-[600px] rounded-xl shadow-2xl flex flex-col overflow-hidden text-studio-text animate-in fade-in zoom-in-95 duration-200">
 
                 {/* Header */}
-                <div className="text-center py-3 border-b border-[#D1D1D6]">
+                <div className="text-center py-3 border-b border-studio-line">
                     <h2 className="text-[15px] font-bold">Save</h2>
                 </div>
 
@@ -61,40 +61,40 @@ export function SaveDialog({ projectName, onClose, onSave }: SaveDialogProps) {
                     {/* File Info */}
                     <div className="space-y-4">
                         <div className="flex items-center gap-4">
-                            <label className="text-[13px] text-[#8E8E93] w-20 text-right">Save As:</label>
+                            <label className="text-[13px] text-studio-text-dim w-20 text-right">Save As:</label>
                             <input
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 autoFocus
-                                className="flex-1 bg-white border border-[#D1D1D6] rounded-md px-3 py-1.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
+                                className="flex-1 bg-studio-control border border-studio-line rounded-md px-3 py-1.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-accent-cyan focus:border-transparent transition-all"
                             />
                         </div>
                         <div className="flex items-center gap-4">
-                            <label className="text-[13px] text-[#8E8E93] w-20 text-right">Tags:</label>
-                            <div className="flex-1 bg-white border border-[#D1D1D6] rounded-md h-9"></div>
+                            <label className="text-[13px] text-studio-text-dim w-20 text-right">Tags:</label>
+                            <div className="flex-1 bg-studio-control border border-studio-line rounded-md h-9"></div>
                         </div>
                         <div className="flex items-center gap-4">
-                            <label className="text-[13px] text-[#8E8E93] w-20 text-right">Where:</label>
-                            <div className="flex-1 flex items-center gap-2 bg-white border border-[#D1D1D6] rounded-md px-3 py-1.5 cursor-default">
-                                <Folder className="w-4 h-4 text-[#007AFF]" />
+                            <label className="text-[13px] text-studio-text-dim w-20 text-right">Where:</label>
+                            <div className="flex-1 flex items-center gap-2 bg-studio-control border border-studio-line rounded-md px-3 py-1.5 cursor-default">
+                                <Folder className="w-4 h-4 text-accent-cyan" />
                                 <span className="text-[14px]">Logic</span>
                                 <div className="ml-auto flex items-center">
-                                    <div className="w-4 h-4 flex items-center justify-center bg-[#D1D1D6] rounded-sm ml-2">
-                                        <ChevronDown className="w-3 h-3 text-[#1C1C1E] opacity-60" />
+                                    <div className="w-4 h-4 flex items-center justify-center bg-studio-control rounded-sm ml-2">
+                                        <ChevronDown className="w-3 h-3 text-studio-text opacity-60" />
                                     </div>
-                                    <div className="w-4 h-4 flex items-center justify-center bg-[#D1D1D6] rounded-sm ml-1 rotate-180">
-                                        <ChevronDown className="w-3 h-3 text-[#1C1C1E] opacity-60" />
+                                    <div className="w-4 h-4 flex items-center justify-center bg-studio-control rounded-sm ml-1 rotate-180">
+                                        <ChevronDown className="w-3 h-3 text-studio-text opacity-60" />
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="border-t border-[#D1D1D6] pt-6 space-y-6">
+                    <div className="border-t border-studio-line pt-6 space-y-6">
                         {/* Organization */}
                         <div className="flex items-start gap-4">
-                            <label className="text-[13px] text-[#1C1C1E] font-medium w-48 text-right pt-0.5">Organize my project as a:</label>
+                            <label className="text-[13px] text-studio-text font-medium w-48 text-right pt-0.5">Organize my project as a:</label>
                             <div className="space-y-2">
                                 <label className="flex items-center gap-2 cursor-pointer group">
                                     <div className="relative w-4 h-4 flex items-center justify-center">
@@ -103,7 +103,7 @@ export function SaveDialog({ projectName, onClose, onSave }: SaveDialogProps) {
                                             name="org"
                                             checked={organization === 'Package'}
                                             onChange={() => setOrganization('Package')}
-                                            className="appearance-none w-4 h-4 rounded-full border border-[#D1D1D6] checked:bg-[#007AFF] checked:border-[#007AFF] focus:outline-none transition-all cursor-pointer"
+                                            className="appearance-none w-4 h-4 rounded-full border border-studio-line checked:bg-accent-cyan checked:border-accent-cyan focus:outline-none transition-all cursor-pointer"
                                         />
                                         {organization === 'Package' && <div className="absolute w-1.5 h-1.5 bg-white rounded-full"></div>}
                                     </div>
@@ -116,7 +116,7 @@ export function SaveDialog({ projectName, onClose, onSave }: SaveDialogProps) {
                                             name="org"
                                             checked={organization === 'Folder'}
                                             onChange={() => setOrganization('Folder')}
-                                            className="appearance-none w-4 h-4 rounded-full border border-[#D1D1D6] checked:bg-[#007AFF] checked:border-[#007AFF] focus:outline-none transition-all cursor-pointer"
+                                            className="appearance-none w-4 h-4 rounded-full border border-studio-line checked:bg-accent-cyan checked:border-accent-cyan focus:outline-none transition-all cursor-pointer"
                                         />
                                         {organization === 'Folder' && <div className="absolute w-1.5 h-1.5 bg-white rounded-full"></div>}
                                     </div>
@@ -127,7 +127,7 @@ export function SaveDialog({ projectName, onClose, onSave }: SaveDialogProps) {
 
                         {/* Assets */}
                         <div className="flex items-start gap-4">
-                            <label className="text-[13px] text-[#1C1C1E] font-medium w-48 text-right pt-0.5">Copy the following files into your project:</label>
+                            <label className="text-[13px] text-studio-text font-medium w-48 text-right pt-0.5">Copy the following files into your project:</label>
                             <div className="space-y-2">
                                 {[
                                     { key: 'audioFiles', label: 'Audio files' },
@@ -143,7 +143,7 @@ export function SaveDialog({ projectName, onClose, onSave }: SaveDialogProps) {
                                             type="checkbox"
                                             checked={assets[item.key as keyof typeof assets]}
                                             onChange={(e) => setAssets({ ...assets, [item.key]: e.target.checked })}
-                                            className="w-4 h-4 rounded border-[#D1D1D6] text-[#007AFF] focus:ring-0 transition-all cursor-pointer"
+                                            className="w-4 h-4 rounded border-studio-line text-accent-cyan focus:ring-0 transition-all cursor-pointer"
                                         />
                                         <span className="text-[14px]">{item.label}</span>
                                     </label>
@@ -157,13 +157,13 @@ export function SaveDialog({ projectName, onClose, onSave }: SaveDialogProps) {
                 <div className="p-4 bg-transparent flex justify-end gap-3 mt-4 border-t border-transparent">
                     <button
                         onClick={onClose}
-                        className="px-6 py-1.5 rounded-md border border-[#D1D1D6] bg-white text-[13px] hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                        className="px-6 py-1.5 rounded-md border border-studio-line bg-studio-control text-[13px] hover:bg-white/[0.03] active:bg-white/5 transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleSave}
-                        className="px-8 py-1.5 rounded-md bg-[#007AFF] text-white text-[13px] font-semibold hover:bg-[#0071E3] active:bg-[#0051A3] transition-colors shadow-sm"
+                        className="px-8 py-1.5 rounded-md bg-accent-cyan text-white text-[13px] font-semibold hover:bg-accent-cyan active:bg-cyan-300 transition-colors shadow-sm"
                     >
                         Save
                     </button>

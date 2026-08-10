@@ -25,7 +25,7 @@ const STEPS: Step[] = [
     id: "piano-roll",
     title: "Click the Piano Roll",
     description: "Double-click a MIDI clip to open the piano roll and see the notes.",
-    icon: <MousePointer2 className="w-5 h-5 text-blue-400" />,
+    icon: <MousePointer2 className="w-5 h-5 text-accent-cyan" />,
     highlightSelector: "[class*='timeline']",
   },
   {
@@ -93,7 +93,7 @@ export function OnboardingOverlay({ onComplete, onDismiss }: Props) {
                   {STEPS.map((_, i) => (
                     <div
                       key={i}
-                      className={`w-1.5 h-1.5 rounded-full ${i === stepIndex ? 'bg-daw-primary' : 'bg-gray-600'}`}
+                      className={`w-1.5 h-1.5 rounded-full ${i === stepIndex ? 'bg-daw-primary' : 'bg-studio-control'}`}
                     />
                   ))}
                 </div>
@@ -101,17 +101,17 @@ export function OnboardingOverlay({ onComplete, onDismiss }: Props) {
             </div>
             <button
               onClick={onDismiss}
-              className="text-gray-500 hover:text-white transition p-1 -mr-1 -mt-1"
+              className="text-studio-text-dim hover:text-white transition p-1 -mr-1 -mt-1"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <p className="text-gray-400 text-sm mb-4">{step.description}</p>
+          <p className="text-studio-text-mid text-sm mb-4">{step.description}</p>
 
           <button
             onClick={handleNext}
-            className="w-full bg-daw-primary text-white py-2 rounded-lg hover:bg-blue-600 transition font-medium text-sm flex items-center justify-center gap-1.5"
+            className="w-full bg-daw-primary text-white py-2 rounded-lg hover:bg-accent-cyan transition font-medium text-sm flex items-center justify-center gap-1.5"
           >
             {isLast ? "Got it!" : "Next"}
             <ChevronRight className="w-4 h-4" />

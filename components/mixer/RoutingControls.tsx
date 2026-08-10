@@ -64,7 +64,7 @@ function Popover({
         <div
             ref={ref}
             onClick={e => e.stopPropagation()}
-            className={`absolute z-50 min-w-[160px] max-h-56 overflow-y-auto bg-[#2c2c2e] border border-white/15 rounded-md shadow-2xl p-1 flex flex-col text-[10px] ${className}`}
+            className={`absolute z-50 min-w-[160px] max-h-56 overflow-y-auto bg-studio-control border border-white/15 rounded-md shadow-2xl p-1 flex flex-col text-[10px] ${className}`}
         >
             {children}
         </div>
@@ -87,7 +87,7 @@ export function SendsSlot({ track }: { track: Track | null }) {
     )
 
     if (!track) {
-        return <div className="h-16 mb-2 flex items-center justify-center text-[8px] font-black text-gray-700 uppercase">No Sends</div>
+        return <div className="h-16 mb-2 flex items-center justify-center text-[8px] font-black text-studio-text-dim uppercase">No Sends</div>
     }
 
     const available = busses.filter(b => !sends.some(s => s.busId === b.id))
@@ -97,10 +97,10 @@ export function SendsSlot({ track }: { track: Track | null }) {
             {sends.map(send => (
                 <div
                     key={send.busId}
-                    className="h-5 shrink-0 bg-sky-500/15 border border-sky-400/30 rounded-sm flex items-center px-1.5 gap-1 group/send"
+                    className="h-5 shrink-0 bg-accent-cyan/15 border border-accent-cyan/30 rounded-sm flex items-center px-1.5 gap-1 group/send"
                     title={`${busName(send.busId)} — ${Math.round(send.level * 100)}%`}
                 >
-                    <span className="text-[8px] font-black text-sky-300 uppercase truncate flex-1">
+                    <span className="text-[8px] font-black text-accent-cyan uppercase truncate flex-1">
                         {busName(send.busId)}
                     </span>
                     <input
@@ -109,12 +109,12 @@ export function SendsSlot({ track }: { track: Track | null }) {
                         value={send.level}
                         onClick={e => e.stopPropagation()}
                         onChange={e => setTrackSend(track.id, send.busId, Number(e.target.value))}
-                        className="w-8 h-1 accent-sky-400 cursor-pointer"
+                        className="w-8 h-1 accent-cyan-400 cursor-pointer"
                         aria-label={`Send level to ${busName(send.busId)}`}
                     />
                     <button
                         onClick={e => { e.stopPropagation(); removeTrackSend(track.id, send.busId) }}
-                        className="opacity-0 group-hover/send:opacity-100 text-gray-400 hover:text-red-400"
+                        className="opacity-0 group-hover/send:opacity-100 text-studio-text-mid hover:text-red-400"
                         aria-label={`Remove send to ${busName(send.busId)}`}
                     >
                         <X className="w-2 h-2" />
@@ -126,18 +126,18 @@ export function SendsSlot({ track }: { track: Track | null }) {
                 <button
                     onClick={e => { e.stopPropagation(); setAdding(v => !v) }}
                     disabled={available.length === 0}
-                    className="w-full h-4 bg-black/20 rounded-sm border border-white/5 text-[7px] font-black text-gray-500 hover:text-sky-300 hover:border-sky-400/30 flex items-center justify-center gap-1 uppercase disabled:opacity-40 disabled:hover:text-gray-500"
+                    className="w-full h-4 bg-black/20 rounded-sm border border-white/5 text-[7px] font-black text-studio-text-dim hover:text-accent-cyan hover:border-accent-cyan/30 flex items-center justify-center gap-1 uppercase disabled:opacity-40 disabled:hover:text-studio-text-dim"
                 >
                     <Plus className="w-2 h-2" /> Send
                 </button>
                 <Popover open={adding} onClose={() => setAdding(false)} className="bottom-5 left-0">
                     {available.length === 0 ? (
-                        <div className="px-2 py-1 text-gray-500">Create a bus track first</div>
+                        <div className="px-2 py-1 text-studio-text-dim">Create a bus track first</div>
                     ) : available.map(bus => (
                         <button
                             key={bus.id}
                             onClick={() => { setTrackSend(track.id, bus.id, 0.25); setAdding(false) }}
-                            className="text-left px-2 py-1 hover:bg-white/10 rounded text-gray-200"
+                            className="text-left px-2 py-1 hover:bg-white/10 rounded text-studio-text"
                         >
                             {bus.name}
                         </button>
@@ -165,17 +165,17 @@ export function OutputRouting({ track, isMaster }: { track: Track | null; isMast
             <button
                 disabled={isMaster || !track}
                 onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
-                className="w-full h-6 bg-[#252525] border border-white/5 rounded-sm flex items-center px-2 justify-between text-[9px] font-black text-gray-400 shadow-sm hover:border-gray-500 disabled:hover:border-white/5 transition-colors"
+                className="w-full h-6 bg-studio-raised border border-white/5 rounded-sm flex items-center px-2 justify-between text-[9px] font-black text-studio-text-mid shadow-sm hover:border-studio-line-strong disabled:hover:border-white/5 transition-colors"
                 title={isMaster ? 'Master output' : 'Route this channel to a bus'}
             >
                 <span className="truncate uppercase">{label}</span>
-                <ChevronDown className="w-2.5 h-2.5 text-gray-600 shrink-0" />
+                <ChevronDown className="w-2.5 h-2.5 text-studio-text-dim shrink-0" />
             </button>
 
             <Popover open={open} onClose={() => setOpen(false)} className="top-6 left-0">
                 <button
                     onClick={() => { if (track) routeTrackTo(track.id, 'stereo-out'); setOpen(false) }}
-                    className="text-left px-2 py-1 hover:bg-white/10 rounded text-gray-200"
+                    className="text-left px-2 py-1 hover:bg-white/10 rounded text-studio-text"
                 >
                     Stereo Out
                 </button>
@@ -183,13 +183,13 @@ export function OutputRouting({ track, isMaster }: { track: Track | null; isMast
                     <button
                         key={bus.id}
                         onClick={() => { if (track) routeTrackTo(track.id, bus.id); setOpen(false) }}
-                        className="text-left px-2 py-1 hover:bg-white/10 rounded text-gray-200"
+                        className="text-left px-2 py-1 hover:bg-white/10 rounded text-studio-text"
                     >
                         {bus.name}
                     </button>
                 ))}
                 {busses.length === 0 && (
-                    <div className="px-2 py-1 text-gray-500">No busses yet</div>
+                    <div className="px-2 py-1 text-studio-text-dim">No busses yet</div>
                 )}
             </Popover>
         </div>
@@ -223,7 +223,7 @@ export function SidechainPicker({
                 onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
                 className={`w-full h-5 rounded-sm border flex items-center px-1.5 gap-1 text-[8px] font-black uppercase transition-colors ${sourceId
                     ? 'bg-amber-500/20 border-amber-400/40 text-amber-300'
-                    : 'bg-black/20 border-white/5 text-gray-500 hover:text-amber-300 hover:border-amber-400/30'}`}
+                    : 'bg-black/20 border-white/5 text-studio-text-dim hover:text-amber-300 hover:border-amber-400/30'}`}
                 title="Sidechain key input"
             >
                 <Radio className="w-2 h-2 shrink-0" />
@@ -233,7 +233,7 @@ export function SidechainPicker({
             <Popover open={open} onClose={() => setOpen(false)} className="top-5 left-0">
                 <button
                     onClick={() => { clearSidechainSource(track.id, pluginId); setOpen(false) }}
-                    className="text-left px-2 py-1 hover:bg-white/10 rounded text-gray-400"
+                    className="text-left px-2 py-1 hover:bg-white/10 rounded text-studio-text-mid"
                 >
                     None
                 </button>
@@ -241,7 +241,7 @@ export function SidechainPicker({
                     <button
                         key={t.id}
                         onClick={() => { setSidechainSource(track.id, pluginId, t.id); setOpen(false) }}
-                        className="text-left px-2 py-1 hover:bg-white/10 rounded text-gray-200"
+                        className="text-left px-2 py-1 hover:bg-white/10 rounded text-studio-text"
                     >
                         {t.name}
                     </button>
@@ -271,7 +271,7 @@ export function MonitorControls() {
                 onClick={() => setMonitorMode(monitorMode === 'mono' ? 'stereo' : 'mono')}
                 className={`px-2 h-6 rounded text-[9px] font-black uppercase border transition-colors ${monitorMode === 'mono'
                     ? 'bg-amber-500/20 border-amber-400/50 text-amber-300'
-                    : 'bg-black/30 border-white/10 text-gray-400 hover:text-gray-200'}`}
+                    : 'bg-black/30 border-white/10 text-studio-text-mid hover:text-studio-text'}`}
                 title="Fold the monitor to mono — a vocal that vanishes has a phase problem"
             >
                 Mono

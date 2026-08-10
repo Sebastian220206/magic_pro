@@ -23,6 +23,7 @@ import { initializeInstruments } from '@/engine/instruments/instrumentBootstrap'
 import { BUILTIN_PLUGIN_IDS, BUILTIN_PLUGIN_NAMES, resolvePluginId } from '@/engine/plugins/pluginIds';
 import { getGridSize } from '@/engine/midi/quantization';
 import type { GridDivision } from '@/engine/midi/types';
+import { NEON_TRACK_PALETTE } from '@/lib/trackColor'
 
 interface GlobalTrackPoint {
     time: number; // beats
@@ -3220,7 +3221,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
         const newTracks: Track[] = []
         const newClips: Clip[] = []
-        const trackColors = ['#fb7185', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6']
+        const trackColors = [...NEON_TRACK_PALETTE]
 
         allowedStems.forEach((stem, idx) => {
             const stemResult = stemResults.find(r => r.name === stem)

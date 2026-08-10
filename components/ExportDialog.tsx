@@ -132,73 +132,73 @@ export function ExportDialog() {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9000] flex items-center justify-center p-4 selection:bg-sky-500/30">
-      <div className="bg-[#2c2c2e] w-full max-w-xl rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9000] flex items-center justify-center p-4 selection:bg-accent-cyan/30">
+      <div className="bg-studio-control w-full max-w-xl rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="px-8 py-5 flex items-center justify-between border-b border-black/40 bg-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-3 h-3 rounded-full bg-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.5)]"></div>
+            <div className="w-3 h-3 rounded-full bg-accent-cyan shadow-[0_0_10px_rgba(14,165,233,0.5)]"></div>
             <h2 className="text-sm font-black text-white tracking-tight uppercase opacity-90">{title}</h2>
           </div>
-          <button onClick={() => toggleExportDialog(null)} className="p-2 hover:bg-white/10 rounded-full transition-all text-gray-500 hover:text-white active:scale-90">
+          <button onClick={() => toggleExportDialog(null)} className="p-2 hover:bg-white/10 rounded-full transition-all text-studio-text-dim hover:text-white active:scale-90">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#1c1c1e]">
+        <div className="flex-1 overflow-y-auto custom-scrollbar bg-studio-panel">
           <div className="p-10 grid grid-cols-1 gap-y-8">
             <div className="grid grid-cols-[200px_1fr] gap-y-4 items-center">
-              <label className="text-[11px] font-bold text-gray-400 text-right pr-6">File Type:</label>
+              <label className="text-[11px] font-bold text-studio-text-mid text-right pr-6">File Type:</label>
               <Dropdown
                 value={settings.fileType}
                 onChange={(v) => setSettings({ ...settings, fileType: v })}
                 options={["WAVE"]}
               />
 
-              <label className="text-[11px] font-bold text-gray-400 text-right pr-6">Bit Depth:</label>
+              <label className="text-[11px] font-bold text-studio-text-mid text-right pr-6">Bit Depth:</label>
               <Dropdown
                 value={settings.bitDepth}
                 onChange={(v) => setSettings({ ...settings, bitDepth: v })}
                 options={["16-bit", "24-bit", "32-bit (float)"]}
               />
 
-              <label className="text-[11px] font-bold text-gray-400 text-right pr-6">Stems:</label>
+              <label className="text-[11px] font-bold text-studio-text-mid text-right pr-6">Stems:</label>
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={asStems}
                   onChange={e => setAsStems(e.target.checked)}
-                  className="accent-sky-500 w-4 h-4"
+                  className="accent-cyan-400 w-4 h-4"
                 />
-                <span className="text-[11px] text-gray-400">
+                <span className="text-[11px] text-studio-text-mid">
                   One aligned file per bus, all the same length
                 </span>
               </label>
 
-              <label className="text-[11px] font-bold text-gray-400 text-right pr-6">Title:</label>
+              <label className="text-[11px] font-bold text-studio-text-mid text-right pr-6">Title:</label>
               <input
                 value={metadata.title}
                 onChange={e => setMetadata({ ...metadata, title: e.target.value })}
                 placeholder={projectName || "Untitled"}
-                className="bg-black/40 border border-white/10 rounded px-3 h-9 text-[12px] text-white placeholder:text-gray-600 focus:border-sky-500 outline-none"
+                className="bg-black/40 border border-white/10 rounded px-3 h-9 text-[12px] text-white placeholder:text-studio-text-dim focus:border-accent-cyan outline-none"
               />
 
-              <label className="text-[11px] font-bold text-gray-400 text-right pr-6">Artist:</label>
+              <label className="text-[11px] font-bold text-studio-text-mid text-right pr-6">Artist:</label>
               <input
                 value={metadata.artist}
                 onChange={e => setMetadata({ ...metadata, artist: e.target.value })}
-                className="bg-black/40 border border-white/10 rounded px-3 h-9 text-[12px] text-white focus:border-sky-500 outline-none"
+                className="bg-black/40 border border-white/10 rounded px-3 h-9 text-[12px] text-white focus:border-accent-cyan outline-none"
               />
 
-              <label className="text-[11px] font-bold text-gray-400 text-right pr-6">ISRC:</label>
+              <label className="text-[11px] font-bold text-studio-text-mid text-right pr-6">ISRC:</label>
               <input
                 value={metadata.isrc}
                 onChange={e => setMetadata({ ...metadata, isrc: e.target.value.toUpperCase() })}
                 placeholder="CCXXXYYNNNNN"
                 maxLength={12}
-                className="bg-black/40 border border-white/10 rounded px-3 h-9 text-[12px] text-white placeholder:text-gray-600 font-mono focus:border-sky-500 outline-none"
+                className="bg-black/40 border border-white/10 rounded px-3 h-9 text-[12px] text-white placeholder:text-studio-text-dim font-mono focus:border-accent-cyan outline-none"
               />
 
-              <label className="text-[11px] font-bold text-gray-400 text-right pr-6">Normalize:</label>
+              <label className="text-[11px] font-bold text-studio-text-mid text-right pr-6">Normalize:</label>
               <div>
                 <Dropdown
                   value={settings.normalize}
@@ -209,7 +209,7 @@ export function ExportDialog() {
             </div>
 
             <div className="mt-4 pt-8 border-t border-white/5">
-              <p className="text-center text-[11px] text-gray-500">
+              <p className="text-center text-[11px] text-studio-text-dim">
                 WAV export is the only format currently supported. MP3, AIFF, and other formats are not available in this version.
               </p>
             </div>
@@ -221,14 +221,14 @@ export function ExportDialog() {
           <div className="flex gap-4">
             <button
               onClick={() => toggleExportDialog(null)}
-              className="px-8 py-2.5 rounded-xl text-xs font-black text-gray-400 hover:text-white transition-all active:scale-95"
+              className="px-8 py-2.5 rounded-xl text-xs font-black text-studio-text-mid hover:text-white transition-all active:scale-95"
             >
               Cancel
             </button>
             <button
               onClick={handleExport}
               disabled={exporting}
-              className="px-12 py-2.5 bg-sky-500 hover:bg-sky-400 disabled:bg-sky-500/50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black shadow-[0_10px_20px_rgba(14,165,233,0.3)] active:scale-95 transition-all outline-none ring-offset-2 ring-offset-[#2c2c2e] focus:ring-2 focus:ring-sky-500"
+              className="px-12 py-2.5 bg-accent-cyan hover:bg-accent-cyan disabled:bg-accent-cyan/50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black shadow-[0_10px_20px_rgba(14,165,233,0.3)] active:scale-95 transition-all outline-none ring-offset-2 ring-offset-[#2c2c2e] focus:ring-2 focus:ring-accent-cyan"
             >
               {exporting && progress !== null ? `Exporting (${progress}%)...` : exporting ? "Exporting..." : "EXPORT"}
             </button>
@@ -249,15 +249,15 @@ function Dropdown({ value, options, onChange }: { value: string; options: string
         className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white flex items-center justify-between cursor-pointer hover:bg-black/60 transition-all shadow-inner group-hover:border-white/20"
       >
         <span className="truncate">{value}</span>
-        <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-4 h-4 text-studio-text-dim transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </div>
       {isOpen && (
-        <div className="absolute top-full mt-1 w-full bg-[#333] border border-white/10 rounded-lg shadow-2xl z-[9001] overflow-hidden py-1 animate-in slide-in-from-top-1 duration-150">
+        <div className="absolute top-full mt-1 w-full bg-studio-control border border-white/10 rounded-lg shadow-2xl z-[9001] overflow-hidden py-1 animate-in slide-in-from-top-1 duration-150">
           {options.map((opt) => (
             <div
               key={opt}
               onClick={() => { onChange(opt); setIsOpen(false); }}
-              className={`px-3 py-2 text-[11px] font-medium cursor-pointer transition-colors flex items-center justify-between ${value === opt ? "bg-sky-500 text-white" : "text-gray-400 hover:bg-white/5 hover:text-white"}`}
+              className={`px-3 py-2 text-[11px] font-medium cursor-pointer transition-colors flex items-center justify-between ${value === opt ? "bg-accent-cyan text-white" : "text-studio-text-mid hover:bg-white/5 hover:text-white"}`}
             >
               {opt}
               {value === opt && <Check className="w-3 h-3" />}

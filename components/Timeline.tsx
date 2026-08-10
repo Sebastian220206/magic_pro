@@ -3,6 +3,7 @@ import { useProjectStore } from "@/store/projectStore"
 import { Clip } from "@/models/Clip"
 import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { WaveformSVG } from "./WaveformSVG"
+import { neonTrackColor, neonTrackAlpha, neonTrackTextColor } from "@/lib/trackColor"
 import {
     ChevronDown, ChevronRight, Search,
     MousePointer2, Pencil, Eraser,
@@ -549,7 +550,7 @@ export function Timeline() {
 
     return (
         <div
-            className="flex-1 bg-[#111] overflow-x-auto overflow-y-auto relative flex flex-col custom-scrollbar select-none z-10"
+            className="flex-1 bg-studio-sunken overflow-x-auto overflow-y-auto relative flex flex-col custom-scrollbar select-none z-10"
             ref={containerRef}
             style={{ cursor: timelineCursor }}
             onMouseDown={handleTimelineMouseDown}
@@ -564,11 +565,11 @@ export function Timeline() {
                 onMouseDown={handleRulerMouseDown}
             >
                 {/* ── Top Row: Bar Numbers ── */}
-                <div className="absolute inset-x-0 top-0 h-[24px] bg-[#3a3a3a] border-b border-[#2a2a2a]">
+                <div className="absolute inset-x-0 top-0 h-[24px] bg-studio-control border-b border-studio-line">
                     <div className="absolute inset-0 flex" style={{ width: `${totalWidth}px` }}>
                         {[...Array(400)].map((_, i) => (
-                            <div key={i} className="relative h-full border-r border-[#4a4a4a]" style={{ width: `${pixelsPerBeat * 4}px`, flexShrink: 0 }}>
-                                <span className="text-[13px] font-bold text-[#b0b0b0] absolute top-[2px] left-[4px] tabular-nums select-none">
+                            <div key={i} className="relative h-full border-r border-studio-line-strong" style={{ width: `${pixelsPerBeat * 4}px`, flexShrink: 0 }}>
+                                <span className="text-[13px] font-bold text-studio-text-mid absolute top-[2px] left-[4px] tabular-nums select-none">
                                     {1 + i}
                                 </span>
                             </div>
@@ -577,12 +578,12 @@ export function Timeline() {
                 </div>
 
                 {/* ── Bottom Row: Beat Subdivision Ticks ── */}
-                <div className="absolute inset-x-0 top-[24px] h-[24px] bg-[#333] border-b border-[#222]">
+                <div className="absolute inset-x-0 top-[24px] h-[24px] bg-studio-control border-b border-studio-line">
                     {/* Thin horizontal line at the very top of this row */}
-                    <div className="absolute inset-x-0 top-0 h-px bg-[#4a4a4a]"></div>
+                    <div className="absolute inset-x-0 top-0 h-px bg-studio-control"></div>
                     <div className="absolute inset-0 flex" style={{ width: `${totalWidth}px` }}>
                         {[...Array(400)].map((_, i) => (
-                            <div key={i} className="relative h-full border-r border-[#4a4a4a]" style={{ width: `${pixelsPerBeat * 4}px`, flexShrink: 0 }}>
+                            <div key={i} className="relative h-full border-r border-studio-line-strong" style={{ width: `${pixelsPerBeat * 4}px`, flexShrink: 0 }}>
                                 {/* 8 subdivision ticks per bar (every half-beat) */}
                                 {[...Array(8)].map((_, j) => (
                                     <div
@@ -612,7 +613,7 @@ export function Timeline() {
                 {/* Cycle Area */}
                 {(cycleEnabled || skipCycleEnabled) && (
                     <div
-                        className={`absolute top-0 h-[24px] z-40 transition-all duration-300 rounded-[1px] ${skipCycleEnabled ? 'bg-[#111] shadow-[inset_0_0_10px_rgba(0,0,0,0.8)] border-x border-[#333]' : 'bg-yellow-500/80 shadow-[0_4px_10px_rgba(234,179,8,0.2)] border-x border-yellow-400'}`}
+                        className={`absolute top-0 h-[24px] z-40 transition-all duration-300 rounded-[1px] ${skipCycleEnabled ? 'bg-studio-sunken shadow-[inset_0_0_10px_rgba(0,0,0,0.8)] border-x border-studio-line' : 'bg-yellow-500/80 shadow-[0_4px_10px_rgba(234,179,8,0.2)] border-x border-yellow-400'}`}
                         style={{
                             left: `${locatorLeft * pixelsPerBeat}px`,
                             width: `${(locatorRight - locatorLeft) * pixelsPerBeat}px`,
@@ -626,10 +627,10 @@ export function Timeline() {
                             </div>
                         )}
                         <div className="absolute left-0 top-0 bottom-0 w-1 flex items-center justify-center cursor-ew-resize hover:bg-white/20">
-                            <div className="w-[1px] h-3 bg-white/40"></div>
+                            <div className="w-[1px] h-3 bg-white/[0.04]"></div>
                         </div>
                         <div className="absolute right-0 top-0 bottom-0 w-1 flex items-center justify-center cursor-ew-resize hover:bg-white/20">
-                            <div className="w-[1px] h-3 bg-white/40"></div>
+                            <div className="w-[1px] h-3 bg-white/[0.04]"></div>
                         </div>
                     </div>
                 )}
@@ -651,7 +652,7 @@ export function Timeline() {
                 {/* Playhead — Teardrop / Pick Shape */}
                 <div
                     ref={playheadHandleRef}
-                    className="absolute top-0 bottom-0 w-px bg-[#ccc] z-50 pointer-events-none"
+                    className="absolute top-0 bottom-0 w-px studio-playhead z-50 pointer-events-none"
                     style={{ transform: `translateX(${playheadX}px)` }}
                 >
                     {/* Teardrop SVG */}
@@ -663,11 +664,12 @@ export function Timeline() {
                     >
                         <path
                             d="M8 0 C8 0, 15 6, 15 12 C15 16.5 12 20 8 24 C4 20 1 16.5 1 12 C1 6 8 0 8 0Z"
-                            fill="#c0c0c0"
-                            stroke="#999"
+                            fill="#e8fbff"
+                            stroke="#22d3ee"
                             strokeWidth="0.5"
+                            style={{ filter: 'drop-shadow(0 0 4px #22d3ee)' }}
                         />
-                        <line x1="8" y1="6" x2="8" y2="18" stroke="#888" strokeWidth="1" />
+                        <line x1="8" y1="6" x2="8" y2="18" stroke="#0d141d" strokeWidth="1" />
                     </svg>
                 </div>
 
@@ -689,8 +691,8 @@ export function Timeline() {
                         window.addEventListener('mouseup', onUp);
                     }}
                 >
-                    <div className="w-0.5 h-full bg-gray-400 group-hover:bg-white transition-colors"></div>
-                    <div className="w-2.5 h-2.5 bg-gray-600 rounded-sm border border-black/40 -mt-1 shadow-lg"></div>
+                    <div className="w-0.5 h-full bg-studio-control group-hover:bg-studio-control transition-colors"></div>
+                    <div className="w-2.5 h-2.5 bg-studio-control rounded-sm border border-black/40 -mt-1 shadow-lg"></div>
                 </div>
 
                 <div
@@ -710,8 +712,8 @@ export function Timeline() {
                         window.addEventListener('mouseup', onUp);
                     }}
                 >
-                    <div className="w-0.5 h-full bg-gray-400 group-hover:bg-white transition-colors"></div>
-                    <div className="w-2.5 h-2.5 bg-gray-600 rounded-sm border border-black/40 -mt-1 shadow-lg"></div>
+                    <div className="w-0.5 h-full bg-studio-control group-hover:bg-studio-control transition-colors"></div>
+                    <div className="w-2.5 h-2.5 bg-studio-control rounded-sm border border-black/40 -mt-1 shadow-lg"></div>
                 </div>
             </div>
 
@@ -720,14 +722,14 @@ export function Timeline() {
                 {/* Visual Playhead Content Line */}
                 <div
                     ref={playheadLineRef}
-                    className="absolute inset-y-0 w-px bg-sky-500/40 z-50 pointer-events-none shadow-[0_0_20px_rgba(14,165,233,0.4)]"
+                    className="absolute inset-y-0 w-px studio-playhead z-50 pointer-events-none"
                     style={{ transform: `translateX(${playheadX}px)` }}
                 />
 
                 {/* Marquee Selection Rendering */}
                 {marqueeSelection && (
                     <div 
-                        className="absolute z-[60] border-2 border-sky-400/60 pointer-events-none rounded-sm"
+                        className="absolute z-[60] border-2 border-accent-cyan/60 pointer-events-none rounded-sm"
                         style={{
                             left: `${marqueeSelection.startBeat * pixelsPerBeat}px`,
                             width: `${(marqueeSelection.endBeat - marqueeSelection.startBeat) * pixelsPerBeat}px`,
@@ -735,8 +737,8 @@ export function Timeline() {
                             height: `${marqueeSelection.trackIds.length * trackHeight}px`,
                         }}
                     >
-                        <div className="absolute inset-0 bg-gradient-to-br from-sky-500/15 via-sky-400/5 to-transparent"></div>
-                        <div className="absolute top-0 left-0 px-2 py-0.5 bg-sky-500/30 text-sky-200 text-[10px] font-medium rounded-br">
+                        <div className="absolute inset-0 bg-gradient-to-br from-accent-cyan/15 via-accent-cyan/5 to-transparent"></div>
+                        <div className="absolute top-0 left-0 px-2 py-0.5 bg-accent-cyan/30 text-accent-cyan text-[10px] font-medium rounded-br">
                             {marqueeSelection.clipIds.length} clips
                         </div>
                     </div>
@@ -746,7 +748,7 @@ export function Timeline() {
                 {tracks.length > 0 && (
                     <div className="absolute left-0 top-0 flex pointer-events-none z-10" style={{ height: `${totalTracksHeight}px` }}>
                         {[...Array(800)].map((_, i) => (
-                            <div key={i} className={`h-full border-r ${(i + 1) % 16 === 0 ? 'border-sky-500/10' : (i + 1) % 4 === 0 ? 'border-white/[0.03]' : 'border-white/[0.01]'}`} style={{ width: `${pixelsPerBeat}px`, flexShrink: 0 }}></div>
+                            <div key={i} className={`h-full border-r ${(i + 1) % 16 === 0 ? 'border-accent-cyan/10' : (i + 1) % 4 === 0 ? 'border-white/[0.03]' : 'border-white/[0.01]'}`} style={{ width: `${pixelsPerBeat}px`, flexShrink: 0 }}></div>
                         ))}
                     </div>
                 )}
@@ -831,7 +833,7 @@ export function Timeline() {
                                                         }
                                                         setContextMenu({ x: e.clientX, y: e.clientY, clipIds: selectedClipIds.includes(clip.id) ? selectedClipIds : [clip.id] });
                                                     }}
-                                                    className={`absolute ${clip.isTakeFolderOpen ? 'z-40 shadow-xl border-white/60' : ''} top-0.5 rounded-[4px] border shadow-2xl group cursor-move overflow-hidden transition-all transform active:scale-[0.99] ${selectedClipIds.includes(clip.id) ? 'border-white ring-1 ring-white/40 ring-inset brightness-110 z-30 shadow-sky-500/20' : 'border-black/50'} ${clip.muted ? 'opacity-40 grayscale-[0.6]' : 'opacity-100'}`}
+                                                    className={`absolute ${clip.isTakeFolderOpen ? 'z-40 shadow-xl border-white/60' : ''} top-0.5 rounded-[4px] border shadow-2xl group cursor-move overflow-hidden transition-all transform active:scale-[0.99] ${selectedClipIds.includes(clip.id) ? 'ring-2 ring-white/70 ring-inset brightness-125 z-30' : ''} ${clip.muted ? 'opacity-40 grayscale-[0.6]' : 'opacity-100'}`}
                                                     onDoubleClick={(e) => {
                                                         if (clip.type === 'audio') {
                                                             e.stopPropagation();
@@ -844,8 +846,11 @@ export function Timeline() {
                                                         left: `${clip.start * pixelsPerBeat}px`,
 
                                                         width: `${clip.duration * pixelsPerBeat}px`,
-                                                        backgroundColor: clip.color,
-                                                        backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 25%, rgba(0,0,0,0.2) 100%)'
+                                                        color: neonTrackTextColor(clip.color),
+                                                        backgroundColor: neonTrackAlpha(clip.color, 0.16),
+                                                        borderColor: neonTrackAlpha(clip.color, 0.55),
+                                                        boxShadow: `inset 0 0 20px ${neonTrackAlpha(clip.color, 0.14)}`,
+                                                        backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 45%, rgba(0,0,0,0.35) 100%)'
                                                     }}
                                                 >
                                                     <div
@@ -857,7 +862,7 @@ export function Timeline() {
                                                         onMouseDown={(e) => handleClipResize(clip, 'right', e)}
                                                     />
                                                     {/* Professional Region Label */}
-                                                    <div className="absolute top-0 left-0 right-0 h-4.5 px-2.5 flex items-center justify-between z-20 bg-black/10 backdrop-blur-[2px] border-b border-black/10">
+                                                    <div className="absolute top-0 left-0 right-0 h-4.5 px-2.5 flex items-center justify-between z-20 bg-black/35 backdrop-blur-[2px] border-b border-white/10">
                                                         <div className="flex items-center gap-1.5 overflow-hidden w-full">
                                                             {clip.isTakeFolder && (
                                                                 <div 
@@ -871,24 +876,24 @@ export function Timeline() {
                                                                         }
                                                                     }}
                                                                 >
-                                                                    {clip.isTakeFolderOpen ? <ChevronDown className="w-2.5 h-2.5 text-black/80" /> : <ChevronRight className="w-2.5 h-2.5 text-black/80" />}
+                                                                    {clip.isTakeFolderOpen ? <ChevronDown className="w-2.5 h-2.5 text-white/80" /> : <ChevronRight className="w-2.5 h-2.5 text-white/80" />}
                                                                 </div>
                                                             )}
                                                             {clip.isTakeFolder && (
-                                                                <div className="flex items-center gap-1 mr-1.5 bg-white/20 px-1 rounded-sm border border-black/20 pointer-events-auto">
+                                                                <div className="flex items-center gap-1 mr-1.5 bg-white/10 px-1 rounded-sm border border-white/15 pointer-events-auto">
                                                                     <div 
-                                                                        className={`p-0.5 cursor-pointer rounded-sm hover:bg-black/10 transition-colors ${clip.quickSwipeComping ? 'bg-black/20 shadow-inner' : ''}`}
+                                                                        className={`p-0.5 cursor-pointer rounded-sm hover:bg-white/10 transition-colors ${clip.quickSwipeComping ? 'bg-white/20 shadow-inner' : ''}`}
                                                                         onMouseDown={(e) => {
                                                                             e.stopPropagation();
                                                                             updateClip(clip.id, { quickSwipeComping: !clip.quickSwipeComping });
                                                                         }}
                                                                         title="Quick Swipe Comping"
                                                                     >
-                                                                        <Layers className={`w-2 h-2 ${clip.quickSwipeComping ? 'text-green-800' : 'text-black/60'}`} />
+                                                                        <Layers className={`w-2 h-2 ${clip.quickSwipeComping ? 'text-green-300' : 'text-white/60'}`} />
                                                                     </div>
                                                                     <div className="w-px h-3 bg-black/20 mx-0.5" />
                                                                     <div 
-                                                                        className="relative p-0.5 cursor-pointer rounded-sm hover:bg-black/10 text-[8px] font-black text-black/80 flex items-center gap-0.5"
+                                                                        className="relative p-0.5 cursor-pointer rounded-sm hover:bg-white/10 text-[8px] font-black text-white/80 flex items-center gap-0.5"
                                                                         title="Take Folder Pop-up Menu"
                                                                         onMouseDown={(e) => {
                                                                             e.stopPropagation();
@@ -901,20 +906,20 @@ export function Timeline() {
                                                                         {clip.activeTakeIndex !== undefined ? String.fromCharCode(65 + clip.activeTakeIndex) : 'A'}
                                                                         <MoreHorizontal className="w-2 h-2" />
                                                                         {takeFolderMenuClipId === clip.id && clip.takes && (
-                                                                            <div className="absolute top-5 left-0 z-50 bg-white text-black rounded-sm border border-black/20 shadow-lg min-w-[220px]">
+                                                                            <div className="absolute top-5 left-0 z-50 bg-studio-control text-studio-text rounded-sm border border-black/20 shadow-lg min-w-[220px]">
                                                                                 <div className="px-2 py-1 border-b border-black/10 text-[11px] font-bold">Take Folder Menu</div>
-                                                                                <button className="w-full px-2 py-1 text-left text-[11px] hover:bg-sky-500 hover:text-white" onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); updateClip(clip.id, { quickSwipeComping: !clip.quickSwipeComping }); }}>
+                                                                                <button className="w-full px-2 py-1 text-left text-[11px] hover:bg-accent-cyan hover:text-white" onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); updateClip(clip.id, { quickSwipeComping: !clip.quickSwipeComping }); }}>
                                                                                     Quick Swipe Comping: {clip.quickSwipeComping ? 'On' : 'Off'}
                                                                                 </button>
-                                                                                <button className="w-full px-2 py-1 text-left text-[11px] hover:bg-sky-500 hover:text-white" onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); saveTakeFolderComp(clip.id); }}>
+                                                                                <button className="w-full px-2 py-1 text-left text-[11px] hover:bg-accent-cyan hover:text-white" onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); saveTakeFolderComp(clip.id); }}>
                                                                                     Save Current Comp
                                                                                 </button>
-                                                                                <button className="w-full px-2 py-1 text-left text-[11px] hover:bg-sky-500 hover:text-white" onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); createTakeFolderComp(clip.id); }}>
+                                                                                <button className="w-full px-2 py-1 text-left text-[11px] hover:bg-accent-cyan hover:text-white" onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); createTakeFolderComp(clip.id); }}>
                                                                                     Create New Comp
                                                                                 </button>
-                                                                                <div className="px-2 py-1 text-[11px] font-bold text-gray-500 border-t border-black/10">Takes</div>
+                                                                                <div className="px-2 py-1 text-[11px] font-bold text-studio-text-dim border-t border-black/10">Takes</div>
                                                                                 {clip.takes.map((take, tIdx) => (
-                                                                                    <div key={take.id} className={`px-2 py-1 cursor-pointer hover:bg-blue-500 hover:text-white ${clip.activeTakeIndex === tIdx ? 'bg-blue-600 text-white' : ''}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => {
+                                                                                    <div key={take.id} className={`px-2 py-1 cursor-pointer hover:bg-accent-cyan hover:text-white ${clip.activeTakeIndex === tIdx ? 'bg-accent-cyan text-white' : ''}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => {
                                                                                         e.stopPropagation();
                                                                                         setActiveTake(clip, tIdx);
                                                                                         setTakeFolderMenuClipId(null);
@@ -924,7 +929,7 @@ export function Timeline() {
                                                                                 ))}
                                                                                 {clip.comps && clip.comps.length > 0 && (
                                                                                     <>
-                                                                                        <div className="px-2 py-1 text-[11px] font-bold text-gray-500 border-t border-black/10">Comps</div>
+                                                                                        <div className="px-2 py-1 text-[11px] font-bold text-studio-text-dim border-t border-black/10">Comps</div>
                                                                                         {clip.comps.map(comp => (
                                                                                             <div key={comp.id} className={`px-2 py-1 cursor-pointer hover:bg-emerald-500 hover:text-white ${clip.activeCompId === comp.id ? 'bg-emerald-600 text-white' : ''}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => {
                                                                                                 e.stopPropagation();
@@ -941,13 +946,13 @@ export function Timeline() {
                                                                                 )}
                                                                                 {(clip.comps || []).length > 0 && (
                                                                                     <div className="px-2 py-1 flex justify-between gap-1">
-                                                                                        <button className="text-[10px] px-2 py-1 bg-gray-200 rounded-sm hover:bg-gray-300" onMouseDown={e => e.stopPropagation()} onClick={e => {
+                                                                                        <button className="text-[10px] px-2 py-1 bg-white/10 rounded-sm hover:bg-white/[0.14]" onMouseDown={e => e.stopPropagation()} onClick={e => {
                                                                                             e.stopPropagation();
                                                                                             if (!clip.comps?.length) return;
                                                                                             const compToDelete = clip.comps[clip.comps.length - 1];
                                                                                             deleteTakeFolderComp(clip.id, compToDelete.id);
                                                                                         }}>Delete Last Comp</button>
-                                                                                        <button className="text-[10px] px-2 py-1 bg-gray-200 rounded-sm hover:bg-gray-300" onMouseDown={e => e.stopPropagation()} onClick={e => {
+                                                                                        <button className="text-[10px] px-2 py-1 bg-white/10 rounded-sm hover:bg-white/[0.14]" onMouseDown={e => e.stopPropagation()} onClick={e => {
                                                                                             e.stopPropagation();
                                                                                             const compToRename = clip.comps?.[clip.comps.length - 1];
                                                                                             if (!compToRename) return;
@@ -962,19 +967,19 @@ export function Timeline() {
                                                                 </div>
                                                             )}
                                                             {!clip.isTakeFolder && (
-                                                                clip.type === 'audio' ? <Volume2 className="w-2.5 h-2.5 text-black/60 pointer-events-none" /> : <Music className="w-2.5 h-2.5 text-black/60 pointer-events-none" />
+                                                                clip.type === 'audio' ? <Volume2 className="w-2.5 h-2.5 text-white/60 pointer-events-none" /> : <Music className="w-2.5 h-2.5 text-white/60 pointer-events-none" />
                                                             )}
-                                                            <span className={`text-[9px] font-black tracking-tight truncate leading-none uppercase pointer-events-none ${clip.aliasOf ? 'italic' : ''}`}>{clip.aliasOf ? (clip.aliasName || clips.find(c => c.id === clip.aliasOf)?.name || clip.name) : clip.name}</span>
+                                                            <span className={`text-[9px] font-black tracking-tight truncate leading-none uppercase pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${clip.aliasOf ? 'italic' : ''}`}>{clip.aliasOf ? (clip.aliasName || clips.find(c => c.id === clip.aliasOf)?.name || clip.name) : clip.name}</span>
                                                             {clip.aliasOf && clips.find(c => c.id === clip.aliasOf) && zoom >= 60 && (
-                                                                <span className="text-[7px] text-black/50 block truncate pointer-events-none">{clips.find(c => c.id === clip.aliasOf)?.name || 'Missing original'}</span>
+                                                                <span className="text-[7px] text-white/45 block truncate pointer-events-none">{clips.find(c => c.id === clip.aliasOf)?.name || 'Missing original'}</span>
                                                             )}
                                                         </div>
                                                     </div>
 
                                                     {/* Media Content Visualization */}
-                                                    <div className="absolute inset-x-0 bottom-0 top-[18px] opacity-70 pointer-events-none">
+                                                    <div className="absolute inset-x-0 bottom-0 top-[18px] pointer-events-none">
                                                         {clip.type === 'audio' ? (
-                                                            <div className="absolute inset-x-0 inset-y-1"><WaveformSVG color="black" peaks={clip.waveformPeaks} /></div>
+                                                            <div className="absolute inset-x-0 inset-y-1"><WaveformSVG color={neonTrackColor(clip.color)} peaks={clip.waveformPeaks} /></div>
                                                         ) : (
                                                             <div className="absolute inset-0 px-2 py-1"><MIDIPoints clip={clip} /></div>
                                                         )}
@@ -986,8 +991,8 @@ export function Timeline() {
                                                     <div className="absolute z-10" style={{ left: `${clip.start * pixelsPerBeat}px`, width: `${clip.duration * pixelsPerBeat}px`, top: `${currentHeight}px` }}>
                                                         {clip.takes.map((take, tIdx) => (
                                                             <div key={take.id} className="relative w-full border-b border-black/40 bg-black/40 group overflow-hidden" style={{ height: `${currentHeight}px` }}>
-                                                                <div className={`absolute inset-0 rounded-[2px] border ${clip.activeTakeIndex === tIdx ? 'border-sky-500/50 mix-blend-screen' : 'border-black/50 opacity-50'} transition-all`} 
-                                                                    style={{ backgroundColor: take.color }}
+                                                                <div className={`absolute inset-0 rounded-[2px] border ${clip.activeTakeIndex === tIdx ? 'border-accent-cyan/50 mix-blend-screen' : 'border-black/50 opacity-50'} transition-all`} 
+                                                                    style={{ backgroundColor: neonTrackAlpha(take.color, 0.16), borderColor: neonTrackAlpha(take.color, 0.5) }}
                                                                     onMouseDown={(e) => {
                                                                         e.stopPropagation();
                                                                         if (clip.quickSwipeComping) {
@@ -995,11 +1000,11 @@ export function Timeline() {
                                                                             updateClip(clip.id, { activeTakeIndex: tIdx });
                                                                         }
                                                                     }}>
-                                                                    <div className="absolute top-0 left-0 right-0 h-4.5 px-2 flex items-center z-10 bg-black/10 text-[9px] font-black text-black/80">
+                                                                    <div className="absolute top-0 left-0 right-0 h-4.5 px-2 flex items-center z-10 bg-black/35 text-[9px] font-black text-white/80">
                                                                         Take {tIdx + 1}
                                                                     </div>
-                                                                    <div className="absolute inset-x-0 bottom-0 top-[18px] opacity-70 pointer-events-none">
-                                                                        <WaveformSVG color="black" peaks={take.waveformPeaks} />
+                                                                    <div className="absolute inset-x-0 bottom-0 top-[18px] pointer-events-none">
+                                                                        <WaveformSVG color={neonTrackColor(take.color)} peaks={take.waveformPeaks} />
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1033,7 +1038,9 @@ export function Timeline() {
                                                     height: '26px',
                                                     left: `${clip.start * pixelsPerBeat}px`,
                                                     width: `${clip.duration * pixelsPerBeat}px`,
-                                                    backgroundColor: clip.color || track.color
+                                                    color: neonTrackTextColor(clip.color || track.color),
+                                                    backgroundColor: neonTrackAlpha(clip.color || track.color, 0.16),
+                                                    borderColor: neonTrackAlpha(clip.color || track.color, 0.4)
                                                 }}
                                             >
                                                 <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
@@ -1050,13 +1057,13 @@ export function Timeline() {
 
             {contextMenu && (
                 <div 
-                    className="fixed z-[200] w-64 bg-[#2c2c2e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
+                    className="fixed z-[200] w-64 bg-studio-control/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
                     style={{ left: contextMenu.x, top: contextMenu.y }}
                     onMouseLeave={() => setContextMenu(null)}
                 >
-                    <div className="px-3 py-1.5 text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-white/5 mb-1">Region Operations</div>
+                    <div className="px-3 py-1.5 text-[10px] font-black text-studio-text-dim uppercase tracking-widest border-b border-white/5 mb-1">Region Operations</div>
                     <button
-                        className="w-full px-4 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                        className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors"
                         onClick={() => {
                             const firstClipId = contextMenu.clipIds[0];
                             const clip = useProjectStore.getState().clips.find(c => c.id === firstClipId);
@@ -1068,7 +1075,7 @@ export function Timeline() {
                         Make Alias at Playhead
                     </button>
                     <button
-                        className="w-full px-4 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                        className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors"
                         onClick={() => {
                             useProjectStore.getState().makeAliasesFromSelection();
                             setContextMenu(null);
@@ -1077,7 +1084,7 @@ export function Timeline() {
                         Repeat Regions as Aliases
                     </button>
                     <button
-                        className="w-full px-4 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                        className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors"
                         onClick={() => {
                             const first = contextMenu.clipIds[0];
                             useProjectStore.getState().selectAliasesOfRegion(first);
@@ -1087,7 +1094,7 @@ export function Timeline() {
                         Select Aliases of Region
                     </button>
                     <button
-                        className="w-full px-4 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                        className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors"
                         onClick={() => {
                             const first = contextMenu.clipIds[0];
                             useProjectStore.getState().selectOriginalOfAlias(first);
@@ -1097,7 +1104,7 @@ export function Timeline() {
                         Select Original of Alias
                     </button>
                     <button
-                        className="w-full px-4 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                        className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors"
                         onClick={() => {
                             const first = contextMenu.clipIds[0];
                             useProjectStore.getState().convertAliasToRegionCopy(first);
@@ -1107,14 +1114,14 @@ export function Timeline() {
                         Convert Selected Alias to Copy
                     </button>
                     <div className="h-px bg-white/5 my-1" />
-                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors flex items-center justify-between group">
+                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors flex items-center justify-between group">
                         Rename Regions...
-                        <span className="text-[10px] text-gray-500 group-hover:text-white/60">⇧N</span>
+                        <span className="text-[10px] text-studio-text-dim group-hover:text-white/60">⇧N</span>
                     </button>
-                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors">
+                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors">
                         Colors
                     </button>
-                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors"
                         onClick={() => {
                             useProjectStore.getState().selectOrphanAliases();
                             setContextMenu(null);
@@ -1122,7 +1129,7 @@ export function Timeline() {
                     >
                         Select Orphan Aliases
                     </button>
-                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors"
                         onClick={() => {
                             const first = contextMenu.clipIds[0];
                             const threshold = parseFloat(prompt('Threshold (0-1)', '0.02') || '0.02');
@@ -1133,7 +1140,7 @@ export function Timeline() {
                     >
                         Remove Silence (Quick)
                     </button>
-                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors"
                         onClick={() => {
                             const first = contextMenu.clipIds[0];
                             const preset = prompt('Stem Splitter preset (All Stems, Vocals + Music, Vocals Only, Drums + Bass)', 'All Stems') || 'All Stems';
@@ -1143,7 +1150,7 @@ export function Timeline() {
                     >
                         Stem Splitter (Quick)
                     </button>
-                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors"
                         onClick={() => {
                             useProjectStore.getState().convertOrphanAliasesToCopies();
                             setContextMenu(null);
@@ -1151,7 +1158,7 @@ export function Timeline() {
                     >
                         Convert Orphan Aliases to Copies
                     </button>
-                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-gray-200 hover:bg-sky-500 hover:text-white transition-colors"
+                    <button className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors"
                         onClick={() => {
                             useProjectStore.getState().deleteOrphanAliases();
                             setContextMenu(null);
@@ -1165,13 +1172,6 @@ export function Timeline() {
                     </button>
                 </div>
             )}
-
-            <style jsx>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-                .custom-scrollbar::-webkit-scrollbar-track { background: #0a0a0a; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; border: 2px solid #0a0a0a; }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #333; }
-            `}</style>
         </div>
     )
 }
@@ -1179,17 +1179,23 @@ export function Timeline() {
 function MIDIPoints({ clip }: { clip: Clip }) {
     const zoom = useProjectStore(s => s.zoom);
     if (!clip.notes) return null;
+    // Notes glow in the clip's own colour, the MIDI counterpart of a tinted
+    // waveform. Computed once per clip rather than once per note.
+    const tint = neonTrackColor(clip.color);
+    const glow = neonTrackAlpha(clip.color, 0.6);
     return (
         <div className="relative w-full h-full flex flex-col justify-center">
             {clip.notes.map(n => (
                 <div
                     key={n.id}
-                    className="absolute bg-black/60 rounded-full shadow-[0_1px_2px_rgba(0,0,0,0.2)]"
+                    className="absolute rounded-full"
                     style={{
                         left: `${(n.start || 0) * (zoom || 80)}px`,
                         width: `${Math.max(3, (n.duration * (zoom || 80)) - 1)}px`,
                         top: `${(1 - (n.pitch - 36) / 48) * 100}%`,
-                        height: '2px'
+                        height: '2px',
+                        backgroundColor: tint,
+                        boxShadow: `0 0 4px ${glow}`
                     }}
                 />
             ))}

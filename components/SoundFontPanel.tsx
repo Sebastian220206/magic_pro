@@ -25,7 +25,7 @@ function ProgressBar({ progress }: { progress: LoadProgress }) {
   }
 
   const colorMap: Record<string, string> = {
-    download: 'bg-sky-500',
+    download: 'bg-accent-cyan',
     parse: 'bg-amber-500',
     decode: 'bg-green-500',
     ready: 'bg-emerald-500',
@@ -35,12 +35,12 @@ function ProgressBar({ progress }: { progress: LoadProgress }) {
   return (
     <div className="w-full space-y-1">
       <div className="flex items-center justify-between text-[10px]">
-        <span className="text-gray-400">{stageLabels[progress.stage] || progress.stage}</span>
-        <span className="text-gray-500 tabular-nums">{progress.percent}%</span>
+        <span className="text-studio-text-mid">{stageLabels[progress.stage] || progress.stage}</span>
+        <span className="text-studio-text-dim tabular-nums">{progress.percent}%</span>
       </div>
-      <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+      <div className="h-1.5 bg-studio-panel rounded-full overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-300 ease-out ${colorMap[progress.stage] || 'bg-sky-500'}`}
+          className={`h-full rounded-full transition-all duration-300 ease-out ${colorMap[progress.stage] || 'bg-accent-cyan'}`}
           style={{ width: `${Math.max(2, progress.percent)}%` }}
         />
       </div>
@@ -162,7 +162,7 @@ export function SoundFontPanel({ trackId }: SoundFontPanelProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Music className="w-3.5 h-3.5 text-orange-400" />
-          <span className="text-[11px] font-bold text-gray-300">SoundFonts</span>
+          <span className="text-[11px] font-bold text-studio-text">SoundFonts</span>
         </div>
         {userId && (
           <>
@@ -176,7 +176,7 @@ export function SoundFontPanel({ trackId }: SoundFontPanelProps) {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-1 px-2 py-1 bg-[#252525] hover:bg-[#333] border border-dashed border-[#444] rounded text-[10px] text-gray-400 hover:text-gray-200 transition-all disabled:opacity-50"
+              className="flex items-center gap-1 px-2 py-1 bg-studio-raised hover:bg-studio-control border border-dashed border-studio-line-strong rounded text-[10px] text-studio-text-mid hover:text-studio-text transition-all disabled:opacity-50"
             >
               {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
               {uploading ? 'Uploading...' : 'Upload'}
@@ -190,15 +190,15 @@ export function SoundFontPanel({ trackId }: SoundFontPanelProps) {
       )}
 
       {!userId ? (
-        <div className="text-[10px] text-gray-500 text-center py-4">
+        <div className="text-[10px] text-studio-text-dim text-center py-4">
           Sign in to upload SoundFonts
         </div>
       ) : loadingList ? (
         <div className="flex items-center justify-center py-4">
-          <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+          <Loader2 className="w-4 h-4 animate-spin text-studio-text-dim" />
         </div>
       ) : fonts.length === 0 ? (
-        <div className="text-[10px] text-gray-500 text-center py-4">
+        <div className="text-[10px] text-studio-text-dim text-center py-4">
           No SoundFonts uploaded. Click Upload to add one.
         </div>
       ) : (
@@ -221,23 +221,23 @@ export function SoundFontPanel({ trackId }: SoundFontPanelProps) {
                   className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border text-[11px] text-left transition-all ${
                     isActive
                       ? 'bg-orange-500/10 border-orange-500/30 text-orange-300'
-                      : 'bg-[#252525] border-[#333] text-gray-400 hover:text-gray-200 hover:border-gray-600'
+                      : 'bg-studio-raised border-studio-line text-studio-text-mid hover:text-studio-text hover:border-studio-line-strong'
                   } disabled:opacity-50`}
                 >
                   <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 ${
-                    isActive ? 'bg-orange-500/20' : 'bg-[#1a1a1a]'
+                    isActive ? 'bg-orange-500/20' : 'bg-studio-panel'
                   }`}>
                     {loading ? (
-                      <Loader2 className="w-3 h-3 animate-spin text-gray-500" />
+                      <Loader2 className="w-3 h-3 animate-spin text-studio-text-dim" />
                     ) : isActive ? (
                       <Check className="w-3 h-3 text-orange-400" />
                     ) : (
-                      <FileAudio className="w-3 h-3 text-gray-500" />
+                      <FileAudio className="w-3 h-3 text-studio-text-dim" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-bold truncate">{font.name}</div>
-                    <div className="text-[9px] text-gray-600 mt-0.5">
+                    <div className="text-[9px] text-studio-text-dim mt-0.5">
                       {isActive && isLoaded && cachedPresets.length > 0
                         ? cachedPresets[activePresetIndex ?? 0]?.name ?? `${font.presetCount} presets`
                         : font.presetCount > 0
@@ -247,11 +247,11 @@ export function SoundFontPanel({ trackId }: SoundFontPanelProps) {
                     </div>
                   </div>
                   {fontLoaded && cachedPresets.length > 1 && (
-                    <ChevronDown className="w-3 h-3 text-gray-500 shrink-0" />
+                    <ChevronDown className="w-3 h-3 text-studio-text-dim shrink-0" />
                   )}
                   <button
                     onClick={(e) => handleDelete(font, e)}
-                    className="p-1 rounded text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-all shrink-0"
+                    className="p-1 rounded text-studio-text-dim hover:text-red-400 hover:bg-red-400/10 transition-all shrink-0"
                     title="Delete"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -273,12 +273,12 @@ export function SoundFontPanel({ trackId }: SoundFontPanelProps) {
                         className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[10px] text-left transition-all ${
                           activePresetIndex === p.index
                             ? 'bg-orange-500/15 text-orange-300'
-                            : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                            : 'text-studio-text-mid hover:text-studio-text hover:bg-white/5'
                         }`}
                       >
                         <Play className="w-2.5 h-2.5 shrink-0" />
                         <span className="truncate">{p.name}</span>
-                        <span className="text-[8px] text-gray-600 tabular-nums shrink-0 ml-auto">
+                        <span className="text-[8px] text-studio-text-dim tabular-nums shrink-0 ml-auto">
                           {p.bank}:{p.program}
                         </span>
                       </button>
@@ -292,7 +292,7 @@ export function SoundFontPanel({ trackId }: SoundFontPanelProps) {
       )}
 
       {activeFontId && selection && (
-        <div className="text-[10px] text-gray-500 pt-1 border-t border-[#333]">
+        <div className="text-[10px] text-studio-text-dim pt-1 border-t border-studio-line">
           {fonts.find(f => f.id === activeFontId)?.name ?? 'Unknown'}
           {isLoaded && cachedPresets[activePresetIndex ?? 0] && (
             <> &middot; {cachedPresets[activePresetIndex!].name}</>

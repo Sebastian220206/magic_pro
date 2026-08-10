@@ -66,15 +66,15 @@ export const LocateNoteDialog = memo(function LocateNoteDialog({
       onClick={onClose}
     >
       <div
-        className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-5 w-80"
+        className="bg-studio-panel border border-studio-line rounded-lg shadow-xl p-5 w-80"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-studio-text flex items-center gap-2">
             <Music className="w-4 h-4" />
             Locate Note
           </h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white p-0.5">
+          <button onClick={onClose} className="text-studio-text-dim hover:text-white p-0.5">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -82,19 +82,19 @@ export const LocateNoteDialog = memo(function LocateNoteDialog({
         <div className="flex items-center gap-2 mb-3">
           <button
             onClick={() => setMode('pitch')}
-            className={`px-3 py-1 text-xs rounded transition-colors flex-1 ${mode === 'pitch' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'}`}
+            className={`px-3 py-1 text-xs rounded transition-colors flex-1 ${mode === 'pitch' ? 'bg-accent-cyan text-white' : 'bg-studio-raised text-studio-text-mid hover:text-white'}`}
           >
             By Pitch
           </button>
           <button
             onClick={() => setMode('beat')}
-            className={`px-3 py-1 text-xs rounded transition-colors flex-1 ${mode === 'beat' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'}`}
+            className={`px-3 py-1 text-xs rounded transition-colors flex-1 ${mode === 'beat' ? 'bg-accent-cyan text-white' : 'bg-studio-raised text-studio-text-mid hover:text-white'}`}
           >
             By Beat
           </button>
           <button
             onClick={() => setMode('note')}
-            className={`px-3 py-1 text-xs rounded transition-colors flex-1 ${mode === 'note' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'}`}
+            className={`px-3 py-1 text-xs rounded transition-colors flex-1 ${mode === 'note' ? 'bg-accent-cyan text-white' : 'bg-studio-raised text-studio-text-mid hover:text-white'}`}
             disabled={!currentClip?.notes?.length}
           >
             By Note
@@ -104,7 +104,7 @@ export const LocateNoteDialog = memo(function LocateNoteDialog({
         {mode === 'pitch' && (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-gray-500" />
+              <Search className="w-4 h-4 text-studio-text-dim" />
               <input
                 ref={inputRef}
                 type="number"
@@ -113,11 +113,11 @@ export const LocateNoteDialog = memo(function LocateNoteDialog({
                 value={pitchValue}
                 onChange={(e) => setPitchValue(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleGo(); }}
-                className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-blue-500"
+                className="w-full bg-studio-sunken border border-studio-line rounded px-3 py-2 text-studio-text text-sm focus:outline-none focus:border-accent-cyan"
                 placeholder="Enter pitch (0-127)..."
               />
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-studio-text-dim">
               Middle C = 60 | Range: 0-127
             </div>
             {/* Quick pitch buttons */}
@@ -129,7 +129,7 @@ export const LocateNoteDialog = memo(function LocateNoteDialog({
                     key={name}
                     onClick={() => { setPitchValue(pitch.toString()); handleGo(); }}
                     className={`px-2 py-1 text-xs rounded transition-colors ${
-                      parseInt(pitchValue) === pitch ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'
+                      parseInt(pitchValue) === pitch ? 'bg-accent-cyan text-white' : 'bg-studio-raised text-studio-text-mid hover:text-white'
                     }`}
                   >
                     {name}
@@ -143,7 +143,7 @@ export const LocateNoteDialog = memo(function LocateNoteDialog({
         {mode === 'beat' && (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-gray-500" />
+              <Search className="w-4 h-4 text-studio-text-dim" />
               <input
                 ref={inputRef}
                 type="number"
@@ -152,11 +152,11 @@ export const LocateNoteDialog = memo(function LocateNoteDialog({
                 value={beatValue}
                 onChange={(e) => setBeatValue(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleGo(); }}
-                className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-blue-500"
+                className="w-full bg-studio-sunken border border-studio-line rounded px-3 py-2 text-studio-text text-sm focus:outline-none focus:border-accent-cyan"
                 placeholder="Enter beat position..."
               />
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-studio-text-dim">
               Enter beat position (e.g., 4.5 for beat 4.5)
             </div>
             {/* Quick beat buttons */}
@@ -166,7 +166,7 @@ export const LocateNoteDialog = memo(function LocateNoteDialog({
                   key={beat}
                   onClick={() => { setBeatValue(beat.toString()); handleGo(); }}
                   className={`px-2 py-1 text-xs rounded transition-colors ${
-                    parseFloat(beatValue) === beat ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'
+                    parseFloat(beatValue) === beat ? 'bg-accent-cyan text-white' : 'bg-studio-raised text-studio-text-mid hover:text-white'
                   }`}
                 >
                   Bar {Math.floor(beat / 4) + 1}
@@ -179,12 +179,12 @@ export const LocateNoteDialog = memo(function LocateNoteDialog({
         {mode === 'note' && (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-gray-500" />
+              <Search className="w-4 h-4 text-studio-text-dim" />
               <select
                 value={noteId}
                 onChange={(e) => setNoteId(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleGo(); }}
-                className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-blue-500"
+                className="w-full bg-studio-sunken border border-studio-line rounded px-3 py-2 text-studio-text text-sm focus:outline-none focus:border-accent-cyan"
               >
                 <option value="">Select a note...</option>
                 {availableNotes.map(note => (
@@ -194,7 +194,7 @@ export const LocateNoteDialog = memo(function LocateNoteDialog({
                 ))}
               </select>
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-studio-text-dim">
               {availableNotes.length} notes in current clip
             </div>
           </div>
@@ -203,13 +203,13 @@ export const LocateNoteDialog = memo(function LocateNoteDialog({
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600 rounded transition-colors"
+            className="px-3 py-1.5 text-xs text-studio-text-mid hover:text-white bg-studio-raised hover:bg-studio-control rounded transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleGo}
-            className="px-4 py-1.5 text-xs text-white bg-blue-600 hover:bg-blue-500 rounded transition-colors"
+            className="px-4 py-1.5 text-xs text-white bg-accent-cyan hover:bg-accent-cyan rounded transition-colors"
           >
             Locate
           </button>

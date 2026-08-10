@@ -20,7 +20,7 @@ export function SmartControls() {
 
     if (!track) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center bg-[#0a0a0a] border-t border-black text-gray-800">
+            <div className="flex-1 flex flex-col items-center justify-center bg-studio-sunken border-t border-black text-studio-text">
                 <Sliders className="w-12 h-12 mb-4 opacity-10" />
                 <div className="text-[10px] font-black uppercase tracking-[0.3em] px-8 py-3 border border-white/5 rounded-full bg-black/40 shadow-inner">
                     Select a track to view Smart Controls
@@ -34,31 +34,31 @@ export function SmartControls() {
     }
 
     return (
-        <div className="flex flex-col h-full bg-[#111] overflow-hidden select-none relative z-30 shadow-[0_-15px_40px_rgba(0,0,0,0.4)]">
+        <div className="flex flex-col h-full bg-studio-sunken overflow-hidden select-none relative z-30 shadow-[0_-15px_40px_rgba(0,0,0,0.4)]">
             {/* 1. Smart Controls Local Toolbar */}
-            <div className="h-9 bg-[#1a1a1a] border-b border-black flex items-center px-4 justify-between shrink-0">
+            <div className="h-9 bg-studio-panel border-b border-black flex items-center px-4 justify-between shrink-0">
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1.5 bg-[#000] border border-[#333] rounded px-2.5 h-7 cursor-pointer hover:border-gray-500 transition-colors group">
+                    <div className="flex items-center gap-1.5 bg-studio-void border border-studio-line rounded px-2.5 h-7 cursor-pointer hover:border-studio-line-strong transition-colors group">
                         <span className="text-[10px] font-black text-white/90 group-hover:text-white uppercase tracking-tighter">Controls</span>
-                        <ChevronDown className="w-3 h-3 text-gray-600" />
+                        <ChevronDown className="w-3 h-3 text-studio-text-dim" />
                     </div>
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <button className="p-1 hover:bg-white/5 rounded transition-all"><Maximize2 className="w-4 h-4 text-gray-600 hover:text-white" /></button>
+                    <button className="p-1 hover:bg-white/5 rounded transition-all"><Maximize2 className="w-4 h-4 text-studio-text-dim hover:text-white" /></button>
                 </div>
             </div>
 
             {/* 2. Main Editing Workspace (Split) */}
             <div className="flex-1 flex overflow-hidden">
                 {/* Local Inspector Sidebar (Mac Style) */}
-                <div className="w-[180px] border-r border-black bg-[#1a1a1a] flex flex-col shrink-0 p-3 gap-6 overflow-y-auto custom-scrollbar-v shadow-inner shadow-2xl">
+                <div className="w-[180px] border-r border-black bg-studio-panel flex flex-col shrink-0 p-3 gap-6 overflow-y-auto custom-scrollbar-v shadow-inner shadow-2xl">
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center justify-between group cursor-pointer">
-                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] leading-none group-hover:text-gray-300">Layout</span>
-                            <Layout className="w-3.5 h-3.5 text-sky-400" />
+                            <span className="text-[10px] font-black text-studio-text-dim uppercase tracking-[0.2em] leading-none group-hover:text-studio-text">Layout</span>
+                            <Layout className="w-3.5 h-3.5 text-accent-cyan" />
                         </div>
-                        <div className="h-7 bg-[#000] border border-[#333] rounded flex items-center px-2.5 text-[11px] font-black text-sky-500 shadow-inner group-hover:border-gray-500 truncate">
+                        <div className="h-7 bg-studio-void border border-studio-line rounded flex items-center px-2.5 text-[11px] font-black text-accent-cyan shadow-inner group-hover:border-studio-line-strong truncate">
                             Modern Industrial
                         </div>
                     </div>
@@ -66,12 +66,12 @@ export function SmartControls() {
                     {/* Parameter List Column */}
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center justify-between group cursor-pointer">
-                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] leading-none group-hover:text-gray-300">Parameter</span>
-                            <Zap className="w-3.5 h-3.5 text-gray-700" />
+                            <span className="text-[10px] font-black text-studio-text-dim uppercase tracking-[0.2em] leading-none group-hover:text-studio-text">Parameter</span>
+                            <Zap className="w-3.5 h-3.5 text-studio-text-dim" />
                         </div>
                         <div className="flex flex-col gap-1 h-[120px] overflow-y-auto custom-scrollbar-v pr-1">
                             {['Cutoff', 'Resonance', 'Drive', 'Compressor Threshold', 'Reverb Mix'].map(p => (
-                                <div key={p} className="h-6 flex items-center px-2 bg-black/40 border border-white/5 rounded text-[10px] font-black text-gray-500 hover:text-sky-400 cursor-pointer transition-all">{p}</div>
+                                <div key={p} className="h-6 flex items-center px-2 bg-black/40 border border-white/5 rounded text-[10px] font-black text-studio-text-dim hover:text-accent-cyan cursor-pointer transition-all">{p}</div>
                             ))}
                         </div>
                     </div>
@@ -79,8 +79,8 @@ export function SmartControls() {
                     {/* Mappings Filter Area */}
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center justify-between group cursor-pointer">
-                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] leading-none group-hover:text-gray-300">Compare</span>
-                            <Activity className="w-3.5 h-3.5 text-gray-700" />
+                            <span className="text-[10px] font-black text-studio-text-dim uppercase tracking-[0.2em] leading-none group-hover:text-studio-text">Compare</span>
+                            <Activity className="w-3.5 h-3.5 text-studio-text-dim" />
                         </div>
                     </div>
                 </div>
@@ -106,10 +106,10 @@ export function SmartControls() {
                                     />
                                     {/* Neon Indicator (Magic Pro signature) */}
                                     {track.id === focusedTrackId && (
-                                        <div className="absolute -inset-1 rounded-full bg-sky-500/0 group-hover:bg-sky-500/10 blur-xl transition-all duration-700"></div>
+                                        <div className="absolute -inset-1 rounded-full bg-accent-cyan/0 group-hover:bg-accent-cyan/10 blur-xl transition-all duration-700"></div>
                                     )}
                                 </div>
-                                <span className="text-[10px] font-black text-gray-500 group-hover:text-white uppercase tracking-[0.15em] transition-colors">{knob.name}</span>
+                                <span className="text-[10px] font-black text-studio-text-dim group-hover:text-white uppercase tracking-[0.15em] transition-colors">{knob.name}</span>
                             </div>
                         ))}
                     </div>
@@ -123,10 +123,8 @@ export function SmartControls() {
                     linear-gradient(90deg, rgba(255,255,255,.022) 50%, transparent 50%);
                     background-size: 4px 4px;
                 }
-                .custom-scrollbar-v::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar-v::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar-v::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
             `}</style>
+
         </div>
     )
 }
@@ -160,7 +158,7 @@ function Knob({ color, value = 0.5, onChange }: KnobProps) {
 
     return (
         <div
-            className="w-20 h-20 rounded-full bg-gradient-to-tr from-[#111] via-[#2a2a2a] to-[#3a3a3a] border border-[#000] shadow-[0_10px_30px_rgba(0,0,0,0.6)] relative cursor-ns-resize active:scale-[1.05] transition-transform duration-150"
+            className="w-20 h-20 rounded-full bg-gradient-to-tr from-studio-sunken via-studio-control to-studio-control border border-studio-line shadow-[0_10px_30px_rgba(0,0,0,0.6)] relative cursor-ns-resize active:scale-[1.05] transition-transform duration-150"
             onMouseDown={handleMouseDown}
         >
             {/* Radial Ring */}
@@ -180,10 +178,10 @@ function Knob({ color, value = 0.5, onChange }: KnobProps) {
 
             {/* Knob Body Indicator */}
             <div
-                className="absolute inset-[15%] rounded-full bg-[#111] border border-white/5 shadow-inner transition-transform duration-75"
+                className="absolute inset-[15%] rounded-full bg-studio-sunken border border-white/5 shadow-inner transition-transform duration-75"
                 style={{ transform: `rotate(${(value * 270) - 135}deg)` }}
             >
-                <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1 h-3 rounded-full ${value > 0.1 ? 'bg-sky-400' : 'bg-gray-700'} shadow-[0_0_8px_rgba(14,165,233,0.4)]`}></div>
+                <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-1 h-3 rounded-full ${value > 0.1 ? 'bg-accent-cyan' : 'bg-studio-raised'} shadow-[0_0_8px_rgba(14,165,233,0.4)]`}></div>
             </div>
 
             {/* Top Glare */}

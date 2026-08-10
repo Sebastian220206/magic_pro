@@ -120,35 +120,35 @@ export function KeyCommandsManager() {
         <div className="space-y-3">
             <div className="flex justify-between items-start">
                 <div className="space-x-2 flex flex-wrap items-center">
-                    <button onClick={() => setScope('effective')} className={`px-2 py-1 rounded ${scope === 'effective' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>Effective</button>
-                    <button onClick={() => setScope('global')} className={`px-2 py-1 rounded ${scope === 'global' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>Global</button>
-                    <button onClick={() => setScope('project')} className={`px-2 py-1 rounded ${scope === 'project' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>Project</button>
-                    <span className="text-xs text-gray-500">Current scope decides store operation.</span>
+                    <button onClick={() => setScope('effective')} className={`px-2 py-1 rounded ${scope === 'effective' ? 'bg-accent-cyan text-white' : 'bg-white/5'}`}>Effective</button>
+                    <button onClick={() => setScope('global')} className={`px-2 py-1 rounded ${scope === 'global' ? 'bg-accent-cyan text-white' : 'bg-white/5'}`}>Global</button>
+                    <button onClick={() => setScope('project')} className={`px-2 py-1 rounded ${scope === 'project' ? 'bg-accent-cyan text-white' : 'bg-white/5'}`}>Project</button>
+                    <span className="text-xs text-studio-text-dim">Current scope decides store operation.</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => { resetKeyCommands(); setStatusMessage('Global defaults restored.') }} className="px-2 py-1 bg-white border rounded flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Global Default</button>
-                    <button onClick={() => { resetProjectKeyCommands(); setStatusMessage('Project defaults restored.') }} className="px-2 py-1 bg-white border rounded flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Project Default</button>
+                    <button onClick={() => { resetKeyCommands(); setStatusMessage('Global defaults restored.') }} className="px-2 py-1 bg-studio-control border rounded flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Global Default</button>
+                    <button onClick={() => { resetProjectKeyCommands(); setStatusMessage('Project defaults restored.') }} className="px-2 py-1 bg-studio-control border rounded flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Project Default</button>
                 </div>
             </div>
 
             <div className="flex items-center gap-2">
-                <Search className="w-4 h-4 text-gray-400" />
+                <Search className="w-4 h-4 text-studio-text-mid" />
                 <input
-                    className="flex-1 bg-white border border-gray-300 rounded px-2 py-1 text-sm"
+                    className="flex-1 bg-studio-control border border-studio-line rounded px-2 py-1 text-sm"
                     placeholder="Search commands"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                 />
-                <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} className="bg-white border border-gray-300 rounded px-2 py-1 text-sm">
+                <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} className="bg-studio-control border border-studio-line rounded px-2 py-1 text-sm">
                     {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
             </div>
 
-            <div className="mb-2 text-xs text-gray-500">{statusMessage}</div>
+            <div className="mb-2 text-xs text-studio-text-dim">{statusMessage}</div>
 
-            <div className="overflow-auto max-h-[340px] border rounded bg-white">
+            <div className="overflow-auto max-h-[340px] border rounded bg-studio-control">
                 <table className="w-full text-[12px]">
-                    <thead className="bg-gray-50 sticky top-0">
+                    <thead className="bg-white/[0.03] sticky top-0">
                         <tr>
                             <th className="p-2 text-left">Command</th>
                             <th className="p-2 text-left">Category</th>
@@ -165,11 +165,11 @@ export function KeyCommandsManager() {
                                 <tr key={cmd.id} className={conflict ? 'bg-red-50' : ''}>
                                     <td className="p-2 whitespace-nowrap font-semibold">{cmd.name}</td>
                                     <td className="p-2 whitespace-nowrap">{cmd.category || 'Other'}</td>
-                                    <td className="p-2 text-gray-600">{cmd.description}</td>
-                                    <td className="p-2 whitespace-nowrap">{getCurrentShortcut(cmd.id) || <span className="text-gray-400">(none)</span>}</td>
+                                    <td className="p-2 text-studio-text-dim">{cmd.description}</td>
+                                    <td className="p-2 whitespace-nowrap">{getCurrentShortcut(cmd.id) || <span className="text-studio-text-mid">(none)</span>}</td>
                                     <td className="p-2">
                                         <input
-                                            className="w-full border border-gray-300 rounded px-1 py-0.5 text-[12px]"
+                                            className="w-full border border-studio-line rounded px-1 py-0.5 text-[12px]"
                                             value={getCurrentShortcut(cmd.id)}
                                             onChange={e => handleAssign(cmd.id, e.target.value)}
                                             placeholder="e.g. Ctrl+Shift+P"
@@ -183,21 +183,21 @@ export function KeyCommandsManager() {
             </div>
 
             <div className="grid grid-cols-3 gap-2">
-                <button onClick={() => downloadFile('keycommands-global.json', exportKeyCommands())} className="px-2 py-2 bg-white border rounded flex items-center justify-center gap-1"><DownloadCloud className="w-4 h-4" /> Export Global</button>
-                <button onClick={() => downloadFile('keycommands-project.json', exportProjectKeyCommands())} className="px-2 py-2 bg-white border rounded flex items-center justify-center gap-1"><DownloadCloud className="w-4 h-4" /> Export Project</button>
-                <button onClick={() => { navigator.clipboard.writeText(exportProjectKeyCommands()); setStatusMessage('Project key commands copied to clipboard'); }} className="px-2 py-2 bg-white border rounded flex items-center justify-center gap-1"><Key className="w-4 h-4" /> Copy Project</button>
+                <button onClick={() => downloadFile('keycommands-global.json', exportKeyCommands())} className="px-2 py-2 bg-studio-control border rounded flex items-center justify-center gap-1"><DownloadCloud className="w-4 h-4" /> Export Global</button>
+                <button onClick={() => downloadFile('keycommands-project.json', exportProjectKeyCommands())} className="px-2 py-2 bg-studio-control border rounded flex items-center justify-center gap-1"><DownloadCloud className="w-4 h-4" /> Export Project</button>
+                <button onClick={() => { navigator.clipboard.writeText(exportProjectKeyCommands()); setStatusMessage('Project key commands copied to clipboard'); }} className="px-2 py-2 bg-studio-control border rounded flex items-center justify-center gap-1"><Key className="w-4 h-4" /> Copy Project</button>
             </div>
 
             <div className="flex gap-2 items-start pt-2">
                 <textarea
-                    className="flex-1 border border-gray-300 rounded p-2 text-xs h-24"
+                    className="flex-1 border border-studio-line rounded p-2 text-xs h-24"
                     placeholder="Paste JSON here to import"
                     value={importPayload}
                     onChange={e => setImportPayload(e.target.value)}
                 />
                 <div className="flex flex-col gap-1">
-                    <button onClick={() => handleImport(false)} className="px-2 py-1 bg-white border rounded flex items-center justify-center gap-1"><UploadCloud className="w-4 h-4" /> Import Global</button>
-                    <button onClick={() => handleImport(true)} className="px-2 py-1 bg-white border rounded flex items-center justify-center gap-1"><UploadCloud className="w-4 h-4" /> Import Project</button>
+                    <button onClick={() => handleImport(false)} className="px-2 py-1 bg-studio-control border rounded flex items-center justify-center gap-1"><UploadCloud className="w-4 h-4" /> Import Global</button>
+                    <button onClick={() => handleImport(true)} className="px-2 py-1 bg-studio-control border rounded flex items-center justify-center gap-1"><UploadCloud className="w-4 h-4" /> Import Project</button>
                 </div>
             </div>
         </div>

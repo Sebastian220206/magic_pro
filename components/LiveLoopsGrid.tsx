@@ -310,19 +310,19 @@ export function LiveLoopsGrid() {
     const rowClass = "border-b border-white/10 flex items-center h-14";
 
     return (
-        <div className="flex flex-col h-full bg-[#0f1215] text-white">
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 bg-[#111621]">
-                <LayoutGrid className="w-4 h-4 text-sky-400" />
+        <div className="flex flex-col h-full bg-studio-sunken text-white">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 bg-studio-sunken">
+                <LayoutGrid className="w-4 h-4 text-accent-cyan" />
                 <h3 className="text-sm font-bold">Live Loops Grid</h3>
-                <div className="flex items-center gap-2 ml-2 text-xs text-slate-200">
+                <div className="flex items-center gap-2 ml-2 text-xs text-studio-text">
                     <label className="flex items-center gap-1">Scenes:
-                        <input type="number" min={4} max={32} value={sceneCount} onChange={(e) => setSceneCount(Math.max(4, Math.min(32, Number(e.target.value) || DEFAULT_SCENES)))} className="w-16 p-1 text-black rounded" />
+                        <input type="number" min={4} max={32} value={sceneCount} onChange={(e) => setSceneCount(Math.max(4, Math.min(32, Number(e.target.value) || DEFAULT_SCENES)))} className="w-16 p-1 bg-studio-control text-studio-text border border-studio-line rounded" />
                     </label>
                     <label className="flex items-center gap-1">Bars/Scene:
-                        <input type="number" min={1} max={8} value={barsPerScene} onChange={(e) => setBarsPerScene(Math.max(1, Math.min(8, Number(e.target.value) || 1)))} className="w-16 p-1 text-black rounded" />
+                        <input type="number" min={1} max={8} value={barsPerScene} onChange={(e) => setBarsPerScene(Math.max(1, Math.min(8, Number(e.target.value) || 1)))} className="w-16 p-1 bg-studio-control text-studio-text border border-studio-line rounded" />
                     </label>
                     <label className="flex items-center gap-1">Quantize:
-                        <select value={quantizeMode} onChange={(e) => setQuantizeMode(e.target.value as QuantizeMode)} className="w-24 p-1 text-black rounded">
+                        <select value={quantizeMode} onChange={(e) => setQuantizeMode(e.target.value as QuantizeMode)} className="w-24 p-1 bg-studio-control text-studio-text border border-studio-line rounded">
                             <option value="off">Off</option>
                             <option value="quarter">1/4</option>
                             <option value="half">1/2</option>
@@ -350,8 +350,8 @@ export function LiveLoopsGrid() {
             </div>
 
             <div className="flex flex-1 overflow-hidden">
-                <div className="w-32 border-r border-white/10 bg-[#121821]">
-                    <div className="h-12 flex items-center justify-center border-b border-white/10 text-[11px] uppercase tracking-wider text-gray-300">Tracks</div>
+                <div className="w-32 border-r border-white/10 bg-studio-panel">
+                    <div className="h-12 flex items-center justify-center border-b border-white/10 text-[11px] uppercase tracking-wider text-studio-text">Tracks</div>
                     {trackRows.map((track) => (
                         <div key={track.id} className="h-14 px-2 py-1 text-[11px] flex items-center border-b border-white/10 text-left">
                             <div className="flex-1 truncate">{track.name}</div>
@@ -377,7 +377,7 @@ export function LiveLoopsGrid() {
                                         }
                                         triggerScene(sceneIndex);
                                     }}
-                                    className="w-20 h-6 bg-gray-700/50 hover:bg-sky-500/30 text-[11px] rounded-md"
+                                    className="w-20 h-6 bg-studio-raised/50 hover:bg-accent-cyan/30 text-[11px] rounded-md"
                                     title={
                                         sceneNames[sceneIndex]
                                             ? `Scene ${sceneIndex + 1}: ${sceneNames[sceneIndex]}`
@@ -403,14 +403,14 @@ export function LiveLoopsGrid() {
                                             key={sceneIndex}
                                             onClick={(e) => onCellClick(track.id, sceneIndex, e)}
                                             onContextMenu={(e) => openCellContextMenu(track.id, sceneIndex, e)}
-                                            className={`h-10 w-28 m-1 rounded-md border border-white/10 text-[11px] text-left px-2 transition ${isPlaying ? 'bg-sky-500/60' : isSelected ? 'bg-amber-500/40' : 'bg-white/10 hover:bg-gray-200/20'}`}
+                                            className={`h-10 w-28 m-1 rounded-md border border-white/10 text-[11px] text-left px-2 transition ${isPlaying ? 'bg-accent-cyan/60' : isSelected ? 'bg-amber-500/40' : 'bg-white/10 hover:bg-white/10/20'}`}
                                             title={isQueued ? 'Queued (Alt+click toggles queue)' : 'Alt+click to queue'}
                                         >
                                             <div className="flex justify-between items-center">
                                                 <span className="truncate">{isPlaying ? 'Playing' : isQueued ? 'Queued' : 'Stopped'}</span>
                                                 <span>{isQueued ? 'Q' : ''}</span>
                                             </div>
-                                            <div className="text-[9px] text-gray-200">{cellStates[key]?.name || `${track.name} · Scene ${sceneIndex + 1}`}</div>
+                                            <div className="text-[9px] text-studio-text">{cellStates[key]?.name || `${track.name} · Scene ${sceneIndex + 1}`}</div>
                                         </button>
                                     );
                                 })}
@@ -419,8 +419,8 @@ export function LiveLoopsGrid() {
                     </div>
                 </div>
 
-                <div className="w-32 border-l border-white/10 bg-[#121821]">
-                    <div className="h-12 flex items-center justify-center border-b border-white/10 text-[11px] uppercase tracking-wider text-gray-300">Divider</div>
+                <div className="w-32 border-l border-white/10 bg-studio-panel">
+                    <div className="h-12 flex items-center justify-center border-b border-white/10 text-[11px] uppercase tracking-wider text-studio-text">Divider</div>
                     {trackRows.map((track) => {
                         const isPlaying = activeCells[track.id] !== undefined && activeCells[track.id] !== null;
                         return (
@@ -433,7 +433,7 @@ export function LiveLoopsGrid() {
                                             onCellClick(track.id, 0, e);
                                         }
                                     }}
-                                    className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-white/20 bg-gray-700/40 hover:bg-sky-500/40"
+                                    className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-white/20 bg-studio-raised/40 hover:bg-accent-cyan/40"
                                 >
                                     {isPlaying ? <PauseCircle className="w-3.5 h-3.5" /> : <PlayCircle className="w-3.5 h-3.5" />}
                                     {isPlaying ? "Stop" : "Play"}
@@ -445,7 +445,7 @@ export function LiveLoopsGrid() {
             </div>
 
             {contextMenu && (
-                <div className="fixed z-50 bg-[#1a1f2b] border border-white/20 rounded shadow-lg" style={{ top: contextMenu.y, left: contextMenu.x }}>
+                <div className="fixed z-50 bg-studio-panel border border-white/20 rounded shadow-lg" style={{ top: contextMenu.y, left: contextMenu.x }}>
                     <button className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10" onClick={() => applyContextAction('play')}>Play Now</button>
                     <button className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10" onClick={() => applyContextAction('queue')}>Toggle Queue</button>
                     <button className="block w-full text-left px-4 py-2 text-xs hover:bg-white/10" onClick={() => applyContextAction('rename')}>Rename Clip/Cell</button>
@@ -455,7 +455,7 @@ export function LiveLoopsGrid() {
                 </div>
             )}
 
-            <div className="h-8 border-t border-white/10 px-3 flex items-center gap-2 text-[11px] text-gray-400">
+            <div className="h-8 border-t border-white/10 px-3 flex items-center gap-2 text-[11px] text-studio-text-mid">
                 <RotateCcw className="w-3.5 h-3.5" />
                 Alt-click cell = Queue/Unqueue, Shift-click upper half = select multiple, Cmd/Ctrl-click cell = rename; Alt-click Scene = queue scene; Cmd/Ctrl-click Scene = rename scene; Alt-click Grid Stop toggles stop/pause mode.
             </div>

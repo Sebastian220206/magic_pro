@@ -19,14 +19,17 @@ function peaksToPath(peaks: { channels: Array<{ min: number[] | Float32Array; ma
     return d;
 }
 
-export function WaveformSVG({ color = "#38bdf8", peaks }: { color?: string; peaks?: { channels: Array<{ min: number[] | Float32Array; max: number[] | Float32Array }>; resolution: number } }) {
+export function WaveformSVG({ color = "#22d3ee", peaks }: { color?: string; peaks?: { channels: Array<{ min: number[] | Float32Array; max: number[] | Float32Array }>; resolution: number } }) {
     const pathD = peaks ? peaksToPath(peaks, 100) : null;
 
     return (
+        // `color` is set so the drop-shadow can glow in the waveform's own
+        // colour via currentColor rather than needing a second prop.
         <svg
             viewBox="0 0 100 40"
             preserveAspectRatio="none"
-            className="w-full h-full opacity-60 drop-shadow-[0_0_2px_rgba(0,0,0,0.4)]"
+            style={{ color }}
+            className="w-full h-full opacity-90 drop-shadow-[0_0_3px_currentColor]"
         >
             {pathD ? (
                 <path d={pathD} fill="none" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />

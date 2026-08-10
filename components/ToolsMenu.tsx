@@ -127,7 +127,7 @@ export function ToolsMenu({ anchorEl, onClose, open }: Props) {
         role="menu"
         aria-label="Editing Tools"
         style={style}
-        className={`z-[8001] w-[240px] bg-[#29323c]/95 backdrop-blur-2xl rounded-md border border-white/10 shadow-2xl shadow-black/60 py-1 overflow-hidden transition-all duration-120 ${
+        className={`z-[8001] w-[240px] bg-studio-control/95 backdrop-blur-2xl rounded-md border border-white/10 shadow-2xl shadow-black/60 py-1 overflow-hidden transition-all duration-120 ${
           visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}
       >
@@ -145,8 +145,8 @@ export function ToolsMenu({ anchorEl, onClose, open }: Props) {
               onMouseLeave={() => setFocusIdx(-1)}
               className={`w-full flex items-center px-2 py-1 text-left ${
                 isFocused
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-200'
+                  ? 'bg-accent-cyan text-white'
+                  : 'text-studio-text'
               }`}
             >
               <div className="w-5 flex justify-center items-center shrink-0">

@@ -197,12 +197,12 @@ export const EventEditor = memo(function EventEditor({
   return (
     <div
       ref={containerRef}
-      className="relative flex flex-col bg-[#141414] border-t border-gray-700 overflow-hidden shrink-0"
+      className="relative flex flex-col bg-studio-sunken border-t border-studio-line overflow-hidden shrink-0"
       style={{ height }}
     >
       {/* Header */}
-      <div className="h-6 shrink-0 bg-gray-800 border-b border-gray-700 flex items-center px-2 gap-2 z-20">
-        <div className="flex items-center gap-1 text-xs text-gray-300 hover:text-white cursor-pointer relative">
+      <div className="h-6 shrink-0 bg-studio-panel border-b border-studio-line flex items-center px-2 gap-2 z-20">
+        <div className="flex items-center gap-1 text-xs text-studio-text hover:text-white cursor-pointer relative">
           <span className="font-medium">{targetLabel}</span>
           <ChevronDown className="w-3 h-3 opacity-60" />
           <select
@@ -226,7 +226,7 @@ export const EventEditor = memo(function EventEditor({
           </select>
         </div>
         <div className="flex-1" />
-        <div className="flex items-center gap-1 text-gray-500">
+        <div className="flex items-center gap-1 text-studio-text-dim">
           <ZoomOut className="w-3 h-3 hover:text-white cursor-pointer" />
           <ZoomIn  className="w-3 h-3 hover:text-white cursor-pointer" />
         </div>

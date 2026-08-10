@@ -10,46 +10,46 @@ export function WasmCompressorUI({ params, onParamChange }: PluginUIContract) {
   const release = params.release ?? 100;
 
   return (
-    <div className="bg-[#222] p-4 rounded border border-gray-700 shadow-xl select-none w-80 text-white flex flex-col">
-      <div className="flex justify-between items-center mb-4 border-b border-gray-800 pb-2">
-        <h3 className="text-xs font-black tracking-widest text-gray-400">MAGIC COMPRESSOR</h3>
+    <div className="bg-studio-raised p-4 rounded border border-studio-line shadow-xl select-none w-80 text-white flex flex-col">
+      <div className="flex justify-between items-center mb-4 border-b border-studio-line pb-2">
+        <h3 className="text-xs font-black tracking-widest text-studio-text-mid">MAGIC COMPRESSOR</h3>
         <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col items-center bg-gray-900 p-2 rounded border border-gray-800">
-          <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Threshold</span>
+        <div className="flex flex-col items-center bg-studio-sunken p-2 rounded border border-studio-line">
+          <span className="text-[10px] text-studio-text-dim uppercase tracking-wider mb-2">Threshold</span>
           <span className="font-mono text-amber-500 text-lg">{threshold.toFixed(1)}</span>
-          <span className="text-[10px] text-gray-600 mt-1">dB</span>
+          <span className="text-[10px] text-studio-text-dim mt-1">dB</span>
           <input type="range" min="-60" max="0" step="0.5" value={threshold}
             onChange={(e) => onParamChange('threshold', parseFloat(e.target.value))}
-            className="w-full accent-amber-500 bg-gray-900 appearance-none h-1.5 rounded mt-1 cursor-pointer" />
+            className="w-full accent-amber-500 bg-studio-sunken appearance-none h-1.5 rounded mt-1 cursor-pointer" />
         </div>
 
-        <div className="flex flex-col items-center bg-gray-900 p-2 rounded border border-gray-800">
-          <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Ratio</span>
+        <div className="flex flex-col items-center bg-studio-sunken p-2 rounded border border-studio-line">
+          <span className="text-[10px] text-studio-text-dim uppercase tracking-wider mb-2">Ratio</span>
           <span className="font-mono text-amber-500 text-lg">{ratio.toFixed(1)}:1</span>
           <input type="range" min="1" max="20" step="0.5" value={ratio}
             onChange={(e) => onParamChange('ratio', parseFloat(e.target.value))}
-            className="w-full accent-amber-500 bg-gray-900 appearance-none h-1.5 rounded mt-1 cursor-pointer" />
+            className="w-full accent-amber-500 bg-studio-sunken appearance-none h-1.5 rounded mt-1 cursor-pointer" />
         </div>
 
-        <div className="flex flex-col items-center bg-gray-900 p-2 rounded border border-gray-800">
-          <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Attack</span>
+        <div className="flex flex-col items-center bg-studio-sunken p-2 rounded border border-studio-line">
+          <span className="text-[10px] text-studio-text-dim uppercase tracking-wider mb-2">Attack</span>
           <span className="font-mono text-amber-500 text-lg">{attack.toFixed(0)}</span>
-          <span className="text-[10px] text-gray-600 mt-1">ms</span>
+          <span className="text-[10px] text-studio-text-dim mt-1">ms</span>
           <input type="range" min="0.1" max="100" step="0.1" value={attack}
             onChange={(e) => onParamChange('attack', parseFloat(e.target.value))}
-            className="w-full accent-amber-500 bg-gray-900 appearance-none h-1.5 rounded mt-1 cursor-pointer" />
+            className="w-full accent-amber-500 bg-studio-sunken appearance-none h-1.5 rounded mt-1 cursor-pointer" />
         </div>
 
-        <div className="flex flex-col items-center bg-gray-900 p-2 rounded border border-gray-800">
-          <span className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Release</span>
+        <div className="flex flex-col items-center bg-studio-sunken p-2 rounded border border-studio-line">
+          <span className="text-[10px] text-studio-text-dim uppercase tracking-wider mb-2">Release</span>
           <span className="font-mono text-amber-500 text-lg">{release.toFixed(0)}</span>
-          <span className="text-[10px] text-gray-600 mt-1">ms</span>
+          <span className="text-[10px] text-studio-text-dim mt-1">ms</span>
           <input type="range" min="1" max="1000" step="1" value={release}
             onChange={(e) => onParamChange('release', parseFloat(e.target.value))}
-            className="w-full accent-amber-500 bg-gray-900 appearance-none h-1.5 rounded mt-1 cursor-pointer" />
+            className="w-full accent-amber-500 bg-studio-sunken appearance-none h-1.5 rounded mt-1 cursor-pointer" />
         </div>
       </div>
     </div>

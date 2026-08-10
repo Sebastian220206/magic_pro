@@ -58,19 +58,19 @@ export function GlobalTracks() {
     };
 
     return (
-        <div className="flex flex-col border-b border-black bg-[#1a1a1a] select-none z-40 shrink-0 shadow-lg">
+        <div className="flex flex-col border-b border-black bg-studio-panel select-none z-40 shrink-0 shadow-lg">
             {/* 1. Marker Track (High Fidelity Logic Style) */}
             <div className="h-8 flex border-b border-black/40 group relative overflow-hidden">
-                <div className="w-[280px] bg-[#222] border-r border-black flex items-center px-4 justify-between shrink-0 sticky left-0 z-10 shadow-xl">
+                <div className="w-[280px] bg-studio-raised border-r border-black flex items-center px-4 justify-between shrink-0 sticky left-0 z-10 shadow-xl">
                     <div className="flex items-center gap-2">
                         <Flag className="w-3.5 h-3.5 text-yellow-500/60" />
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Markers</span>
+                        <span className="text-[10px] font-black text-studio-text-mid uppercase tracking-widest leading-none">Markers</span>
                     </div>
                     <button
                         onClick={() => addMarker(0, "New Section")}
                         className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/5 rounded transition-all"
                     >
-                        <Plus className="w-3.5 h-3.5 text-gray-500" />
+                        <Plus className="w-3.5 h-3.5 text-studio-text-dim" />
                     </button>
                 </div>
 
@@ -93,14 +93,14 @@ export function GlobalTracks() {
 
             {/* 2. Tempo Track (Logic High Density Curve) */}
             <div className="h-12 flex border-b border-black/40 group relative">
-                <div className="w-[280px] bg-[#222] border-r border-black flex items-center px-4 justify-between shrink-0 sticky left-0 z-10 shadow-xl">
+                <div className="w-[280px] bg-studio-raised border-r border-black flex items-center px-4 justify-between shrink-0 sticky left-0 z-10 shadow-xl">
                     <div className="flex items-center gap-2">
-                        <Activity className="w-3.5 h-3.5 text-sky-400/60" />
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Tempo</span>
+                        <Activity className="w-3.5 h-3.5 text-accent-cyan/60" />
+                        <span className="text-[10px] font-black text-studio-text-mid uppercase tracking-widest leading-none">Tempo</span>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <span className="text-[10px] font-black text-sky-500 tabular-nums">{globalTracks.tempo[0].value}</span>
-                        <ChevronDown className="w-3 h-3 text-gray-700" />
+                        <span className="text-[10px] font-black text-accent-cyan tabular-nums">{globalTracks.tempo[0].value}</span>
+                        <ChevronDown className="w-3 h-3 text-studio-text-dim" />
                     </div>
                 </div>
 
@@ -120,11 +120,11 @@ export function GlobalTracks() {
                     {globalTracks.tempo.map((p, idx) => (
                         <div
                             key={idx}
-                            className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-sky-500 rounded border border-white/20 shadow-lg cursor-ns-resize hover:scale-125 transition-transform"
+                            className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-accent-cyan rounded border border-white/20 shadow-lg cursor-ns-resize hover:scale-125 transition-transform"
                             style={{ left: `${p.time * pixelsPerBeat}px` }}
                         >
-                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-[#333] border border-white/10 rounded px-1.5 py-0.5 opacity-0 hover:opacity-100 transition-opacity z-50">
-                                <span className="text-[9px] font-black text-sky-400 tabular-nums">{p.value}</span>
+                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-studio-control border border-white/10 rounded px-1.5 py-0.5 opacity-0 hover:opacity-100 transition-opacity z-50">
+                                <span className="text-[9px] font-black text-accent-cyan tabular-nums">{p.value}</span>
                             </div>
                         </div>
                     ))}
@@ -135,14 +135,14 @@ export function GlobalTracks() {
                 <>
                     {/* 3. Beat Mapping Track (Logic-style) */}
                     <div className="h-12 flex border-b border-black/40 group relative">
-                        <div className="w-[280px] bg-[#222] border-r border-black flex items-center px-4 justify-between shrink-0 sticky left-0 z-10 shadow-xl">
+                        <div className="w-[280px] bg-studio-raised border-r border-black flex items-center px-4 justify-between shrink-0 sticky left-0 z-10 shadow-xl">
                     <div className="flex items-center gap-2">
                         <Music className="w-3.5 h-3.5 text-cyan-400/70" />
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Beat Mapping</span>
+                        <span className="text-[10px] font-black text-studio-text-mid uppercase tracking-widest leading-none">Beat Mapping</span>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <button onClick={() => applyBeatMappingToTempo()} className="px-2 py-1 rounded text-[10px] text-white bg-sky-500/70 hover:bg-sky-500">Apply</button>
-                        <button onClick={() => clearBeatMapping()} className="px-2 py-1 rounded text-[10px] text-gray-300 bg-[#333] hover:bg-[#444]">Clear</button>
+                        <button onClick={() => applyBeatMappingToTempo()} className="px-2 py-1 rounded text-[10px] text-white bg-accent-cyan/70 hover:bg-accent-cyan">Apply</button>
+                        <button onClick={() => clearBeatMapping()} className="px-2 py-1 rounded text-[10px] text-studio-text bg-studio-control hover:bg-studio-control">Clear</button>
                     </div>
                 </div>
 
@@ -169,33 +169,29 @@ export function GlobalTracks() {
 
             {/* 4. Signature & Key Tracks (Condensed Logic Bar) */}
             <div className="h-7 flex border-b border-black/60 group relative">
-                <div className="w-[280px] bg-[#1a1a1a] border-r border-black flex items-center px-4 justify-between shrink-0 sticky left-0 z-10">
+                <div className="w-[280px] bg-studio-panel border-r border-black flex items-center px-4 justify-between shrink-0 sticky left-0 z-10">
                     <div className="flex gap-4">
                         <div className="flex items-center gap-1.5">
-                            <Music className="w-3 h-3 text-gray-600" />
-                            <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest">Sig</span>
+                            <Music className="w-3 h-3 text-studio-text-dim" />
+                            <span className="text-[9px] font-black text-studio-text-dim uppercase tracking-widest">Sig</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <Zap className="w-3 h-3 text-gray-600" />
-                            <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest">Key</span>
+                            <Zap className="w-3 h-3 text-studio-text-dim" />
+                            <span className="text-[9px] font-black text-studio-text-dim uppercase tracking-widest">Key</span>
                         </div>
                     </div>
                 </div>
 
                 <div className="flex-1 flex pointer-events-none px-4">
                     <div className="flex items-center gap-1.5 h-full">
-                        <span className="text-[10px] font-black text-gray-500">4/4</span>
-                        <div className="w-px h-3 bg-gray-800"></div>
-                        <span className="text-[10px] font-black text-gray-500">C Major</span>
+                        <span className="text-[10px] font-black text-studio-text-dim">4/4</span>
+                        <div className="w-px h-3 bg-studio-panel"></div>
+                        <span className="text-[10px] font-black text-studio-text-dim">C Major</span>
                     </div>
                 </div>
             </div>
 
-            <style jsx>{`
-                .custom-scrollbar-v::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar-v::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar-v::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-            `}</style>
+
         </div>
     )
 }

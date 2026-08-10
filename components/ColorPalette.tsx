@@ -34,14 +34,14 @@ export function ColorPalette() {
     return (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
             <div
-                className="bg-[#2c2c2e] border border-white/10 rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden w-[420px] animate-in zoom-in-95 duration-200"
+                className="bg-studio-control border border-white/10 rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden w-[420px] animate-in zoom-in-95 duration-200"
                 onKeyDown={(e) => { if (e.key === 'Escape') toggleColorPalette(false) }}
             >
-                <div className="h-10 px-4 flex items-center justify-between border-b border-black/40 bg-[#3a3a3c]">
-                    <span className="text-[12px] font-black text-gray-200 uppercase tracking-widest">Color</span>
+                <div className="h-10 px-4 flex items-center justify-between border-b border-black/40 bg-studio-control">
+                    <span className="text-[12px] font-black text-studio-text uppercase tracking-widest">Color</span>
                     <div className="flex items-center gap-2">
                         <button
-                            className="p-1.5 hover:bg-white/10 rounded-full transition-all text-gray-400 hover:text-white"
+                            className="p-1.5 hover:bg-white/10 rounded-full transition-all text-studio-text-mid hover:text-white"
                             onClick={() => {
                                 // Default colors based on track type
                                 selectedTrackIds.forEach(tid => {
@@ -55,7 +55,7 @@ export function ColorPalette() {
                         >
                             <RotateCcw className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => toggleColorPalette(false)} className="p-1.5 hover:bg-white/10 rounded-full transition-all text-gray-400 hover:text-white">
+                        <button onClick={() => toggleColorPalette(false)} className="p-1.5 hover:bg-white/10 rounded-full transition-all text-studio-text-mid hover:text-white">
                             <X className="w-4 h-4" />
                         </button>
                     </div>
@@ -76,13 +76,13 @@ export function ColorPalette() {
                     ))}
                 </div>
 
-                <div className="bg-[#1c1c1e] px-4 py-2 border-t border-black/40 flex justify-between items-center">
-                    <span className="text-[9px] font-black text-gray-500 uppercase tracking-tighter">
+                <div className="bg-studio-panel px-4 py-2 border-t border-black/40 flex justify-between items-center">
+                    <span className="text-[9px] font-black text-studio-text-dim uppercase tracking-tighter">
                         {selectedTrackIds.length} {selectedTrackIds.length === 1 ? 'Track' : 'Tracks'} selected
                     </span>
                     <button
                         onClick={() => toggleColorPalette(false)}
-                        className="bg-sky-500 hover:bg-sky-400 text-white text-[11px] font-bold px-4 py-1 rounded transition-all active:scale-95"
+                        className="bg-accent-cyan hover:bg-accent-cyan text-white text-[11px] font-bold px-4 py-1 rounded transition-all active:scale-95"
                     >
                         OK
                     </button>

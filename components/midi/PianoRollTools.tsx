@@ -141,9 +141,9 @@ export const PianoRollTools = memo(function PianoRollTools({
   }, [onToolChange]);
 
   return (
-    <div className="flex items-center gap-2 p-2 bg-gray-800 border-b border-gray-700">
+    <div className="flex items-center gap-2 p-2 bg-studio-panel border-b border-studio-line">
       {/* Tools */}
-      <div className="flex items-center gap-1 bg-gray-900 rounded-lg p-1">
+      <div className="flex items-center gap-1 bg-studio-sunken rounded-lg p-1">
         {TOOLS.map(({ id, icon, label, shortcut }) => (
           <button
             key={id}
@@ -151,8 +151,8 @@ export const PianoRollTools = memo(function PianoRollTools({
             className={`
               flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm transition-colors
               ${currentTool === id 
-                ? 'bg-blue-600 text-white' 
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                ? 'bg-accent-cyan text-white' 
+                : 'text-studio-text-mid hover:text-white hover:bg-studio-panel'
               }
             `}
             title={`${label} (${shortcut})`}
@@ -163,16 +163,16 @@ export const PianoRollTools = memo(function PianoRollTools({
         ))}
       </div>
 
-      <div className="w-px h-6 bg-gray-700 mx-1" />
+      <div className="w-px h-6 bg-studio-raised mx-1" />
 
       {/* Grid Controls */}
       <div className="flex items-center gap-2">
-        <Grid3x3 className="w-4 h-4 text-gray-500" />
+        <Grid3x3 className="w-4 h-4 text-studio-text-dim" />
         
         <select
           value={gridDivision}
           onChange={(e) => onGridDivisionChange(Number(e.target.value))}
-          className="bg-gray-900 text-gray-300 text-sm rounded px-2 py-1 border border-gray-700 focus:outline-none focus:border-blue-500"
+          className="bg-studio-sunken text-studio-text text-sm rounded px-2 py-1 border border-studio-line focus:outline-none focus:border-accent-cyan"
         >
           {GRID_DIVISIONS.map(({ value, label }) => (
             <option key={value} value={value}>{label}</option>
@@ -184,8 +184,8 @@ export const PianoRollTools = memo(function PianoRollTools({
           className={`
             p-1.5 rounded transition-colors
             ${snapToGrid 
-              ? 'text-blue-400 bg-blue-400/10' 
-              : 'text-gray-500 hover:text-gray-300'
+              ? 'text-accent-cyan bg-accent-cyan/10' 
+              : 'text-studio-text-dim hover:text-studio-text'
             }
           `}
           title="Snap to Grid (Cmd+G)"
@@ -194,69 +194,69 @@ export const PianoRollTools = memo(function PianoRollTools({
         </button>
       </div>
 
-      <div className="w-px h-6 bg-gray-700 mx-1" />
+      <div className="w-px h-6 bg-studio-raised mx-1" />
 
       {/* Zoom Controls */}
       <div className="flex items-center gap-1">
-        <span className="text-[10px] text-gray-500 mr-0.5">H</span>
+        <span className="text-[10px] text-studio-text-dim mr-0.5">H</span>
         <button
           onClick={onZoomOut}
-          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700"
+          className="p-1.5 rounded text-studio-text-mid hover:text-white hover:bg-studio-raised"
           title="Zoom Out Horizontal (-)"
         >
           <ZoomOut className="w-4 h-4" />
         </button>
         <button
           onClick={onZoomIn}
-          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700"
+          className="p-1.5 rounded text-studio-text-mid hover:text-white hover:bg-studio-raised"
           title="Zoom In Horizontal (+)"
         >
           <ZoomIn className="w-4 h-4" />
         </button>
-        <span className="text-[10px] text-gray-500 ml-1 mr-0.5">V</span>
+        <span className="text-[10px] text-studio-text-dim ml-1 mr-0.5">V</span>
         <button
           onClick={onZoomOutVertical}
-          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700"
+          className="p-1.5 rounded text-studio-text-mid hover:text-white hover:bg-studio-raised"
           title="Zoom Out Vertical"
         >
           <ArrowUpDown className="w-3 h-3 opacity-50" />
         </button>
         <button
           onClick={onZoomInVertical}
-          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700"
+          className="p-1.5 rounded text-studio-text-mid hover:text-white hover:bg-studio-raised"
           title="Zoom In Vertical"
         >
           <ArrowUpDown className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="w-px h-6 bg-gray-700 mx-1" />
+      <div className="w-px h-6 bg-studio-raised mx-1" />
 
       {/* Zoom to Selection / Go To Beat */}
       <div className="flex items-center gap-1">
         <button
           onClick={onZoomToSelection}
-          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          className="p-1.5 rounded text-studio-text-mid hover:text-white hover:bg-studio-raised transition-colors"
           title="Zoom to Selection"
         >
           <Maximize2 className="w-4 h-4" />
         </button>
         <button
           onClick={onGoToBeat}
-          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          className="p-1.5 rounded text-studio-text-mid hover:text-white hover:bg-studio-raised transition-colors"
           title="Go to Beat/Measure..."
         >
           <ArrowRightToLine className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="w-px h-6 bg-gray-700 mx-1" />
+      <div className="w-px h-6 bg-studio-raised mx-1" />
 
       {/* Actions */}
       <div className="flex items-center gap-1">
         <button
           onClick={onQuantize}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-gray-700 text-gray-300 text-sm hover:bg-gray-600 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-studio-raised text-studio-text text-sm hover:bg-studio-control transition-colors"
           title="Quantize (Q)"
         >
           <Music className="w-4 h-4" />
@@ -264,15 +264,15 @@ export const PianoRollTools = memo(function PianoRollTools({
         </button>
       </div>
 
-      <div className="w-px h-6 bg-gray-700 mx-1" />
+      <div className="w-px h-6 bg-studio-raised mx-1" />
 
       {/* Link Mode */}
       <div className="flex items-center gap-1" title="Piano Roll Link Mode">
-        <Link className="w-4 h-4 text-gray-500" />
+        <Link className="w-4 h-4 text-studio-text-dim" />
         <select
           value={linkMode}
           onChange={(e) => onLinkModeChange(e.target.value as PianoRollLinkMode)}
-          className="bg-gray-900 text-gray-300 text-sm rounded px-1 py-1 border border-gray-700 focus:outline-none focus:border-blue-500"
+          className="bg-studio-sunken text-studio-text text-sm rounded px-1 py-1 border border-studio-line focus:outline-none focus:border-accent-cyan"
         >
           <option value="single">Single</option>
           <option value="selected">Selected</option>
@@ -281,11 +281,11 @@ export const PianoRollTools = memo(function PianoRollTools({
         </select>
       </div>
 
-      <div className="w-px h-6 bg-gray-700 mx-1" />
+      <div className="w-px h-6 bg-studio-raised mx-1" />
 
       {/* Draw Duration Presets */}
       <div className="flex items-center gap-1" title="Note Length for Draw Tool">
-        <span className="text-[10px] text-gray-500">Len</span>
+        <span className="text-[10px] text-studio-text-dim">Len</span>
         {([0.25, 0.5, 1, 2] as number[]).map(dur => (
           <button
             key={dur}
@@ -293,8 +293,8 @@ export const PianoRollTools = memo(function PianoRollTools({
             className={`
               px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors
               ${drawDuration === dur
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                ? 'bg-accent-cyan text-white'
+                : 'bg-studio-raised text-studio-text-mid hover:bg-studio-control'
               }
             `}
             title={`Draw ${dur < 1 ? `1/${1/dur}` : dur + ' beat'} note`}
@@ -304,20 +304,20 @@ export const PianoRollTools = memo(function PianoRollTools({
         ))}
       </div>
 
-      <div className="w-px h-6 bg-gray-700 mx-1" />
+      <div className="w-px h-6 bg-studio-raised mx-1" />
 
       {/* Split / Join */}
       <div className="flex items-center gap-1">
         <button
           onClick={() => onSplitNote()}
-          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          className="p-1.5 rounded text-studio-text-mid hover:text-white hover:bg-studio-raised transition-colors"
           title="Split Note at Playhead (X)"
         >
           <Scissors className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={() => onJoinNotes()}
-          className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          className="p-1.5 rounded text-studio-text-mid hover:text-white hover:bg-studio-raised transition-colors"
           title="Join Selected Notes (J)"
         >
           <Merge className="w-3.5 h-3.5" />
@@ -328,8 +328,8 @@ export const PianoRollTools = memo(function PianoRollTools({
           className={`
             p-1.5 rounded transition-colors flex items-center gap-1 text-sm
             ${stepInputEnabled
-              ? 'text-blue-400 bg-blue-400/10'
-              : 'text-gray-500 hover:text-gray-300'
+              ? 'text-accent-cyan bg-accent-cyan/10'
+              : 'text-studio-text-dim hover:text-studio-text'
             }
           `}
           title="Step Input (Tab)"
@@ -338,16 +338,16 @@ export const PianoRollTools = memo(function PianoRollTools({
         </button>
       </div>
 
-      <div className="w-px h-6 bg-gray-700 mx-1" />
+      <div className="w-px h-6 bg-studio-raised mx-1" />
 
       {/* FL Studio specific note tools */}
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1" title="Note Color Group (MIDI Channel)">
-          <Palette className="w-4 h-4 text-gray-500" />
+          <Palette className="w-4 h-4 text-studio-text-dim" />
           <select
             value={activeChannel}
             onChange={(e) => onChannelChange(Number(e.target.value))}
-            className="bg-gray-900 text-gray-300 text-sm rounded px-1 py-1 border border-gray-700 focus:outline-none focus:border-blue-500"
+            className="bg-studio-sunken text-studio-text text-sm rounded px-1 py-1 border border-studio-line focus:outline-none focus:border-accent-cyan"
           >
             {Array.from({ length: 16 }).map((_, i) => (
               <option key={i} value={i}>Color {i + 1}</option>
@@ -360,7 +360,7 @@ export const PianoRollTools = memo(function PianoRollTools({
           <select
             value={channelFilter !== null ? channelFilter : ''}
             onChange={(e) => onChannelFilterChange(e.target.value === '' ? null : Number(e.target.value))}
-            className="bg-gray-900 text-gray-300 text-sm rounded px-1 py-1 border border-gray-700 focus:outline-none focus:border-blue-500"
+            className="bg-studio-sunken text-studio-text text-sm rounded px-1 py-1 border border-studio-line focus:outline-none focus:border-accent-cyan"
           >
             <option value="">All Channels</option>
             {Array.from({ length: 16 }).map((_, i) => (
@@ -374,8 +374,8 @@ export const PianoRollTools = memo(function PianoRollTools({
           className={`
             p-1.5 rounded transition-colors flex items-center gap-1 text-sm
             ${slideMode 
-              ? 'text-blue-400 bg-blue-400/10' 
-              : 'text-gray-500 hover:text-gray-300'
+              ? 'text-accent-cyan bg-accent-cyan/10' 
+              : 'text-studio-text-dim hover:text-studio-text'
             }
           `}
           title="Slide Note Mode"
@@ -388,8 +388,8 @@ export const PianoRollTools = memo(function PianoRollTools({
           className={`
             p-1.5 rounded transition-colors flex items-center gap-1 text-sm font-bold
             ${portaMode 
-              ? 'text-blue-400 bg-blue-400/10' 
-              : 'text-gray-500 hover:text-gray-300'
+              ? 'text-accent-cyan bg-accent-cyan/10' 
+              : 'text-studio-text-dim hover:text-studio-text'
             }
           `}
           title="Portamento Mode"
@@ -401,8 +401,8 @@ export const PianoRollTools = memo(function PianoRollTools({
           className={`
             p-1.5 rounded transition-colors flex items-center gap-1 text-sm
             ${showEventEditor
-              ? 'text-blue-400 bg-blue-400/10'
-              : 'text-gray-500 hover:text-gray-300'
+              ? 'text-accent-cyan bg-accent-cyan/10'
+              : 'text-studio-text-dim hover:text-studio-text'
             }
           `}
           title="Toggle Event Editor"
@@ -424,8 +424,8 @@ export const PianoRollTools = memo(function PianoRollTools({
           className={`
             p-1.5 rounded transition-colors
             ${canUndo 
-              ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
-              : 'text-gray-600 cursor-not-allowed'
+              ? 'text-studio-text-mid hover:text-white hover:bg-studio-raised' 
+              : 'text-studio-text-dim cursor-not-allowed'
             }
           `}
           title="Undo (Cmd+Z)"
@@ -438,8 +438,8 @@ export const PianoRollTools = memo(function PianoRollTools({
           className={`
             p-1.5 rounded transition-colors
             ${canRedo 
-              ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
-              : 'text-gray-600 cursor-not-allowed'
+              ? 'text-studio-text-mid hover:text-white hover:bg-studio-raised' 
+              : 'text-studio-text-dim cursor-not-allowed'
             }
           `}
           title="Redo (Cmd+Shift+Z)"

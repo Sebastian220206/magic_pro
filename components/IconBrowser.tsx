@@ -53,35 +53,35 @@ export function IconBrowser() {
     return (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-[4px] animate-in fade-in duration-200">
             <div
-                className="bg-[#2c2c2e] border border-white/10 rounded-2xl shadow-[0_40px_100px_rgba(0,0,0,0.8)] overflow-hidden w-[620px] h-[480px] flex flex-col animate-in zoom-in-95 duration-200"
+                className="bg-studio-control border border-white/10 rounded-2xl shadow-[0_40px_100px_rgba(0,0,0,0.8)] overflow-hidden w-[620px] h-[480px] flex flex-col animate-in zoom-in-95 duration-200"
                 onKeyDown={(e) => { if (e.key === 'Escape') toggleIconBrowser(null) }}
             >
                 {/* Header Row */}
-                <div className="h-14 px-6 flex items-center justify-between border-b border-black/40 bg-[#3a3a3c] shrink-0">
+                <div className="h-14 px-6 flex items-center justify-between border-b border-black/40 bg-studio-control shrink-0">
                     <div className="flex items-center gap-4">
                         <span className="text-[14px] font-black text-white uppercase tracking-widest">Icon Browser</span>
                         <div className="h-4 w-px bg-white/10"></div>
                         <div className="relative group">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-studio-text-mid" />
                             <input
                                 type="text"
                                 placeholder="Search icons..."
-                                className="bg-black/20 border border-black/40 rounded-full h-8 px-9 text-[12px] font-medium outline-none focus:border-sky-500/50 transition-all w-48 placeholder:text-gray-500"
+                                className="bg-black/20 border border-black/40 rounded-full h-8 px-9 text-[12px] font-medium outline-none focus:border-accent-cyan/50 transition-all w-48 placeholder:text-studio-text-dim"
                             />
                         </div>
                     </div>
-                    <button onClick={() => toggleIconBrowser(null)} className="p-2 hover:bg-white/10 rounded-full transition-all text-gray-400 hover:text-white">
+                    <button onClick={() => toggleIconBrowser(null)} className="p-2 hover:bg-white/10 rounded-full transition-all text-studio-text-mid hover:text-white">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 <div className="flex flex-1 min-h-0">
                     {/* Category List */}
-                    <div className="w-[160px] border-r border-black/40 bg-[#252527] py-2 overflow-y-auto overflow-x-hidden custom-scrollbar-v shrink-0">
+                    <div className="w-[160px] border-r border-black/40 bg-studio-raised py-2 overflow-y-auto overflow-x-hidden custom-scrollbar-v shrink-0">
                         {iconCategories.map((cat) => (
                             <button
                                 key={cat.id}
-                                className="w-full px-6 py-2.5 text-left text-[11px] font-black text-gray-500 uppercase tracking-widest hover:bg-white/5 hover:text-gray-300 transition-all"
+                                className="w-full px-6 py-2.5 text-left text-[11px] font-black text-studio-text-dim uppercase tracking-widest hover:bg-white/5 hover:text-studio-text transition-all"
                             >
                                 {cat.label}
                             </button>
@@ -94,30 +94,26 @@ export function IconBrowser() {
                             {iconCategories.flatMap(cat => cat.icons).map((iconName, i) => (
                                 <button
                                     key={i}
-                                    className="aspect-square rounded-xl bg-white/[0.03] border border-white/[0.05] hover:bg-sky-500/20 hover:border-sky-500/50 transition-all flex items-center justify-center group active:scale-95"
+                                    className="aspect-square rounded-xl bg-white/[0.03] border border-white/[0.05] hover:bg-accent-cyan/20 hover:border-accent-cyan/50 transition-all flex items-center justify-center group active:scale-95"
                                     onClick={() => handleAssignIcon(iconName)}
                                 >
-                                    <IconRenderer name={iconName} className="w-10 h-10 text-gray-400 group-hover:text-white drop-shadow-2xl transition-all group-hover:scale-110" />
+                                    <IconRenderer name={iconName} className="w-10 h-10 text-studio-text-mid group-hover:text-white drop-shadow-2xl transition-all group-hover:scale-110" />
                                 </button>
                             ))}
                         </div>
                     </div>
                 </div>
 
-                <div className="h-12 px-6 flex items-center justify-end bg-[#1c1c1e] border-t border-black/40 shrink-0">
+                <div className="h-12 px-6 flex items-center justify-end bg-studio-panel border-t border-black/40 shrink-0">
                     <button
                         onClick={() => toggleIconBrowser(null)}
-                        className="bg-sky-500 hover:bg-sky-400 text-white text-[12px] font-black uppercase tracking-widest px-8 h-8 rounded-full transition-all active:scale-95"
+                        className="bg-accent-cyan hover:bg-accent-cyan text-white text-[12px] font-black uppercase tracking-widest px-8 h-8 rounded-full transition-all active:scale-95"
                     >
                         Close
                     </button>
                 </div>
             </div>
-            <style jsx>{`
-                .custom-scrollbar-v::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar-v::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar-v::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
-            `}</style>
+
         </div>
     )
 }

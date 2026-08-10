@@ -355,7 +355,7 @@ export const PianoRoll = memo(function PianoRoll({
           rCtx.clearRect(0, 0, cw, 24);
 
           // Background
-          rCtx.fillStyle = '#2d2d2d';
+          rCtx.fillStyle = '#0d141d';
           rCtx.fillRect(0, 0, cw, 24);
 
           // Render Loop Cycle Bar on Ruler
@@ -406,16 +406,16 @@ export const PianoRoll = memo(function PianoRoll({
             const startSec = startB * secondsPerBeat;
             const endSec = endB * secondsPerBeat;
             const firstSec = Math.floor(startSec);
-            rCtx.fillStyle = '#b0b0b0';
+            rCtx.fillStyle = '#9db4c6';
             rCtx.font = 'bold 10px sans-serif';
             rCtx.textAlign = 'left';
             rCtx.textBaseline = 'top';
             for (let s = firstSec; s <= endSec; s += 1) {
               const b = s / secondsPerBeat;
               const x = (b - startB) * pPerBeat;
-              rCtx.fillStyle = '#555';
+              rCtx.fillStyle = 'rgba(34, 211, 238, 0.20)';
               rCtx.fillRect(Math.floor(x), 0, 1, 24);
-              rCtx.fillStyle = '#b0b0b0';
+              rCtx.fillStyle = '#9db4c6';
               const label = s % 5 === 0 ? `${s}s` : '';
               if (label) rCtx.fillText(label, Math.floor(x) + 4, 4);
             }
@@ -430,7 +430,7 @@ export const PianoRoll = memo(function PianoRoll({
               }
             }
 
-            rCtx.fillStyle = '#b0b0b0';
+            rCtx.fillStyle = '#9db4c6';
             rCtx.font = 'bold 10px sans-serif';
             rCtx.textAlign = 'left';
             rCtx.textBaseline = 'top';
@@ -452,9 +452,9 @@ export const PianoRoll = memo(function PianoRoll({
               const barNum = Math.floor(barB / bpb);
               const x = (barB - startB) * pPerBeat;
               // Bar line
-              rCtx.fillStyle = '#555';
+              rCtx.fillStyle = 'rgba(34, 211, 238, 0.20)';
               rCtx.fillRect(Math.floor(x), 0, 1, 24);
-              rCtx.fillStyle = '#b0b0b0';
+              rCtx.fillStyle = '#9db4c6';
               rCtx.fillText(`${barNum + 1}`, Math.floor(x) + 4, 4);
               // Beat lines within bar
               for (let beat = 1; beat < bpb; beat++) {
@@ -488,7 +488,7 @@ export const PianoRoll = memo(function PianoRoll({
           if (state.isPlaying || state.currentBeat > 0) {
             const cursorX = (state.currentBeat - vs.startBeat) * vs.pixelsPerBeat;
             if (cursorX >= 0 && cursorX <= cw) {
-              rCtx.fillStyle = '#FFD700';
+              rCtx.fillStyle = '#e8fbff';
               rCtx.beginPath();
               rCtx.moveTo(cursorX - 4, 0);
               rCtx.lineTo(cursorX + 4, 0);
@@ -505,9 +505,9 @@ export const PianoRoll = memo(function PianoRoll({
       if (state.isPlaying || state.currentBeat > 0) {
         const cursorX = (state.currentBeat - vs.startBeat) * vs.pixelsPerBeat;
         if (cursorX >= 0 && cursorX <= cw) {
-          ctx.strokeStyle = '#FFD700';
+          ctx.strokeStyle = '#e8fbff';
           ctx.lineWidth   = 2;
-          ctx.shadowColor = '#FFD700';
+          ctx.shadowColor = '#22d3ee';
           ctx.shadowBlur  = 8;
           ctx.beginPath();
           ctx.moveTo(cursorX, 0);
@@ -986,7 +986,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
   // ── Early return (no clip) ─────────────────────────────────────────────
   if (!clip) {
     return (
-      <div ref={containerRef} className="flex items-center justify-center h-full text-gray-500">
+      <div ref={containerRef} className="flex items-center justify-center h-full text-studio-text-dim">
         No MIDI clip selected
       </div>
     );
@@ -994,32 +994,32 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div ref={containerRef} className="flex flex-col h-full w-full bg-[#1e1e1e] overflow-hidden text-xs">
+    <div ref={containerRef} className="flex flex-col h-full w-full bg-studio-panel overflow-hidden text-xs">
 
       {/* ── Top Tabs ── */}
-      <div className="flex items-center justify-center h-7 bg-[#2d2d2d] border-b border-[#1a1a1a]">
+      <div className="flex items-center justify-center h-7 bg-studio-control border-b border-studio-line">
         <div className="flex h-full items-center">
           <button
-            className={`px-5 py-1 border-r border-l border-[#222] text-xs shadow-inner rounded-sm h-6 transition-colors ${
-              activeTab === 'piano-roll' ? 'bg-[#444] text-gray-200' : 'text-gray-400 hover:text-gray-200'
+            className={`px-5 py-1 border-r border-l border-studio-line text-xs shadow-inner rounded-sm h-6 transition-colors ${
+              activeTab === 'piano-roll' ? 'bg-studio-control text-studio-text' : 'text-studio-text-mid hover:text-studio-text'
             }`}
             onClick={() => setActiveTab('piano-roll')}
           >Piano Roll</button>
           <button
-            className={`px-5 py-1 border-r border-[#222] text-xs h-6 transition-colors ${
-              activeTab === 'score' ? 'bg-[#444] text-gray-200' : 'text-gray-400 hover:text-gray-200'
+            className={`px-5 py-1 border-r border-studio-line text-xs h-6 transition-colors ${
+              activeTab === 'score' ? 'bg-studio-control text-studio-text' : 'text-studio-text-mid hover:text-studio-text'
             }`}
             onClick={() => setActiveTab('score')}
           >Score</button>
           <button
-            className={`px-5 py-1 border-r border-[#222] text-xs h-6 transition-colors ${
-              activeTab === 'step-sequencer' ? 'bg-[#444] text-gray-200' : 'text-gray-400 hover:text-gray-200'
+            className={`px-5 py-1 border-r border-studio-line text-xs h-6 transition-colors ${
+              activeTab === 'step-sequencer' ? 'bg-studio-control text-studio-text' : 'text-studio-text-mid hover:text-studio-text'
             }`}
             onClick={() => setActiveTab('step-sequencer')}
           >Step Sequencer</button>
           <button
             className={`px-5 py-1 text-xs h-6 transition-colors ${
-              activeTab === 'smart-tempo' ? 'bg-[#444] text-gray-200' : 'text-gray-400 hover:text-gray-200'
+              activeTab === 'smart-tempo' ? 'bg-studio-control text-studio-text' : 'text-studio-text-mid hover:text-studio-text'
             }`}
             onClick={() => setActiveTab('smart-tempo')}
           >Smart Tempo</button>
@@ -1027,59 +1027,59 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
       </div>
 
       {/* ── Secondary Toolbar ── */}
-      <div className="flex items-center h-8 bg-[#333] border-b border-[#1a1a1a] px-2 text-gray-300 gap-4 shrink-0 shadow-sm z-10">
+      <div className="flex items-center h-8 bg-studio-control border-b border-studio-line px-2 text-studio-text gap-4 shrink-0 shadow-sm z-10">
         {/* Dropdown Menus */}
         <div className="flex gap-3 font-medium text-[11px] relative" data-dropdown>
           <div className="relative">
             <button
               data-dropdown
-              className={`hover:text-white flex items-center ${openDropdown === 'edit' ? 'text-white bg-[#444] rounded px-1' : ''}`}
+              className={`hover:text-white flex items-center ${openDropdown === 'edit' ? 'text-white bg-studio-control rounded px-1' : ''}`}
               onClick={() => setOpenDropdown(openDropdown === 'edit' ? null : 'edit')}
             >Edit <ChevronDown className="w-3 h-3 ml-0.5 opacity-70" /></button>
             {openDropdown === 'edit' && (
-              <div className="absolute top-full left-0 mt-1 bg-[#2d2d2d] border border-[#555] rounded shadow-lg z-50 min-w-[160px] py-1">
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => { undo(); setOpenDropdown(null); }}>Undo <span className="float-right text-gray-500">⌘Z</span></button>
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => { redo(); setOpenDropdown(null); }}>Redo <span className="float-right text-gray-500">⌘⇧Z</span></button>
-                <div className="border-t border-[#444] my-1" />
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => { quantizeSelected({ gridDivision: gridSettings.division, strength: 1 }); setOpenDropdown(null); }}>Quantize <span className="float-right text-gray-500">Q</span></button>
-                <div className="border-t border-[#444] my-1" />
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => {
+              <div className="absolute top-full left-0 mt-1 bg-studio-control border border-studio-line-strong rounded shadow-lg z-50 min-w-[160px] py-1">
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => { undo(); setOpenDropdown(null); }}>Undo <span className="float-right text-studio-text-dim">⌘Z</span></button>
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => { redo(); setOpenDropdown(null); }}>Redo <span className="float-right text-studio-text-dim">⌘⇧Z</span></button>
+                <div className="border-t border-studio-line-strong my-1" />
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => { quantizeSelected({ gridDivision: gridSettings.division, strength: 1 }); setOpenDropdown(null); }}>Quantize <span className="float-right text-studio-text-dim">Q</span></button>
+                <div className="border-t border-studio-line-strong my-1" />
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => {
                   const clipData = getCurrentClip();
                   if (clipData) {
                     for (const id of selectedNoteIds) deleteNote(id);
                   }
                   setOpenDropdown(null);
-                }}>Delete Selected <span className="float-right text-gray-500">Del</span></button>
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => {
+                }}>Delete Selected <span className="float-right text-studio-text-dim">Del</span></button>
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => {
                   deselectAllNotes();
                   setOpenDropdown(null);
-                }}>Deselect All <span className="float-right text-gray-500">Esc</span></button>
+                }}>Deselect All <span className="float-right text-studio-text-dim">Esc</span></button>
               </div>
             )}
           </div>
           <div className="relative">
             <button
               data-dropdown
-              className={`hover:text-white flex items-center ${openDropdown === 'functions' ? 'text-white bg-[#444] rounded px-1' : ''}`}
+              className={`hover:text-white flex items-center ${openDropdown === 'functions' ? 'text-white bg-studio-control rounded px-1' : ''}`}
               onClick={() => setOpenDropdown(openDropdown === 'functions' ? null : 'functions')}
             >Functions <ChevronDown className="w-3 h-3 ml-0.5 opacity-70" /></button>
             {openDropdown === 'functions' && (
-              <div className="absolute top-full left-0 mt-1 bg-[#2d2d2d] border border-[#555] rounded shadow-lg z-50 min-w-[160px] py-1">
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => {
+              <div className="absolute top-full left-0 mt-1 bg-studio-control border border-studio-line-strong rounded shadow-lg z-50 min-w-[160px] py-1">
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => {
                   const clipData = getCurrentClip();
                   if (clipData?.notes && selectedNoteIds.size >= 2) {
                     joinNotes(Array.from(selectedNoteIds));
                   }
                   setOpenDropdown(null);
-                }}>Join Notes <span className="float-right text-gray-500">J</span></button>
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => {
+                }}>Join Notes <span className="float-right text-studio-text-dim">J</span></button>
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => {
                   if (currentClipId && selectedNoteIds.size === 1) {
                     splitNote(Array.from(selectedNoteIds)[0], currentBeat);
                   }
                   setOpenDropdown(null);
-                }}>Split Note <span className="float-right text-gray-500">X</span></button>
-                <div className="border-t border-[#444] my-1" />
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => {
+                }}>Split Note <span className="float-right text-studio-text-dim">X</span></button>
+                <div className="border-t border-studio-line-strong my-1" />
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => {
                   const clipData = getCurrentClip();
                   if (clipData?.notes) {
                     const vel = useMidiStore.getState().selectedNoteIds.size > 0 ? 100 : 100;
@@ -1087,7 +1087,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                   }
                   setOpenDropdown(null);
                 }}>Velocity 100</button>
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => {
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => {
                   const clipData = getCurrentClip();
                   if (clipData?.notes) {
                     for (const note of clipData.notes) {
@@ -1098,7 +1098,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                   }
                   setOpenDropdown(null);
                 }}>Velocity +10</button>
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => {
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => {
                   const clipData = getCurrentClip();
                   if (clipData?.notes) {
                     for (const note of clipData.notes) {
@@ -1109,16 +1109,16 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                   }
                   setOpenDropdown(null);
                 }}>Velocity -10</button>
-                <div className="border-t border-[#444] my-1" />
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => {
+                <div className="border-t border-studio-line-strong my-1" />
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => {
                   useMidiStore.getState().humanizeSelected({ timingVariance: 0.02, velocityVariance: 5 });
                   setOpenDropdown(null);
                 }}>Humanize</button>
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => {
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => {
                   useMidiStore.getState().transposeSelected(12);
                   setOpenDropdown(null);
                 }}>Transpose +1 Octave</button>
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => {
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => {
                   useMidiStore.getState().transposeSelected(-12);
                   setOpenDropdown(null);
                 }}>Transpose -1 Octave</button>
@@ -1128,22 +1128,22 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
           <div className="relative">
             <button
               data-dropdown
-              className={`hover:text-white flex items-center ${openDropdown === 'view' ? 'text-white bg-[#444] rounded px-1' : ''}`}
+              className={`hover:text-white flex items-center ${openDropdown === 'view' ? 'text-white bg-studio-control rounded px-1' : ''}`}
               onClick={() => setOpenDropdown(openDropdown === 'view' ? null : 'view')}
             >View <ChevronDown className="w-3 h-3 ml-0.5 opacity-70" /></button>
             {openDropdown === 'view' && (
-              <div className="absolute top-full left-0 mt-1 bg-[#2d2d2d] border border-[#555] rounded shadow-lg z-50 min-w-[160px] py-1">
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => { toggleVelocityLane(); setOpenDropdown(null); }}>
+              <div className="absolute top-full left-0 mt-1 bg-studio-control border border-studio-line-strong rounded shadow-lg z-50 min-w-[160px] py-1">
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => { toggleVelocityLane(); setOpenDropdown(null); }}>
                   {showVelocityLane ? '✓ ' : '  '}Velocity Lane
                 </button>
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => { toggleFoldMode(); setOpenDropdown(null); }}>
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => { toggleFoldMode(); setOpenDropdown(null); }}>
                   {showFoldMode ? '✓ ' : '  '}Fold Mode
                 </button>
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => { toggleRulerSeconds(); setOpenDropdown(null); }}>
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => { toggleRulerSeconds(); setOpenDropdown(null); }}>
                   {showRulerSeconds ? '✓ ' : '  '}Ruler in Seconds
                 </button>
-                <div className="border-t border-[#444] my-1" />
-                <button className="w-full px-3 py-1 text-left hover:bg-blue-600 text-gray-200 text-[11px]" onClick={() => { zoomToSelection(); setOpenDropdown(null); }}>Zoom to Selection</button>
+                <div className="border-t border-studio-line-strong my-1" />
+                <button className="w-full px-3 py-1 text-left hover:bg-accent-cyan text-studio-text text-[11px]" onClick={() => { zoomToSelection(); setOpenDropdown(null); }}>Zoom to Selection</button>
               </div>
             )}
           </div>
@@ -1151,12 +1151,12 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
         
         <div className="flex items-center gap-2">
           <button
-            className="p-1 hover:bg-[#444] rounded text-gray-400"
+            className="p-1 hover:bg-studio-control rounded text-studio-text-mid"
             onClick={() => seekToBeat(0)}
             title="Go to Start"
           ><SkipBack className="w-3.5 h-3.5" /></button>
           <button
-            className={`p-1 rounded ${isPlaying ? 'bg-[#4CAF50] text-black' : 'hover:bg-[#444] text-gray-400'}`}
+            className={`p-1 rounded ${isPlaying ? 'bg-[#4CAF50] text-black' : 'hover:bg-studio-control text-studio-text-mid'}`}
             onClick={() => {
               if (isPlaying) {
                 stop();
@@ -1169,7 +1169,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
           
           {/* Loop toggle */}
           <button
-            className={`p-1 rounded ${loopEnabled ? 'bg-green-600 text-white font-bold' : 'hover:bg-[#444] text-gray-400'}`}
+            className={`p-1 rounded ${loopEnabled ? 'bg-green-600 text-white font-bold' : 'hover:bg-studio-control text-studio-text-mid'}`}
             onClick={() => setLoopEnabled(!loopEnabled)}
             title={loopEnabled ? 'Disable Loop (L)' : 'Enable Loop (L)'}
           >
@@ -1177,7 +1177,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
           </button>
 
           {/* Loop Range Inputs */}
-          <div className="flex items-center gap-1 text-[10px] bg-[#1a1a1a] px-1.5 py-0.5 rounded border border-[#222]">
+          <div className="flex items-center gap-1 text-[10px] bg-studio-panel px-1.5 py-0.5 rounded border border-studio-line">
             <span className="text-green-500 font-bold">L:</span>
             <input
               type="number"
@@ -1185,10 +1185,10 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
               step={1}
               min={0}
               onChange={(e) => setLoopStart(Math.max(0, Number(e.target.value)))}
-              className="w-7 bg-transparent text-gray-200 text-center font-mono focus:outline-none"
+              className="w-7 bg-transparent text-studio-text text-center font-mono focus:outline-none"
               title="Loop Start Beat"
             />
-            <span className="text-gray-600">-</span>
+            <span className="text-studio-text-dim">-</span>
             <span className="text-green-500 font-bold">R:</span>
             <input
               type="number"
@@ -1196,14 +1196,14 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
               step={1}
               min={loopStart + 1}
               onChange={(e) => setLoopEnd(Math.max(loopStart + 1, Number(e.target.value)))}
-              className="w-7 bg-transparent text-gray-200 text-center font-mono focus:outline-none"
+              className="w-7 bg-transparent text-studio-text text-center font-mono focus:outline-none"
               title="Loop End Beat"
             />
           </div>
 
           {/* Record toggle */}
           <button
-            className={`p-1 rounded ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'hover:bg-[#444] text-gray-400'}`}
+            className={`p-1 rounded ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'hover:bg-studio-control text-studio-text-mid'}`}
             onClick={() => {
               if (isRecording) {
                 recorderRef.current?.dispose();
@@ -1229,7 +1229,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
           
           {/* Merge mode toggle */}
           <button
-            className={`p-1 rounded ${mergeMode ? 'bg-blue-600 text-white' : 'hover:bg-[#444] text-gray-400'}`}
+            className={`p-1 rounded ${mergeMode ? 'bg-accent-cyan text-white' : 'hover:bg-studio-control text-studio-text-mid'}`}
             onClick={() => setMergeMode(!mergeMode)}
             title={mergeMode ? 'Merge Mode (Overdub)' : 'Replace Mode'}
           >
@@ -1237,12 +1237,12 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
           </button>
         </div>
         
-        <div className="w-px h-4 bg-gray-600" />
+        <div className="w-px h-4 bg-studio-control" />
         
         {/* Tools */}
         <div className="flex items-center gap-1 relative" data-dropdown>
           <button
-            className={`p-1 rounded flex items-center gap-1 hover:bg-[#444] text-gray-300 transition-colors ${openDropdown === 'tool' ? 'bg-[#444] text-white shadow-inner' : ''}`}
+            className={`p-1 rounded flex items-center gap-1 hover:bg-studio-control text-studio-text transition-colors ${openDropdown === 'tool' ? 'bg-studio-control text-white shadow-inner' : ''}`}
             onClick={() => setOpenDropdown(openDropdown === 'tool' ? null : 'tool')}
             title="Tool Selector"
           >
@@ -1268,7 +1268,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
           </button>
 
           {openDropdown === 'tool' && (
-            <div className="absolute top-full left-0 mt-1 bg-[#333] border border-[#222] rounded-md shadow-xl z-50 min-w-[220px] py-1.5" style={{boxShadow: '0 4px 12px rgba(0,0,0,0.5)'}}>
+            <div className="absolute top-full left-0 mt-1 bg-studio-control border border-studio-line rounded-md shadow-xl z-50 min-w-[220px] py-1.5" style={{boxShadow: '0 4px 12px rgba(0,0,0,0.5)'}}>
               {[
                 { id: 'select', label: 'Pointer Tool', icon: <MousePointer2 className="w-3.5 h-3.5" /> },
                 { id: 'draw', label: 'Pencil Tool', icon: <Pencil className="w-3.5 h-3.5" /> },
@@ -1286,7 +1286,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
               ].map((tool) => (
                 <button
                   key={tool.id}
-                  className="w-full flex items-center px-2 py-1 text-left hover:bg-blue-600 hover:text-white text-gray-200 text-[13px] group"
+                  className="w-full flex items-center px-2 py-1 text-left hover:bg-accent-cyan hover:text-white text-studio-text text-[13px] group"
                   onClick={() => {
                     setTool(tool.id as any);
                     setOpenDropdown(null);
@@ -1295,7 +1295,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                   <div className="w-5 flex justify-center shrink-0">
                     {currentTool === tool.id && <Check className="w-3.5 h-3.5 text-white" />}
                   </div>
-                  <div className="text-gray-400 group-hover:text-white flex justify-center w-5 shrink-0">
+                  <div className="text-studio-text-mid group-hover:text-white flex justify-center w-5 shrink-0">
                     {tool.icon}
                   </div>
                   <span className="ml-1 tracking-wide">{tool.label}</span>
@@ -1305,14 +1305,14 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
           )}
         </div>
 
-        <div className="w-px h-4 bg-gray-600" />
+        <div className="w-px h-4 bg-studio-control" />
         
         {/* Channel Filter */}
         <div className="flex items-center gap-1">
           <select
             value={channelFilter !== null ? channelFilter : ''}
             onChange={(e) => setChannelFilter(e.target.value === '' ? null : Number(e.target.value))}
-            className="bg-[#1a1a1a] border border-[#111] rounded shadow-inner px-1 py-0.5 text-gray-300 text-[11px]"
+            className="bg-studio-panel border border-studio-line rounded shadow-inner px-1 py-0.5 text-studio-text text-[11px]"
             title="Channel Filter"
           >
             <option value="">All Channels</option>
@@ -1324,7 +1324,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
 
         {/* Fold mode toggle */}
         <button
-          className={`p-1 rounded ${showFoldMode ? 'bg-blue-600 text-white' : 'hover:bg-[#444] text-gray-400'}`}
+          className={`p-1 rounded ${showFoldMode ? 'bg-accent-cyan text-white' : 'hover:bg-studio-control text-studio-text-mid'}`}
           onClick={() => toggleFoldMode()}
           title={showFoldMode ? 'Fold Mode (show used notes only)' : 'Fold Mode (show used notes only)'}
         >
@@ -1333,7 +1333,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
 
         {/* Ruler seconds toggle */}
         <button
-          className={`p-1 rounded ${showRulerSeconds ? 'bg-blue-600 text-white' : 'hover:bg-[#444] text-gray-400'}`}
+          className={`p-1 rounded ${showRulerSeconds ? 'bg-accent-cyan text-white' : 'hover:bg-studio-control text-studio-text-mid'}`}
           onClick={() => toggleRulerSeconds()}
           title={showRulerSeconds ? 'Ruler: Seconds' : 'Ruler: Bar/Beat'}
         >
@@ -1342,7 +1342,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
 
         {/* Step Input Keyboard toggle */}
         <button
-          className={`p-1 rounded ${showStepKeyboard ? 'bg-blue-600 text-white' : 'hover:bg-[#444] text-gray-400'}`}
+          className={`p-1 rounded ${showStepKeyboard ? 'bg-accent-cyan text-white' : 'hover:bg-studio-control text-studio-text-mid'}`}
           onClick={() => setShowStepKeyboard(!showStepKeyboard)}
           title="Step Input Keyboard"
         >
@@ -1351,7 +1351,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
 
         {/* Catch Playhead (Auto-Scroll) */}
         <button
-          className={`p-1 rounded ${autoScrollEnabled ? 'bg-blue-600 text-white' : 'hover:bg-[#444] text-gray-400'}`}
+          className={`p-1 rounded ${autoScrollEnabled ? 'bg-accent-cyan text-white' : 'hover:bg-studio-control text-studio-text-mid'}`}
           onClick={toggleAutoScroll}
           title={autoScrollEnabled ? 'Catch Playhead: ON' : 'Catch Playhead: OFF'}
         >
@@ -1361,7 +1361,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
         {/* Color By Menu */}
         <div className="relative" data-dropdown>
           <button
-            className={`p-1 rounded ${colorMode !== 'none' ? 'bg-blue-600 text-white' : 'hover:bg-[#444] text-gray-400'}`}
+            className={`p-1 rounded ${colorMode !== 'none' ? 'bg-accent-cyan text-white' : 'hover:bg-studio-control text-studio-text-mid'}`}
             onClick={() => {
               const modes: Array<'none' | 'velocity' | 'pitch' | 'channel'> = ['none', 'velocity', 'pitch', 'channel'];
               const currentIndex = modes.indexOf(colorMode);
@@ -1376,7 +1376,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
 
         {/* MIDI Out Toggle */}
         <button
-          className={`p-1 rounded ${midiOutEnabled ? 'bg-blue-600 text-white' : 'hover:bg-[#444] text-gray-400'}`}
+          className={`p-1 rounded ${midiOutEnabled ? 'bg-accent-cyan text-white' : 'hover:bg-studio-control text-studio-text-mid'}`}
           onClick={toggleMidiOut}
           title={midiOutEnabled ? 'MIDI Out: ON' : 'MIDI Out: OFF'}
         >
@@ -1398,13 +1398,13 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
         <div className="flex-1" />
         
         {/* Playhead info */}
-        <div className="bg-[#1a1a1a] px-3 py-1 rounded shadow-inner text-gray-400 font-mono text-[10px] tabular-nums tracking-widest border border-[#222]">
+        <div className="bg-studio-panel px-3 py-1 rounded shadow-inner text-studio-text-mid font-mono text-[10px] tabular-nums tracking-widest border border-studio-line">
           {playheadText}
         </div>
         
         {/* Snap */}
         <div className="flex items-center gap-1 text-[11px] ml-4">
-          <span className="text-gray-500">Snap:</span>
+          <span className="text-studio-text-dim">Snap:</span>
           <span className="font-medium">{gridSettings.snap ? 'On' : 'Off'}</span>
         </div>
 
@@ -1413,29 +1413,29 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
         {/* Zoom */}
         <div className="flex items-center gap-1 mr-2">
           <button
-            className="p-1 hover:bg-[#444] rounded text-gray-400"
+            className="p-1 hover:bg-studio-control rounded text-studio-text-mid"
             onClick={zoomToSelection}
             title="Zoom to Selection"
           >
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
           <button
-            className="p-1 hover:bg-[#444] rounded text-gray-400"
+            className="p-1 hover:bg-studio-control rounded text-studio-text-mid"
             onClick={() => setShowGoToBeatDialog(true)}
             title="Go to Beat/Measure..."
           >
             <ArrowRightToLine className="w-3.5 h-3.5" />
           </button>
           <button
-            className="p-1 hover:bg-[#444] rounded text-gray-400"
+            className="p-1 hover:bg-studio-control rounded text-studio-text-mid"
             onClick={() => setShowLocateNoteDialog(true)}
             title="Locate Note..."
           >
             <Search className="w-3.5 h-3.5" />
           </button>
-          <button className="p-1 hover:bg-[#444] rounded text-gray-400" onClick={() => pianoRollNavigation.queueInput(new WheelEvent('wheel', { deltaY: 100, ctrlKey: true, clientX: 400, clientY: 200 }))}><ZoomOut className="w-3 h-3" /></button>
-          <button className="p-1 hover:bg-[#444] rounded text-gray-400" onClick={() => pianoRollNavigation.queueInput(new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, clientX: 400, clientY: 200 }))}><ZoomIn className="w-3 h-3" /></button>
-          <button className="p-1 hover:bg-[#444] rounded text-gray-400 ml-2" onClick={() => pianoRollNavigation.queueInput(new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, shiftKey: true, clientX: 400, clientY: 200 }))}><ArrowUpDown className="w-3 h-3" /></button>
+          <button className="p-1 hover:bg-studio-control rounded text-studio-text-mid" onClick={() => pianoRollNavigation.queueInput(new WheelEvent('wheel', { deltaY: 100, ctrlKey: true, clientX: 400, clientY: 200 }))}><ZoomOut className="w-3 h-3" /></button>
+          <button className="p-1 hover:bg-studio-control rounded text-studio-text-mid" onClick={() => pianoRollNavigation.queueInput(new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, clientX: 400, clientY: 200 }))}><ZoomIn className="w-3 h-3" /></button>
+          <button className="p-1 hover:bg-studio-control rounded text-studio-text-mid ml-2" onClick={() => pianoRollNavigation.queueInput(new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, shiftKey: true, clientX: 400, clientY: 200 }))}><ArrowUpDown className="w-3 h-3" /></button>
         </div>
       </div>
 
@@ -1443,13 +1443,13 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
       <div className="flex flex-1 overflow-hidden">
         
         {/* ── Left Inspector Sidebar ── */}
-        <div className="w-[180px] bg-[#323232] border-r border-[#1a1a1a] flex flex-col shrink-0 text-[11px]">
+        <div className="w-[180px] bg-studio-control border-r border-studio-line flex flex-col shrink-0 text-[11px]">
           {/* Region info */}
-          <div className="p-3 border-b border-[#222] flex gap-2 items-center bg-[#2d2d2d]">
-            <div className="w-6 h-6 bg-[#444] rounded shadow-inner border border-[#222] shrink-0"></div>
+          <div className="p-3 border-b border-studio-line flex gap-2 items-center bg-studio-control">
+            <div className="w-6 h-6 bg-studio-control rounded shadow-inner border border-studio-line shrink-0"></div>
             <div className="flex flex-col justify-center overflow-hidden">
-              <div className="text-gray-200 font-bold truncate">{clip.name || 'Untitled Clip'}</div>
-              <div className="text-gray-500 text-[9px] truncate">
+              <div className="text-studio-text font-bold truncate">{clip.name || 'Untitled Clip'}</div>
+              <div className="text-studio-text-dim text-[9px] truncate">
                 {selectedNoteIds.size > 0
                   ? `${selectedNoteIds.size} note${selectedNoteIds.size > 1 ? 's' : ''} selected`
                   : clip.notes?.length > 0
@@ -1458,19 +1458,19 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                 }
               </div>
             </div>
-            <div className="w-4 h-4 rounded bg-[#444] text-white flex items-center justify-center shrink-0 ml-auto">
+            <div className="w-4 h-4 rounded bg-studio-control text-white flex items-center justify-center shrink-0 ml-auto">
                <ChevronDown className="w-3 h-3" />
             </div>
           </div>
           
           {/* Time Quantize */}
-          <div className="p-3 border-b border-[#222]">
-            <div className="text-gray-400 font-bold mb-2">Time Quantize</div>
+          <div className="p-3 border-b border-studio-line">
+            <div className="text-studio-text-mid font-bold mb-2">Time Quantize</div>
             <div className="flex items-center justify-between mb-2">
                <select
                  value={gridSettings.division}
                  onChange={(e) => setGridDivision(Number(e.target.value))}
-                 className="bg-[#1a1a1a] border border-[#111] rounded shadow-inner px-1 py-0.5 text-gray-300 w-24"
+                 className="bg-studio-panel border border-studio-line rounded shadow-inner px-1 py-0.5 text-studio-text w-24"
                >
                  <option value={4}>1/4 Note</option>
                  <option value={8}>1/8 Note</option>
@@ -1479,21 +1479,21 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                </select>
                <button
                  onClick={() => quantizeSelected({ gridDivision: gridSettings.division, strength: 1, swing })}
-                 className="w-6 h-5 bg-[#444] hover:bg-[#555] rounded border border-[#222] text-gray-300 font-medium text-center"
+                 className="w-6 h-5 bg-studio-control hover:bg-studio-raised rounded border border-studio-line text-studio-text font-medium text-center"
                >Q</button>
             </div>
             <div className="flex justify-between items-center mb-1 mt-3">
-              <span className="text-gray-500">Strength</span>
-              <span className="text-gray-400">100</span>
+              <span className="text-studio-text-dim">Strength</span>
+              <span className="text-studio-text-mid">100</span>
             </div>
-            <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden mb-2 border border-[#111]"><div className="w-full h-full bg-blue-500/50"></div></div>
+            <div className="h-1.5 bg-studio-panel rounded-full overflow-hidden mb-2 border border-studio-line"><div className="w-full h-full bg-accent-cyan/50"></div></div>
 
             <div className="flex justify-between items-center mb-1 mt-3">
-              <span className="text-gray-500">Swing</span>
-              <span className="text-gray-400">{Math.round(swing * 100)}</span>
+              <span className="text-studio-text-dim">Swing</span>
+              <span className="text-studio-text-mid">{Math.round(swing * 100)}</span>
             </div>
             <div
-              className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden border border-[#111] cursor-pointer relative"
+              className="h-1.5 bg-studio-panel rounded-full overflow-hidden border border-studio-line cursor-pointer relative"
               onMouseDown={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
@@ -1510,13 +1510,13 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                 window.addEventListener('mouseup', onUp);
               }}
             >
-              <div className="h-full bg-blue-500/50 transition-all" style={{ width: `${swing * 100}%` }} />
+              <div className="h-full bg-accent-cyan/50 transition-all" style={{ width: `${swing * 100}%` }} />
             </div>
           </div>
 
           {/* Scale Quantize */}
-          <div className="p-3 border-b border-[#222]">
-            <div className="text-gray-400 font-bold mb-2">Scale Quantize</div>
+          <div className="p-3 border-b border-studio-line">
+            <div className="text-studio-text-mid font-bold mb-2">Scale Quantize</div>
             <div className="flex items-center gap-1">
               <select
                 value={scaleQuantizeEnabled ? scaleKey : 'off'}
@@ -1528,7 +1528,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                     setScaleKey(Number(e.target.value));
                   }
                 }}
-                className="bg-[#1a1a1a] border border-[#111] rounded shadow-inner px-1 py-0.5 text-gray-300 w-[45px]"
+                className="bg-studio-panel border border-studio-line rounded shadow-inner px-1 py-0.5 text-studio-text w-[45px]"
               >
                 <option value="off">Off</option>
                 {['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'].map((name, i) => (
@@ -1538,7 +1538,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
               <select
                 value={scaleType}
                 onChange={(e) => setScaleType(e.target.value)}
-                className="bg-[#1a1a1a] border border-[#111] rounded shadow-inner px-1 py-0.5 text-gray-300 flex-1"
+                className="bg-studio-panel border border-studio-line rounded shadow-inner px-1 py-0.5 text-studio-text flex-1"
               >
                 {['major','minor','dorian','mixolydian','natural-minor','harmonic-minor','pentatonic','blues','chromatic'].map(s => (
                   <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1).replace('-', ' ')}</option>
@@ -1546,17 +1546,17 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
               </select>
               <button
                 onClick={() => scaleQuantizeSelected(scaleKey, scaleType)}
-                className="w-6 h-5 bg-[#444] hover:bg-[#555] rounded border border-[#222] text-gray-300 font-medium text-center"
+                className="w-6 h-5 bg-studio-control hover:bg-studio-raised rounded border border-studio-line text-studio-text font-medium text-center"
               >Q</button>
             </div>
           </div>
 
           {/* Velocity */}
           <div className="p-3">
-            <div className="text-gray-400 font-bold mb-2 mt-2">Velocity</div>
+            <div className="text-studio-text-mid font-bold mb-2 mt-2">Velocity</div>
             <div className="flex items-center gap-2">
               <div
-                className="flex-1 h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden border border-[#111] cursor-pointer relative"
+                className="flex-1 h-1.5 bg-studio-panel rounded-full overflow-hidden border border-studio-line cursor-pointer relative"
                 onMouseDown={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
@@ -1587,15 +1587,15 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
               >
                 <div className="h-full bg-green-500/50 transition-all" style={{ width: `${(inspectorVelocity / 127) * 100}%` }} />
               </div>
-              <span className="text-gray-400 w-6 text-right tabular-nums">{inspectorVelocity}</span>
+              <span className="text-studio-text-mid w-6 text-right tabular-nums">{inspectorVelocity}</span>
             </div>
           </div>
 
           {/* Chord Detection */}
           {selectedNoteIds.size >= 2 && (
-            <div className="p-3 border-t border-[#222]">
-              <div className="text-gray-400 font-bold mb-2">Chord</div>
-              <div className="text-gray-200 text-sm font-mono">
+            <div className="p-3 border-t border-studio-line">
+              <div className="text-studio-text-mid font-bold mb-2">Chord</div>
+              <div className="text-studio-text text-sm font-mono">
                 {(() => {
                   const clipData = getCurrentClip();
                   if (!clipData?.notes) return '—';
@@ -1614,11 +1614,11 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
             const note = clipData?.notes.find(n => selectedNoteIds.has(n.id));
             if (!note) return null;
             return (
-              <div className="p-3 border-t border-[#222]">
-                <div className="text-gray-400 font-bold mb-2">Note</div>
+              <div className="p-3 border-t border-studio-line">
+                <div className="text-studio-text-mid font-bold mb-2">Note</div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Pitch</span>
+                    <span className="text-studio-text-dim">Pitch</span>
                     <input
                       type="number"
                       value={note.pitch}
@@ -1628,11 +1628,11 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                         const newPitch = Math.max(0, Math.min(127, Number(e.target.value)));
                         useMidiStore.getState().moveNote(note.id, 0, newPitch - note.pitch);
                       }}
-                      className="w-12 bg-[#1a1a1a] border border-[#111] rounded px-1 py-0.5 text-gray-200 text-center font-mono"
+                      className="w-12 bg-studio-panel border border-studio-line rounded px-1 py-0.5 text-studio-text text-center font-mono"
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Start</span>
+                    <span className="text-studio-text-dim">Start</span>
                     <input
                       type="text"
                       value={`${Math.floor(note.startBeat / 4) + 1} ${Math.floor(note.startBeat % 4) + 1} 1`}
@@ -1643,11 +1643,11 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                           useMidiStore.getState().moveNote(note.id, newBeat - note.startBeat, 0);
                         }
                       }}
-                      className="w-20 bg-[#1a1a1a] border border-[#111] rounded px-1 py-0.5 text-gray-200 text-center font-mono"
+                      className="w-20 bg-studio-panel border border-studio-line rounded px-1 py-0.5 text-studio-text text-center font-mono"
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Length</span>
+                    <span className="text-studio-text-dim">Length</span>
                     <input
                       type="text"
                       value={`${Math.floor(note.duration)} beat${Math.floor(note.duration) !== 1 ? 's' : ''}`}
@@ -1660,11 +1660,11 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                           }
                         }
                       }}
-                      className="w-20 bg-[#1a1a1a] border border-[#111] rounded px-1 py-0.5 text-gray-200 text-center font-mono"
+                      className="w-20 bg-studio-panel border border-studio-line rounded px-1 py-0.5 text-studio-text text-center font-mono"
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Velocity</span>
+                    <span className="text-studio-text-dim">Velocity</span>
                     <input
                       type="number"
                       value={note.velocity}
@@ -1675,7 +1675,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                         useMidiStore.getState().setNoteVelocity(note.id, newVel);
                         setInspectorVelocity(newVel);
                       }}
-                      className="w-12 bg-[#1a1a1a] border border-[#111] rounded px-1 py-0.5 text-gray-200 text-center font-mono"
+                      className="w-12 bg-studio-panel border border-studio-line rounded px-1 py-0.5 text-studio-text text-center font-mono"
                     />
                   </div>
                 </div>
@@ -1685,8 +1685,8 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
 
           {/* Articulation */}
           {selectedNoteIds.size > 0 && (
-            <div className="p-3 border-t border-[#222]">
-              <div className="text-gray-400 font-bold mb-2">Articulation</div>
+            <div className="p-3 border-t border-studio-line">
+              <div className="text-studio-text-mid font-bold mb-2">Articulation</div>
               <select
                 value={(() => {
                   const clipData = getCurrentClip();
@@ -1694,7 +1694,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                   return note?.articulationId ?? 0;
                 })()}
                 onChange={(e) => setSelectedNotesArticulation(Number(e.target.value))}
-                className="w-full bg-[#1a1a1a] border border-[#111] rounded shadow-inner px-1 py-0.5 text-gray-300"
+                className="w-full bg-studio-panel border border-studio-line rounded shadow-inner px-1 py-0.5 text-studio-text"
               >
                 <option value={0}>Normal</option>
                 <option value={1}>Staccato</option>
@@ -1718,17 +1718,17 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
 
           {/* Mute Controls */}
           {selectedNoteIds.size > 0 && (
-            <div className="p-3 border-t border-[#222]">
+            <div className="p-3 border-t border-studio-line">
               <div className="flex gap-2">
                 <button
                   onClick={muteSelectedNotes}
-                  className="flex-1 px-2 py-1 bg-[#444] hover:bg-[#555] rounded border border-[#222] text-gray-300 text-[10px]"
+                  className="flex-1 px-2 py-1 bg-studio-control hover:bg-studio-raised rounded border border-studio-line text-studio-text text-[10px]"
                 >
                   Mute
                 </button>
                 <button
                   onClick={unmuteSelectedNotes}
-                  className="flex-1 px-2 py-1 bg-[#444] hover:bg-[#555] rounded border border-[#222] text-gray-300 text-[10px]"
+                  className="flex-1 px-2 py-1 bg-studio-control hover:bg-studio-raised rounded border border-studio-line text-studio-text text-[10px]"
                 >
                   Unmute
                 </button>
@@ -1743,7 +1743,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
         {/* Piano keyboard — spans only the grid area, not the splitter or event editor */}
         <div className="flex flex-col shrink-0" style={{ width: KEYBOARD_WIDTH }}>
           {/* Spacer to match the ruler height */}
-          <div className="h-6 shrink-0 bg-[#2d2d2d] border-b border-[#222] border-r border-[#1a1a1a]" />
+          <div className="h-6 shrink-0 bg-studio-control border-b border-studio-line border-r border-studio-line" />
           
           <div style={{ height: gridHeight, overflow: 'hidden' }}>
             <PianoKeyboard
@@ -1764,8 +1764,8 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
           {/* Keyboard column fills the splitter + event editor rows with a plain bg */}
           {showVelocityLane && (
             <>
-              <div style={{ height: SPLITTER_H }} className="bg-gray-800 border-y border-gray-700 shrink-0" />
-              <div className="flex-1 bg-gray-900 border-r border-gray-700" />
+              <div style={{ height: SPLITTER_H }} className="bg-studio-panel border-y border-studio-line shrink-0" />
+              <div className="flex-1 bg-studio-sunken border-r border-studio-line" />
             </>
           )}
         </div>
@@ -1774,7 +1774,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
         <div className="flex-1 flex flex-col relative overflow-hidden">
 
           {/* ── Ruler ── */}
-          <div className="h-6 shrink-0 bg-[#2d2d2d] border-b border-[#222]">
+          <div className="h-6 shrink-0 bg-studio-control border-b border-studio-line">
             <canvas
               ref={rulerCanvasRef}
               className="w-full h-full pointer-events-auto cursor-pointer"
@@ -1799,11 +1799,11 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
 
             {/* Vertical scrollbar */}
             <div
-              className="absolute right-0 top-0 w-3 bg-gray-900/50 hover:bg-gray-800/80 transition-colors z-20 pointer-events-auto"
+              className="absolute right-0 top-0 w-3 bg-studio-sunken/50 hover:bg-studio-panel/80 transition-colors z-20 pointer-events-auto"
               style={{ height: gridHeight }}
             >
               <div
-                className="absolute w-full bg-gray-600 rounded-full cursor-pointer hover:bg-gray-400 active:bg-gray-300"
+                className="absolute w-full bg-studio-control rounded-full cursor-pointer hover:bg-studio-control active:bg-white/[0.14]"
                 style={{ top: `${thumbTop}px`, height: `${scrollbarThumbHeight}px` }}
                 onMouseDown={handleScrollbarDrag}
               />
@@ -1836,18 +1836,18 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                 }}
               >
                 {/* Track background */}
-                <div className="absolute inset-0 bg-gray-800 group-hover:bg-[#1a2a3a] transition-colors" />
+                <div className="absolute inset-0 bg-studio-panel group-hover:bg-studio-raised transition-colors" />
                 {/* Top accent line */}
-                <div className="absolute top-0 left-0 right-0 h-px bg-gray-600 group-hover:bg-blue-500 transition-colors" />
+                <div className="absolute top-0 left-0 right-0 h-px bg-studio-control group-hover:bg-accent-cyan transition-colors" />
                 {/* Bottom accent line */}
-                <div className="absolute bottom-0 left-0 right-0 h-px bg-gray-700 group-hover:bg-blue-600/40 transition-colors" />
+                <div className="absolute bottom-0 left-0 right-0 h-px bg-studio-raised group-hover:bg-accent-cyan/40 transition-colors" />
                 {/* Centre grip dots */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="flex gap-[3px]">
                     {[0, 1, 2, 3, 4].map(i => (
                       <div
                         key={i}
-                        className="w-[14px] h-[1.5px] rounded-full bg-gray-500 group-hover:bg-blue-400 transition-colors"
+                        className="w-[14px] h-[1.5px] rounded-full bg-studio-control group-hover:bg-accent-cyan transition-colors"
                       />
                     ))}
                   </div>
@@ -1881,7 +1881,7 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
                   for (const id of s.selectedNoteIds) s.setNoteCCValue(id, controller, value);
                 }}
                 noteCCValues={useMidiStore.getState().noteCCValues}
-                color="#3B82F6"
+                color="#22d3ee"
               />
             </>
           )}

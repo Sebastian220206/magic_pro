@@ -35,12 +35,15 @@ interface PianoKeyboardProps {
 
 const WHITE_KEY_WIDTH = 60;
 const BLACK_KEY_WIDTH = 36;
-const KEY_BORDER_COLOR = '#111827';
-const WHITE_KEY_COLOR = '#E5E7EB';
-const BLACK_KEY_COLOR = '#1F2937';
-const HIGHLIGHT_COLOR = '#FCA5A5';
+/** Keys are cooled towards the studio's blue-black so they do not glare. */
+const KEY_BORDER_COLOR = '#04070b';
+const WHITE_KEY_COLOR = '#cfe1ea';
+const OCTAVE_KEY_COLOR = '#e6f4f8';
+const BLACK_KEY_COLOR = '#141f2b';
+/** The scale overlay. Violet, so it can never be read as record-red. */
+const HIGHLIGHT_COLOR = '#c4b5fd';
 /** A held note. Distinct from the scale overlay so the two never read alike. */
-const ACTIVE_KEY_COLOR = '#38BDF8';
+const ACTIVE_KEY_COLOR = '#22d3ee';
 
 export const PianoKeyboard = memo(function PianoKeyboard({
   lowPitch,
@@ -96,7 +99,7 @@ export const PianoKeyboard = memo(function PianoKeyboard({
 
   return (
     <div 
-      className="relative bg-gray-900 border-r border-gray-700 flex-shrink-0"
+      className="relative bg-studio-sunken border-r border-studio-line flex-shrink-0"
       style={{ width, height: totalHeight }}
     >
       {/* White keys container */}
@@ -120,7 +123,7 @@ export const PianoKeyboard = memo(function PianoKeyboard({
           return (
             <div
               key={key.pitch}
-              className="absolute left-0 flex items-center justify-end pr-2 cursor-pointer transition-colors hover:bg-gray-300"
+              className="absolute left-0 flex items-center justify-end pr-2 cursor-pointer transition-colors hover:bg-white/[0.14]"
               style={{
                 top,
                 width: WHITE_KEY_WIDTH,
@@ -131,10 +134,12 @@ export const PianoKeyboard = memo(function PianoKeyboard({
                   ? ACTIVE_KEY_COLOR
                   : highlightedKeys.has(key.pitch)
                     ? HIGHLIGHT_COLOR
-                    : (key.pitch % 12 === 0 ? '#F3F4F6' : WHITE_KEY_COLOR),
+                    : (key.pitch % 12 === 0 ? OCTAVE_KEY_COLOR : WHITE_KEY_COLOR),
                 borderBottom: `1px solid ${KEY_BORDER_COLOR}`,
                 borderRight: `1px solid ${KEY_BORDER_COLOR}`,
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), inset -2px 0 5px rgba(0,0,0,0.05)',
+                boxShadow: activeKeys.has(key.pitch)
+                  ? `inset 0 1px 0 rgba(255,255,255,0.5), 0 0 12px ${ACTIVE_KEY_COLOR}`
+                  : 'inset 0 1px 0 rgba(255,255,255,0.5), inset -2px 0 5px rgba(0,0,0,0.15)',
                 zIndex: 1,
               }}
               onMouseDown={() => handleNoteOn(key.pitch)}
@@ -143,7 +148,7 @@ export const PianoKeyboard = memo(function PianoKeyboard({
             >
               {/* Show octave number on C */}
               {key.label.startsWith('C') && (
-                <span className="text-[10px] text-gray-500 font-semibold drop-shadow-sm">
+                <span className="text-[10px] text-studio-text-dim font-semibold drop-shadow-sm">
                   {key.octave}
                 </span>
               )}
@@ -157,7 +162,7 @@ export const PianoKeyboard = memo(function PianoKeyboard({
         {keys.filter(k => k.isBlack).map(key => (
           <div
             key={key.pitch}
-            className="absolute cursor-pointer pointer-events-auto transition-colors hover:bg-gray-600"
+            className="absolute cursor-pointer pointer-events-auto transition-colors hover:bg-studio-control"
             style={{
               top: key.y,
               left: 0,
@@ -167,11 +172,13 @@ export const PianoKeyboard = memo(function PianoKeyboard({
                 ? ACTIVE_KEY_COLOR
                 : highlightedKeys.has(key.pitch)
                   ? HIGHLIGHT_COLOR
-                  : `linear-gradient(90deg, #111827 0%, ${BLACK_KEY_COLOR} 80%, #374151 100%)`,
+                  : `linear-gradient(90deg, #04070b 0%, ${BLACK_KEY_COLOR} 80%, #223243 100%)`,
               borderRadius: '0 3px 3px 0',
               border: `1px solid #000`,
               borderLeft: 'none',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.1)',
+              boxShadow: activeKeys.has(key.pitch)
+                ? `0 0 12px ${ACTIVE_KEY_COLOR}`
+                : '0 2px 4px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.08)',
               zIndex: 10,
             }}
             onMouseDown={() => handleNoteOn(key.pitch)}
@@ -184,13 +191,13 @@ export const PianoKeyboard = memo(function PianoKeyboard({
       {/* Middle C marker */}
       {lowPitch <= 60 && highPitch >= 60 && (
         <div
-          className="absolute left-0 w-full h-px bg-blue-400 pointer-events-none"
+          className="absolute left-0 w-full h-px bg-accent-cyan pointer-events-none"
           style={{
             top: (highPitch - 60) * pixelPerSemitone,
             zIndex: 5,
           }}
         >
-          <span className="absolute -top-3 left-1 text-[8px] text-blue-400">C4</span>
+          <span className="absolute -top-3 left-1 text-[8px] text-accent-cyan">C4</span>
         </div>
       )}
 

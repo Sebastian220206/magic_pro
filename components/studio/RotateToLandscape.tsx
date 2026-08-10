@@ -40,17 +40,17 @@ export default function RotateToLandscape() {
                 <h1 id="rotate-title" className="font-display text-2xl font-bold text-white">
                     Turn your device sideways
                 </h1>
-                <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-gray-400">
+                <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-studio-text-mid">
                     The studio lays tracks out along a timeline, so it needs the
                     width. Rotate to landscape to start making music.
                 </p>
             </div>
 
-            <RotateCcw className="h-6 w-6 animate-pulse text-gray-500" aria-hidden="true" />
+            <RotateCcw className="h-6 w-6 animate-pulse text-studio-text-dim" aria-hidden="true" />
 
             <button
                 onClick={() => setDismissed(true)}
-                className="text-xs text-gray-500 underline underline-offset-4 transition hover:text-gray-300"
+                className="text-xs text-studio-text-dim underline underline-offset-4 transition hover:text-studio-text"
             >
                 Continue anyway
             </button>

@@ -94,7 +94,7 @@ function MeterBar({ level, segments = 24 }: { level: number; segments?: number }
                 return (
                     <div
                         key={i}
-                        className={`flex-1 h-full rounded-[0.5px] transition-all duration-75 ${isLit ? colour : 'bg-gray-900/40'}`}
+                        className={`flex-1 h-full rounded-[0.5px] transition-all duration-75 ${isLit ? colour : 'bg-studio-sunken/40'}`}
                     />
                 )
             })}
@@ -147,12 +147,12 @@ export function LoudnessReadout({ target = 'Spotify' }: { target?: LoudnessTarge
             <Stat label="I" value={formatLufs(data.integrated)} tone={overTarget ? 'bad' : 'good'} />
             <Stat label="LRA" value={data.loudnessRange.toFixed(1)} />
             <Stat label="TP" value={formatLufs(truePeak)} tone={overPeak ? 'bad' : 'good'} />
-            <span className="text-gray-500">
+            <span className="text-studio-text-dim">
                 {target} {targetLufs} LUFS
             </span>
             <button
                 onClick={reset}
-                className="px-1.5 py-0.5 rounded text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                className="px-1.5 py-0.5 rounded text-studio-text-mid hover:text-white hover:bg-white/10 transition-colors"
                 title="Reset integrated loudness"
             >
                 Reset
@@ -162,10 +162,10 @@ export function LoudnessReadout({ target = 'Spotify' }: { target?: LoudnessTarge
 }
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' }) {
-    const colour = tone === 'bad' ? 'text-red-400' : tone === 'good' ? 'text-emerald-400' : 'text-gray-300'
+    const colour = tone === 'bad' ? 'text-red-400' : tone === 'good' ? 'text-emerald-400' : 'text-studio-text'
     return (
         <span className="flex items-baseline gap-1">
-            <span className="text-gray-500">{label}</span>
+            <span className="text-studio-text-dim">{label}</span>
             <span className={colour}>{value}</span>
         </span>
     )
@@ -181,7 +181,7 @@ export function MasterVolume() {
 
     return (
         <div className="flex items-center gap-2 group">
-            <div className="relative w-28 h-5 bg-black/40 rounded-full border border-black px-1.5 flex items-center group-hover:border-sky-500/40 transition-all">
+            <div className="relative w-28 h-5 bg-black/40 rounded-full border border-black px-1.5 flex items-center group-hover:border-accent-cyan/40 transition-all">
                 <input
                     type="range"
                     min="0"
@@ -190,7 +190,7 @@ export function MasterVolume() {
                     value={masterVolume}
                     onChange={(e) => updateProjectSettings({ masterVolume: parseFloat(e.target.value) })}
                     aria-label="Master volume"
-                    className="w-full bg-transparent appearance-none cursor-pointer [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:bg-sky-500/10 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:bg-sky-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(14,165,233,0.5)] h-full"
+                    className="w-full bg-transparent appearance-none cursor-pointer [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:bg-accent-cyan/10 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:bg-accent-cyan [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(14,165,233,0.5)] h-full"
                 />
             </div>
         </div>

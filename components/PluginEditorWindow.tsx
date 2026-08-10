@@ -41,7 +41,7 @@ export function PluginEditorWindow() {
             <div className="pointer-events-auto relative shadow-[0_40px_120px_rgba(0,0,0,0.9)] rounded-xl my-auto">
                 <button
                     onClick={() => setOpenPluginEditor(null)}
-                    className="absolute top-4 right-[10px] z-[150] text-zinc-500 hover:text-white transition-colors bg-black/20 rounded p-1"
+                    className="absolute top-4 right-[10px] z-[150] text-studio-text-dim hover:text-white transition-colors bg-black/20 rounded p-1"
                 >
                     <X className="w-4 h-4" />
                 </button>
@@ -49,8 +49,8 @@ export function PluginEditorWindow() {
                 {wamProcessor ? (
                     // A Web Audio Module ships its own interface; prefer it over
                     // anything we could generate.
-                    <div className="bg-[#1a1a1a] rounded-lg border border-black p-4 min-w-[380px]">
-                        <div className="text-[11px] font-bold uppercase tracking-widest text-sky-400 mb-3">
+                    <div className="bg-studio-panel rounded-lg border border-black p-4 min-w-[380px]">
+                        <div className="text-[11px] font-bold uppercase tracking-widest text-accent-cyan mb-3">
                             {plugin.name}
                         </div>
                         <WamGuiMount processor={wamProcessor} />
@@ -64,10 +64,10 @@ export function PluginEditorWindow() {
                         onParamChange={onParamChange}
                     />
                 ) : (
-                    <div className="w-[400px] bg-[#1a1a1a] rounded-lg border border-black p-10 flex flex-col items-center justify-center gap-4 text-white">
-                        <div className="text-xl font-bold uppercase tracking-widest text-sky-400">{plugin.name}</div>
-                        <div className="text-gray-500 text-sm">Generic Plugin Editor</div>
-                        <div className="w-full bg-black/40 rounded p-4 border border-white/5 font-mono text-[10px] text-gray-400">
+                    <div className="w-[400px] bg-studio-panel rounded-lg border border-black p-10 flex flex-col items-center justify-center gap-4 text-white">
+                        <div className="text-xl font-bold uppercase tracking-widest text-accent-cyan">{plugin.name}</div>
+                        <div className="text-studio-text-dim text-sm">Generic Plugin Editor</div>
+                        <div className="w-full bg-black/40 rounded p-4 border border-white/5 font-mono text-[10px] text-studio-text-mid">
                             {Object.entries(plugin.params).map(([key, val]) => (
                                 <div key={key} className="flex justify-between">
                                     <span>{key}</span>

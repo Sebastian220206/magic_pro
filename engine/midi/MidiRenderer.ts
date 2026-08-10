@@ -5,19 +5,52 @@ import { globalSpatialNoteCache } from './cache/SpatialNoteCache';
 import { useMidiStore } from '@/store/midiStore';
 import { getScalePitches, ScaleType } from './types';
 
-const CHANNEL_COLORS = [
-  '#6EE7B7', '#93C5FD', '#FCA5A5', '#FDE047', 
-  '#C084FC', '#F9A8D4', '#5EEAD4', '#FDBA74', 
-  '#A7F3D0', '#818CF8', '#F472B6', '#D8B4FE', 
-  '#67E8F9', '#BEF264', '#FCD34D', '#FDA4AF', 
-];
+/** Ghost (other-clip) notes, drawn behind the editable ones at low alpha. */
+export const GHOST_NOTE_COLOR = '#4b5f73';
+/** A muted note keeps its shape but loses its colour. */
+export const MUTED_NOTE_COLOR = '#475b6e';
+/** Selection stays red — it must never be confused with a velocity band. */
+export const SELECTED_NOTE_COLOR = '#EF4444';
 
-// Velocity-based color mapping
+/**
+ * Velocity ramp, cool to warm. Deliberately starts at violet rather than red:
+ * red is the selection colour, and a soft note used to be indistinguishable
+ * from a selected one.
+ */
 function velocityToColor(velocity: number): string {
-  if (velocity < 31) return '#EF4444';      // Low: red
-  if (velocity < 64) return '#F97316';      // Med-low: orange
-  if (velocity < 96) return '#EAB308';      // Med-high: yellow
-  return '#22C55E';                          // High: green
+  if (velocity < 31) return '#a78bfa';      // Soft: violet
+  if (velocity < 64) return '#22d3ee';      // Med-low: cyan
+  if (velocity < 96) return '#4ade80';      // Med-high: green
+  return '#fb923c';                          // Hard: amber
+}
+
+/**
+ * Decide how a single note is painted.
+ *
+ * `baseColor` is null when the clip carries no colour of its own — that is the
+ * only signal that velocity colouring applies. It used to be inferred by
+ * comparing against the literal `#3B82F6`, which meant a clip the user had
+ * deliberately coloured blue was silently treated as uncoloured.
+ */
+export function resolveNoteAppearance(opts: {
+  velocity: number;
+  baseColor: string | null;
+  isGhost: boolean;
+  isSelected: boolean;
+  isMuted: boolean;
+}): { color: string; velocityGradient: boolean } {
+  const { velocity, baseColor, isGhost, isSelected, isMuted } = opts;
+
+  let normal: string;
+  if (isGhost) normal = GHOST_NOTE_COLOR;
+  else if (baseColor) normal = baseColor;
+  else normal = velocityToColor(velocity);
+
+  return {
+    color: isSelected ? SELECTED_NOTE_COLOR : (isMuted ? MUTED_NOTE_COLOR : normal),
+    // A steeper bevel on velocity-coloured notes, so the ramp reads as depth too.
+    velocityGradient: !isGhost && !baseColor,
+  };
 }
 
 function darkenColor(hex: string, amount: number): string {
@@ -65,10 +98,10 @@ export class MidiRenderer implements RendererContract {
       n.pitch >= minPitch && n.pitch <= viewport.maxVisiblePitch
     );
     if (ghostNotes.length > 0) {
-      this.drawNotes(ctx, ghostNotes, viewport, new Set(), '#4B5563', true, state.channelFilter, state.noteCCValues);
+      this.drawNotes(ctx, ghostNotes, viewport, new Set(), null, true, state.channelFilter, state.noteCCValues);
     }
 
-    this.drawNotes(ctx, visibleNotes, viewport, state.selectedNoteIds, clip.color || '#3B82F6', false, state.channelFilter, state.noteCCValues);
+    this.drawNotes(ctx, visibleNotes, viewport, state.selectedNoteIds, clip.color ?? null, false, state.channelFilter, state.noteCCValues);
   }
 
   public renderRegion(ctx: CanvasRenderingContext2D, viewport: Readonly<ViewportState>, region: BoundingBox) {
@@ -84,10 +117,10 @@ export class MidiRenderer implements RendererContract {
 
     const regionNotes = globalSpatialNoteCache.getNotesInRegion(startBeat, endBeat, minPitch, maxPitch);
 
-    this.drawNotes(ctx, regionNotes, viewport, state.selectedNoteIds, clip.color || '#3B82F6', false, state.channelFilter, state.noteCCValues);
+    this.drawNotes(ctx, regionNotes, viewport, state.selectedNoteIds, clip.color ?? null, false, state.channelFilter, state.noteCCValues);
   }
 
-  private drawNotes(ctx: CanvasRenderingContext2D, notes: any[], viewport: Readonly<ViewportState>, selectedIds: Set<string>, baseColor: string, isGhost: boolean, channelFilter: number | null = null, noteCCValues: Record<string, Record<number, number>> = {}) {
+  private drawNotes(ctx: CanvasRenderingContext2D, notes: any[], viewport: Readonly<ViewportState>, selectedIds: Set<string>, baseColor: string | null, isGhost: boolean, channelFilter: number | null = null, noteCCValues: Record<string, Record<number, number>> = {}) {
     const { pixelsPerBeat, startBeat, maxVisiblePitch, pixelsPerPitch } = viewport;
 
     ctx.save();
@@ -138,36 +171,21 @@ export class MidiRenderer implements RendererContract {
       const isMuted = note.muted;
       const isOverlapping = overlappingNotes.has(note.id);
       
-      // Determine base color:
-      // 1. If track has a custom color (not default #3B82F6), use it
-      // 2. Otherwise use velocity-based coloring
-      // 3. Fall back to channel colors only if no track color and no velocity
-      let normalColor: string;
-      if (isGhost) {
-        normalColor = '#4B5563';
-      } else if (baseColor && baseColor !== '#3B82F6') {
-        // Track color takes priority
-        normalColor = baseColor;
-      } else {
-        // Velocity-based coloring
-        normalColor = velocityToColor(note.velocity);
-      }
-
-      const renderColor = isSelected ? '#EF4444' : (isMuted ? '#6B7280' : normalColor);
+      const { color: renderColor, velocityGradient } = resolveNoteAppearance({
+        velocity: note.velocity,
+        baseColor,
+        isGhost,
+        isSelected,
+        isMuted,
+      });
 
       ctx.globalAlpha = isGhost ? 0.3 : 1.0;
 
-      // Create subtle gradient for 3D bevel - velocity-based gradient
+      // Subtle vertical bevel, steeper when the colour is carrying velocity.
       const gradient = ctx.createLinearGradient(x, y, x, y + h);
-      if (!isGhost && baseColor === '#3B82F6') {
-        // Velocity-based gradient: darker at bottom, lighter at top
-        gradient.addColorStop(0, lightenColor(renderColor, 30));
-        gradient.addColorStop(1, darkenColor(renderColor, 30));
-      } else {
-        // Track color gradient
-        gradient.addColorStop(0, lightenColor(renderColor, 20));
-        gradient.addColorStop(1, darkenColor(renderColor, 20));
-      }
+      const bevel = velocityGradient ? 30 : 20;
+      gradient.addColorStop(0, lightenColor(renderColor, bevel));
+      gradient.addColorStop(1, darkenColor(renderColor, bevel));
       
       ctx.fillStyle = gradient;
       
@@ -201,7 +219,7 @@ export class MidiRenderer implements RendererContract {
       ctx.stroke();
 
       // Border around the note
-      ctx.strokeStyle = isSelected ? '#FCA5A5' : (isGhost ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.8)');
+      ctx.strokeStyle = isSelected ? '#FCA5A5' : (isGhost ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.75)');
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.roundRect(x, y, Math.max(2, w), h, 3);

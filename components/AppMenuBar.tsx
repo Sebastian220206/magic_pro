@@ -144,7 +144,7 @@ export function AppMenuBar() {
         const items = menuDefs[menuName];
         if (!items) return null;
         return (
-            <div className="absolute top-[24px] left-0 min-w-[220px] bg-[#e2e2e2]/95 backdrop-blur-md border border-[#a5a5a5] shadow-2xl rounded-b-md py-1 z-[120]">
+            <div className="absolute top-[24px] left-0 min-w-[220px] bg-studio-raised/95 backdrop-blur-md border border-studio-line-strong shadow-2xl rounded-b-md py-1 z-[120]">
                 {items.map((item: any, idx: number) =>
                     item.label === "separator" || item.separator ? (
                         <div key={idx} className="h-[1px] bg-black/15 my-1 mx-2" />
@@ -161,8 +161,8 @@ export function AppMenuBar() {
                             }}
                             className={`px-4 py-0.5 flex items-center justify-between text-[13px] cursor-default ${
                                 hoveredMenuItem === item.label
-                                    ? "bg-[#0058d8] text-white"
-                                    : "text-black/90 hover:bg-[#0058d8] hover:text-white"
+                                    ? "bg-cyan-300 text-white"
+                                    : "text-studio-text hover:bg-accent-cyan hover:text-[#04070b]"
                             }`}
                         >
                             <span>{item.label}</span>
@@ -187,7 +187,7 @@ export function AppMenuBar() {
                 }}
                 onMouseEnter={() => activeMenu && setActiveMenu(menu)}
                 className={`px-3 h-full flex items-center cursor-default transition-colors whitespace-nowrap ${
-                    isActive ? "bg-[#0058d8] text-white" : "hover:bg-black/10"
+                    isActive ? "bg-cyan-300 text-white" : "hover:bg-black/10"
                 }`}
             >
                 {menu}
@@ -196,10 +196,10 @@ export function AppMenuBar() {
     };
 
     return (
-        <div ref={menuRef} className="h-[24px] bg-gradient-to-b from-[#e7e7e7] to-[#d1d1d1] border-b border-[#a5a5a5] flex items-center px-2 shrink-0 z-[110] select-none text-[12px] font-sans text-black/90 shadow-sm relative">
+        <div ref={menuRef} className="h-[24px] bg-gradient-to-b from-studio-raised to-studio-control border-b border-studio-line-strong flex items-center px-2 shrink-0 z-[110] select-none text-[12px] font-sans text-studio-text shadow-sm relative">
             <div className="flex items-center h-full">
                 <div className="px-3 hover:bg-black/10 h-full flex items-center cursor-default transition-colors">
-                    <svg viewBox="0 0 16 16" className="w-[14px] h-[14px] fill-black/80" xmlns="http://www.w3.org/2000/svg">
+                    <svg viewBox="0 0 16 16" className="w-[14px] h-[14px] fill-studio-text" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12.152 8.9c-.012-1.295 1.059-1.92 1.109-1.95-.602-.879-1.537-.999-1.871-1.013-.797-.081-1.558.47-1.962.47-.404 0-1.018-.459-1.684-.446-.879.013-1.691.512-2.144 1.297-.914 1.577-.234 3.913.654 5.196.435.627.952 1.33 1.632 1.305.654-.025.901-.423 1.691-.423.79 0 1.013.423 1.699.41.701-.013 1.155-.64 1.587-1.269.499-.731.705-1.44.717-1.477-.013-.006-1.381-.53-1.396-2.11zM10.154 4.195c.358-.435.6-.1.737-.899.137-.799-.059-1.583-.059-1.583s-.664.027-1.282.748c-.411.481-.722 1.139-.623 1.831.099.692.651.83.651.83l.576-.927z" />
                     </svg>
                 </div>
@@ -239,7 +239,7 @@ export function AppMenuBar() {
                     }}
                     onMouseEnter={() => !menuExpanded && activeMenu && setActiveMenu("logic")}
                     className={`px-3 h-full flex items-center cursor-default transition-colors tracking-tight font-bold shrink-0 relative ${
-                        menuExpanded || activeMenu === "logic" ? "bg-[#0058d8] text-white" : "hover:bg-black/10"
+                        menuExpanded || activeMenu === "logic" ? "bg-cyan-300 text-white" : "hover:bg-black/10"
                     }`}
                 >
                     Magic Pro
@@ -271,7 +271,7 @@ export function AppMenuBar() {
             <div className="flex items-center h-full gap-3 px-4 overflow-hidden">
                 {/* WiFi icon */}
                 <div className="relative w-3.5 h-3.5" title={isOnline ? 'Connected' : 'Offline'}>
-                    <svg viewBox="0 0 24 24" className={`w-full h-full ${isOnline ? 'fill-black/70' : 'fill-black/30'}`}>
+                    <svg viewBox="0 0 24 24" className={`w-full h-full ${isOnline ? 'fill-studio-text' : 'fill-studio-text-dim'}`}>
                         <path d="M12 18a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" />
                         <path d="M12 13.5a5.5 5.5 0 0 0-3.89 1.61l1.42 1.42a3.5 3.5 0 0 1 4.94 0l1.42-1.42A5.5 5.5 0 0 0 12 13.5z" opacity={isOnline ? 0.8 : 0.3} />
                         <path d="M12 9a9.5 9.5 0 0 0-6.72 2.78l1.42 1.42a7.5 7.5 0 0 1 10.6 0l1.42-1.42A9.5 9.5 0 0 0 12 9z" opacity={isOnline ? 0.6 : 0.2} />
@@ -293,7 +293,7 @@ export function AppMenuBar() {
                             style={{ width: `${batteryLevel * 100}%` }}
                         />
                         {batteryCharging && (
-                            <svg viewBox="0 0 24 24" className="absolute inset-0 w-full h-full p-[2px] fill-black/70">
+                            <svg viewBox="0 0 24 24" className="absolute inset-0 w-full h-full p-[2px] fill-studio-text">
                                 <path d="M13 4h-2l-4 10h3l-2 6h2l4-10h-3z" />
                             </svg>
                         )}
@@ -302,7 +302,7 @@ export function AppMenuBar() {
                 </div>
 
                 {/* Live clock */}
-                <div className="text-[11px] font-semibold text-black/80 whitespace-nowrap tabular-nums">
+                <div className="text-[11px] font-semibold text-studio-text-dim whitespace-nowrap tabular-nums">
                     {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}{' '}
                     {currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
                 </div>

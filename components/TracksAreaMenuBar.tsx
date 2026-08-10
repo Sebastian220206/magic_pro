@@ -96,11 +96,11 @@ export function TracksAreaMenuBar() {
     }
 
     return (
-        <div className="h-10 bg-[#3a3a3a] border-b border-black flex items-center px-1.5 justify-between shrink-0 z-40 select-none">
+        <div className="h-10 bg-studio-control border-b border-black flex items-center px-1.5 justify-between shrink-0 z-40 select-none">
             {/* 1. Left Section: Dropdowns & View Toggles */}
             <div className="flex items-center">
                 {/* Local Inspector Toggle (The UP arrow in image) */}
-                <button className="w-8 h-7 flex items-center justify-center text-gray-400 hover:text-white border border-transparent hover:border-white/10 rounded transition-colors mr-1">
+                <button className="w-8 h-7 flex items-center justify-center text-studio-text-mid hover:text-white border border-transparent hover:border-white/10 rounded transition-colors mr-1">
                     <Maximize2 className="w-3.5 h-3.5 rotate-180" />
                 </button>
 
@@ -128,8 +128,8 @@ export function TracksAreaMenuBar() {
             <div className="flex items-center gap-4">
                 {/* Snap Settings */}
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Snap:</span>
-                    <div className="flex h-6 bg-[#1a1a1a] border border-black rounded px-2 items-center justify-between w-[120px] text-[11px] text-gray-200 cursor-pointer hover:bg-[#222]">
+                    <span className="text-[10px] text-studio-text-mid font-bold uppercase tracking-wider">Snap:</span>
+                    <div className="flex h-6 bg-studio-panel border border-black rounded px-2 items-center justify-between w-[120px] text-[11px] text-studio-text cursor-pointer hover:bg-studio-raised">
                         <span className="font-bold">Smart</span>
                         <div className="flex flex-col gap-0.5 opacity-40">
                             <ChevronDown className="w-2.5 h-2.5 rotate-180" />
@@ -140,8 +140,8 @@ export function TracksAreaMenuBar() {
 
                 {/* Drag Settings */}
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Drag:</span>
-                    <div className="flex h-6 bg-[#1a1a1a] border border-black rounded px-2 items-center justify-between w-[100px] text-[11px] text-gray-200 cursor-pointer hover:bg-[#222]">
+                    <span className="text-[10px] text-studio-text-mid font-bold uppercase tracking-wider">Drag:</span>
+                    <div className="flex h-6 bg-studio-panel border border-black rounded px-2 items-center justify-between w-[100px] text-[11px] text-studio-text cursor-pointer hover:bg-studio-raised">
                         <span className="font-bold">No Overlap</span>
                         <div className="flex flex-col gap-0.5 opacity-40">
                             <ChevronDown className="w-2.5 h-2.5 rotate-180" />
@@ -198,9 +198,9 @@ export function TracksAreaMenuBar() {
 
 function Dropdown({ label }: { label: string }) {
     return (
-        <button className="h-7 px-3 flex items-center gap-1 text-[12px] font-bold text-gray-200 hover:bg-white/5 rounded transition-all">
+        <button className="h-7 px-3 flex items-center gap-1 text-[12px] font-bold text-studio-text hover:bg-white/5 rounded transition-all">
             {label}
-            <ChevronDown className="w-3 h-3 text-gray-500 pt-0.5" />
+            <ChevronDown className="w-3 h-3 text-studio-text-dim pt-0.5" />
         </button>
     )
 }
@@ -209,7 +209,7 @@ function ViewToggle({ icon: Icon, active, onClick }: { icon: any, active: boolea
     return (
         <button 
             onClick={onClick}
-            className={`w-7 h-6 flex items-center justify-center rounded-[3px] transition-all ${active ? 'bg-blue-500 text-white shadow-inner' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}`}
+            className={`w-7 h-6 flex items-center justify-center rounded-[3px] transition-all ${active ? 'bg-accent-cyan text-white shadow-inner' : 'text-studio-text-mid hover:text-studio-text hover:bg-white/5'}`}
         >
             <Icon className="w-3.5 h-3.5" />
         </button>
@@ -219,8 +219,8 @@ function ViewToggle({ icon: Icon, active, onClick }: { icon: any, active: boolea
 function ToolButton({ icon: Icon, active, showArrow }: { icon: any, active: boolean, showArrow?: boolean }) {
     return (
         <div className="flex items-center px-1.5 h-6 rounded-[3px] transition-all cursor-pointer group">
-            <Icon className={`w-3.5 h-3.5 ${active ? 'text-gray-200' : 'text-gray-500'}`} />
-            {showArrow && <ChevronDown className="w-2.5 h-2.5 text-gray-600 ml-1 group-hover:text-gray-400" />}
+            <Icon className={`w-3.5 h-3.5 ${active ? 'text-studio-text' : 'text-studio-text-dim'}`} />
+            {showArrow && <ChevronDown className="w-2.5 h-2.5 text-studio-text-dim ml-1 group-hover:text-studio-text-mid" />}
         </div>
     )
 }
@@ -259,7 +259,7 @@ function ZoomSlider({ icon: Icon, iconRotate = 0, value, min, max, onChange, col
 
     return (
         <div className="flex items-center gap-2 group/slider" title={label}>
-            <Icon className="w-3 h-3 text-gray-500" style={{ transform: `rotate(${iconRotate}deg)` }} />
+            <Icon className="w-3 h-3 text-studio-text-dim" style={{ transform: `rotate(${iconRotate}deg)` }} />
             <div 
                 ref={trackRef}
                 onMouseDown={onMouseDown}
@@ -268,12 +268,12 @@ function ZoomSlider({ icon: Icon, iconRotate = 0, value, min, max, onChange, col
             >
                 {/* Track fill */}
                 <div 
-                    className="absolute inset-y-0 left-0 bg-gray-600 rounded-full" 
+                    className="absolute inset-y-0 left-0 bg-studio-control rounded-full" 
                     style={{ width: `${percentage}%` }}
                 />
                 {/* Handle */}
                 <div 
-                    className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-2.5 rounded-sm border border-gray-900 shadow-md transition-shadow group-hover/slider:shadow-lg ${isDragging ? 'scale-110' : ''}`}
+                    className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-2.5 rounded-sm border border-studio-line shadow-md transition-shadow group-hover/slider:shadow-lg ${isDragging ? 'scale-110' : ''}`}
                     style={{ 
                         left: `${percentage}%`,
                         background: 'linear-gradient(to bottom, #eeeeee 0%, #bbbbbb 100%)'

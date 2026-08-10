@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { applyMeterGradient, METER_NOMINAL, METER_PEAK, METER_BED } from "@/lib/meterPalette"
 
 interface HorizontalMeterProps {
   analyzer: AnalyserNode | null
@@ -20,9 +21,9 @@ interface HorizontalMeterProps {
 export function HorizontalMeter({ 
   analyzer, 
   className = "", 
-  backgroundColor = "rgba(0,0,0,0.4)",
-  meterColor = "#22c55e",
-  peakHoldColor = "rgba(255,255,255,0.6)",
+  backgroundColor = METER_BED,
+  meterColor = METER_NOMINAL,
+  peakHoldColor = METER_PEAK,
   sensitivity = 1.0
 }: HorizontalMeterProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -87,12 +88,7 @@ export function HorizontalMeter({
       ctx.fillRect(0, 0, W, H)
 
       // Meter Bar
-      const gradient = ctx.createLinearGradient(0, 0, W, 0)
-      gradient.addColorStop(0, meterColor)
-      gradient.addColorStop(0.8, "#eab308") // Yellow at 80%
-      gradient.addColorStop(0.95, "#ef4444") // Red at 95%
-      
-      ctx.fillStyle = gradient
+      ctx.fillStyle = applyMeterGradient(ctx.createLinearGradient(0, 0, W, 0), meterColor)
       const fillW = Math.max(0, Math.min(W, lastLevel.current * W))
       ctx.fillRect(0, 0, fillW, H)
 

@@ -135,12 +135,12 @@ export function ProjectPianoRollAdapter({
   if (!effectiveClipId) {
     return (
       <div 
-        className="flex items-center justify-center bg-gray-900 text-gray-500"
+        className="flex items-center justify-center bg-studio-sunken text-studio-text-dim"
         style={{ width, height }}
       >
         <div className="text-center">
           <p className="text-sm font-medium">No MIDI Region Selected</p>
-          <p className="text-xs text-gray-600 mt-1">
+          <p className="text-xs text-studio-text-dim mt-1">
             Select a MIDI clip in the timeline to edit
           </p>
         </div>

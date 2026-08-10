@@ -77,21 +77,21 @@ export function Mixer() {
     }
 
     return (
-        <div className="h-full flex flex-col bg-[#1a1a1a] select-none text-gray-400 border-t border-[var(--accent-cyan)]/50 shadow-[0_-10px_30px_var(--accent-cyan-glow),0_-10px_30px_rgba(0,0,0,0.3)]">
+        <div className="h-full flex flex-col bg-studio-panel select-none text-studio-text-mid border-t border-[var(--accent-cyan)]/50 shadow-[0_-10px_30px_var(--accent-cyan-glow),0_-10px_30px_rgba(0,0,0,0.3)]">
             {/* 1. Mixer Command Header (High Fidelity Menu Bar) */}
-            <div className="h-9 bg-[#222] border-b border-[var(--accent-cyan)]/30 flex items-center px-4 justify-between shrink-0">
+            <div className="h-9 bg-studio-raised border-b border-[var(--accent-cyan)]/30 flex items-center px-4 justify-between shrink-0">
                 <div className="flex items-center gap-1">
-                    <div className="flex items-center gap-1.5 bg-[#000] border border-[var(--accent-cyan)]/40 rounded px-2.5 h-7 cursor-pointer hover:border-[var(--accent-cyan)] hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all group">
-                        <span className="text-[10px] font-black text-gray-400 group-hover:text-white uppercase tracking-tighter">Edit</span>
-                        <ChevronDown className="w-3 h-3 text-gray-600" />
+                    <div className="flex items-center gap-1.5 bg-studio-void border border-[var(--accent-cyan)]/40 rounded px-2.5 h-7 cursor-pointer hover:border-[var(--accent-cyan)] hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all group">
+                        <span className="text-[10px] font-black text-studio-text-mid group-hover:text-white uppercase tracking-tighter">Edit</span>
+                        <ChevronDown className="w-3 h-3 text-studio-text-dim" />
                     </div>
-                    <div className="flex items-center gap-1.5 bg-[#000] border border-[var(--accent-cyan)]/40 rounded px-2.5 h-7 cursor-pointer hover:border-[var(--accent-cyan)] hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all group">
-                        <span className="text-[10px] font-black text-gray-400 group-hover:text-[var(--accent-cyan)] uppercase tracking-tighter">Options</span>
-                        <ChevronDown className="w-3 h-3 text-gray-600" />
+                    <div className="flex items-center gap-1.5 bg-studio-void border border-[var(--accent-cyan)]/40 rounded px-2.5 h-7 cursor-pointer hover:border-[var(--accent-cyan)] hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all group">
+                        <span className="text-[10px] font-black text-studio-text-mid group-hover:text-[var(--accent-cyan)] uppercase tracking-tighter">Options</span>
+                        <ChevronDown className="w-3 h-3 text-studio-text-dim" />
                     </div>
-                    <div className="flex items-center gap-1.5 bg-[#000] border border-[var(--accent-cyan)]/40 rounded px-2.5 h-7 cursor-pointer hover:border-[var(--accent-cyan)] hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all group">
-                        <span className="text-[10px] font-black text-gray-400 group-hover:text-[var(--accent-cyan)] uppercase tracking-tighter">View</span>
-                        <ChevronDown className="w-3 h-3 text-gray-600" />
+                    <div className="flex items-center gap-1.5 bg-studio-void border border-[var(--accent-cyan)]/40 rounded px-2.5 h-7 cursor-pointer hover:border-[var(--accent-cyan)] hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all group">
+                        <span className="text-[10px] font-black text-studio-text-mid group-hover:text-[var(--accent-cyan)] uppercase tracking-tighter">View</span>
+                        <ChevronDown className="w-3 h-3 text-studio-text-dim" />
                     </div>
 
                     <div className="w-px h-5 bg-[var(--accent-cyan)]/30 mx-2"></div>
@@ -101,29 +101,29 @@ export function Mixer() {
 
                     <div className="w-px h-5 bg-[var(--accent-cyan)]/30 mx-2"></div>
 
-                    <div className="flex bg-[#000] rounded-md border border-[var(--accent-cyan)]/50 p-0.5 h-7 shadow-inner">
+                    <div className="flex bg-studio-void rounded-md border border-[var(--accent-cyan)]/50 p-0.5 h-7 shadow-inner">
                         <button
                             onClick={() => setMixerMode('single')}
-                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'single' ? 'text-[var(--accent-cyan)] bg-[#333] shadow-md border border-[var(--accent-cyan)]/50' : 'text-gray-500 hover:text-[var(--accent-cyan)]'}`}
+                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'single' ? 'text-[var(--accent-cyan)] bg-studio-control shadow-md border border-[var(--accent-cyan)]/50' : 'text-studio-text-dim hover:text-[var(--accent-cyan)]'}`}
                         >Single</button>
                         <button
                             onClick={() => setMixerMode('tracks')}
-                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'tracks' ? 'text-[var(--accent-cyan)] bg-[#333] shadow-md border border-[var(--accent-cyan)]/50' : 'text-gray-500 hover:text-[var(--accent-cyan)]'}`}
+                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'tracks' ? 'text-[var(--accent-cyan)] bg-studio-control shadow-md border border-[var(--accent-cyan)]/50' : 'text-studio-text-dim hover:text-[var(--accent-cyan)]'}`}
                         >Tracks</button>
                         <button
                             onClick={() => setMixerMode('all')}
-                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'all' ? 'text-[var(--accent-cyan)] bg-[#333] shadow-md border border-[var(--accent-cyan)]/50' : 'text-gray-500 hover:text-[var(--accent-cyan)]'}`}
+                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'all' ? 'text-[var(--accent-cyan)] bg-studio-control shadow-md border border-[var(--accent-cyan)]/50' : 'text-studio-text-dim hover:text-[var(--accent-cyan)]'}`}
                         >All</button>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center bg-[#000] rounded-md border border-[var(--accent-cyan)]/50 p-0.5 h-7">
+                    <div className="flex items-center bg-studio-void rounded-md border border-[var(--accent-cyan)]/50 p-0.5 h-7">
                         {filterTypes.map(type => (
                             <button
                                 key={type}
                                 onClick={() => setTrackTypeFilter(type as any)}
-                                className={`px-2.5 h-full text-[9px] font-black uppercase rounded transition-all ${trackTypeFilter === type ? 'text-[var(--accent-cyan)] bg-[#333]' : 'text-gray-500 hover:text-[var(--accent-cyan)]'}`}
+                                className={`px-2.5 h-full text-[9px] font-black uppercase rounded transition-all ${trackTypeFilter === type ? 'text-[var(--accent-cyan)] bg-studio-control' : 'text-studio-text-dim hover:text-[var(--accent-cyan)]'}`}
                             >
                                 {type}
                             </button>
@@ -132,12 +132,12 @@ export function Mixer() {
                     <div className="w-px h-5 bg-[var(--accent-cyan)]/30 mx-1"></div>
                     <button
                         onClick={() => setShowTrackStacks(!showTrackStacks)}
-                        className={`p-1 rounded transition-all ${showTrackStacks ? 'bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)]' : 'text-gray-400 hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
+                        className={`p-1 rounded transition-all ${showTrackStacks ? 'bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)]' : 'text-studio-text-mid hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
                         title="Show/Hide track stacks"
                     >
                         {showTrackStacks ? 'Stacks On' : 'Stacks Off'}
                     </button>
-                    <button className="p-1 hover:bg-[var(--accent-cyan)]/10 rounded transition-all"><MoreHorizontal className="w-4 h-4 text-gray-500 hover:text-[var(--accent-cyan)]" /></button>
+                    <button className="p-1 hover:bg-[var(--accent-cyan)]/10 rounded transition-all"><MoreHorizontal className="w-4 h-4 text-studio-text-dim hover:text-[var(--accent-cyan)]" /></button>
                 </div>
             </div>
 
@@ -145,7 +145,7 @@ export function Mixer() {
             <div className="flex-1 flex overflow-x-auto custom-scrollbar-h relative">
 
                 {/* Fixed Label Column (Pro Look) */}
-                <div className="w-[100px] bg-[#1a1a1a] border-r border-black flex flex-col shrink-0 sticky left-0 z-30 shadow-[4px_0_15px_rgba(0,0,0,0.5)]">
+                <div className="w-[100px] bg-studio-panel border-r border-black flex flex-col shrink-0 sticky left-0 z-30 shadow-[4px_0_15px_rgba(0,0,0,0.5)]">
                     <div className="h-10 border-b border-black/20"></div> {/* Setting */}
                     <div className="h-12 border-b border-black/20"></div> {/* EQ Visual */}
                     <div className="flex-1 flex flex-col py-2 px-3 gap-0.5">
@@ -194,11 +194,7 @@ export function Mixer() {
                 <LoudnessReadout />
             </div>
 
-            <style jsx>{`
-                .custom-scrollbar-h::-webkit-scrollbar { height: 6px; }
-                .custom-scrollbar-h::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar-h::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-            `}</style>
+
         </div>
     )
 }
@@ -206,7 +202,7 @@ export function Mixer() {
 function LabelRow({ label }: { label: string }) {
     return (
         <div className="h-4 flex items-center justify-end pr-2">
-            <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest leading-none truncate">{label}</span>
+            <span className="text-[8px] font-black text-studio-text-dim uppercase tracking-widest leading-none truncate">{label}</span>
         </div>
     )
 }
@@ -262,12 +258,12 @@ function ChannelStripSettingButton({ track, isMaster }: { track: Track | null; i
         <div className="relative w-full">
             <button
                 onClick={(e) => { e.stopPropagation(); setOpen(op => !op); }}
-                className="h-7 bg-[#000] border border-[#333] rounded-sm w-full text-[9px] font-black text-gray-400 uppercase tracking-tighter shadow-inner"
+                className="h-7 bg-studio-void border border-studio-line rounded-sm w-full text-[9px] font-black text-studio-text-mid uppercase tracking-tighter shadow-inner"
             >
                 {isMaster ? 'Stereo Out' : track?.name || 'Empty'}
             </button>
             {open && !isMaster && track && (
-                <div className="absolute z-50 left-0 top-full mt-1 w-[220px] bg-[#111] border border-[#444] rounded shadow-lg p-2 text-xs">
+                <div className="absolute z-50 left-0 top-full mt-1 w-[220px] bg-studio-sunken border border-studio-line-strong rounded shadow-lg p-2 text-xs">
                     <div className="flex flex-col gap-1">
                         <button className="text-left px-2 py-1 hover:bg-white/10 rounded" onClick={(e) => { e.stopPropagation(); setOpen(false); handleSaveSetting(); }}>Save Setting</button>
                         <button className="text-left px-2 py-1 hover:bg-white/10 rounded" onClick={(e) => { e.stopPropagation(); setOpen(false); handleSavePerformance(); }}>Save as Performance</button>
@@ -285,11 +281,11 @@ function ChannelStripSettingButton({ track, isMaster }: { track: Track | null; i
                     </div>
 
                     {settingsForTrack.length > 0 && (
-                        <div className="mt-2 p-1 border border-white/10 rounded bg-[#0f0f0f]">
-                            <div className="text-[8px] uppercase text-gray-500 mb-1">Saved Settings</div>
+                        <div className="mt-2 p-1 border border-white/10 rounded bg-studio-void">
+                            <div className="text-[8px] uppercase text-studio-text-dim mb-1">Saved Settings</div>
                             {settingsForTrack.map(s => (
                                 <div key={s.id} className="flex justify-between items-center px-1 py-0.5"> 
-                                    <button className="text-[9px] text-gray-300 hover:text-white truncate" onClick={(e) => { e.stopPropagation(); setOpen(false); loadChannelStripSetting(track.id, s.id); }}>{s.name}</button>
+                                    <button className="text-[9px] text-studio-text hover:text-white truncate" onClick={(e) => { e.stopPropagation(); setOpen(false); loadChannelStripSetting(track.id, s.id); }}>{s.name}</button>
                                     <button className="text-[8px] text-red-400" onClick={(e) => { e.stopPropagation(); deleteChannelStripSetting(s.id); }}>Del</button>
                                 </div>
                             ))}
@@ -297,11 +293,11 @@ function ChannelStripSettingButton({ track, isMaster }: { track: Track | null; i
                     )}
 
                     {currentPerf.length > 0 && (
-                        <div className="mt-2 p-1 border border-white/10 rounded bg-[#0f0f0f]">
-                            <div className="text-[8px] uppercase text-gray-500 mb-1">Performances</div>
+                        <div className="mt-2 p-1 border border-white/10 rounded bg-studio-void">
+                            <div className="text-[8px] uppercase text-studio-text-dim mb-1">Performances</div>
                             {currentPerf.map(p => (
                                 <div key={p.id} className="flex justify-between items-center px-1 py-0.5">
-                                    <button className="text-[9px] text-gray-300 hover:text-white truncate" onClick={(e) => { e.stopPropagation(); setOpen(false); loadChannelStripPerformance(track.id, p.program); }}>PC {p.program} - {p.name}</button>
+                                    <button className="text-[9px] text-studio-text hover:text-white truncate" onClick={(e) => { e.stopPropagation(); setOpen(false); loadChannelStripPerformance(track.id, p.program); }}>PC {p.program} - {p.name}</button>
                                 </div>
                             ))}
                         </div>
@@ -389,7 +385,7 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
     return (
         <div
             onClick={onSelect}
-            className={`w-[120px] h-full flex flex-col border-r border-black shrink-0 transition-colors relative group ${isSelected ? 'bg-sky-500/[0.04]' : 'bg-[#1e1e1e]/50 hover:bg-white/[0.02]'}`}
+            className={`w-[120px] h-full flex flex-col border-r border-black shrink-0 transition-colors relative group ${isSelected ? 'bg-accent-cyan/[0.04]' : 'bg-studio-panel/50 hover:bg-white/[0.02]'}`}
         >
             <div className="flex-1 flex flex-col px-2 py-3 gap-1 overflow-y-auto custom-scrollbar-v no-scrollbar">
 
@@ -401,14 +397,14 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
 
                 {/* EQ Visualizer Slot */}
                 <div className="h-10 bg-black/60 border border-white/5 rounded-sm flex items-center justify-center relative overflow-hidden group/eq">
-                    <div className="absolute inset-0 bg-gradient-to-t from-sky-950/20 to-transparent"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-accent-cyan/20/20 to-transparent"></div>
                     <svg viewBox="0 0 100 40" className="w-full h-full opacity-30 group-hover/eq:opacity-60 transition-opacity">
                         <path d="M0,25 Q30,5 60,30 T100,20" fill="none" stroke="#38bdf8" strokeWidth="1.5" />
                     </svg>
                 </div>
 
                 {/* MIDI FX Slot */}
-                <div className="h-5 bg-black/40 rounded-sm border border-white/5 flex items-center justify-center text-[8px] font-black text-gray-700 uppercase">
+                <div className="h-5 bg-black/40 rounded-sm border border-white/5 flex items-center justify-center text-[8px] font-black text-studio-text-dim uppercase">
                     Midi FX
                 </div>
 
@@ -418,13 +414,13 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                         <div
                             key={p.id}
                             onClick={(e) => { e.stopPropagation(); if (track) setOpenPluginEditor({ trackId: track.id, pluginId: p.id }); }}
-                            className={`h-5 rounded-sm flex items-center px-2 text-[9px] font-black shadow-sm border-t border-white/10 cursor-pointer hover:brightness-125 transition-all ${p.enabled ? (p.name.includes('EQ') ? 'bg-sky-500 text-white shadow-[0_0_10px_rgba(14,165,233,0.3)]' : 'bg-sky-600 text-white') : 'bg-gray-800 text-gray-500 opacity-60'}`}
+                            className={`h-5 rounded-sm flex items-center px-2 text-[9px] font-black shadow-sm border-t border-white/10 cursor-pointer hover:brightness-125 transition-all ${p.enabled ? (p.name.includes('EQ') ? 'bg-accent-cyan text-white shadow-[0_0_10px_rgba(14,165,233,0.3)]' : 'bg-accent-cyan text-white') : 'bg-studio-panel text-studio-text-dim opacity-60'}`}
                         >
                             <div 
                                 onClick={(e) => { e.stopPropagation(); toggleInChain(p.id); }}
                                 className="mr-1.5 p-0.5 hover:bg-white/10 rounded"
                             >
-                                <Power className={`w-2 h-2 ${p.enabled ? 'text-white' : 'text-gray-600'}`} fill="currentColor" />
+                                <Power className={`w-2 h-2 ${p.enabled ? 'text-white' : 'text-studio-text-dim'}`} fill="currentColor" />
                             </div>
                             <span className="truncate">{p.name}</span>
                         </div>
@@ -456,9 +452,9 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                 {/* Output Routing */}
                 <OutputRouting track={track} isMaster={isMaster} />
 
-                <div className="h-6 bg-black/40 border border-white/5 rounded-sm flex items-center justify-center text-[9px] font-black text-gray-600 uppercase mb-1">None</div>
+                <div className="h-6 bg-black/40 border border-white/5 rounded-sm flex items-center justify-center text-[9px] font-black text-studio-text-dim uppercase mb-1">None</div>
 
-                <div className="h-6 bg-black/60 border border-sky-500/20 rounded-sm flex items-center justify-center text-[9px] font-black text-[#63ed63] uppercase mb-4 shadow-inner">Read</div>
+                <div className="h-6 bg-black/60 border border-accent-cyan/20 rounded-sm flex items-center justify-center text-[9px] font-black text-[#63ed63] uppercase mb-4 shadow-inner">Read</div>
 
                 {/* Fader & Metering Area */}
                 <div className="flex-1 flex flex-col items-center justify-end pb-4 gap-3">
@@ -491,13 +487,13 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                             window.addEventListener('mouseup', onUp);
                         }}
                     >
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#111] via-[#222] to-[#3a3a3a] border border-[#333] shadow-xl relative ring-1 ring-black/50">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-studio-sunken via-studio-raised to-studio-control border border-studio-line shadow-xl relative ring-1 ring-black/50">
                             <div 
-                                className="absolute top-1 left-[16.5px] w-[2px] h-3 bg-gray-500 rounded-full origin-bottom transition-transform duration-75" 
+                                className="absolute top-1 left-[16.5px] w-[2px] h-3 bg-studio-control rounded-full origin-bottom transition-transform duration-75" 
                                 style={{ transform: `rotate(${initialPan * 45}deg)` }}
                             ></div>
                         </div>
-                        <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] font-black text-gray-600 group-hover/pan:text-sky-400 uppercase">
+                        <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] font-black text-studio-text-dim group-hover/pan:text-accent-cyan uppercase">
                             {initialPan === 0 ? 'Center' : (initialPan < 0 ? `L${Math.abs(Math.round(initialPan * 64))}` : `R${Math.round(initialPan * 64)}`)}
                         </span>
                     </div>
@@ -513,7 +509,7 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                         </div>
 
                         {/* Fader Track */}
-                        <div className="h-full w-6 bg-black/40 rounded border border-[#2a2a2a] relative group/fader cursor-ns-resize">
+                        <div className="h-full w-6 bg-black/40 rounded border border-studio-line relative group/fader cursor-ns-resize">
                             {/* Fader Markings */}
                             <div className="absolute inset-y-2 inset-x-1 flex flex-col justify-between opacity-10 py-1 pointer-events-none">
                                 {[...Array(15)].map((_, i) => <div key={i} className="w-full h-px bg-white"></div>)}
@@ -522,7 +518,7 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                             {/* Fader Cap */}
                             <div
                                 ref={faderCapRef}
-                                className="absolute -left-1 w-8 h-4 bg-gradient-to-b from-[#444] to-[#222] border border-[#555] rounded shadow-[0_4px_10px_rgba(0,0,0,0.8)] z-20 flex items-center justify-center"
+                                className="absolute -left-1 w-8 h-4 bg-gradient-to-b from-studio-control to-studio-raised border border-studio-line-strong rounded shadow-[0_4px_10px_rgba(0,0,0,0.8)] z-20 flex items-center justify-center"
                                 onMouseDown={(e) => {
                                     e.stopPropagation();
                                     isDraggingRef.current = true;
@@ -605,7 +601,7 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                                     else           audioEngine2.unmuteTrack(track.id);
                                 }
                             }}
-                            className={`flex-1 border rounded-md text-[10px] font-black transition-all transform active:scale-95 ${initialMuted ? 'bg-red-500/20 border-red-500 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-[#1a1a1a] border-[#333] text-gray-600 hover:text-gray-400 group-hover:border-gray-700'}`}
+                            className={`flex-1 border rounded-md text-[10px] font-black transition-all transform active:scale-95 ${initialMuted ? 'bg-red-500/20 border-red-500 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text-mid group-hover:border-studio-line'}`}
                         >M</button>
                         <button
                             id={track ? `mixer-solo-${track.id}` : 'mixer-solo-master'}
@@ -619,15 +615,15 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                                 if (nextSoloed) audioEngine2.soloTrack(track.id);
                                 else            audioEngine2.unsoloTrack(track.id);
                             }}
-                            className={`flex-1 border rounded-md text-[10px] font-black transition-all transform active:scale-95 ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500] shadow-[0_0_10px_rgba(255,197,0,0.3)]' : 'bg-[#1a1a1a] border-[#333] text-gray-600 hover:text-gray-400 group-hover:border-gray-700'}`}
+                            className={`flex-1 border rounded-md text-[10px] font-black transition-all transform active:scale-95 ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500] shadow-[0_0_10px_rgba(255,197,0,0.3)]' : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text-mid group-hover:border-studio-line'}`}
                         >S</button>
                     </div>
                 </div>
             </div>
 
             {/* Bottom Label Bar */}
-            <div className={`h-8 border-t border-black flex items-center px-4 justify-between shrink-0 relative ${isSelected ? 'bg-sky-500/20' : 'bg-[#111]'}`}>
-                {isSelected && <div className="absolute top-0 left-0 right-0 h-0.5 bg-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.8)]"></div>}
+            <div className={`h-8 border-t border-black flex items-center px-4 justify-between shrink-0 relative ${isSelected ? 'bg-accent-cyan/20' : 'bg-studio-sunken'}`}>
+                {isSelected && <div className="absolute top-0 left-0 right-0 h-0.5 bg-accent-cyan shadow-[0_0_10px_rgba(14,165,233,0.8)]"></div>}
 
                 <div className="flex items-center gap-2">
                     <span className="text-[11px] font-black text-white/90 truncate uppercase tracking-tighter">
@@ -635,17 +631,12 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                     </span>
                 </div>
                 <div className="flex items-center gap-1.5 grayscale opacity-40 group-hover:grayscale-0 group-hover:opacity-100 transition-all">
-                    {track?.type === 'midi' ? <Keyboard className="w-3.5 h-3.5 text-green-400" /> : <Mic className="w-3.5 h-3.5 text-sky-400" />}
-                    <span className="text-[9px] font-black text-gray-600 uppercase tabular-nums">{`1`}</span>
+                    {track?.type === 'midi' ? <Keyboard className="w-3.5 h-3.5 text-green-400" /> : <Mic className="w-3.5 h-3.5 text-accent-cyan" />}
+                    <span className="text-[9px] font-black text-studio-text-dim uppercase tabular-nums">{`1`}</span>
                 </div>
             </div>
 
-            <style jsx>{`
-                .no-scrollbar::-webkit-scrollbar { display: none; }
-                .custom-scrollbar-v::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar-v::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar-v::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-            `}</style>
+
         </div>
     )
 })
@@ -695,7 +686,7 @@ function PluginMenu({ onSelect, onBrowse }: {
             <button
                 ref={buttonRef}
                 onClick={handleToggle}
-                className="h-5 bg-black/20 rounded-sm border border-white/5 text-[8px] font-black text-gray-700 hover:text-gray-400 hover:bg-white/5 uppercase flex items-center justify-center transition-all w-full"
+                className="h-5 bg-black/20 rounded-sm border border-white/5 text-[8px] font-black text-studio-text-dim hover:text-studio-text-mid hover:bg-white/5 uppercase flex items-center justify-center transition-all w-full"
             >
                 Audio FX
             </button>
@@ -703,23 +694,23 @@ function PluginMenu({ onSelect, onBrowse }: {
                 <div 
                     ref={menuRef}
                     style={{ top: coords.top, left: coords.left }}
-                    className="fixed z-[999] w-[180px] bg-[#1a1a1a] border border-[#444] rounded shadow-[0_15px_50px_rgba(0,0,0,1)] p-1 overflow-hidden"
+                    className="fixed z-[999] w-[180px] bg-studio-panel border border-studio-line-strong rounded shadow-[0_15px_50px_rgba(0,0,0,1)] p-1 overflow-hidden"
                 >
-                    <div className="text-[7px] uppercase text-gray-600 font-black px-2 py-1 border-b border-white/5 mb-1 tracking-widest">Plug-ins</div>
+                    <div className="text-[7px] uppercase text-studio-text-dim font-black px-2 py-1 border-b border-white/5 mb-1 tracking-widest">Plug-ins</div>
                     {plugins.map(p => (
                         <button
                             key={p.id}
                             onClick={(e) => { e.stopPropagation(); onSelect(p.id as any); setOpen(false); }}
-                            className="w-full text-left px-3 py-1.5 hover:bg-sky-500 hover:text-white text-[10px] font-black text-gray-300 transition-colors flex items-center justify-between group"
+                            className="w-full text-left px-3 py-1.5 hover:bg-accent-cyan hover:text-white text-[10px] font-black text-studio-text transition-colors flex items-center justify-between group"
                         >
                             <span>{p.name}</span>
-                            <span className="text-[8px] text-gray-600 group-hover:text-sky-200">{p.category}</span>
+                            <span className="text-[8px] text-studio-text-dim group-hover:text-accent-cyan">{p.category}</span>
                         </button>
                     ))}
                     <div className="mt-1 pt-1 border-t border-white/5">
                         <button
                             onClick={(e) => { e.stopPropagation(); onBrowse(); setOpen(false); }}
-                            className="w-full text-left px-3 py-1 hover:bg-sky-500 hover:text-white text-[9px] font-bold text-gray-500 uppercase transition-colors"
+                            className="w-full text-left px-3 py-1 hover:bg-accent-cyan hover:text-white text-[9px] font-bold text-studio-text-dim uppercase transition-colors"
                         >
                             Browse Plug-ins…
                         </button>

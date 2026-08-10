@@ -53,11 +53,11 @@ export function Toolbar() {
           * TransportBar. `px-3 sm:px-6` buys back a little width on a phone,
           * where 48px of horizontal padding is a meaningful share of the row.
           */}
-        <div className="h-[44px] bg-[#1a1a1a] border-b border-[#000] flex items-center px-3 sm:px-6 gap-6 shadow-md shrink-0 z-10 overflow-x-auto overflow-y-hidden daw-scrollbar-thin transition-all animate-in slide-in-from-top duration-200">
+        <div className="h-[44px] bg-studio-panel border-b border-studio-line flex items-center px-3 sm:px-6 gap-6 shadow-md shrink-0 z-10 overflow-x-auto overflow-y-hidden daw-scrollbar-thin transition-all animate-in slide-in-from-top duration-200">
             {/* Context Tool Palette */}
             <div
                 ref={toolMenuAnchorRef}
-                className="flex items-center bg-[#0a0a0a] rounded-lg border border-[#333] p-0.5 gap-0.5 cursor-pointer"
+                className="flex items-center bg-studio-sunken rounded-lg border border-studio-line p-0.5 gap-0.5 cursor-pointer"
                 onClick={() => toggleToolsMenu()}
                 title="Click to open Tools Menu (T)"
             >
@@ -80,13 +80,13 @@ export function Toolbar() {
 
             {/* Edit / Function Utilities */}
             <div className="flex items-center gap-2">
-                <button className="logic-button px-3 h-7 text-[10px] font-black uppercase text-gray-400 hover:text-white transition-colors">Capture Recording</button>
-                <button className="logic-button px-3 h-7 text-[10px] font-black uppercase text-gray-400 hover:text-white transition-colors">Quantize</button>
+                <button className="logic-button px-3 h-7 text-[10px] font-black uppercase text-studio-text-mid hover:text-white transition-colors">Capture Recording</button>
+                <button className="logic-button px-3 h-7 text-[10px] font-black uppercase text-studio-text-mid hover:text-white transition-colors">Quantize</button>
                 <div className="w-px h-5 bg-white/10 mx-1"></div>
                 
                 <button 
                     onClick={() => toggleNoteRepeat()}
-                    className={`h-7 px-3 rounded-md flex items-center gap-2 transition-all ${showNoteRepeatDialog ? 'bg-sky-500 text-white shadow-[0_0_10px_rgba(14,165,233,0.3)]' : 'bg-white/5 border border-white/10 text-gray-500 hover:text-gray-300'}`}
+                    className={`h-7 px-3 rounded-md flex items-center gap-2 transition-all ${showNoteRepeatDialog ? 'bg-accent-cyan text-white shadow-[0_0_10px_rgba(14,165,233,0.3)]' : 'bg-white/5 border border-white/10 text-studio-text-dim hover:text-studio-text'}`}
                 >
                     <RefreshCcw className={`w-3 h-3 ${showNoteRepeatDialog ? 'animate-spin-slow' : ''}`} />
                     <span className="text-[10px] font-black uppercase">Note Repeat</span>
@@ -94,7 +94,7 @@ export function Toolbar() {
 
                 <button 
                     onClick={() => toggleSpotErase()}
-                    className={`h-7 px-3 rounded-md flex items-center gap-2 transition-all ${showSpotEraseDialog ? 'bg-red-500 text-white shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-white/5 border border-white/10 text-gray-500 hover:text-gray-300'}`}
+                    className={`h-7 px-3 rounded-md flex items-center gap-2 transition-all ${showSpotEraseDialog ? 'bg-red-500 text-white shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-white/5 border border-white/10 text-studio-text-dim hover:text-studio-text'}`}
                 >
                     <Eraser className="w-3 h-3" />
                     <span className="text-[10px] font-black uppercase">Spot Erase</span>
@@ -102,7 +102,7 @@ export function Toolbar() {
 
                 <button 
                     onClick={() => toggleStepInput()}
-                    className={`h-7 px-3 rounded-md flex items-center gap-2 transition-all ${showStepInputKeyboard ? 'bg-sky-500 text-white shadow-[0_0_10px_rgba(14,165,233,0.3)]' : 'bg-white/5 border border-white/10 text-gray-500 hover:text-gray-300'}`}
+                    className={`h-7 px-3 rounded-md flex items-center gap-2 transition-all ${showStepInputKeyboard ? 'bg-accent-cyan text-white shadow-[0_0_10px_rgba(14,165,233,0.3)]' : 'bg-white/5 border border-white/10 text-studio-text-dim hover:text-studio-text'}`}
                 >
                     <Piano2 className="w-3 h-3" />
                     <span className="text-[10px] font-black uppercase">Step Input</span>
@@ -114,7 +114,7 @@ export function Toolbar() {
                 <div className="flex items-center gap-0.5">
                     <button 
                         onClick={() => toggleReplaceMode()}
-                        className={`h-7 px-3 rounded-l-md flex items-center gap-2 transition-all ${replaceMode ? 'bg-orange-500 text-white shadow-[0_0_10px_rgba(249,115,22,0.3)]' : 'bg-white/5 border border-white/10 text-gray-500 hover:text-gray-300'}`}
+                        className={`h-7 px-3 rounded-l-md flex items-center gap-2 transition-all ${replaceMode ? 'bg-orange-500 text-white shadow-[0_0_10px_rgba(249,115,22,0.3)]' : 'bg-white/5 border border-white/10 text-studio-text-dim hover:text-studio-text'}`}
                         title="Replace Mode"
                     >
                         <RefreshCcw className="w-3 h-3" />
@@ -123,7 +123,7 @@ export function Toolbar() {
                     <select 
                         value={replaceModeType}
                         onChange={(e) => setReplaceModeType(e.target.value as any)}
-                        className="h-7 bg-[#2a2a2a] border border-white/10 rounded-r-md px-1 text-[10px] font-bold text-gray-400 focus:outline-none hover:bg-[#333] transition-colors"
+                        className="h-7 bg-studio-control border border-white/10 rounded-r-md px-1 text-[10px] font-bold text-studio-text-mid focus:outline-none hover:bg-studio-control transition-colors"
                     >
                         <option value="Region Erase">Region Erase</option>
                         <option value="Region Punch">Region Punch</option>
@@ -134,11 +134,11 @@ export function Toolbar() {
 
                 {/* Overlap Mode */}
                 <div className="flex items-center gap-2 ml-2">
-                    <span className="text-[9px] font-black text-gray-600 uppercase">Overlap:</span>
+                    <span className="text-[9px] font-black text-studio-text-dim uppercase">Overlap:</span>
                     <select 
                         value={recordingOverlappingMode}
                         onChange={(e) => setRecordingOverlappingMode(e.target.value as any)}
-                        className="h-7 bg-[#2a2a2a] border border-white/10 rounded-md px-2 text-[10px] font-bold text-sky-400 focus:outline-none hover:bg-[#333] transition-colors"
+                        className="h-7 bg-studio-control border border-white/10 rounded-md px-2 text-[10px] font-bold text-accent-cyan focus:outline-none hover:bg-studio-control transition-colors"
                     >
                         <option value="Create Take Folder">Create Take Folder</option>
                         <option value="Merge">Merge</option>
@@ -150,10 +150,10 @@ export function Toolbar() {
 
             {/* Snap & Drag Utilities */}
             <div className="flex items-center gap-4 ml-auto">
-                <div className="flex items-center gap-2 bg-[#0a0a0a] px-3 h-7 rounded-md border border-[#333]">
-                    <span className="text-[10px] font-black text-gray-600 uppercase">Snap:</span>
-                    <span className="text-[11px] font-bold text-sky-400">Smart</span>
-                    <ChevronDownSmall className="w-2.5 h-2.5 text-gray-500" />
+                <div className="flex items-center gap-2 bg-studio-sunken px-3 h-7 rounded-md border border-studio-line">
+                    <span className="text-[10px] font-black text-studio-text-dim uppercase">Snap:</span>
+                    <span className="text-[11px] font-bold text-accent-cyan">Smart</span>
+                    <ChevronDownSmall className="w-2.5 h-2.5 text-studio-text-dim" />
                 </div>
             </div>
         </div>
@@ -167,7 +167,7 @@ function ToolButton({ icon, active = false, onClick, title }: { icon: React.Reac
         <button
             onClick={onClick}
             title={title}
-            className={`w-8 h-8 flex items-center justify-center rounded transition-all ${active ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-md shadow-sky-500/10' : 'text-gray-500 hover:text-white'}`}
+            className={`w-8 h-8 flex items-center justify-center rounded transition-all ${active ? 'bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/40 shadow-md shadow-accent-cyan/10' : 'text-studio-text-dim hover:text-white'}`}
         >
             {icon}
         </button>
