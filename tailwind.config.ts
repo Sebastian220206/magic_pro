@@ -24,6 +24,27 @@ const config: Config = {
                     accent: "var(--daw-accent)",
                     text: "var(--daw-text)",
                     "text-dim": "var(--daw-text-dim)",
+                },
+
+                /**
+                 * Studio surfaces — see the --studio-* block in globals.css.
+                 *
+                 * Named rather than left as arbitrary values so the chrome reads
+                 * as `bg-studio-panel` instead of `bg-[#0d141d]`, which is what
+                 * made the previous grey scheme impossible to retheme: 380
+                 * hard-coded hex tokens with no shared name between them.
+                 */
+                studio: {
+                    void: "var(--studio-void)",
+                    panel: "var(--studio-panel)",
+                    sunken: "var(--studio-sunken)",
+                    raised: "var(--studio-raised)",
+                    control: "var(--studio-control)",
+                    line: "var(--studio-line)",
+                    "line-strong": "var(--studio-line-strong)",
+                    text: "var(--studio-text)",
+                    "text-mid": "var(--studio-text-mid)",
+                    "text-dim": "var(--studio-text-dim)",
                 }
             },
 

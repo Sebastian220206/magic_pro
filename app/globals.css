@@ -19,6 +19,38 @@
     --accent-cyan-rgb: 34, 211, 238;
     --accent-cyan-glow: rgba(var(--accent-cyan-rgb), 0.35);
     --accent-cyan-glow-strong: rgba(var(--accent-cyan-rgb), 0.55);
+
+    /*
+     * Studio surfaces.
+     *
+     * The studio used a grey Logic-Pro scale — #1a1a1a panels, #444 borders —
+     * hard-coded across 26 components. These replace it with a near-black
+     * blue-tinted ground, so the cyan accent above reads as light rather than
+     * as just another colour. Every value is blue-shifted rather than neutral:
+     * a neutral grey next to cyan looks dirty.
+     *
+     * Deliberately separate from the --daw-* variables above, which are shared
+     * with /dashboard, /login and /p/[shareId] and must not move.
+     */
+    --studio-void: #04070b;
+    /* Page ground, behind everything. */
+    --studio-panel: #0d141d;
+    /* Standard panel fill. */
+    --studio-sunken: #080d14;
+    /* Wells, canvas beds, anything recessed. */
+    --studio-raised: #121b26;
+    /* Headers and list rows, one step up from a panel. */
+    --studio-control: #16202c;
+    /* Buttons, inputs, anything you click. */
+    --studio-line: rgba(var(--accent-cyan-rgb), 0.12);
+    /* Ordinary dividers. */
+    --studio-line-strong: rgba(var(--accent-cyan-rgb), 0.22);
+    /* Panel edges and focus. */
+    --studio-text: #e6f4f8;
+    /* Secondary labels. Sits between text and text-dim so the three tiers the
+       old grey scale had (gray-300/400/500) survive the remap. */
+    --studio-text-mid: #a3bacd;
+    --studio-text-dim: #7d94a8;
 }
 
 @layer base {
@@ -160,6 +192,116 @@
 
 .daw-scrollbar::-webkit-scrollbar-track {
     background: #111;
+}
+
+/*
+ * Studio scrollbars.
+ *
+ * These three names were defined seventeen times, in <style jsx> blocks spread
+ * over fifteen components, all saying `background: #333` with small accidental
+ * divergences (#444 in two, 8px in one). Because `<style jsx>` scopes to the
+ * component, every new panel had to paste the block again or get the browser
+ * default. One definition here serves all of them.
+ *
+ * Only the studio uses these classes; the marketing and account pages use
+ * .daw-scrollbar-thin.
+ */
+.custom-scrollbar,
+.custom-scrollbar-v,
+.custom-scrollbar-h {
+    scrollbar-width: thin;
+    scrollbar-color: var(--studio-line-strong) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.custom-scrollbar-v::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+.custom-scrollbar-h::-webkit-scrollbar {
+    height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track,
+.custom-scrollbar-v::-webkit-scrollbar-track,
+.custom-scrollbar-h::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb,
+.custom-scrollbar-v::-webkit-scrollbar-thumb,
+.custom-scrollbar-h::-webkit-scrollbar-thumb {
+    background: var(--studio-line-strong);
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar-v::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar-h::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-cyan);
+}
+
+/*
+ * The playhead.
+ *
+ * Drawn as three layers on one 1px element, because a playhead has to be both
+ * exact and unmissable and those pull in opposite directions:
+ *
+ *   - a near-white 1px core, so the reported position is unambiguous
+ *   - a 1px cyan ring via a zero-blur spread, which widens it to 3px of solid
+ *     colour without blurring the edge
+ *   - a soft outer glow, so it separates from clips of any colour
+ *
+ * The arrangement previously used `bg-accent-cyan/40` with a 20px blur: one
+ * translucent pixel under a wide smear, which disappeared against the clips.
+ * The ruler and the grid share this class so the two halves of the same line
+ * cannot drift apart.
+ */
+.studio-playhead {
+    background: #e8fbff;
+    box-shadow:
+        0 0 0 1px rgba(34, 211, 238, 0.75),
+        0 0 10px rgba(34, 211, 238, 0.9),
+        0 0 22px rgba(34, 211, 238, 0.35);
+}
+
+/* Scroll without a visible bar — used by toolbars that overflow on a phone. */
+.no-scrollbar {
+    scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+/*
+ * Accent glow, by name.
+ *
+ * The studio had 137 one-off `shadow-[...]` values in two competing
+ * vocabularies — `var(--accent-cyan-glow)` in four components and
+ * `rgba(14,165,233,…)` in a dozen more — so the same idea was spelled several
+ * ways and none of them could be adjusted centrally.
+ *
+ * Glow is deliberately reserved for accents, focus, selection and meters. The
+ * reference image glows on every surface, which photographs well but is
+ * tiring to work in and costs contrast exactly where it is needed most —
+ * behind a waveform.
+ */
+.glow-accent {
+    box-shadow: 0 0 12px var(--accent-cyan-glow);
+}
+
+.glow-accent-strong {
+    box-shadow: 0 0 18px var(--accent-cyan-glow-strong);
+}
+
+.glow-accent-inset {
+    box-shadow: inset 0 0 12px var(--accent-cyan-glow);
 }
 
 /*
