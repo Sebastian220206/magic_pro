@@ -31,6 +31,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 import manifest from '@/data/soundfontManifest.json';
+import { soundfontFileUrl } from './soundfontUrl';
 
 /** Ids are prefixed so a local font is never confused with a database row. */
 export const LOCAL_ID_PREFIX = 'local:';
@@ -128,7 +129,7 @@ function describe(fileName: string, fileSizeKb: number): LocalSoundfont {
         id: toLocalId(fileName),
         name: displayName(fileName),
         category,
-        fileUrl: `/soundfonts/${encodeURIComponent(fileName)}`,
+        fileUrl: soundfontFileUrl(fileName),
         fileSizeKb,
         storagePath: fileName,
         isGeneralMidi: category === 'General MIDI',

@@ -3,6 +3,8 @@
 import React, { useState } from 'react'
 import { useProjectStore } from '@/store/projectStore'
 import { neonTrackColor, neonTrackAlpha, neonTrackTextColor } from '@/lib/trackColor'
+import { InstrumentMenu } from './InstrumentMenu'
+import { DEFAULT_INSTRUMENT, trackFieldsFor, type InstrumentChoice } from '@/lib/instrumentCatalog'
 import {
     X, Music, Mic, Drum, Keyboard,
     Guitar, LayoutGrid, Check, Settings2,
@@ -78,6 +80,7 @@ export function NewTrackDialog({ onClose }: NewTrackDialogProps) {
     const [mainCategory, setMainCategory] = useState<MainCategory>(newTrackDefaults.mainCategory);
     const [subOption, setSubOption] = useState<SubOption>(newTrackDefaults.subOption as SubOption);
     const [detailsOpen, setDetailsOpen] = useState(true);
+    const [instrument, setInstrument] = useState<InstrumentChoice>(DEFAULT_INSTRUMENT);
 
     // Audio Routing State
     const [audioInput, setAudioInput] = useState('Input 1');
@@ -107,12 +110,12 @@ export function NewTrackDialog({ onClose }: NewTrackDialogProps) {
                 icon: icon as any,
                 recordEnabled: mainCategory === 'Audio' ? recordEnable : false,
                 inputMonitoring: mainCategory === 'Audio' ? inputMonitoring : false,
-                // `'software-instrument'` was also tested here, but this dialog
-                // never produced that type — typing the preset made the dead
-                // branch visible.
-                instrument: trackType === 'midi' || trackType === 'drummer'
-                    ? 'Steinway Piano'
-                    : undefined,
+                // Only playable types carry an instrument. `'software-instrument'`
+                // was also tested here, but this dialog never produced that type —
+                // typing the preset made the dead branch visible.
+                ...(trackType === 'midi' || trackType === 'drummer'
+                    ? trackFieldsFor(instrument)
+                    : {}),
             });
         }
         onClose();
@@ -331,22 +334,39 @@ export function NewTrackDialog({ onClose }: NewTrackDialogProps) {
                                     <>
                                         {/* Software Instrument / Pattern Details (Original Layout) */}
                                         <div className="space-y-4">
-                                            <div>
-                                                <label className="text-[12px] font-black text-studio-text-dim block mb-2">{subOption} Style:</label>
-                                                <div className="relative">
-                                                    <select className="w-full bg-studio-control border border-studio-line rounded px-3 py-1.5 text-[13px] font-bold text-studio-text appearance-none outline-none focus:ring-2 focus:ring-accent-cyan/30">
-                                                        <option>Freely</option>
-                                                        <option>Modern Pop</option>
-                                                        <option>Vintage Soul</option>
-                                                        <option>Electronic</option>
-                                                    </select>
-                                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                                                        <div className="bg-accent-cyan rounded p-0.5 text-white">
-                                                            <ChevronDownSmall className="w-4 h-4" />
+                                            {subOption === 'Software Instrument' ? (
+                                                /*
+                                                 * A software instrument needs an instrument, not a
+                                                 * performance style — "Freely / Modern Pop / Vintage
+                                                 * Soul" is a Session Player concept and was being
+                                                 * shown here with nothing behind it.
+                                                 */
+                                                <div>
+                                                    <label className="text-[12px] font-black text-studio-text-dim block mb-2">Instrument:</label>
+                                                    <InstrumentMenu
+                                                        value={instrument}
+                                                        onChange={setInstrument}
+                                                        accent={neonTrackColor(selectedColor)}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <label className="text-[12px] font-black text-studio-text-dim block mb-2">{subOption} Style:</label>
+                                                    <div className="relative">
+                                                        <select className="w-full bg-studio-control border border-studio-line rounded px-3 py-1.5 text-[13px] font-bold text-studio-text appearance-none outline-none focus:ring-2 focus:ring-accent-cyan/30">
+                                                            <option>Freely</option>
+                                                            <option>Modern Pop</option>
+                                                            <option>Vintage Soul</option>
+                                                            <option>Electronic</option>
+                                                        </select>
+                                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                                                            <div className="bg-accent-cyan rounded p-0.5 text-white">
+                                                                <ChevronDownSmall className="w-4 h-4" />
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
+                                            )}
                                             <div className="flex flex-col gap-2">
                                                 <label className="flex items-center gap-2 cursor-pointer group">
                                                     <div className="w-4 h-4 rounded-sm border border-studio-line bg-studio-control flex items-center justify-center group-hover:border-accent-cyan">
