@@ -1,24 +1,56 @@
 "use client"
 import { useProjectStore } from "@/store/projectStore"
+import { useMidiStore } from "@/store/midiStore"
+import { pitchToNoteName } from "@/engine/midi/types"
 import {
     X, ChevronDown, List,
     Calendar, Music, Filter,
     MoreHorizontal, ChevronRight,
     DivideCircle, LayoutList
 } from "lucide-react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
 export function ListEditors() {
-    const { showListEditors, toggleListEditors } = useProjectStore()
+    const { showListEditors, toggleListEditors, timeSignature } = useProjectStore()
+    const notes = useMidiStore(s => s.getCurrentClip()?.notes ?? null)
     const [activeTab, setActiveTab] = useState<'event' | 'marker' | 'tempo' | 'sig'>('event')
 
-    const events = [
-        { bar: 1, beat: 1, tick: 1, ch: 1, num: 'C3', val: 100, length: '1.0.0' },
-        { bar: 1, beat: 1, tick: 240, ch: 1, num: 'E3', val: 95, length: '0.2.0' },
-        { bar: 1, beat: 2, tick: 1, ch: 1, num: 'G3', val: 105, length: '1.0.0' },
-        { bar: 2, beat: 1, tick: 480, ch: 1, num: 'C4', val: 110, length: '0.1.0' },
-        { bar: 3, beat: 1, tick: 1, ch: 1, num: 'F3', val: 85, length: '2.0.0' },
-    ]
+    const beatsPerBar = Number(timeSignature?.split('/')[0]) || 4
+
+    /**
+     * The real events on the selected clip.
+     *
+     * This list previously rendered five hard-coded notes — C3, E3, G3, C4, F3
+     * — for every project. It looked like a working event list and reported
+     * the same five events whatever you had written, which is worse than
+     * showing nothing.
+     */
+    const events = useMemo(() => {
+        if (!notes) return []
+        return [...notes]
+            .sort((a, b) => a.startBeat - b.startBeat || b.pitch - a.pitch)
+            .map(n => {
+                const bar = Math.floor(n.startBeat / beatsPerBar) + 1
+                const beatInBar = n.startBeat - (bar - 1) * beatsPerBar
+                const beat = Math.floor(beatInBar) + 1
+                // Ticks are the classic 960 PPQN, so positions read the way
+                // they do in the transport.
+                const tick = Math.round((beatInBar % 1) * 960)
+                const lenBars = Math.floor(n.duration / beatsPerBar)
+                const lenBeats = Math.floor(n.duration % beatsPerBar)
+                const lenTicks = Math.round((n.duration % 1) * 960)
+                return {
+                    id: n.id,
+                    bar,
+                    beat,
+                    tick,
+                    ch: (n.channel ?? 0) + 1,
+                    num: pitchToNoteName(n.pitch),
+                    val: n.velocity,
+                    length: `${lenBars}.${lenBeats}.${lenTicks}`,
+                }
+            })
+    }, [notes, beatsPerBar])
 
     if (!showListEditors) return null
 
@@ -61,9 +93,14 @@ export function ListEditors() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
+                    {events.length === 0 && (
+                        <div className="p-4 text-[11px] text-studio-text-dim text-center">
+                            {notes ? 'This region has no events.' : 'Select a MIDI region to list its events.'}
+                        </div>
+                    )}
                     {events.map((ev, idx) => (
                         <div
-                            key={idx}
+                            key={ev.id}
                             className={`h-[24px] flex items-center px-3 border-b border-black/10 group cursor-pointer hover:bg-white/5 transition-colors ${idx % 2 === 0 ? 'bg-white/[0.01]' : ''}`}
                         >
                             <div className="w-12 text-[10px] font-black text-studio-text-mid group-hover:text-accent-cyan tabular-nums">
@@ -74,7 +111,7 @@ export function ListEditors() {
                             <div className="flex-1 flex items-center gap-2">
                                 <span className="text-[11px] font-black text-studio-text group-hover:text-white">{ev.num}</span>
                                 <div className="h-1 flex-1 bg-black/40 rounded-full overflow-hidden">
-                                    <div className="h-full bg-accent-cyan/30" style={{ width: `${ev.val}%` }}></div>
+                                    <div className="h-full bg-accent-cyan/30" style={{ width: `${(ev.val / 127) * 100}%` }}></div>
                                 </div>
                                 <span className="text-[10px] font-black text-accent-cyan/60 tabular-nums">{ev.val}</span>
                             </div>

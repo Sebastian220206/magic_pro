@@ -6,7 +6,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { ProjectSettingsDialog } from "./ProjectSettingsDialog"
 import { NewTrackDialog } from "./NewTrackDialog"
 import {
-    Plus, Settings, ChevronDown, Search, LayoutGrid,
+    Plus, Settings, ChevronDown, Search, LayoutGrid, LayoutList,
     Layout, Maximize2,
     HelpCircle, Music,
     MousePointer2, Zap,
@@ -29,6 +29,8 @@ export function TracksAreaMenuBar() {
         toggleExportDialog: s.toggleExportDialog, toggleShareDialog: s.toggleShareDialog,
         selectedClipIds: s.selectedClipIds,
         showSearchAndSelect: s.showSearchAndSelect,
+        showListEditors: s.showListEditors,
+        toggleListEditors: s.toggleListEditors,
         toggleSearchAndSelect: s.toggleSearchAndSelect,
         copySelectedClips: s.copySelectedClips,
         pasteClipsAtPlayhead: s.pasteClipsAtPlayhead,
@@ -52,6 +54,7 @@ export function TracksAreaMenuBar() {
         showSearchAndSelect, toggleSearchAndSelect,
         copySelectedClips,
         pasteClipsAtPlayhead,
+        showListEditors, toggleListEditors,
         toggleLiveLoops, showLiveLoopsGrid,
         toggleTracksArea, showTracksArea,
         trackHeight, setTrackHeight,
@@ -161,6 +164,12 @@ export function TracksAreaMenuBar() {
                      * the app could open it.
                      */}
                     <ViewToggle icon={Settings} active={showProjectSettings} onClick={() => setShowProjectSettings(true)} />
+                    {/*
+                     * The List Editors panel was rendered by the studio page but
+                     * `toggleListEditors` had no caller anywhere in the app, so
+                     * `showListEditors` could never become true.
+                     */}
+                    <ViewToggle icon={LayoutList} active={showListEditors} onClick={() => toggleListEditors()} />
                 </div>
 
                 <div className="w-px h-5 bg-white/10 mx-1"></div>

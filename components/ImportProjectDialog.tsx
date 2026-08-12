@@ -1,7 +1,25 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { loadFromIndexedDB } from '@/engine/persistence/projectPersistence'
 import { X, Search, FileDown, Plus, Check, RefreshCw } from 'lucide-react'
+
+interface ImportTrack {
+    num: number
+    name: string
+    type: string
+    content: boolean
+    plugins: boolean
+    sends: boolean
+}
+
+interface ApiProject {
+    id: string
+    name: string
+    tempo: number | null
+    keySignature: string | null
+    updatedAt: string
+}
 
 interface ImportProjectDialogProps {
     onClose: () => void
@@ -11,20 +29,70 @@ export function ImportProjectDialog({ onClose }: ImportProjectDialogProps) {
     const [selectedProject, setSelectedProject] = useState<string | null>(null);
     const [importStep, setImportStep] = useState<'browse' | 'select'>('browse');
 
-    const fakeProjects = [
-        { id: '1', name: 'Neon Dreams', date: '2026-03-05', size: '6.1 MB', tempo: 112, key: 'C# Major' },
-        { id: '2', name: 'Ambient Vibe 2', date: '2026-02-28', size: '12.4 MB', tempo: 90, key: 'G Minor' },
-        { id: '3', name: 'Pumping Synth', date: '2026-03-08', size: '4.2 MB', tempo: 124, key: 'E Major' },
-    ];
+    /*
+     * The user's real projects.
+     *
+     * This dialog used to list three invented ones — "Neon Dreams", "Ambient
+     * Vibe 2", "Pumping Synth" — hard-coded as `fakeProjects`. It looked like a
+     * working project browser and showed the same three names to everybody,
+     * including on the deployed site.
+     */
+    const [projects, setProjects] = useState<ApiProject[] | null>(null);
+    const [loadError, setLoadError] = useState(false);
+    const [search, setSearch] = useState('');
 
-    const fakeTracks = [
-        { num: 1, name: 'Marker Track', type: 'Global', content: true, plugins: false, sends: false },
-        { num: 2, name: 'Tempo Track', type: 'Global', content: true, plugins: false, sends: false },
-        { num: 3, name: 'Kick', type: 'Audio', content: true, plugins: true, sends: true },
-        { num: 4, name: 'Snare', type: 'Audio', content: true, plugins: true, sends: true },
-        { num: 5, name: 'Synth Lead', type: 'Inst', content: true, plugins: true, sends: true },
-        { num: 6, name: 'Bass Loop', type: 'Audio', content: true, plugins: false, sends: true },
-    ];
+    useEffect(() => {
+        let cancelled = false;
+        fetch('/api/projects')
+            .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+            .then(data => { if (!cancelled) setProjects(Array.isArray(data) ? data : []); })
+            .catch(() => { if (!cancelled) setLoadError(true); });
+        return () => { cancelled = true; };
+    }, []);
+
+    const visibleProjects = useMemo(() => {
+        const list = projects ?? [];
+        const q = search.trim().toLowerCase();
+        return q ? list.filter(p => p.name.toLowerCase().includes(q)) : list;
+    }, [projects, search]);
+
+    const selected = visibleProjects.find(p => p.id === selectedProject) ?? null;
+
+    /*
+     * The chosen project's real tracks.
+     *
+     * There is no single-project API route — `/api/projects` returns metadata
+     * only — so the track list comes from the same IndexedDB record the store
+     * saves to. A project that has never been opened on this device has no
+     * local copy, which the UI says rather than inventing six tracks.
+     */
+    const [tracks, setTracks] = useState<ImportTrack[] | null>(null);
+
+    useEffect(() => {
+        if (importStep !== 'select' || !selectedProject) return;
+        let cancelled = false;
+        setTracks(null);
+        loadFromIndexedDB(selectedProject)
+            .then(project => {
+                if (cancelled) return;
+                // Tracks live under `state` on the persisted record, not at the top level.
+                const list = (project?.state?.tracks ?? []) as any[];
+                setTracks(list.map((t, i) => ({
+                    num: i + 1,
+                    name: t?.name ?? `Track ${i + 1}`,
+                    type: t?.type === 'audio' ? 'Audio'
+                        : t?.type === 'midi' ? 'Inst'
+                        : t?.type === 'drummer' ? 'Drummer'
+                        : t?.type === 'external-midi' ? 'MIDI'
+                        : 'Global',
+                    content: Boolean(t?.clips?.length),
+                    plugins: Boolean(t?.plugins?.length),
+                    sends: Boolean(t?.sends?.length),
+                })));
+            })
+            .catch(() => { if (!cancelled) setTracks([]); });
+        return () => { cancelled = true; };
+    }, [importStep, selectedProject]);
 
     return (
         <div className="fixed inset-0 z-[6000] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
@@ -49,7 +117,12 @@ export function ImportProjectDialog({ onClose }: ImportProjectDialogProps) {
                                 <span className="text-[11px] font-black text-studio-text-dim uppercase tracking-widest">Select Source Project</span>
                                 <div className="relative">
                                     <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-studio-text-mid" />
-                                    <input className="bg-studio-control border border-studio-line rounded-md py-1 pl-7 pr-3 text-[12px] w-48 outline-none focus:ring-1 focus:ring-accent-cyan" placeholder="Search projects..." />
+                                    <input
+                                        value={search}
+                                        onChange={e => setSearch(e.target.value)}
+                                        className="bg-studio-control border border-studio-line rounded-md py-1 pl-7 pr-3 text-[12px] w-48 outline-none focus:ring-1 focus:ring-accent-cyan"
+                                        placeholder="Search projects..."
+                                    />
                                 </div>
                             </div>
 
@@ -61,16 +134,27 @@ export function ImportProjectDialog({ onClose }: ImportProjectDialogProps) {
                                     <span className="text-[10px] font-black text-studio-text-mid uppercase tracking-tight text-right">Size</span>
                                 </div>
                                 <div className="flex-1 overflow-y-auto overflow-x-hidden divide-y divide-black/[0.03]">
-                                    {fakeProjects.map(p => (
+                                    {projects === null && !loadError && (
+                                        <div className="p-6 text-center text-[12px] text-studio-text-dim">Loading projects…</div>
+                                    )}
+                                    {loadError && (
+                                        <div className="p-6 text-center text-[12px] text-red-400">Could not load your projects.</div>
+                                    )}
+                                    {projects !== null && visibleProjects.length === 0 && (
+                                        <div className="p-6 text-center text-[12px] text-studio-text-dim">
+                                            {search ? 'No projects match that search.' : 'You have no other projects yet.'}
+                                        </div>
+                                    )}
+                                    {visibleProjects.map(p => (
                                         <div
                                             key={p.id}
                                             onClick={() => setSelectedProject(p.id)}
                                             className={`grid grid-cols-4 px-4 py-3 cursor-pointer transition-all ${selectedProject === p.id ? 'bg-accent-cyan text-white' : 'hover:bg-accent-cyan/10 text-studio-text-dim'}`}
                                         >
                                             <span className="text-[13px] font-bold truncate">{p.name}</span>
-                                            <span className={`text-[12px] text-center ${selectedProject === p.id ? 'text-white/80' : 'text-studio-text-mid'}`}>{p.date}</span>
-                                            <span className={`text-[12px] text-center ${selectedProject === p.id ? 'text-white/80' : 'text-studio-text-mid'}`}>{p.tempo} BPM, {p.key}</span>
-                                            <span className={`text-[12px] text-right ${selectedProject === p.id ? 'text-white/80' : 'text-studio-text-mid'}`}>{p.size}</span>
+                                            <span className={`text-[12px] text-center ${selectedProject === p.id ? 'text-white/80' : 'text-studio-text-mid'}`}>{new Date(p.updatedAt).toLocaleDateString()}</span>
+                                            <span className={`text-[12px] text-center ${selectedProject === p.id ? 'text-white/80' : 'text-studio-text-mid'}`}>{p.tempo ?? '—'} BPM{p.keySignature ? `, ${p.keySignature}` : ''}</span>
+                                            <span className={`text-[12px] text-right ${selectedProject === p.id ? 'text-white/80' : 'text-studio-text-mid'}`}>—</span>
                                         </div>
                                     ))}
                                 </div>
@@ -81,7 +165,7 @@ export function ImportProjectDialog({ onClose }: ImportProjectDialogProps) {
                             <div className="mb-4 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <span className="text-[11px] font-black text-studio-text-dim uppercase tracking-widest">Import Tracks from:</span>
-                                    <span className="text-[12px] font-bold text-accent-cyan">Neon Dreams</span>
+                                    <span className="text-[12px] font-bold text-accent-cyan">{selected?.name ?? 'Project'}</span>
                                 </div>
                                 <div className="flex gap-2">
                                     <button className="px-3 py-1 bg-studio-control border border-studio-line rounded text-[11px] font-bold hover:bg-white/[0.03]">Select All</button>
@@ -99,7 +183,15 @@ export function ImportProjectDialog({ onClose }: ImportProjectDialogProps) {
                                     <span className="text-[10px] font-black text-studio-text-mid uppercase tracking-tight text-center">Sends</span>
                                 </div>
                                 <div className="flex-1 overflow-y-auto divide-y divide-black/[0.03]">
-                                    {fakeTracks.map((t, i) => (
+                                    {tracks === null && (
+                                        <div className="p-6 text-center text-[12px] text-studio-text-dim">Reading the project…</div>
+                                    )}
+                                    {tracks?.length === 0 && (
+                                        <div className="p-6 text-center text-[12px] text-studio-text-dim">
+                                            No local copy of this project, so its tracks cannot be listed. Open it once to make it available here.
+                                        </div>
+                                    )}
+                                    {(tracks ?? []).map((t, i) => (
                                         <div key={i} className="grid grid-cols-[40px_1fr_80px_60px_60px_60px] px-4 py-2.5 items-center hover:bg-accent-cyan/10 transition-colors">
                                             <span className="text-[11px] font-bold text-studio-text-mid tabular-nums">{t.num}</span>
                                             <div className="flex items-center gap-3">
