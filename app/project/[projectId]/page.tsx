@@ -2,6 +2,7 @@
 import { useEffect, useRef, useCallback, useState } from "react"
 import { audioEngine } from "@/engine/AudioEngineAdapter"
 import { useAudioPlayer } from "@/engine/useAudioPlayer"
+import { createAutosave } from '@/engine/persistence/autosave'
 import { TransportBar } from "@/components/TransportBar"
 import { Inspector } from "@/components/Inspector"
 import { TrackList } from "@/components/TrackList"
@@ -96,6 +97,17 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
     // Wire the audio engine (buffer loading, scheduler, track routing).
     // Must be called inside the component so hooks work correctly.
     useAudioPlayer();
+
+    /*
+     * Autosave.
+     *
+     * `createAutosave` and its five tests have existed for a while; nothing
+     * ever called it, so a browser DAW was losing everything since the last
+     * manual save on a tab crash. It debounces on the persistence-relevant
+     * slices and writes through the same serialize/IndexedDB path as File >
+     * Save, so an autosaved project and a hand-saved one are the same bytes.
+     */
+    useEffect(() => createAutosave(useProjectStore.subscribe, useProjectStore.getState), []);
 
     useEffect(() => {
         try {

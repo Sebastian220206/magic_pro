@@ -2,6 +2,8 @@
 import React, { useCallback } from 'react'
 import { useProjectStore } from '@/store/projectStore'
 import { PluginHost } from '@/components/plugins/PluginHost'
+import { ChannelEQ } from '@/components/ChannelEQ'
+import { BUILTIN_PLUGIN_IDS, resolvePluginId } from '@/engine/plugins/pluginIds'
 import { getBuiltinManifest } from '@/engine/plugins/registerBuiltins'
 import { WamGuiMount } from '@/components/plugins/WamGuiMount'
 import { WamInsertProcessor } from '@/engine/plugins/wam/wamProcessor'
@@ -30,6 +32,12 @@ export function PluginEditorWindow() {
     }
 
     const manifest = getBuiltinManifest(plugin.pluginId)
+    /*
+     * The Channel EQ has a purpose-built editor — eight draggable bands over a
+     * live analyser — that nothing rendered. Opening an EQ fell through to the
+     * manifest-driven host, i.e. a column of numeric sliders for a curve.
+     */
+    const isChannelEq = resolvePluginId(plugin.pluginId) === BUILTIN_PLUGIN_IDS.eq
     const onParamChange = handleParamChange(trackId, pluginId)
 
     // Live processor for this slot, so a WAM can render its own GUI.
@@ -46,7 +54,9 @@ export function PluginEditorWindow() {
                     <X className="w-4 h-4" />
                 </button>
 
-                {wamProcessor ? (
+                {isChannelEq ? (
+                    <ChannelEQ trackId={trackId} pluginId={pluginId} />
+                ) : wamProcessor ? (
                     // A Web Audio Module ships its own interface; prefer it over
                     // anything we could generate.
                     <div className="bg-studio-panel rounded-lg border border-black p-4 min-w-[380px]">

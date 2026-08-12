@@ -3,7 +3,6 @@
 import React, { useRef, useEffect, useState, useCallback, memo, useMemo } from 'react';
 import { PianoKeyboard } from './PianoKeyboard';
 import { subscribeToActiveNotes } from '@/engine/midi/liveMidiInput';
-import { PianoRollTools } from './PianoRollTools';
 import { EventEditor } from './EventEditor';
 import { GoToBeatDialog } from './GoToBeatDialog';
 import { LocateNoteDialog } from './LocateNoteDialog';

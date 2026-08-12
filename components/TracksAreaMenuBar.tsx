@@ -155,6 +155,12 @@ export function TracksAreaMenuBar() {
                 {/* Utility Toggles (Waveform, Scrub, etc.) */}
                 <div className="flex items-center gap-1">
                     <ViewToggle icon={Search} active={showSearchAndSelect} onClick={() => toggleSearchAndSelect(!showSearchAndSelect)} />
+                    {/*
+                     * Project Settings had a fully built sheet, a state flag and
+                     * an import — but no trigger and no render, so nothing in
+                     * the app could open it.
+                     */}
+                    <ViewToggle icon={Settings} active={showProjectSettings} onClick={() => setShowProjectSettings(true)} />
                 </div>
 
                 <div className="w-px h-5 bg-white/10 mx-1"></div>
@@ -192,6 +198,10 @@ export function TracksAreaMenuBar() {
                 open={isToolMenuOpen} 
                 onClose={() => setIsToolMenuOpen(false)} 
             />
+
+            {showProjectSettings && (
+                <ProjectSettingsDialog onClose={() => setShowProjectSettings(false)} />
+            )}
         </div>
     )
 }
