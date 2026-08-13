@@ -171,6 +171,8 @@ export function Mixer() {
                     />
                 ))}
 
+                <VcaStrips />
+
                 {/* Master Output Strip */}
                 <MixerChannelStrip
                     track={null}
@@ -452,7 +454,7 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                 {/* Output Routing */}
                 <OutputRouting track={track} isMaster={isMaster} />
 
-                <div className="h-6 bg-black/40 border border-white/5 rounded-sm flex items-center justify-center text-[9px] font-black text-studio-text-dim uppercase mb-1">None</div>
+                <GroupSlot track={track} />
 
                 <div className="h-6 bg-black/60 border border-accent-cyan/20 rounded-sm flex items-center justify-center text-[9px] font-black text-[#63ed63] uppercase mb-4 shadow-inner">Read</div>
 
@@ -640,6 +642,183 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
         </div>
     )
 })
+
+/**
+ * The channel strip's Group slot.
+ *
+ * Was a static "None" label. Mute/solo groups existed as a 492-line manager
+ * that nothing imported, so a Logic user looking for the Group slot found a
+ * word that never changed.
+ *
+ * Muting a group mutes its members through the store, so the M buttons on the
+ * individual strips update too — the group is not a separate mute that could
+ * disagree with the track's own.
+ */
+function GroupSlot({ track }: { track: any }) {
+    const {
+        muteSoloGroups, createMuteSoloGroup, setMuteSoloGroupTracks,
+        toggleMuteSoloGroupMute, toggleMuteSoloGroupSolo, deleteMuteSoloGroup,
+    } = useProjectStore()
+    const [open, setOpen] = useState(false)
+
+    if (!track) {
+        return <div className="h-6 bg-black/40 border border-white/5 rounded-sm flex items-center justify-center text-[9px] font-black text-studio-text-dim uppercase mb-1">None</div>
+    }
+
+    const mine = muteSoloGroups.filter((g: any) => g.trackIds.includes(track.id))
+    const label = mine.length === 0 ? 'None' : mine.length === 1 ? mine[0].name : `${mine.length} groups`
+    const active = mine.some((g: any) => g.muted || g.soloed)
+
+    const assign = (groupId: string, on: boolean) => {
+        const group = muteSoloGroups.find((g: any) => g.id === groupId)
+        if (!group) return
+        setMuteSoloGroupTracks(
+            groupId,
+            on ? [...group.trackIds, track.id] : group.trackIds.filter((id: string) => id !== track.id)
+        )
+    }
+
+    return (
+        <div className="relative mb-1">
+            <button
+                onClick={() => setOpen(v => !v)}
+                title="Mute/solo group"
+                className={`w-full h-6 rounded-sm flex items-center justify-center text-[9px] font-black uppercase truncate px-1 border transition-colors ${
+                    active
+                        ? 'bg-accent-cyan/20 border-accent-cyan/50 text-accent-cyan'
+                        : mine.length
+                            ? 'bg-black/40 border-studio-line text-studio-text'
+                            : 'bg-black/40 border-white/5 text-studio-text-dim'
+                }`}
+            >
+                {label}
+            </button>
+
+            {open && (
+                <>
+                    <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+                    <div className="absolute z-50 left-0 top-full mt-1 w-[210px] bg-studio-raised border border-studio-line-strong rounded shadow-2xl p-2 text-xs">
+                        <div className="text-[8px] uppercase tracking-widest text-studio-text-dim mb-1.5 px-1">Groups</div>
+
+                        {muteSoloGroups.length === 0 && (
+                            <div className="px-1 py-2 text-[10px] text-studio-text-dim">No groups yet.</div>
+                        )}
+
+                        {muteSoloGroups.map((g: any) => {
+                            const member = g.trackIds.includes(track.id)
+                            return (
+                                <div key={g.id} className="flex items-center gap-1 px-1 py-0.5 rounded hover:bg-white/5">
+                                    <button
+                                        onClick={() => assign(g.id, !member)}
+                                        className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
+                                    >
+                                        <span
+                                            className="w-3 h-3 rounded-sm border shrink-0 flex items-center justify-center"
+                                            style={{ borderColor: g.color, backgroundColor: member ? g.color : 'transparent' }}
+                                        />
+                                        <span className="truncate text-[11px] text-studio-text">{g.name}</span>
+                                    </button>
+                                    <button
+                                        onClick={() => toggleMuteSoloGroupMute(g.id)}
+                                        title="Mute group"
+                                        className={`w-5 h-5 rounded text-[9px] font-black ${g.muted ? 'bg-amber-500 text-[#04070b]' : 'text-studio-text-dim hover:text-studio-text'}`}
+                                    >M</button>
+                                    <button
+                                        onClick={() => toggleMuteSoloGroupSolo(g.id)}
+                                        title="Solo group"
+                                        className={`w-5 h-5 rounded text-[9px] font-black ${g.soloed ? 'bg-accent-cyan text-[#04070b]' : 'text-studio-text-dim hover:text-studio-text'}`}
+                                    >S</button>
+                                    <button
+                                        onClick={() => deleteMuteSoloGroup(g.id)}
+                                        title="Delete group"
+                                        className="w-4 h-5 text-[11px] text-studio-text-dim hover:text-red-400"
+                                    >&times;</button>
+                                </div>
+                            )
+                        })}
+
+                        <button
+                            onClick={() => createMuteSoloGroup(`Group ${muteSoloGroups.length + 1}`, [track.id])}
+                            className="w-full mt-1.5 px-2 py-1 rounded border border-studio-line text-[10px] font-bold text-studio-text hover:border-accent-cyan hover:text-accent-cyan transition-colors"
+                        >
+                            + New group with this track
+                        </button>
+                    </div>
+                </>
+            )}
+        </div>
+    )
+}
+
+/**
+ * VCA strips.
+ *
+ * The mixer already had a VCA filter tab with nothing behind it — no VCA could
+ * be created, so the tab was always empty. A VCA scales its members' output
+ * without moving their faders, which is the whole point: pull it down and back
+ * up and every member is exactly where it was.
+ */
+function VcaStrips() {
+    const { vcaFaders, createVcaFader, deleteVcaFader, setVcaFaderGain, tracks } = useProjectStore()
+
+    return (
+        <>
+            {vcaFaders.map((vca: any) => (
+                <div
+                    key={vca.id}
+                    className="w-[120px] h-full flex flex-col border-r border-black shrink-0 bg-studio-panel"
+                >
+                    <div className="p-2 flex flex-col gap-1.5 h-full">
+                        <div
+                            className="h-6 rounded-sm flex items-center justify-center text-[9px] font-black uppercase truncate px-1"
+                            style={{ backgroundColor: `${vca.color}33`, color: vca.color, border: `1px solid ${vca.color}66` }}
+                            title={`${vca.trackIds.length} track(s)`}
+                        >
+                            {vca.name}
+                        </div>
+
+                        <div className="text-[8px] text-center text-studio-text-dim uppercase tracking-widest">
+                            VCA · {vca.trackIds.length}
+                        </div>
+
+                        <div className="flex-1 flex flex-col items-center justify-end pb-4 gap-2">
+                            <div className="text-[10px] font-black tabular-nums" style={{ color: vca.color }}>
+                                {vca.gain > 0 ? '+' : ''}{vca.gain.toFixed(1)} dB
+                            </div>
+                            <input
+                                type="range"
+                                min={-60}
+                                max={12}
+                                step={0.5}
+                                value={vca.gain}
+                                onChange={e => setVcaFaderGain(vca.id, Number(e.target.value))}
+                                title="VCA gain"
+                                className="h-[140px] cursor-pointer"
+                                style={{ writingMode: 'vertical-lr' as any, direction: 'rtl', accentColor: vca.color }}
+                            />
+                            <button
+                                onClick={() => deleteVcaFader(vca.id)}
+                                className="text-[9px] font-black text-studio-text-dim hover:text-red-400 uppercase"
+                            >
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ))}
+
+            <div className="w-[120px] h-full flex items-center justify-center border-r border-black shrink-0 bg-studio-panel/50">
+                <button
+                    onClick={() => createVcaFader(`VCA ${vcaFaders.length + 1}`, tracks.map((t: any) => t.id))}
+                    title="Create VCA fader"
+                    className="px-3 py-2 rounded border border-studio-line text-[10px] font-black uppercase text-studio-text-dim hover:text-accent-cyan hover:border-accent-cyan transition-colors"
+                >
+                    + VCA
+                </button>
+            </div>
+        </>
+    )
+}
 
 function PluginMenu({ onSelect, onBrowse }: {
     onSelect: (type: string) => void;

@@ -24,6 +24,7 @@ import { BUILTIN_PLUGIN_IDS, BUILTIN_PLUGIN_NAMES, resolvePluginId } from '@/eng
 import { getGridSize } from '@/engine/midi/quantization';
 import type { GridDivision } from '@/engine/midi/types';
 import { NEON_TRACK_PALETTE } from '@/lib/trackColor'
+import { MuteSoloGroupManager, type MuteSoloGroup } from '@/engine/mixer/muteSoloGroups'
 
 interface GlobalTrackPoint {
     time: number; // beats
@@ -260,6 +261,24 @@ interface ProjectState {
     keySignature: string;
     playing: boolean;
     playhead: number;
+    /**
+     * Mute/solo groups.
+     *
+     * The store owns the list so it serializes with the project; the manager in
+     * `engine/mixer/muteSoloGroups` supplies the logic. Keeping the groups in a
+     * long-lived manager instance instead would put them outside the saved
+     * project and outside undo.
+     */
+    muteSoloGroups: MuteSoloGroup[];
+    /**
+     * VCA faders.
+     *
+     * A VCA scales its member tracks without moving their own faders, so the
+     * stored per-track volume stays the number the user set. `trackIds` is a
+     * plain array rather than the manager's `Map` of offsets because the store
+     * is serialized to JSON, and a Map silently persists as `{}`.
+     */
+    vcaFaders: { id: string; name: string; gain: number; color: string; trackIds: string[] }[];
     tracks: Track[];
     clips: Clip[];
     annotations: TimelineAnnotation[];
@@ -514,6 +533,16 @@ interface ProjectState {
     toggleCreateTrackUsing: (show: boolean, items?: any[]) => void;
     createTrackFromSamplerType: (type: 'Quick Sampler (Original)' | 'Quick Sampler (Optimized)' | 'Drum Machine Designer' | 'Sample Alchemy' | 'Sampler (Zone Per Note)', items: any[]) => void;
     // Ownership is derived from the server session; the client cannot choose it.
+    createVcaFader: (name: string, trackIds?: string[]) => void;
+    deleteVcaFader: (vcaId: string) => void;
+    setVcaFaderTracks: (vcaId: string, trackIds: string[]) => void;
+    setVcaFaderGain: (vcaId: string, gainDb: number) => void;
+    applyVcaGains: (trackIds?: string[]) => void;
+    createMuteSoloGroup: (name: string, trackIds?: string[]) => void;
+    deleteMuteSoloGroup: (groupId: string) => void;
+    setMuteSoloGroupTracks: (groupId: string, trackIds: string[]) => void;
+    toggleMuteSoloGroupMute: (groupId: string) => void;
+    toggleMuteSoloGroupSolo: (groupId: string) => void;
     saveProject: () => Promise<void>;
     saveAs: (data: any) => Promise<void>;
     saveCopyAs: (data: any) => Promise<void>;
@@ -950,6 +979,8 @@ function createHistorySnapshot(state: ProjectState): Partial<ProjectState> {
         // An alternative restored from a project that predates track/clip
         // snapshots has neither array; mapping them unguarded threw and took
         // undo down with it.
+        muteSoloGroups: (state.muteSoloGroups ?? []).map(g => ({ ...g, trackIds: [...g.trackIds] })),
+        vcaFaders: (state.vcaFaders ?? []).map(v => ({ ...v, trackIds: [...v.trackIds] })),
         alternatives: state.alternatives
             ? state.alternatives.map(a => ({
                 ...a,
@@ -1386,6 +1417,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     trackHeight: 70,
     snap: 'quarter',
     isDirty: false,
+    muteSoloGroups: [],
+    vcaFaders: [],
     loadError: null,
     controlBarSettings: {
         showViews: true, showTransport: true, showDisplay: true, showModes: true,
@@ -1994,6 +2027,126 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         });
         set({ showCreateTrackUsing: false, draggedItems: null });
     },
+
+    /*
+     * Mute/solo groups.
+     *
+     * Each action rebuilds a manager from stored state, calls it, then writes
+     * both the group list and the affected tracks back. The manager is the
+     * logic; the store stays the single source of truth, so groups persist with
+     * the project and cannot drift from what the mixer shows.
+     */
+    /*
+     * VCA faders.
+     *
+     * The gain is applied by re-sending each member's volume to the audio
+     * engine scaled by the VCA, rather than by rewriting the track's stored
+     * volume. Rewriting it would make the VCA destructive: pull a VCA down and
+     * back up and every member's own fader would have been overwritten.
+     */
+    createVcaFader: (name, trackIds = []) => set(s => ({
+        vcaFaders: [...s.vcaFaders, {
+            id: `vca-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            name,
+            gain: 0,
+            color: NEON_TRACK_PALETTE[s.vcaFaders.length % NEON_TRACK_PALETTE.length],
+            trackIds: [...trackIds],
+        }],
+        isDirty: true,
+    })),
+
+    deleteVcaFader: (vcaId) => {
+        const vca = get().vcaFaders.find(v => v.id === vcaId);
+        set(s => ({ vcaFaders: s.vcaFaders.filter(v => v.id !== vcaId), isDirty: true }));
+        // Restore the members to their own fader positions.
+        if (vca) get().applyVcaGains(vca.trackIds);
+    },
+
+    setVcaFaderTracks: (vcaId, trackIds) => {
+        const before = get().vcaFaders.find(v => v.id === vcaId)?.trackIds ?? [];
+        set(s => ({
+            vcaFaders: s.vcaFaders.map(v => (v.id === vcaId ? { ...v, trackIds: [...trackIds] } : v)),
+            isDirty: true,
+        }));
+        get().applyVcaGains([...new Set([...before, ...trackIds])]);
+    },
+
+    setVcaFaderGain: (vcaId, gainDb) => {
+        set(s => ({
+            vcaFaders: s.vcaFaders.map(v => (v.id === vcaId ? { ...v, gain: gainDb } : v)),
+            isDirty: true,
+        }));
+        const vca = get().vcaFaders.find(v => v.id === vcaId);
+        if (vca) get().applyVcaGains(vca.trackIds);
+    },
+
+    /** Push each track's own volume, scaled by every VCA controlling it. */
+    applyVcaGains: (trackIds) => {
+        const { tracks, vcaFaders } = get();
+        const targets = trackIds ?? tracks.map(t => t.id);
+        for (const trackId of targets) {
+            const track = tracks.find(t => t.id === trackId);
+            if (!track) continue;
+            const totalDb = vcaFaders
+                .filter(v => v.trackIds.includes(trackId))
+                .reduce((sum, v) => sum + v.gain, 0);
+            const scaled = (track.volume ?? 1) * Math.pow(10, totalDb / 20);
+            try {
+                audioEngine.setTrackVolume(trackId, Math.max(0, Math.min(2, scaled)));
+            } catch { /* engine not ready yet */ }
+        }
+    },
+
+    createMuteSoloGroup: (name, trackIds = []) => set(s => {
+        const mgr = new MuteSoloGroupManager();
+        mgr.setState({ groups: s.muteSoloGroups.map(g => ({ ...g })) });
+        const group = mgr.createGroup(name);
+        if (!group) return {};
+        for (const id of trackIds) mgr.addTrackToGroup(group.id, id);
+        return { muteSoloGroups: [...mgr.getState().groups], isDirty: true };
+    }),
+
+    deleteMuteSoloGroup: (groupId) => set(s => {
+        const mgr = new MuteSoloGroupManager();
+        mgr.setState({ groups: s.muteSoloGroups.map(g => ({ ...g })) });
+        if (!mgr.deleteGroup(groupId)) return {};
+        return { muteSoloGroups: [...mgr.getState().groups], isDirty: true };
+    }),
+
+    setMuteSoloGroupTracks: (groupId, trackIds) => set(s => ({
+        muteSoloGroups: s.muteSoloGroups.map(g =>
+            g.id === groupId ? { ...g, trackIds: [...trackIds] } : g
+        ),
+        isDirty: true,
+    })),
+
+    toggleMuteSoloGroupMute: (groupId) => set(s => {
+        const mgr = new MuteSoloGroupManager();
+        mgr.setState({ groups: s.muteSoloGroups.map(g => ({ ...g })) });
+        const group = mgr.getGroup(groupId);
+        if (!group) return {};
+        const affected = new Set(mgr.muteGroup(groupId, !group.muted));
+        const muted = !group.muted;
+        return {
+            muteSoloGroups: [...mgr.getState().groups],
+            tracks: s.tracks.map(t => (affected.has(t.id) ? { ...t, muted } : t)),
+            isDirty: true,
+        };
+    }),
+
+    toggleMuteSoloGroupSolo: (groupId) => set(s => {
+        const mgr = new MuteSoloGroupManager();
+        mgr.setState({ groups: s.muteSoloGroups.map(g => ({ ...g })) });
+        const group = mgr.getGroup(groupId);
+        if (!group) return {};
+        const affected = new Set(mgr.soloGroup(groupId, !group.soloed));
+        const soloed = !group.soloed;
+        return {
+            muteSoloGroups: [...mgr.getState().groups],
+            tracks: s.tracks.map(t => (affected.has(t.id) ? { ...t, soloed } : t)),
+            isDirty: true,
+        };
+    }),
 
     saveProject: async () => {
         const state = get();
