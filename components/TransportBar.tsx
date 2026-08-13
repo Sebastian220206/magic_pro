@@ -17,6 +17,108 @@ import { MasterVolume, OutputMeter } from "./MasterOutput"
 import { GiantDisplay } from "./GiantDisplay"
 import { MIDIActivity } from "./MIDIActivity"
 
+/** Time signatures the display offers. Matches what `setTimeSignature` accepts. */
+const TIME_SIGNATURES = [
+    '4/4', '3/4', '2/4', '5/4', '6/4',
+    '2/2', '3/8', '6/8', '7/8', '9/8', '12/8',
+];
+
+const KEY_SIGNATURES = [
+    'C maj', 'G maj', 'D maj', 'A maj', 'E maj', 'B maj', 'F# maj', 'F maj',
+    'Bb maj', 'Eb maj', 'Ab maj', 'Db maj',
+    'A min', 'E min', 'B min', 'F# min', 'C# min', 'G# min', 'D min',
+    'G min', 'C min', 'F min', 'Bb min', 'Eb min',
+];
+
+/**
+ * A clickable LCD field with a value picker.
+ *
+ * Portalled to <body> like the display-mode menu: as a child of the transport
+ * bar it would be painted under the toolbar and the timeline, because an
+ * ancestor establishes a stacking context and no z-index can escape one.
+ *
+ * `stopPropagation` on the trigger matters — the whole LCD is itself a click
+ * target that opens the display-mode menu, so without it choosing a signature
+ * would also open that.
+ */
+function LcdField({ label, value, options, onSelect }: {
+    label: string;
+    value: string;
+    options: string[];
+    onSelect: (v: string) => void;
+}) {
+    const [open, setOpen] = useState(false)
+    const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+    const ref = useRef<HTMLDivElement>(null)
+
+    useLayoutEffect(() => {
+        if (!open) { setPos(null); return }
+        const r = ref.current?.getBoundingClientRect()
+        if (!r) return
+        const width = 120
+        setPos({
+            top: r.bottom + 6,
+            left: Math.max(8, Math.min(window.innerWidth - width - 8, r.left + r.width / 2 - width / 2)),
+        })
+    }, [open])
+
+    useEffect(() => {
+        if (!open) return
+        const onDown = (e: MouseEvent) => {
+            const t = e.target as Element | null
+            if (t?.closest?.('[data-lcd-field]')) return
+            if (!ref.current?.contains(t as Node)) setOpen(false)
+        }
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+        document.addEventListener('mousedown', onDown)
+        document.addEventListener('keydown', onKey)
+        return () => {
+            document.removeEventListener('mousedown', onDown)
+            document.removeEventListener('keydown', onKey)
+        }
+    }, [open])
+
+    return (
+        <div
+            ref={ref}
+            className="flex flex-col items-center min-w-[32px]"
+            onClick={(e) => { e.stopPropagation(); setOpen(v => !v) }}
+        >
+            <span className="text-[8px] font-black text-studio-text-dim uppercase tracking-widest leading-none mb-1">{label}</span>
+            <button
+                title={`Change ${label.toLowerCase()}`}
+                className={`text-[13px] font-black tabular-nums px-1 rounded transition-colors ${open ? 'text-accent-cyan' : 'text-studio-text hover:text-accent-cyan'}`}
+            >
+                {value}
+            </button>
+
+            {open && pos && typeof document !== 'undefined' && createPortal(
+                <div
+                    data-lcd-field
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ position: 'fixed', top: pos.top, left: pos.left, width: 120 }}
+                    className="max-h-[300px] overflow-y-auto custom-scrollbar-v bg-studio-panel border border-studio-line-strong shadow-2xl rounded p-1 flex flex-col z-[9000] animate-in fade-in slide-in-from-top-1 duration-100"
+                >
+                    {options.map(opt => (
+                        <button
+                            key={opt}
+                            onClick={() => { onSelect(opt); setOpen(false) }}
+                            className={`px-2 py-1 text-left text-[11px] font-bold rounded transition-colors ${
+                                opt === value
+                                    ? 'bg-accent-cyan text-[#04070b]'
+                                    : 'text-studio-text hover:bg-accent-cyan/20'
+                            }`}
+                        >
+                            {opt}
+                        </button>
+                    ))}
+                </div>,
+                document.body
+            )}
+        </div>
+    )
+}
+
 export function TransportBar() {
     const [editingTempo, setEditingTempo] = useState(false);
     const [tempoInput, setTempoInput] = useState('');
@@ -38,7 +140,9 @@ export function TransportBar() {
         locatorLeft, locatorRight, settings, updateProjectSettings,
         recording, toggleRecording, recordRepeat, discardAndReturn, flashback, toggleFlashback, flashbackCapture, replaceMode, toggleReplaceMode,
         autopunchEnabled, toggleAutopunch,
-        showVirtualKeyboard, toggleVirtualKeyboard
+        showVirtualKeyboard, toggleVirtualKeyboard,
+        timeSignature, setTimeSignature,
+        keySignature, setKeySignature
     } = useProjectStore()
 
     const [showCustomizer, setShowCustomizer] = useState(false)
@@ -221,14 +325,24 @@ export function TransportBar() {
                 <span className="text-[8px] font-black text-studio-text-dim uppercase tracking-widest leading-none mb-1">Tempo</span>
                 {renderTempoValue('text-[13px] font-black text-studio-text tabular-nums')}
             </div>
-            <div className="flex flex-col items-center min-w-[32px]">
-                <span className="text-[8px] font-black text-studio-text-dim uppercase tracking-widest leading-none mb-1">Signature</span>
-                <span className="text-[13px] font-black text-studio-text">4/4</span>
-            </div>
-            <div className="flex flex-col items-center min-w-[32px]">
-                <span className="text-[8px] font-black text-studio-text-dim uppercase tracking-widest leading-none mb-1">Key</span>
-                <span className="text-[13px] font-black text-studio-text">C maj</span>
-            </div>
+            {/*
+              * Signature and key read the project. Both were hard-coded — the
+              * display showed 4/4 and C maj whatever the project actually was,
+              * so changing either elsewhere left the control bar contradicting
+              * the ruler.
+              */}
+            <LcdField
+                label="Signature"
+                value={timeSignature}
+                options={TIME_SIGNATURES}
+                onSelect={setTimeSignature}
+            />
+            <LcdField
+                label="Key"
+                value={keySignature}
+                options={KEY_SIGNATURES}
+                onSelect={setKeySignature}
+            />
         </div>
     );
 
