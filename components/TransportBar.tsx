@@ -11,7 +11,6 @@ import {
     ChevronDown, Power, Grid,
     Type, Flag, Clock, LucideIcon, Keyboard
 } from "lucide-react"
-import { ProjectManager } from "./ProjectManager"
 import { ControlBarCustomizer } from "./ControlBarCustomizer"
 import { MasterVolume, OutputMeter } from "./MasterOutput"
 import { GiantDisplay } from "./GiantDisplay"
@@ -413,11 +412,6 @@ export function TransportBar() {
                     className={`flex-1 ${controlBarSettings.displayMode === 'Custom' ? 'max-w-[720px]' : 'max-w-[580px]'} h-9 bg-black rounded shadow-[inset_0_2px_10px_rgba(0,0,0,1)] border border-white/5 flex items-center px-4 gap-6 relative overflow-visible group transition-all duration-300`}
                 >
                     <div className="absolute inset-x-0 h-[1.5px] bg-accent-cyan/20 top-0 opacity-40"></div>
-
-                    {/* Embedded Project Manager (LCD Label Slot) */}
-                    <ProjectManager />
-
-                    <div className="w-px h-5 bg-white/5"></div>
 
                     {/* LCD Main Area */}
                     <div

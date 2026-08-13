@@ -1,6 +1,7 @@
 "use client"
 import React, { useState, useEffect, useRef } from "react"
 import { useProjectStore } from "@/store/projectStore"
+import { ProjectManager } from "./ProjectManager"
 
 export function AppMenuBar() {
     const { setShowSettingsDialog } = useProjectStore();
@@ -204,6 +205,15 @@ export function AppMenuBar() {
                     </svg>
                 </div>
             </div>
+
+            {/*
+              * The project menu. It used to live inside the transport LCD; that
+              * display now shows only position, tempo, signature and key. This
+              * is still the only path to Save a Copy As, Save as Template,
+              * Export as WAV, Import Project Settings, Project Information,
+              * Revert and the alternatives list.
+              */}
+            <ProjectManager compact />
 
             <div className="flex-1 flex items-center justify-center h-full">
                 {/* Left menus — slide in from left */}

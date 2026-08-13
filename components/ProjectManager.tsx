@@ -17,7 +17,7 @@ import { SaveDialog, SaveData } from "./SaveDialog"
 import { renderSongOffline } from "@/engine/export/OfflineRenderer"
 import { encodeWav } from "@/engine/export/wavEncoder"
 
-export function ProjectManager() {
+export function ProjectManager({ compact = false }: { compact?: boolean } = {}) {
     const { toast } = useToast()
     const {
         name, alternatives, currentAlternativeId,
@@ -169,25 +169,47 @@ export function ProjectManager() {
         setShowMenu(false);
     }
 
+    const alternativeName = alternatives.find(a => a.id === currentAlternativeId)?.name || 'Main';
+
     return (
         <div className="relative group/proj">
-            {/* Desktop Project Name LCD Area - Integrated Style */}
-            <div
-                className="flex flex-col justify-center px-3 h-full border-r border-white/10 cursor-pointer hover:bg-white/[0.03] transition-colors"
-                onClick={() => setShowMenu(!showMenu)}
-            >
-                <div className="flex flex-col -gap-0.5">
-                    <span className="text-[10px] font-black text-white/90 group-hover/proj:text-accent-cyan uppercase tracking-widest truncate max-w-[140px]">
-                        {name}{isDirty ? '*' : ''}
-                    </span>
-                    <div className="flex items-center gap-1 opacity-60">
-                        <span className="text-[7px] font-bold text-studio-text-mid uppercase tracking-wider">
-                            {alternatives.find(a => a.id === currentAlternativeId)?.name || 'Main'}
+            {/*
+              * The project menu's trigger.
+              *
+              * `compact` is the menu-bar form: one line, 24px tall. The two-line
+              * LCD form used to sit inside the transport display; this is the
+              * only route to Save a Copy As, Save as Template, Export as WAV,
+              * Import Project Settings, Project Information, Revert and the
+              * alternatives list, so it moved rather than being deleted.
+              */}
+            {compact ? (
+                <button
+                    onClick={() => setShowMenu(!showMenu)}
+                    title={`${name}${isDirty ? ' (unsaved changes)' : ''} — project menu`}
+                    className="flex items-center gap-1.5 px-2 h-full text-[11px] font-bold text-studio-text hover:bg-white/10 transition-colors"
+                >
+                    <span className="truncate max-w-[160px]">{name}{isDirty ? '*' : ''}</span>
+                    <span className="text-[9px] text-studio-text-dim uppercase tracking-wider">{alternativeName}</span>
+                    <ChevronDown className="w-3 h-3 text-studio-text-dim" />
+                </button>
+            ) : (
+                <div
+                    className="flex flex-col justify-center px-3 h-full border-r border-white/10 cursor-pointer hover:bg-white/[0.03] transition-colors"
+                    onClick={() => setShowMenu(!showMenu)}
+                >
+                    <div className="flex flex-col -gap-0.5">
+                        <span className="text-[10px] font-black text-white/90 group-hover/proj:text-accent-cyan uppercase tracking-widest truncate max-w-[140px]">
+                            {name}{isDirty ? '*' : ''}
                         </span>
-                        <ChevronDown className="w-2 h-2 text-studio-text-dim" />
+                        <div className="flex items-center gap-1 opacity-60">
+                            <span className="text-[7px] font-bold text-studio-text-mid uppercase tracking-wider">
+                                {alternativeName}
+                            </span>
+                            <ChevronDown className="w-2 h-2 text-studio-text-dim" />
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Magic Professional Alternatives & Project Menu */}
             {showMenu && (
