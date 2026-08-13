@@ -47,6 +47,7 @@ interface LegacyTrackNodes {
 }
 
 import type { ClipType } from '../models/Clip';
+import { samplerPresetFor } from './instruments/samplerPresets';
 
 interface RegionPlaybackClip {
     id: string;
@@ -764,10 +765,6 @@ export class AudioEngineAdapter implements MidiSink {
             }
         }
 
-        const samplerPresets: Record<string, string> = {
-            'Nylon Guitar': '/sound_sample/guitar/MG%20Soft%20Nylon%20Guitar%20(Lite).dspreset',
-            'Steinway Piano': '/sound_sample/piano/Piano.dspreset'
-        };
 
         // 1. Check SoundFontManager for this track (or globally if track lacks it)
         const sfManager = SoundFontManager.getInstance();
@@ -793,7 +790,7 @@ export class AudioEngineAdapter implements MidiSink {
         }
 
         // 2. If sampler is already loaded, use it directly — no synth fallback needed
-        if (instrument && samplerPresets[instrument]) {
+        if (instrument && samplerPresetFor(instrument)) {
             const sampler = this.samplerEngines.get(trackId);
             if (sampler) {
                 sampler.playNote(pitch, velocity);
@@ -807,8 +804,9 @@ export class AudioEngineAdapter implements MidiSink {
         engine.noteOn(pitch, velocity, instrument || 'piano');
 
         // 3. Fire-and-forget: load sampler in background, replaces synth when ready
-        if (instrument && samplerPresets[instrument]) {
-            this.triggerSamplerNote(trackId, pitch, velocity, channel, instrument, samplerPresets[instrument]);
+        const preset = samplerPresetFor(instrument);
+        if (instrument && preset) {
+            this.triggerSamplerNote(trackId, pitch, velocity, channel, instrument, preset);
         }
     }
 
@@ -914,12 +912,8 @@ export class AudioEngineAdapter implements MidiSink {
     }
 
     async loadInstrument(trackId: string, instrument: string) {
-        const samplerPresets: Record<string, string> = {
-            'Nylon Guitar': '/sound_sample/guitar/MG%20Soft%20Nylon%20Guitar%20(Lite).dspreset',
-            'Steinway Piano': '/sound_sample/piano/Piano.dspreset'
-        };
 
-        const dspPath = samplerPresets[instrument];
+        const dspPath = samplerPresetFor(instrument);
         if (!dspPath) {
             console.warn(`[AudioEngineAdapter] No dspreset path for instrument: ${instrument}`);
             return;
