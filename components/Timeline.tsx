@@ -1062,6 +1062,26 @@ export function Timeline() {
                     onMouseLeave={() => setContextMenu(null)}
                 >
                     <div className="px-3 py-1.5 text-[10px] font-black text-studio-text-dim uppercase tracking-widest border-b border-white/5 mb-1">Region Operations</div>
+                    {/*
+                      * Audio to MIDI. The transcriber existed but nothing
+                      * imported it, so there was no way to reach it. Shown only
+                      * for audio regions, since transcribing MIDI is nonsense.
+                      */}
+                    {(() => {
+                        const first = clips.find(c => c.id === contextMenu.clipIds[0]);
+                        if (!first || first.type !== 'audio') return null;
+                        return (
+                            <button
+                                className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors"
+                                onClick={() => {
+                                    useProjectStore.getState().audioToMidiTrack(first.id);
+                                    setContextMenu(null);
+                                }}
+                            >
+                                Convert to MIDI Track
+                            </button>
+                        );
+                    })()}
                     <button
                         className="w-full px-4 py-2 text-left text-[12px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors"
                         onClick={() => {

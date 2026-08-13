@@ -249,10 +249,19 @@ export class AudioToMidi {
   ): { frequency: number; confidence: number } {
     const N = frame.length;
     const halfN = Math.floor(N / 2);
+    const tauMax = Math.min(maxPeriod, halfN - 1);
+    if (tauMax <= minPeriod) return { frequency: 0, confidence: 0 };
 
-    // Difference function
-    const diff = new Float32Array(maxPeriod + 1);
-    for (let tau = minPeriod; tau <= maxPeriod; tau++) {
+    /*
+     * Step 1-2: difference function, then the cumulative mean normalised
+     * difference.
+     *
+     * Both run from tau = 1, not from minPeriod. The running mean in step 2 is
+     * over *all* smaller lags, so starting the difference function at minPeriod
+     * left zeros in the sum, deflating the denominator for every tau.
+     */
+    const diff = new Float32Array(tauMax + 1);
+    for (let tau = 1; tau <= tauMax; tau++) {
       let sum = 0;
       for (let j = 0; j < halfN; j++) {
         const delta = frame[j] - (frame[j + tau] ?? 0);
@@ -261,30 +270,57 @@ export class AudioToMidi {
       diff[tau] = sum;
     }
 
-    // Cumulative mean normalized difference
-    let bestTau = 0;
-    let bestVal = Infinity;
+    const cmnd = new Float32Array(tauMax + 1);
+    cmnd[0] = 1;
+    let running = 0;
+    for (let tau = 1; tau <= tauMax; tau++) {
+      running += diff[tau];
+      cmnd[tau] = running === 0 ? 1 : (diff[tau] * tau) / running;
+    }
 
-    for (let tau = minPeriod; tau <= maxPeriod; tau++) {
-      let sum = 0;
-      for (let j = 1; j <= tau; j++) {
-        sum += diff[j];
-      }
-      const cmnd = diff[tau] / (sum / tau || 1);
-
-      if (cmnd < bestVal && cmnd < 0.1) {
-        bestVal = cmnd;
+    /*
+     * Step 3: absolute threshold — the *first* dip below it, not the deepest.
+     *
+     * The difference function dips again at every multiple of the true period,
+     * and those dips are often deeper. Taking the global minimum therefore
+     * reports an integer fraction of the true frequency: a 440 Hz tone came
+     * back as 110 Hz, two octaves down.
+     */
+    const THRESHOLD = 0.15;
+    let bestTau = -1;
+    for (let tau = minPeriod; tau <= tauMax; tau++) {
+      if (cmnd[tau] < THRESHOLD) {
+        // Walk to the bottom of this dip.
+        while (tau + 1 <= tauMax && cmnd[tau + 1] < cmnd[tau]) tau++;
         bestTau = tau;
+        break;
       }
     }
 
-    if (bestTau > 0) {
-      const frequency = this.sampleRate / bestTau;
-      const confidence = 1 - bestVal;
-      return { frequency, confidence };
+    // Nothing cleared the threshold: fall back to the shallowest dip in range.
+    if (bestTau === -1) {
+      let lowest = Infinity;
+      for (let tau = minPeriod; tau <= tauMax; tau++) {
+        if (cmnd[tau] < lowest) { lowest = cmnd[tau]; bestTau = tau; }
+      }
+      if (bestTau === -1 || lowest > 0.6) return { frequency: 0, confidence: 0 };
     }
 
-    return { frequency: 0, confidence: 0 };
+    /* Step 4: parabolic interpolation around the dip, for sub-sample accuracy. */
+    let refined = bestTau;
+    if (bestTau > 0 && bestTau < tauMax) {
+      const a = cmnd[bestTau - 1];
+      const b = cmnd[bestTau];
+      const c = cmnd[bestTau + 1];
+      const denom = 2 * (2 * b - a - c);
+      if (denom !== 0) refined = bestTau + (c - a) / denom;
+    }
+
+    if (refined <= 0) return { frequency: 0, confidence: 0 };
+    return {
+      frequency: this.sampleRate / refined,
+      confidence: Math.max(0, Math.min(1, 1 - cmnd[bestTau])),
+    };
   }
 
   /**

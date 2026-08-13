@@ -10,6 +10,7 @@ import { rebuildEngine } from '@/engine/persistence/engineRebuilder';
 import { storeAudioFile } from '@/engine/persistence/audioFileStore';
 import { extractPeaksAsync } from '@/engine/waveform';
 import { bufferCacheManager } from '@/engine/audioEngine/bufferCache';
+import { getAudioContext } from '@/engine/audioEngine/audioContext';
 import { renderTrackOffline, freezeBufferId, freezeClipId } from '@/engine/audioEngine/trackRender';
 import { routingEngine } from '@/engine/audioEngine/routingEngine';
 import { exportProjectAudio, downloadExport } from '@/engine/export/projectExport';
@@ -533,6 +534,7 @@ interface ProjectState {
     toggleCreateTrackUsing: (show: boolean, items?: any[]) => void;
     createTrackFromSamplerType: (type: 'Quick Sampler (Original)' | 'Quick Sampler (Optimized)' | 'Drum Machine Designer' | 'Sample Alchemy' | 'Sampler (Zone Per Note)', items: any[]) => void;
     // Ownership is derived from the server session; the client cannot choose it.
+    audioToMidiTrack: (clipId: string) => Promise<void>;
     createVcaFader: (name: string, trackIds?: string[]) => void;
     deleteVcaFader: (vcaId: string) => void;
     setVcaFaderTracks: (vcaId: string, trackIds: string[]) => void;
@@ -3341,6 +3343,128 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             selectedClipIds: splitClips.map(c => c.id),
             selectedClipId: splitClips[0]?.id ?? null,
         });
+    },
+
+    /**
+     * Transcribe an audio region to a new MIDI track.
+     *
+     * `engine/audio/audioToMidi.ts` implements onset detection and monophonic
+     * and polyphonic pitch tracking, and nothing imported it. Loaded lazily
+     * because transcription is a rare, heavy operation and the module carries
+     * its own FFT.
+     */
+    audioToMidiTrack: async (clipId) => {
+        const s = get();
+        const clip = s.clips.find(c => c.id === clipId);
+        if (!clip || clip.type !== 'audio') return;
+
+        /*
+         * Resolve the buffer the way the rest of the store does, and follow a
+         * take folder to its active take: a folder's audio lives on its takes,
+         * not under the folder's own id, so `getBuffer(clip.id)` always missed
+         * on exactly the regions recording produces.
+         */
+        const source = clip.isTakeFolder && clip.takes?.length
+            ? clip.takes[Math.max(0, Math.min(clip.activeTakeIndex ?? 0, clip.takes.length - 1))]
+            : clip;
+        let buffer =
+            bufferCacheManager.getBuffer((source as any).storageKey ?? (source as any).sampleId ?? source.id)
+            ?? bufferCacheManager.getBuffer(clip.storageKey ?? clip.sampleId ?? clip.id);
+
+        /*
+         * Decode on demand if the clip has never been played.
+         *
+         * The scheduler only fetches a clip's file when playback reaches it, so
+         * converting a freshly opened project silently did nothing until the
+         * user had pressed play — a failure with no symptom.
+         */
+        if (!buffer) {
+            const fileUrl = (source as any).fileUrl ?? (clip as any).fileUrl;
+            const ctx = getAudioContext();
+            if (fileUrl && ctx) {
+                try {
+                    const res = await fetch(fileUrl);
+                    const decoded = await ctx.decodeAudioData(await res.arrayBuffer());
+                    const key = (source as any).sampleId ?? (source as any).storageKey ?? source.id;
+                    bufferCacheManager.addBuffer(key, decoded, fileUrl);
+                    buffer = decoded;
+                } catch (e) {
+                    console.warn('[AudioToMidi] Could not decode', fileUrl, e);
+                }
+            }
+        }
+
+        if (!buffer) {
+            console.warn('[AudioToMidi] No audio buffer for clip', clip.id);
+            return;
+        }
+
+        const { AudioToMidi } = await import('@/engine/audio/audioToMidi');
+        const transcriber = new AudioToMidi(buffer.sampleRate, {
+            mode: 'monophonic',
+            quantize: true,
+            gridResolution: 0.25,
+        });
+
+        let result;
+        try {
+            result = transcriber.transcribe(buffer.getChannelData(0));
+        } catch (e) {
+            console.error('[AudioToMidi] Transcription failed:', e);
+            return;
+        }
+        if (!result.notes.length) {
+            console.warn('[AudioToMidi] No notes detected');
+            return;
+        }
+
+        // Note times come back in seconds; the timeline works in beats.
+        const beatsPerSecond = (s.tempo || 120) / 60;
+        const sourceTrack = s.tracks.find(t => t.id === clip.trackId);
+        const trackId = `track-${Date.now()}-a2m`;
+        const newClipId = `clip-${Date.now()}-a2m`;
+
+        const notes = result.notes.map((n: any, i: number) => ({
+            ...n,
+            id: `note-${Date.now()}-${i}`,
+            startBeat: (n.startBeat ?? 0),
+            duration: Math.max(0.0625, n.duration ?? 0.25),
+        }));
+
+        set(state => ({
+            tracks: [...state.tracks, {
+                id: trackId,
+                name: `${clip.name} (MIDI)`,
+                type: 'midi',
+                color: NEON_TRACK_PALETTE[state.tracks.length % NEON_TRACK_PALETTE.length],
+                icon: 'keyboard',
+                orderIndex: sourceTrack ? sourceTrack.orderIndex + 1 : state.tracks.length,
+                muted: false, soloed: false, volume: 0.8, pan: 0,
+                protected: false, frozen: false, freezeMode: 'Source Only',
+                enabled: true, recordEnabled: false, inputMonitoring: false,
+                alternatives: [{ id: 'alt-1', name: 'A' }],
+                activeAlternativeId: 'alt-1', showInactiveAlternatives: false,
+                transpose: 0, velocityOffset: 0, delay: 0,
+                plugins: [], sends: [], outputBusId: 'stereo-out',
+                channelStripId: trackId, zoom: 1, hidden: false, isCollapsed: false,
+                isGrooveTrack: false, matchGrooveTrack: false,
+                instrument: 'Grand Piano',
+            } as any],
+            clips: [...state.clips, {
+                id: newClipId,
+                trackId,
+                name: `${clip.name} (MIDI)`,
+                type: 'midi',
+                start: clip.start,
+                duration: clip.duration,
+                color: NEON_TRACK_PALETTE[state.tracks.length % NEON_TRACK_PALETTE.length],
+                notes,
+                muted: false,
+            } as any],
+            isDirty: true,
+        }));
+
+        console.info(`[AudioToMidi] ${notes.length} notes in ${Math.round(result.processingTime)}ms`);
     },
 
     stemSplitter: async (clipId, options) => {
