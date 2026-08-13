@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { useProjectStore } from "@/store/projectStore"
 import {
     Play, Square, RotateCcw,
@@ -42,6 +42,22 @@ export function TransportBar() {
 
     const [showCustomizer, setShowCustomizer] = useState(false)
     const [showLCDMenu, setShowLCDMenu] = useState(false)
+    const lcdRef = useRef<HTMLDivElement>(null)
+
+    // A click-to-open menu needs its own dismissal; hover used to do this.
+    useEffect(() => {
+        if (!showLCDMenu) return
+        const onDown = (e: MouseEvent) => {
+            if (!lcdRef.current?.contains(e.target as Node)) setShowLCDMenu(false)
+        }
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowLCDMenu(false) }
+        document.addEventListener('mousedown', onDown)
+        document.addEventListener('keydown', onKey)
+        return () => {
+            document.removeEventListener('mousedown', onDown)
+            document.removeEventListener('keydown', onKey)
+        }
+    }, [showLCDMenu])
     const [showCycleMenu, setShowCycleMenu] = useState(false)
     const [showMetronomeMenu, setShowMetronomeMenu] = useState(false)
     const [showCountInMenu, setShowCountInMenu] = useState(false)
@@ -413,11 +429,21 @@ export function TransportBar() {
                 >
                     <div className="absolute inset-x-0 h-[1.5px] bg-accent-cyan/20 top-0 opacity-40"></div>
 
-                    {/* LCD Main Area */}
+                    {/*
+                      * LCD Main Area.
+                      *
+                      * Click to open, not hover. The menu was opened on
+                      * mouseenter and closed on mouseleave, but it renders
+                      * below the LCD with a few pixels between them — moving
+                      * the pointer towards it crossed a gap belonging to
+                      * neither element, so mouseleave fired and the menu
+                      * vanished before it could be clicked. It was visible and
+                      * unusable.
+                      */}
                     <div
+                        ref={lcdRef}
                         className="flex-1 flex items-center justify-between cursor-pointer"
-                        onMouseEnter={() => setShowLCDMenu(true)}
-                        onMouseLeave={() => setShowLCDMenu(false)}
+                        onClick={() => setShowLCDMenu(v => !v)}
                     >
 
                         {renderLCDContent()}
@@ -429,17 +455,18 @@ export function TransportBar() {
 
                         {/* LCD Context Menu */}
                         {showLCDMenu && (
-                            <div className="absolute top-[38px] left-1/2 -translate-x-1/2 w-[220px] bg-studio-panel border border-black shadow-2xl rounded p-1 flex flex-col z-[500] animate-in fade-in slide-in-from-top-1 duration-100">
-                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Beats & Project' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => updateControlBar({ displayMode: 'Beats & Project' })}>Beats & Project</button>
-                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Beats & Time' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => updateControlBar({ displayMode: 'Beats & Time' })}>Beats & Time</button>
-                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Beats' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => updateControlBar({ displayMode: 'Beats' })}>Beats</button>
-                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Time' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => updateControlBar({ displayMode: 'Time' })}>Time</button>
-                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Custom' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => updateControlBar({ displayMode: 'Custom' })}>Custom</button>
+                            <div onClick={(e) => e.stopPropagation()}
+                                className="absolute top-full mt-0 left-1/2 -translate-x-1/2 w-[220px] bg-studio-panel border border-black shadow-2xl rounded p-1 flex flex-col z-[500] animate-in fade-in slide-in-from-top-1 duration-100">
+                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Beats & Project' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Beats & Project' }); setShowLCDMenu(false) }}>Beats & Project</button>
+                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Beats & Time' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Beats & Time' }); setShowLCDMenu(false) }}>Beats & Time</button>
+                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Beats' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Beats' }); setShowLCDMenu(false) }}>Beats</button>
+                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Time' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Time' }); setShowLCDMenu(false) }}>Time</button>
+                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Custom' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Custom' }); setShowLCDMenu(false) }}>Custom</button>
                                 <div className="h-px bg-white/5 my-1 mx-2"></div>
                                 <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded transition-colors" onClick={() => toggleFloatingWindow('giantBeats')}>Open Giant Beats Display</button>
                                 <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded transition-colors" onClick={() => toggleFloatingWindow('giantTime')}>Open Giant Time Display</button>
                                 <div className="h-px bg-white/5 my-1 mx-2"></div>
-                                <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded transition-colors" onClick={() => setShowCustomizer(true)}>Customize Control Bar and Display...</button>
+                                <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded transition-colors" onClick={() => { setShowCustomizer(true); setShowLCDMenu(false) }}>Customize Control Bar and Display...</button>
                                 <div className="h-px bg-white/5 my-1 mx-2"></div>
                                 <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text-dim hover:text-white transition-opacity uppercase tracking-widest text-[8px]">Project Management</button>
                                 <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded transition-colors">Clean Up Project...</button>
