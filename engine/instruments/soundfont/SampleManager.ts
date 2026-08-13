@@ -7,6 +7,15 @@ interface CachedAudioBuffer {
 
 const DEFAULT_MAX_MEMORY = 256 * 1024 * 1024;
 
+/**
+ * createBuffer throws NotSupportedError outside the range an implementation
+ * accepts; the spec only requires 8000-96000 Hz. SF2 fonts go below that --
+ * GeneralUser GS has a 6 kHz sample -- so the rate is clamped and callers
+ * correct the difference with playbackRate.
+ */
+const MIN_BUFFER_RATE = 8000;
+const MAX_BUFFER_RATE = 96000;
+
 export class SampleManager {
     private cache = new Map<string, CachedAudioBuffer>();
     private ctx: AudioContext | OfflineAudioContext;
@@ -38,7 +47,8 @@ export class SampleManager {
         const size = sampleData.length * 4;
         this.ensureRoom(size);
 
-        const buffer = this.ctx.createBuffer(1, sampleData.length, sampleRate);
+        const rate = Math.max(MIN_BUFFER_RATE, Math.min(MAX_BUFFER_RATE, sampleRate));
+        const buffer = this.ctx.createBuffer(1, sampleData.length, rate);
         buffer.getChannelData(0).set(sampleData);
 
         this.cache.set(key, {

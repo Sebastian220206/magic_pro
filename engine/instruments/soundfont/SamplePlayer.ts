@@ -33,6 +33,12 @@ interface ResolvedSampleZone {
     exclusiveClass: number;
     overrideRootKey: number;
     scaleTuning: number;
+    /**
+     * The rate this zone's sample was recorded at. Per sample, not per font:
+     * GeneralUser GS mixes 90 different rates, and its Grand Piano is mostly
+     * 31 kHz. Playing that as 44.1 kHz runs it ~610 cents sharp.
+     */
+    sampleRate: number;
 }
 
 export class SamplePlayer {
@@ -146,6 +152,9 @@ export class SamplePlayer {
                 exclusiveClass,
                 overrideRootKey,
                 scaleTuning,
+                sampleRate: header.sampleRate > 0
+                    ? header.sampleRate
+                    : this.presetManager.getSampleRate(),
             });
         }
     }
@@ -216,7 +225,7 @@ export class SamplePlayer {
             (voice as any)._exclusiveClass = zone.exclusiveClass;
             (voice as any)._order = Date.now();
 
-            const sampleRate = this.presetManager.getSampleRate();
+            const sampleRate = zone.sampleRate;
             const centsPerSemitone = 100;
             // scaleTuning is cents of pitch change per semitone of key travel
             // (100 = normal, 0 = every key plays at the sample's own pitch,
@@ -242,8 +251,12 @@ export class SamplePlayer {
             // sampleModes: 1 = loop continuously, 3 = loop until release.
             // 0 and 2 are unlooped. This used to test `> 1`, which looped the
             // one unlooped mode and left the most common looped mode dry.
-            const loopStartTime = (zone.loopStart - start) / sampleRate;
-            const loopEndTime = (zone.loopEnd - start) / sampleRate;
+            // Seconds into the buffer, so measured against the buffer's own
+            // rate rather than the nominal one -- SampleManager clamps rates
+            // outside what createBuffer accepts and the two can differ.
+            const bufferRate = audioBuffer.sampleRate;
+            const loopStartTime = (zone.loopStart - start) / bufferRate;
+            const loopEndTime = (zone.loopEnd - start) / bufferRate;
             const hasLoop = (zone.sampleModes === 1 || zone.sampleModes === 3)
                 && loopEndTime > loopStartTime
                 && loopStartTime >= 0;

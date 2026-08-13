@@ -69,12 +69,15 @@ export class AudioDecoder {
   ): Promise<Map<string, AudioBuffer>> {
     const headers = parsedData.sampleHeaders
     const sampleData = parsedData.sampleData
-    const sampleRate = parsedData.sampleRate
+    // Fallback only: each header carries its own rate and they vary widely
+    // within one font.
+    const fontRate = parsedData.sampleRate
     const total = headers.length
     const result = new Map<string, AudioBuffer>()
 
     for (let i = 0; i < total; i++) {
       const h = headers[i]
+      const sampleRate = h.sampleRate > 0 ? h.sampleRate : fontRate
       const key = `sf2-${i}-${sampleRate}`
       const sampleLen = h.end - h.start
       if (sampleLen <= 0) continue

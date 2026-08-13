@@ -296,6 +296,10 @@ export class SoundFontParser {
         const instruments = this.parseInstruments(pdtaOffset, pdtaSize);
         const presets = this.parsePresets(pdtaOffset, pdtaSize, sampleHeaders, instruments);
 
+        // Fallback for headers that declare no rate of their own. It is NOT the
+        // font's rate -- there is no such thing. Every sample carries its own,
+        // and GeneralUser GS alone mixes 90 distinct rates, so anything that
+        // plays a sample must read the rate off that sample's header.
         const sampleRate = sampleHeaders.length > 0 ? sampleHeaders[0].sampleRate : 44100;
 
         return { presets, instruments, sampleHeaders, sampleData, sampleRate };
