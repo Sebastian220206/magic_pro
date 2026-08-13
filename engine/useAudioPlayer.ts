@@ -124,55 +124,63 @@ export function useAudioPlayer() {
     useEffect(() => { tracksRef.current   = tracks;   }, [tracks]);
 
     useEffect(() => {
-        if (playing) {
-            // Make sure we have decoded buffers for all current clips before starting.
-            // loadBuffers is fast (cache-first) so the await is usually a no-op.
-            loadBuffers(clipsRef.current).then(() => {
-                // Double-check that we're still in playing state and have buffers
-                if (!playing) return;
-                
-                const audioClips = clipsRef.current.filter(c => c.type === 'audio');
-                const missingBuffers = audioClips.filter(c => 
-                    !buffersRef.current.has(c.id) && !buffersRef.current.has(c.fileUrl!)
-                );
-                
-                if (missingBuffers.length > 0) {
-                    console.warn(`[useAudioPlayer] Missing buffers for ${missingBuffers.length} clips, waiting...`);
-                    // Wait a bit more for buffers to load
-                    setTimeout(() => {
-                        const clipsWithBuffers = clipsRef.current.map(c => ({
-                            ...c,
-                            buffer: buffersRef.current.get(c.id) || (c.fileUrl ? buffersRef.current.get(c.fileUrl) : undefined)
-                        }));
-                        scheduler.startPlayback(
-                            clipsWithBuffers as any,
-                            tracksRef.current as any,
-                            playheadRef.current,
-                            tempoRef.current
-                        );
-                    }, 500);
-                    return;
-                }
-                
-                console.log(`[useAudioPlayer] Starting playback with ${buffersRef.current.size} buffers`);
-                const clipsWithBuffers = clipsRef.current.map(c => ({
-                    ...c,
-                    buffer: buffersRef.current.get(c.id) || (c.fileUrl ? buffersRef.current.get(c.fileUrl) : undefined)
-                }));
-                scheduler.startPlayback(
-                    clipsWithBuffers as any,
-                    tracksRef.current as any,
-                    playheadRef.current,
-                    tempoRef.current
-                );
-            });
-        } else {
+        if (!playing) {
             scheduler.stopPlayback();
+            return;
         }
 
-        // Cleanup: if component unmounts while playing, stop everything.
+        // The beat the user pressed play at, captured now rather than after the
+        // awaits below. The store's transport loop starts the moment `playing`
+        // flips, so `playheadRef.current` has already moved on by the time the
+        // buffer work finishes — reading it late made every playback start a
+        // little further in than the last, until the start beat had marched
+        // past the end of the project and nothing sounded at all.
+        const startBeat = playheadRef.current;
+        let cancelled = false;
+
+        const begin = () => {
+            if (cancelled) return;
+            const clipsWithBuffers = clipsRef.current.map(c => ({
+                ...c,
+                buffer: buffersRef.current.get(c.id) || (c.fileUrl ? buffersRef.current.get(c.fileUrl) : undefined)
+            }));
+            scheduler.startPlayback(
+                clipsWithBuffers as any,
+                tracksRef.current as any,
+                startBeat,
+                tempoRef.current
+            );
+        };
+
+        // Make sure we have decoded buffers for all current clips before starting.
+        // loadBuffers is fast (cache-first) so the await is usually a no-op.
+        loadBuffers(clipsRef.current).then(() => {
+            if (cancelled) return;
+
+            // Only a clip with a source can ever produce a buffer. Clips without
+            // a fileUrl — an empty recording slot, a MIDI-backed take — were
+            // counted as "still loading", so every single playback paid the
+            // 500ms wait below for buffers that were never going to arrive.
+            const missingBuffers = clipsRef.current.filter(c =>
+                c.type === 'audio' && c.fileUrl &&
+                !buffersRef.current.has(c.id) && !buffersRef.current.has(c.fileUrl)
+            );
+
+            if (missingBuffers.length > 0) {
+                console.warn(`[useAudioPlayer] Missing buffers for ${missingBuffers.length} clips, waiting...`);
+                setTimeout(begin, 500);
+                return;
+            }
+
+            console.log(`[useAudioPlayer] Starting playback with ${buffersRef.current.size} buffers`);
+            begin();
+        });
+
+        // Cleanup: if playing goes false — or the component unmounts — stop, and
+        // make sure a pending start cannot fire after the stop.
         return () => {
-            if (playing) scheduler.stopPlayback();
+            cancelled = true;
+            scheduler.stopPlayback();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [playing]); // Only re-run when playing toggles

@@ -123,7 +123,7 @@ export function TransportBar() {
     const [editingTempo, setEditingTempo] = useState(false);
     const [tempoInput, setTempoInput] = useState('');
     const {
-        playing, play, stop, tempo, playhead, setTempo,
+        playing, play, stop, tempo, playhead, setTempo, movePlayhead,
         showLibrary, toggleLibrary,
         showInspector, toggleInspector,
         showToolbar, toggleToolbar,
@@ -144,6 +144,16 @@ export function TransportBar() {
         timeSignature, setTimeSignature,
         keySignature, setKeySignature
     } = useProjectStore()
+
+    /**
+     * Return the playhead to bar 1, stopping first if the transport is rolling.
+     *
+     * This was wired straight to `stop`, which leaves the playhead where it is
+     * — so the button labelled "go to beginning" only stopped, and the next
+     * play resumed from the middle of the project. `movePlayhead` stops for us
+     * when playing, so one press both stops and rewinds.
+     */
+    const goToBeginning = () => movePlayhead(0)
 
     const [showCustomizer, setShowCustomizer] = useState(false)
     const [showLCDMenu, setShowLCDMenu] = useState(false)
@@ -242,12 +252,24 @@ export function TransportBar() {
         );
     };
 
+    const TRANSPORT_LABELS: Record<string, string> = {
+        goBeginning: 'Go to Beginning',
+        rewind: 'Rewind One Bar',
+        forward: 'Forward One Bar',
+        stop: 'Stop',
+        play: 'Play',
+        pause: 'Pause',
+        record: 'Record',
+    };
+
     const renderTransportButton = (id: keyof typeof controlBarSettings.transportButtons, icon: LucideIcon, action?: () => void, active?: boolean, colorClass?: string) => {
         if (!controlBarSettings.transportButtons[id]) return null;
         return (
             <button
                 key={id}
                 onClick={action}
+                title={TRANSPORT_LABELS[id] ?? id}
+                aria-label={TRANSPORT_LABELS[id] ?? id}
                 className={`p-1.5 transition-all transform active:scale-90 ${active ? 'text-accent-cyan drop-shadow-[0_0_8px_rgba(34,165,233,0.8)]' : colorClass || 'text-studio-text-dim hover:text-white'}`}
             >
                 {React.createElement(icon, { className: `w-[18px] h-[18px] ${active ? 'fill-accent-cyan' : 'fill-current'}` })}
@@ -459,14 +481,14 @@ export function TransportBar() {
             {controlBarSettings.showTransport && (
                 <div className="flex items-center gap-2 px-6 shrink-0">
                     <div className="flex bg-black/40 rounded-sm border border-black/60 p-0.5">
-                        {renderTransportButton('goBeginning', SkipBack, stop)}
-                        {renderTransportButton('rewind', SkipBack)}
-                        {renderTransportButton('forward', SkipForward)}
+                        {renderTransportButton('goBeginning', SkipBack, goToBeginning)}
+                        {renderTransportButton('rewind', SkipBack, () => movePlayhead(Math.max(0, playhead - 1)))}
+                        {renderTransportButton('forward', SkipForward, () => movePlayhead(playhead + 1))}
                     </div>
 
                     <div className="flex bg-black/40 rounded-sm border border-black/60 p-0.5 shadow-inner">
                         {renderTransportButton('stop', Square, stop)}
-                        {renderTransportButton('play', Play, play, playing)}
+                        {renderTransportButton('play', Play, () => { if (!playing) play() }, playing)}
                     </div>
 
                     <button 

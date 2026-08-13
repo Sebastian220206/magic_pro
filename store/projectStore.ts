@@ -1188,6 +1188,9 @@ async function editClipSamples(
     return true;
 }
 
+/** Guards against stacked transport loops; see `play()`. */
+let transportLoopGeneration = 0;
+
 export const useProjectStore = create<ProjectState>((set, get) => ({
     id: null,
     name: "Logic Pro Project",
@@ -1431,7 +1434,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             musicalTyping: true
         },
         transportButtons: {
-            goBeginning: false, goPosition: false, goLeftLocator: false, goRightLocator: false, goSelectionStart: false,
+            // Shown by default: without it the transport had no way back to bar 1.
+            // Stop leaves the playhead where it is, so the next play resumed from
+            // the middle of the project.
+            goBeginning: true, goPosition: false, goLeftLocator: false, goRightLocator: false, goSelectionStart: false,
             playBeginning: false, playLeftEdge: false, playLeftLocator: false, playRightLocator: false, playSelection: false,
             rewind: true, forward: true, stop: true, play: true, pause: false, record: true,
             freeTempo: false, flashback: false, skipCycle: false, cycle: true
@@ -1695,8 +1701,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         // regions never actually played.
 
 
+        // One transport loop at a time. `play()` is reachable from the button,
+        // the spacebar and the count-in, and each call used to spawn another
+        // requestAnimationFrame chain that never exited while playing.
+        const generation = ++transportLoopGeneration;
+
         const loop = () => {
             if (!get().playing) return;
+            if (generation !== transportLoopGeneration) return;
             const state = get();
             const { playhead, globalTracks, cycleEnabled, skipCycleEnabled, locatorLeft, locatorRight, recording, autopunchEnabled, autopunchStart, autopunchEnd, liveRecordingClips, focusedTrackId } = state;
             
@@ -1709,11 +1721,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             // heard. Accumulating a per-frame increment (the previous
             // approach) drifts whenever the frame rate deviates from 60fps.
             const engineBeat = audioEngine.isPlaying ? audioEngine.getCurrentBeat() : NaN;
+            // Before the scheduler is armed there is no audio clock to read.
+            // Hold position rather than accumulating frames: arming is async
+            // (buffers have to decode first), and a playhead that advanced
+            // during that gap was the value handed to `startPlayback`, so
+            // playback began past where the user pressed play. Repeated over
+            // several plays the start beat walked off the end of the project
+            // and nothing sounded. Waiting a few frames is invisible; drifting
+            // is not.
             let nextPlayhead = Number.isFinite(engineBeat) && engineBeat >= 0
                 ? engineBeat
-                // Before the scheduler is armed there is no audio clock to read,
-                // so fall back to frame accumulation for those first frames.
-                : playhead + (currentTempo / 60 / 60);
+                : playhead;
 
 
             const wrapped = (skipCycleEnabled && nextPlayhead >= locatorLeft && playhead < locatorLeft) || (cycleEnabled && !skipCycleEnabled && nextPlayhead >= locatorRight);
