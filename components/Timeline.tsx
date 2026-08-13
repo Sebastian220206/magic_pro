@@ -30,7 +30,8 @@ export function Timeline() {
         saveTakeFolderComp, createTakeFolderComp, selectTakeFolderComp, renameTakeFolderComp, deleteTakeFolderComp,
         addAutomationPoint, updateAutomationPoint, deleteAutomationPoint,
         annotations,
-        currentTool, splitClip, deleteClip
+        currentTool, splitClip, deleteClip,
+        timeSignature
     } = useProjectStore()
 
     const containerRef = useRef<HTMLDivElement>(null)
@@ -40,6 +41,7 @@ export function Timeline() {
     const [takeFolderMenuClipId, setTakeFolderMenuClipId] = useState<string | null>(null)
 
     const pixelsPerBeat = zoom || 80;
+    const beatsPerBar = Number(timeSignature?.split('/')[0]) || 4;
     const playheadX = playhead * pixelsPerBeat;
 
     useEffect(() => {
@@ -747,9 +749,29 @@ export function Timeline() {
                 {/* Vertical Rhythm Grids */}
                 {tracks.length > 0 && (
                     <div className="absolute left-0 top-0 flex pointer-events-none z-10" style={{ height: `${totalTracksHeight}px` }}>
-                        {[...Array(800)].map((_, i) => (
-                            <div key={i} className={`h-full border-r ${(i + 1) % 16 === 0 ? 'border-accent-cyan/10' : (i + 1) % 4 === 0 ? 'border-white/[0.03]' : 'border-white/[0.01]'}`} style={{ width: `${pixelsPerBeat}px`, flexShrink: 0 }}></div>
-                        ))}
+                        {[...Array(800)].map((_, i) => {
+                            /*
+                             * Bar boundaries follow the time signature. This was
+                             * hard-coded to every 4th and 16th beat, so in 3/4 or
+                             * 6/8 the heavy lines landed mid-bar.
+                             */
+                            const beat = i + 1;
+                            const isBar = beat % beatsPerBar === 0;
+                            const isSection = beat % (beatsPerBar * 4) === 0;
+                            return (
+                                <div
+                                    key={i}
+                                    className="h-full border-r"
+                                    style={{
+                                        width: `${pixelsPerBeat}px`,
+                                        flexShrink: 0,
+                                        borderColor: isSection
+                                            ? 'var(--grid-section)'
+                                            : isBar ? 'var(--grid-bar)' : 'var(--grid-beat)',
+                                    }}
+                                />
+                            );
+                        })}
                     </div>
                 )}
 
