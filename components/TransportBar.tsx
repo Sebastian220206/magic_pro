@@ -1,5 +1,6 @@
 "use client"
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect, useLayoutEffect } from "react"
+import { createPortal } from "react-dom"
 import { useProjectStore } from "@/store/projectStore"
 import {
     Play, Square, RotateCcw,
@@ -43,12 +44,36 @@ export function TransportBar() {
     const [showCustomizer, setShowCustomizer] = useState(false)
     const [showLCDMenu, setShowLCDMenu] = useState(false)
     const lcdRef = useRef<HTMLDivElement>(null)
+    const [lcdMenuPos, setLcdMenuPos] = useState<{ top: number; left: number } | null>(null)
+
+    /*
+     * The menu is portalled to <body>.
+     *
+     * As a child of the transport bar it was painted *under* the toolbar and
+     * the timeline clips at every point along its height, however high its
+     * z-index: an ancestor establishes a stacking context, and z-index only
+     * orders siblings within one. Fixed positioning off the LCD's rect is the
+     * only reliable escape.
+     */
+    useLayoutEffect(() => {
+        if (!showLCDMenu) { setLcdMenuPos(null); return }
+        const r = lcdRef.current?.getBoundingClientRect()
+        if (!r) return
+        const width = 220
+        setLcdMenuPos({
+            top: r.bottom,
+            left: Math.max(8, Math.min(window.innerWidth - width - 8, r.left + r.width / 2 - width / 2)),
+        })
+    }, [showLCDMenu])
 
     // A click-to-open menu needs its own dismissal; hover used to do this.
     useEffect(() => {
         if (!showLCDMenu) return
         const onDown = (e: MouseEvent) => {
-            if (!lcdRef.current?.contains(e.target as Node)) setShowLCDMenu(false)
+            const t = e.target as Element | null
+            // The menu lives in a portal, so containment in the LCD is not enough.
+            if (t?.closest?.('[data-lcd-menu]')) return
+            if (!lcdRef.current?.contains(t as Node)) setShowLCDMenu(false)
         }
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowLCDMenu(false) }
         document.addEventListener('mousedown', onDown)
@@ -454,9 +479,12 @@ export function TransportBar() {
                         </div>
 
                         {/* LCD Context Menu */}
-                        {showLCDMenu && (
-                            <div onClick={(e) => e.stopPropagation()}
-                                className="absolute top-full mt-0 left-1/2 -translate-x-1/2 w-[220px] bg-studio-panel border border-black shadow-2xl rounded p-1 flex flex-col z-[500] animate-in fade-in slide-in-from-top-1 duration-100">
+                        {showLCDMenu && lcdMenuPos && typeof document !== 'undefined' && createPortal(
+                            <div
+                                data-lcd-menu
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ position: 'fixed', top: lcdMenuPos.top, left: lcdMenuPos.left }}
+                                className="w-[220px] bg-studio-panel border border-black shadow-2xl rounded p-1 flex flex-col z-[9000] animate-in fade-in slide-in-from-top-1 duration-100">
                                 <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Beats & Project' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Beats & Project' }); setShowLCDMenu(false) }}>Beats & Project</button>
                                 <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Beats & Time' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Beats & Time' }); setShowLCDMenu(false) }}>Beats & Time</button>
                                 <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Beats' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Beats' }); setShowLCDMenu(false) }}>Beats</button>
@@ -471,7 +499,8 @@ export function TransportBar() {
                                 <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text-dim hover:text-white transition-opacity uppercase tracking-widest text-[8px]">Project Management</button>
                                 <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded transition-colors">Clean Up Project...</button>
                                 <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded transition-colors">Consolidate Assets...</button>
-                            </div>
+                            </div>,
+                            document.body
                         )}
                     </div>
 
