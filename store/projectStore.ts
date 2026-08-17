@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { audioEngine } from '@/engine/AudioEngineAdapter';
 import { Track, TrackAlternative, PluginSetting } from '@/models/Track';
 import { Clip, Note, ClipType } from '@/models/Clip';
+import { recordedClipType } from '@/lib/trackKinds';
 import { TimelineAnnotation } from '@/models/Annotation';
 import { ArticulationSet, Articulation } from '@/models/Articulation';
 import { libraryData, Preset } from '@/lib/libraryData';
@@ -1191,6 +1192,33 @@ async function editClipSamples(
 /** Guards against stacked transport loops; see `play()`. */
 let transportLoopGeneration = 0;
 
+/**
+ * Notes currently held down while recording, keyed `trackId:pitch`.
+ *
+ * Note-off used to find its note by scanning the clip for `duration === 0.25`,
+ * the value note-on wrote as a placeholder. That matched any note that merely
+ * happened to be a sixteenth long, and `.map` rewrote every match rather than
+ * the one being released — so re-playing a pitch corrupted the earlier note.
+ * Transient by nature, so it lives outside the serialized store.
+ */
+const heldRecordingNotes = new Map<string, { clipId: string; noteId: string; startBeat: number }>();
+
+/** Unique within a millisecond, which `Date.now()` alone is not. */
+let recordedNoteSeq = 0;
+
+/** Floor for a recorded note, so a stray tap is still visible and audible. */
+const MIN_RECORDED_NOTE_BEATS = 0.125;
+
+/** Pending count-in, so cancelling record does not start the transport late. */
+let countInTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelCountIn(): void {
+    if (countInTimer !== null) {
+        clearTimeout(countInTimer);
+        countInTimer = null;
+    }
+}
+
 export const useProjectStore = create<ProjectState>((set, get) => ({
     id: null,
     name: "Logic Pro Project",
@@ -1766,7 +1794,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                                 name: `${track.name} Recording`,
                                 start: startTime,
                                 duration: 0.1,
-                                type: track.type === 'midi' ? 'midi' : 'audio',
+                                type: recordedClipType(track.type),
                                 color: track.color,
                                 muted: false,
                                 loop: false,
@@ -1873,6 +1901,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     stop: () => {
         const s = get();
+        cancelCountIn();
         if (s.recording) {
             // Finalize recordings
             set({ recording: false });
@@ -4511,21 +4540,32 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 }));
             }
 
+            const noteId = `note-${Date.now()}-${recordedNoteSeq++}-${pitch}`;
+            // Remember which note this is, so note-off lengthens exactly this
+            // one. Re-pressing a pitch that is still held closes the old note
+            // first rather than orphaning it.
+            heldRecordingNotes.set(`${targetTrackId}:${pitch}`, {
+                clipId: liveClipId, noteId, startBeat: playhead,
+            });
+
             set(s => ({
                 clips: s.clips.map(c => {
-                    if (c.id === liveClipId) {
-                        return {
-                            ...c,
-                            notes: [...(c.notes || []), {
-                                id: `note-${Date.now()}-${pitch}`,
-                                pitch,
-                                velocity,
-                                start: playhead - c.start,
-                                duration: 0.25
-                            }]
-                        };
-                    }
-                    return c;
+                    if (c.id !== liveClipId) return c;
+                    const startInClip = Math.max(0, playhead - c.start);
+                    return {
+                        ...c,
+                        // A clip that does not reach its own notes plays none
+                        // of them: the sequencer clips every note to the clip
+                        // end. This used to be created at a fixed 1 beat.
+                        duration: Math.max(c.duration ?? 0, startInClip + MIN_RECORDED_NOTE_BEATS),
+                        notes: [...(c.notes || []), {
+                            id: noteId,
+                            pitch,
+                            velocity,
+                            start: startInClip,
+                            duration: MIN_RECORDED_NOTE_BEATS
+                        }]
+                    };
                 })
             }));
         }
@@ -4561,23 +4601,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }));
         
         if (recording) {
-            const liveClipId = liveRecordingClips[targetTrackId];
-            if (liveClipId) {
+            const key = `${targetTrackId}:${pitch}`;
+            const held = heldRecordingNotes.get(key);
+            if (held) {
+                heldRecordingNotes.delete(key);
+                const duration = Math.max(MIN_RECORDED_NOTE_BEATS, playhead - held.startBeat);
                 set(s => ({
                     clips: s.clips.map(c => {
-                        if (c.id === liveClipId) {
-                            return {
-                                ...c,
-                                notes: c.notes?.map(n => {
-                                    if (n.pitch === pitch && n.duration === 0.25) {
-                                        const duration = Math.max(0.125, playhead - (c.start + n.start));
-                                        return { ...n, duration };
-                                    }
-                                    return n;
-                                })
-                            };
-                        }
-                        return c;
+                        if (c.id !== held.clipId) return c;
+                        const note = c.notes?.find(n => n.id === held.noteId);
+                        const end = (note?.start ?? 0) + duration;
+                        return {
+                            ...c,
+                            duration: Math.max(c.duration ?? 0, end),
+                            // Matched by identity, so releasing one note cannot
+                            // rewrite another that shares its pitch.
+                            notes: c.notes?.map(n => n.id === held.noteId ? { ...n, duration } : n),
+                        };
                     })
                 }));
             }
@@ -5729,17 +5769,46 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }),
 
     // --- Recording Actions Implementation ---
-    toggleRecording: () => set(s => {
-        const isRecording = !s.recording;
-        if (isRecording) {
-            if (!s.playing) {
-                // Logic Pro pattern: Recording starts playback
-                return { recording: true, playing: true, recordingStartTime: s.playhead };
-            }
-            return { recording: true, recordingStartTime: s.playhead };
+    toggleRecording: () => {
+        const s = get();
+        if (s.recording) {
+            set({ recording: false, recordingStartTime: null, liveRecordingClips: {} });
+            heldRecordingNotes.clear();
+            cancelCountIn();
+            return;
         }
-        return { recording: false, recordingStartTime: null, liveRecordingClips: {} };
-    }),
+
+        set({ recording: true, recordingStartTime: s.playhead });
+
+        // Logic Pro pattern: recording rolls the transport. The transport is
+        // `play()`, not a `playing: true` flag — `play()` is what starts the
+        // loop that advances the playhead. Setting the flag alone armed the
+        // audio scheduler but left the playhead frozen, so every note recorded
+        // landed on the beat where record was pressed, all with the minimum
+        // duration, in a clip that never grew past one beat.
+        if (s.playing) return;
+
+        // Count-in. `countInEnabled` and `countInBars` had a toggle in the
+        // control bar and were saved with the project, but nothing read them —
+        // switching count-in on did nothing at all. Clicks are scheduled first
+        // and the transport starts when they finish, so the bars are counted
+        // before the take rather than over the top of it.
+        const beatsPerBar = parseInt(s.timeSignature?.split('/')[0] ?? '4', 10) || 4;
+        const preRoll = s.countInEnabled
+            ? audioEngine.scheduleCountIn(s.countInBars, beatsPerBar, s.tempo)
+            : 0;
+
+        if (preRoll <= 0) {
+            get().play();
+            return;
+        }
+
+        countInTimer = setTimeout(() => {
+            countInTimer = null;
+            // The user may have cancelled during the count-in.
+            if (get().recording) get().play();
+        }, preRoll * 1000);
+    },
 
     toggleAutopunch: (enabled) => set(s => ({ autopunchEnabled: enabled !== undefined ? enabled : !s.autopunchEnabled })),
     
@@ -6057,6 +6126,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         isDirty: true
     })),
 }));
+
+/**
+ * Store handle for debugging and end-to-end tests, alongside `window.audioDebug`.
+ *
+ * Development only: nothing in the app reads it, and it is the only way an
+ * automated test can assert on what a recording actually captured rather than
+ * on what the UI happens to draw.
+ */
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    (window as unknown as Record<string, unknown>).__projectStore = useProjectStore;
+}
 
 if (typeof window !== 'undefined') {
     const raw = localStorage.getItem('logicDawGlobalSettings');

@@ -76,6 +76,36 @@ class MetronomeEngine {
         this.config.polyphonic = poly;
     }
 
+    /**
+     * Click `bars` bars before the transport rolls, and report how long that
+     * takes in seconds.
+     *
+     * A count-in cannot come from the normal refill loop: that derives its
+     * beats from the scheduler's position and only produces clicks while the
+     * transport is already moving, which is exactly when a count-in is over.
+     * The clicks are scheduled outright, ahead of the audio clock, so they are
+     * sample-accurate and land whether or not the metronome is otherwise on.
+     *
+     * Returns 0 when there is nothing to count in, so callers can start the
+     * transport immediately rather than special-casing it.
+     */
+    scheduleCountIn(bars: number, beatsPerBar: number, tempo: number): number {
+        const ctx = audioContextManager.getContext();
+        if (!ctx || bars <= 0 || beatsPerBar <= 0 || tempo <= 0) return 0;
+
+        const secondsPerBeat = 60 / tempo;
+        const beats = Math.round(bars * beatsPerBar);
+        const output = this.ensureOutputGain();
+
+        // A small lead-in, or the first click lands in the past and is dropped.
+        const start = ctx.currentTime + 0.06;
+        for (let i = 0; i < beats; i++) {
+            this.scheduleClick(output, start + i * secondsPerBeat, i % beatsPerBar === 0, ctx);
+        }
+
+        return 0.06 + beats * secondsPerBeat;
+    }
+
     reset(): void {
         this.scheduledUpToBeat = -1;
         this.stopRefill();

@@ -9,6 +9,7 @@
 
 import { audioEngine } from '../AudioEngineAdapter';
 import { MidiInputRouter } from './midiInputRouter';
+import { isMidiTrackType } from '@/lib/trackKinds';
 
 interface TrackLike {
     id: string;
@@ -28,9 +29,6 @@ export interface LiveMidiInputOptions {
     getDeviceName?: (inputId: string) => string | undefined;
 }
 
-/** Tracks that can host MIDI notes. */
-const INSTRUMENT_TRACK_TYPES = new Set(['midi', 'software-instrument', 'drummer', 'external-midi']);
-
 /**
  * Which track should receive played notes.
  *
@@ -48,7 +46,7 @@ export function resolveTargetTrack(state: ProjectStateLike): string | null {
         return state.focusedTrackId;
     }
 
-    const instrument = tracks.find(t => INSTRUMENT_TRACK_TYPES.has(t.type ?? ''));
+    const instrument = tracks.find(t => isMidiTrackType(t.type));
     return instrument?.id ?? tracks[0]?.id ?? null;
 }
 

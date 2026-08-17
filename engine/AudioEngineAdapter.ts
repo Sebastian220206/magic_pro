@@ -243,6 +243,14 @@ export class AudioEngineAdapter implements MidiSink {
         return metronomeEngine.isEnabled();
     }
 
+    /**
+     * Click a count-in and report its length in seconds, so the caller can
+     * start the transport when it ends. Returns 0 when there is none.
+     */
+    scheduleCountIn(bars: number, beatsPerBar: number, tempo: number): number {
+        return metronomeEngine.scheduleCountIn(bars, beatsPerBar, tempo);
+    }
+
     /** Apply the project's metronome preferences to the click generator. */
     configureMetronome(settings: {
         accentLevel?: number;
