@@ -112,6 +112,12 @@ function EngineBoot() {
             getState: () => useProjectStore.getState(),
             getDeviceName: (inputId) =>
                 midiDeviceService.getSnapshot().devices.find(d => d.id === inputId)?.name,
+            // The store's note handlers, not the audio engine's. Both are named
+            // `triggerNote`; only this one records what was played.
+            triggerNote: (pitch, velocity, trackId) =>
+                useProjectStore.getState().triggerNote(pitch, velocity, trackId),
+            releaseNote: (pitch, trackId) =>
+                useProjectStore.getState().releaseNote(pitch, trackId),
         });
 
         return () => {

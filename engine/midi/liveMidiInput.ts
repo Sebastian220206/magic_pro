@@ -27,6 +27,17 @@ export interface LiveMidiInputOptions {
     getState: () => ProjectStateLike;
     /** Map a device id to its name, so the enabled flag can be looked up. */
     getDeviceName?: (inputId: string) => string | undefined;
+    /**
+     * Play — and, while recording, capture — a note.
+     *
+     * Injected rather than imported so this module stays free of the store.
+     * It must be the store's `triggerNote`, not the audio engine's: they share
+     * a name and differ in argument order, and only the store's writes the
+     * note into the recording clip. Wired to the engine's, a connected
+     * keyboard sounded perfectly and recorded nothing at all.
+     */
+    triggerNote?: (pitch: number, velocity: number, trackId: string) => void;
+    releaseNote?: (pitch: number, trackId: string) => void;
 }
 
 /**
@@ -108,8 +119,17 @@ export function startLiveMidiInput(options: LiveMidiInputOptions): () => void {
             const entry = inputs.find(i => i.name === name);
             return entry ? entry.enabled : true;
         },
-        triggerNote: (trackId, pitch, velocity) => audioEngine.triggerNote(trackId, pitch, velocity),
-        releaseNote: (trackId, pitch) => audioEngine.releaseNote(trackId, pitch),
+        triggerNote: (trackId, pitch, velocity) => (
+            options.triggerNote
+                ? options.triggerNote(pitch, velocity, trackId)
+                // Sound-only fallback, for callers with no store to hand.
+                : audioEngine.triggerNote(trackId, pitch, velocity)
+        ),
+        releaseNote: (trackId, pitch) => (
+            options.releaseNote
+                ? options.releaseNote(pitch, trackId)
+                : audioEngine.releaseNote(trackId, pitch)
+        ),
     });
 
     const unsubscribeNotes = router.subscribe(publishActiveNotes);
