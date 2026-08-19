@@ -483,37 +483,6 @@ export function Timeline() {
 
     const getProjectStore = () => useProjectStore.getState();
 
-    useEffect(() => {
-        // Inject a test take folder to work on Quick Swipe Comping UI
-        const store = getProjectStore();
-        if (store.tracks.length > 0 && !store.clips.some(c => c.isTakeFolder)) {
-            const trackId = store.tracks[0].id; // Audio 1 ideally
-            const takeFolderId = 'take-folder-1';
-            store.addClip({
-                id: takeFolderId,
-                trackId: trackId,
-                name: 'Audio 2: Comp B',
-                type: 'audio',
-                color: '#84cc16',
-                alternativeId: store.tracks[0].activeAlternativeId,
-                start: 1,
-                startTime: 1,
-                duration: 6,
-                offset: 0,
-                isTakeFolder: true,
-                isTakeFolderOpen: false,
-                quickSwipeComping: true,
-                activeTakeIndex: 1,
-                muted: false, loop: false, qSwing: 0, transpose: 0, velocityOffset: 0,
-                fadeIn: { duration: 0, curve: 'linear', gain: 1 },
-                fadeOut: { duration: 0, curve: 'linear', gain: 1 },
-                playbackRate: 1,
-                pitchOffset: 0,
-                stretchMode: 'none',
-                takes: [] as any,
-            });
-        }
-    }, [tracks.length]);
 
     useEffect(() => {
         const handleWindowMouseDown = () => setTakeFolderMenuClipId(null);

@@ -49,8 +49,13 @@ export function NewProjectScreen({ onClose }: NewProjectScreenProps) {
       const store = useProjectStore.getState();
       const drumTrackId = `track-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const pianoTrackId = `track-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      store.addTrack({ id: drumTrackId, name: 'Drums', type: 'drummer', color: '#f59e0b' } as any);
-      store.addTrack({ id: pianoTrackId, name: 'Piano', type: 'software-instrument', color: '#34d399', instrument: 'piano' } as any);
+      // Added in one update, the way the template path does it. Two separate
+      // `addTrack` calls let autosave persist the project in between, and the
+      // studio then restored that trackless snapshot over the real one.
+      store.addTracks([
+        { id: drumTrackId, name: 'Drums', type: 'drummer', color: '#f59e0b' },
+        { id: pianoTrackId, name: 'Piano', type: 'software-instrument', color: '#34d399', instrument: 'piano' },
+      ] as any);
       router.push(`/project/${useProjectStore.getState().id}`);
     } catch (e) {
       console.error('[NewProjectScreen] Blank project creation failed:', e);

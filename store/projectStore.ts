@@ -609,6 +609,8 @@ interface ProjectState {
     setDropTargetTrackId: (id: string | null) => void;
     duplicateWithSharedChannelStrip: (trackId: string) => void;
     addTrack: (track: Partial<Track>) => void;
+    /** Add several tracks in a single state update. */
+    addTracks: (tracks: Partial<Track>[]) => void;
     updateTrack: (id: string, updates: Partial<Track>) => void;
     deleteTrack: (id: string) => void;
     /** Insert a plugin on a track. Accepts any registered plugin id. */
@@ -1187,6 +1189,30 @@ async function editClipSamples(
 
     bufferCacheManager.addBuffer(clip.storageKey ?? clip.sampleId ?? clip.id, edited, clip.name);
     return true;
+}
+
+/** A track with every default filled in; `overrides` wins. */
+function buildNewTrack(overrides: Partial<Track>, orderIndex: number): Track {
+    const trackId = overrides.id || Date.now().toString();
+    return {
+        id: trackId, name: 'Audio Track', type: 'audio', muted: false, soloed: false,
+        volume: 0.8, pan: 0, color: '#888', orderIndex,
+        recordEnabled: false, inputMonitoring: false,
+        protected: false, frozen: false, enabled: true,
+        freezeMode: 'Source Only',
+        alternatives: [{ id: 'alt-1', name: 'A' }],
+        activeAlternativeId: 'alt-1',
+        showInactiveAlternatives: false,
+        transpose: 0, velocityOffset: 0, delay: 0, plugins: [], sends: [],
+        outputBusId: 'stereo-out',
+        channelStripId: trackId,
+        zoom: 1,
+        hidden: false,
+        isCollapsed: false,
+        isGrooveTrack: false,
+        matchGrooveTrack: false,
+        ...overrides,
+    } as Track;
 }
 
 /** Guards against stacked transport loops; see `play()`. */
@@ -2339,8 +2365,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             loaded = true;
         }
 
-        // Try IndexedDB first (fast, offline-capable)
-        if (typeof window !== 'undefined') {
+        // Try IndexedDB first (fast, offline-capable).
+        //
+        // Skipped when the guard above matched. It used to run regardless, so
+        // the `loaded` flag only ever protected the API fallback below: a
+        // project just built in memory was overwritten by whatever IndexedDB
+        // held for its id. For a new blank project that was an empty snapshot
+        // autosave had written between `initializeProject` and `addTrack`, so
+        // both starter tracks were wiped on the way into the studio.
+        if (!loaded && typeof window !== 'undefined') {
             try {
                 const persisted = await loadFromIndexedDB(projectId);
                 if (persisted && persisted.state) {
@@ -2517,29 +2550,27 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     addTrack: (track) => {
         get().saveHistorySnapshot();
-        set(s => {
-            const trackId = track.id || Date.now().toString();
-            const newTrack = {
-                id: trackId, name: 'Audio Track', type: 'audio', muted: false, soloed: false,
-                volume: 0.8, pan: 0, color: '#888', orderIndex: s.tracks.length,
-                recordEnabled: false, inputMonitoring: false,
-                protected: false, frozen: false, enabled: true,
-                freezeMode: 'Source Only',
-                alternatives: [{ id: 'alt-1', name: 'A' }],
-                activeAlternativeId: 'alt-1',
-                showInactiveAlternatives: false,
-                transpose: 0, velocityOffset: 0, delay: 0, plugins: [], sends: [],
-                outputBusId: 'stereo-out',
-                channelStripId: trackId,
-                zoom: 1,
-                hidden: false,
-                isCollapsed: false,
-                isGrooveTrack: false,
-                matchGrooveTrack: false,
-                ...track
-            } as Track;
-            return { tracks: [...s.tracks, newTrack], isDirty: true };
-        });
+        set(s => ({
+            tracks: [...s.tracks, buildNewTrack(track, s.tracks.length)],
+            isDirty: true,
+        }));
+    },
+
+    /**
+     * Add several tracks in one update.
+     *
+     * Not a convenience: anything that subscribes to the store — autosave
+     * above all — observes the state between two `addTrack` calls. A new blank
+     * project was persisted after its first track and restored from that
+     * snapshot, losing the second.
+     */
+    addTracks: (newTracks) => {
+        if (!newTracks.length) return;
+        get().saveHistorySnapshot();
+        set(s => ({
+            tracks: [...s.tracks, ...newTracks.map((t, i) => buildNewTrack(t, s.tracks.length + i))],
+            isDirty: true,
+        }));
     },
 
     duplicateWithSharedChannelStrip: (id) => set(s => {
