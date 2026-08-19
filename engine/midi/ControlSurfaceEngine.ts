@@ -1,4 +1,5 @@
 import type { ControlSurfaceDevice, ControlSurfaceAssignment } from '@/store/projectStore';
+import { midiDeviceService } from './midiDeviceService';
 
 export type ControlSurfaceEventCallback = (event: ControlSurfaceEvent) => void;
 
@@ -22,6 +23,7 @@ export interface MidiLearnState {
 }
 
 export class ControlSurfaceEngine {
+  private _messageUnsubscribers = new Map<string, () => void>();
   private _devices: Map<string, ControlSurfaceDevice> = new Map();
   private _assignments: ControlSurfaceAssignment[] = [];
   private _listeners: Set<ControlSurfaceEventCallback> = new Set();
@@ -87,7 +89,14 @@ export class ControlSurfaceEngine {
     };
     this._devices.set(input.id, device);
 
-    input.onmidimessage = (msg) => this._handleMidiMessage(msg, input.id);
+    // Subscribe, do not bind: `onmidimessage` is a single slot owned by
+    // `midiDeviceService`. Assigning it here took the keyboard away from note
+    // recording, and clearing it on disconnect left the port dead.
+    this._messageUnsubscribers.get(input.id)?.();
+    this._messageUnsubscribers.set(input.id, midiDeviceService.subscribeToMessages(({ data, inputId }) => {
+        if (inputId !== input.id) return;
+        this._handleMidiMessage({ data } as MIDIMessageEvent, input.id);
+    }));
 
     this._emit({ type: 'device_connected', deviceId: input.id });
   }
@@ -183,7 +192,8 @@ export class ControlSurfaceEngine {
   dispose() {
     if (this._midiAccess) {
       for (const input of this._midiAccess.inputs.values()) {
-        input.onmidimessage = null;
+        this._messageUnsubscribers.get(input.id)?.();
+    this._messageUnsubscribers.delete(input.id);
       }
     }
     this._listeners.clear();

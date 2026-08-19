@@ -120,19 +120,13 @@ export class AudioEngineAdapter implements MidiSink {
      * permission request instead of several competing ones.
      */
     private setupMidiInput() {
-        midiDeviceService.subscribe(snapshot => {
-            if (snapshot.status !== 'granted') return;
-            const access = midiDeviceService.getAccess();
-            if (!access) return;
-
-            access.inputs.forEach(input => {
-                // Assigning is idempotent: re-binding the same handler on an
-                // already-connected port simply replaces it.
-                input.onmidimessage = (message) => {
-                    const event = { message, inputId: input.id };
-                    this.midiListeners.forEach(l => l(event));
-                };
-            });
+        // Subscribe rather than bind. `onmidimessage` is a single slot and is
+        // owned by `midiDeviceService`; assigning it here would fight the
+        // piano roll's recorder and the control-surface engine for the port,
+        // and whoever assigned last would silently take every note.
+        midiDeviceService.subscribeToMessages(({ data, inputId }) => {
+            const event = { message: { data } as MIDIMessageEvent, inputId };
+            this.midiListeners.forEach(l => l(event));
         });
 
         void midiDeviceService.initialize();

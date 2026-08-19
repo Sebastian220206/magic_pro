@@ -6,12 +6,14 @@
  * Also captures sustain pedal (CC64) events and stores their state.
  */
 
+import { midiDeviceService } from './midiDeviceService';
+
 type NoteRecordedCallback = (note: { pitch: number; startBeat: number; duration: number; velocity: number }) => void;
 type SustainPedalCallback = (active: boolean, beat: number) => void;
 type GetCurrentBeat = () => number;
 
 export class MidiRecorder {
-  private midiAccess: MIDIAccess | null = null;
+  private unsubscribe: (() => void) | null = null;
   private activeNotes = new Map<number, { startBeat: number; velocity: number }>();
   private isRunning = false;
   private onNoteRecorded: NoteRecordedCallback;
@@ -34,24 +36,23 @@ export class MidiRecorder {
     this.clipLength = clipLength;
     this.activeNotes.clear();
     this.isRunning = true;
-    try {
-      this.midiAccess = await navigator.requestMIDIAccess();
-      for (const input of this.midiAccess.inputs.values()) {
-        input.onmidimessage = this.handleMessage.bind(this);
-      }
-    } catch (err) {
-      console.warn('Web MIDI not available:', err);
-      this.isRunning = false;
-    }
+
+    // Subscribing, not binding. This used to assign `input.onmidimessage` on
+    // every port, which stole the keyboard from the note router that feeds
+    // recording — and `stop()` set those ports to null, leaving the keyboard
+    // completely dead until it was replugged. Opening the piano roll and
+    // pressing R was enough to do it.
+    await midiDeviceService.initialize();
+    this.unsubscribe?.();
+    this.unsubscribe = midiDeviceService.subscribeToMessages(({ data }) => {
+      this.handleMessage({ data } as MIDIMessageEvent);
+    });
   }
 
   stop(): void {
     this.isRunning = false;
-    if (this.midiAccess) {
-      for (const input of this.midiAccess.inputs.values()) {
-        input.onmidimessage = null;
-      }
-    }
+    this.unsubscribe?.();
+    this.unsubscribe = null;
     this.activeNotes.clear();
   }
 

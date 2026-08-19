@@ -43,6 +43,14 @@ export interface MidiDeviceSnapshot {
 
 type Listener = (snapshot: MidiDeviceSnapshot) => void;
 
+/** A raw message from one input, with the port it arrived on. */
+export interface MidiMessage {
+    data: Uint8Array;
+    inputId: string;
+}
+
+type MessageListener = (message: MidiMessage) => void;
+
 /** Human-readable explanation for a status, for display in the UI. */
 export function describeMidiStatus(snapshot: MidiDeviceSnapshot): string {
     switch (snapshot.status) {
@@ -66,6 +74,7 @@ class MidiDeviceService {
     private access: MIDIAccess | null = null;
     private snapshot: MidiDeviceSnapshot = { status: 'idle', devices: [] };
     private listeners = new Set<Listener>();
+    private messageListeners = new Set<MessageListener>();
     private pending: Promise<MidiDeviceSnapshot> | null = null;
 
     getSnapshot(): MidiDeviceSnapshot {
@@ -124,9 +133,50 @@ class MidiDeviceService {
         return this.pending;
     }
 
+    /**
+     * Receive every incoming MIDI message. Returns an unsubscribe function.
+     *
+     * `MIDIInput.onmidimessage` is a single slot, not an event list: assigning
+     * it replaces whatever was there, and assigning null leaves the port dead.
+     * Six modules used to assign it directly, so whichever ran last owned the
+     * keyboard and the rest silently received nothing. The piano roll's
+     * recorder was the worst of them - starting it stole every port from the
+     * note router, and stopping it nulled them, so the keyboard went
+     * completely dead until a device was replugged.
+     *
+     * This service owns `MIDIAccess`, so it owns the handler too. Everything
+     * else subscribes here and gets its own copy of every message.
+     */
+    subscribeToMessages(listener: MessageListener): () => void {
+        this.messageListeners.add(listener);
+        return () => { this.messageListeners.delete(listener); };
+    }
+
+    /** Bind our one handler to every input; idempotent. */
+    private attachMessageHandlers(): void {
+        if (!this.access) return;
+        this.access.inputs.forEach(input => {
+            // Re-assigning the same-shaped handler on an already-bound port is
+            // harmless, and covers ports that appear after the first bind.
+            input.onmidimessage = (event: MIDIMessageEvent) => {
+                if (!event.data) return;
+                const message: MidiMessage = { data: event.data, inputId: input.id };
+                this.messageListeners.forEach(l => {
+                    try {
+                        l(message);
+                    } catch (error) {
+                        console.error('[MidiDevices] message listener failed:', error);
+                    }
+                });
+            };
+        });
+    }
+
     /** Re-read the device list from the existing access object. */
     refreshDevices(): MidiDeviceSnapshot {
         if (!this.access) return this.snapshot;
+
+        this.attachMessageHandlers();
 
         const devices: MidiInputDevice[] = [];
         this.access.inputs.forEach(input => {
@@ -163,6 +213,7 @@ class MidiDeviceService {
         this.access = null;
         this.pending = null;
         this.listeners.clear();
+        this.messageListeners.clear();
         this.snapshot = { status: 'idle', devices: [] };
     }
 }
