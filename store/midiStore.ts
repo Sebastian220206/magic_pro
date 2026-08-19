@@ -74,6 +74,20 @@ import {
   HumanizeOptions,
 } from '../engine/midi/midiTransforms';
 import { MidiScheduler } from '../engine/midi/midiScheduler';
+
+/**
+ * What the piano roll needs from the transport it is attached to.
+ *
+ * The editor's play/stop/seek used to drive a local `MidiScheduler` that had
+ * no instruments registered and was never ticked, so pressing play made no
+ * sound while `isPlaying` made the button look active.
+ */
+export interface MidiTransport {
+    play(): void;
+    stop(): void;
+    seek(beat: number): void;
+    setTempo(bpm: number): void;
+}
 import { GrooveMatcher, createGrooveMatcher, type GrooveReference, type GrooveMatchOptions, DEFAULT_MATCH_OPTIONS } from '../engine/midi/grooveMatching';
 import type { ExtractedGroove } from '../engine/audio/grooveExtractor';
 
@@ -118,6 +132,14 @@ interface MidiState {
   
   // Playback
   scheduler: MidiScheduler | null;
+  /**
+   * The real transport, injected by `ProjectPianoRollAdapter`.
+   *
+   * Not an import: `MidiRenderer` and other engine modules pull this store in,
+   * and importing the project store here would drag the whole audio engine
+   * into them. Injection also keeps the editor store usable on its own.
+   */
+  transport: MidiTransport | null;
   isPlaying: boolean;
   currentBeat: number;
   tempo: number;
@@ -305,6 +327,8 @@ interface MidiActions {
   stop: () => void;
   setTempo: (bpm: number) => void;
   seekToBeat: (beat: number) => void;
+  /** Attach the real transport. Called by the piano roll's project adapter. */
+  setTransport: (transport: MidiTransport | null) => void;
   setCurrentBeat: (beat: number) => void;
       /**
        * Reflect the transport's play state. Written by
@@ -444,6 +468,7 @@ activeChannel: 0,
         clipboard: [],
         
         scheduler: null,
+        transport: null,
         isPlaying: false,
         currentBeat: 0,
         tempo: 120,
@@ -880,48 +905,41 @@ channelFilter: null,
           });
         },
 
+        /*
+         * Transport actions delegate to the project store, which owns the
+         * transport. This store only mirrors `isPlaying` / `currentBeat` for
+         * the editor's playhead — `ProjectPianoRollAdapter` keeps them in step.
+         *
+         * They used to drive a local `MidiScheduler` and write `isPlaying`
+         * here directly. Nothing ever registered an instrument on that
+         * scheduler and nothing ticked its lookahead, so it could not produce
+         * a sound; meanwhile the flag made the piano roll's play button look
+         * active while the real transport stood still. Writing the flag here
+         * would also fight the mirror, so these no longer set it at all.
+         */
+        setTransport: (transport) => set((state) => {
+          state.transport = transport as MidiTransport | null;
+        }),
+
         play: () => {
-          const { scheduler } = get();
-          if (scheduler) {
-            scheduler.start(0);
-          }
-          
-          set((state) => {
-            state.isPlaying = true;
-          });
+          get().transport?.play();
         },
 
         stop: () => {
-          const { scheduler } = get();
-          if (scheduler) {
-            scheduler.stop();
-          }
-          
-          set((state) => {
-            state.isPlaying = false;
-          });
+          get().transport?.stop();
         },
 
         setTempo: (bpm) => {
-          const { scheduler } = get();
-          if (scheduler) {
-            (scheduler as any).setTempo(bpm);
-          }
-          
+          get().transport?.setTempo(bpm);
           set((state) => {
             state.tempo = bpm;
           });
         },
 
         seekToBeat: (beat) => {
-          const { scheduler } = get();
-          if (scheduler) {
-            (scheduler as any).seekToBeat(beat);
-          }
-          
-          set((state) => {
-            state.currentBeat = beat;
-          });
+          // The project's seek stops a rolling transport first, so one press
+          // of Go to Start both stops and rewinds.
+          get().transport?.seek(beat);
         },
 
         setCurrentBeat: (beat) => set({ currentBeat: beat }),
@@ -2206,3 +2224,15 @@ export const selectNotesInViewport = (state: MidiState) => {
 };
 
 export default useMidiStore;
+
+/**
+ * Editor-store handle for debugging and end-to-end tests, alongside
+ * `window.__projectStore`.
+ *
+ * Development only. The piano roll takes its transport actions from this
+ * store, so a test needs it to check that they reach the real transport
+ * rather than clicking a button and hoping it found the right one.
+ */
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    (window as unknown as Record<string, unknown>).__midiStore = useMidiStore;
+}

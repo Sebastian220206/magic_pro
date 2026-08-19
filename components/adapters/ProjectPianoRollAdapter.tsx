@@ -79,6 +79,22 @@ export function ProjectPianoRollAdapter({
   // nothing calls — so the main transport rolled while the piano roll sat at
   // beat 0 forever. Mirror the project transport into midiStore so the editor
   // follows the same clock as the timeline and the audio engine.
+  // Give the editor store the real transport. Its play/stop/seek used to drive
+  // a local scheduler that had no instruments registered and was never ticked,
+  // so the piano roll's own transport buttons made no sound and its go-to-start
+  // moved only the editor's ruler. Injected rather than imported, because
+  // engine modules pull `midiStore` in and must not drag the audio engine with
+  // it.
+  useEffect(() => {
+    useMidiStore.getState().setTransport({
+      play: () => useProjectStore.getState().play(),
+      stop: () => useProjectStore.getState().stop(),
+      seek: (beat: number) => useProjectStore.getState().movePlayhead(beat),
+      setTempo: (bpm: number) => useProjectStore.getState().setTempo(bpm),
+    });
+    return () => useMidiStore.getState().setTransport(null);
+  }, []);
+
   useEffect(() => {
     const sync = (playing: boolean, playhead: number) => {
       const midi = useMidiStore.getState();
