@@ -63,7 +63,7 @@ const AREAS = [
         ['Sends and buses', null, 'sends'],
         ['Track automation', null, 'addAutomationPoint'],
         ['Mute / solo groups', 'engine/mixer/muteSoloGroups.ts', 'muteSoloGroup'],
-        ['VCA faders', 'engine/mixer/vcaFader.ts', 'VcaFader'],
+        ['VCA faders', null, 'vcaFaders'],
         ['Sidechain', null, 'sidechain'],
     ]],
     ['Instruments', [
@@ -84,7 +84,7 @@ const AREAS = [
         ['Live Loops', 'components/LiveLoopsGrid.tsx', 'LiveLoopsGrid'],
         ['Loop library', 'components/LoopBrowser.tsx', 'LoopBrowser'],
         ['Smart Tempo', null, 'smartTempo'],
-        ['Track freeze', 'engine/audioEngine/trackFreeze.ts', 'freezeTrack'],
+        ['Track freeze', 'engine/audioEngine/trackRender.ts', 'renderTrackOffline'],
         ['Bounce / export', null, 'bounceEngine'],
         ['Project alternatives', null, 'alternatives'],
     ]],
