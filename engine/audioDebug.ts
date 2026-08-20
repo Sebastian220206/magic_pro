@@ -195,6 +195,109 @@ export function whySilent(): void {
     }
 }
 
+/**
+ * Play two notes and measure what actually reaches the speakers.
+ *
+ * `whySilent` inspects state; this exercises the audio path. It fires one note
+ * the way a keyboard does (immediately) and one the way the sequencer does
+ * (scheduled to a future AudioContext time), and reports the peak level each
+ * produced. Those two take different code paths, and a fault in the second
+ * alone is invisible from the UI: live playing sounds perfectly while nothing
+ * recorded ever plays back.
+ *
+ * Measuring matters more than it sounds. Counting the nodes a note creates
+ * proves only that it was scheduled — the nodes exist either way, and a note
+ * that is silenced the instant it starts looks identical.
+ *
+ *   await audioDebug.testPlayback()
+ */
+export async function testPlayback(trackId?: string): Promise<void> {
+    const ctx = audioEngine2.getContext();
+    if (!ctx) { console.log('%c[testPlayback] no AudioContext', 'color:#ff4d4d'); return; }
+    if (ctx.state !== 'running') {
+        console.log(`%c[testPlayback] AudioContext is "${ctx.state}" — click the page first`, 'color:#ff4d4d');
+        return;
+    }
+
+    const store = (window as any).__projectStore?.getState?.();
+    const track = trackId
+        ?? store?.tracks?.find((t: any) => /midi|software|drummer|external/.test(t.type ?? ''))?.id
+        ?? store?.focusedTrackId;
+    if (!track) { console.log('%c[testPlayback] no instrument track to test', 'color:#fb923c'); return; }
+
+    // Tap the master output, which is everything that reaches the speakers.
+    const engine = routingEngine as unknown as { masterGain?: AudioNode; outputNode?: AudioNode };
+    const master = engine.masterGain ?? engine.outputNode;
+    if (!master) { console.log('%c[testPlayback] no master node to measure', 'color:#ff4d4d'); return; }
+
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    master.connect(analyser);
+    const buf = new Float32Array(analyser.fftSize);
+
+    const peakOver = async (ms: number) => {
+        let peak = 0;
+        const end = performance.now() + ms;
+        while (performance.now() < end) {
+            analyser.getFloatTimeDomainData(buf);
+            for (const v of buf) peak = Math.max(peak, Math.abs(v));
+            await new Promise(r => setTimeout(r, 20));
+        }
+        return peak;
+    };
+
+    /** Wait until the output falls quiet, so one test cannot read the next. */
+    const waitForQuiet = async (maxMs: number) => {
+        const end = performance.now() + maxMs;
+        while (performance.now() < end) {
+            analyser.getFloatTimeDomainData(buf);
+            let peak = 0;
+            for (const v of buf) peak = Math.max(peak, Math.abs(v));
+            if (peak < 0.0005) return true;
+            await new Promise(r => setTimeout(r, 30));
+        }
+        return false;
+    };
+
+    const PITCH = 60;
+    const verdict = (p: number) => p > 0.001 ? `AUDIBLE (peak ${p.toFixed(4)})` : 'SILENT';
+
+    await waitForQuiet(1500);
+
+    audioEngine2.triggerNote(track, PITCH, 100);
+    const live = await peakOver(700);
+    audioEngine2.releaseNote(track, PITCH);
+
+    // A release tail read as the scheduled note's output would hide exactly
+    // the fault this function exists to find.
+    if (!await waitForQuiet(3000)) {
+        console.log('%c[testPlayback] output never fell quiet — result may be unreliable', 'color:#fb923c');
+    }
+
+    const now = ctx.currentTime;
+    audioEngine2.scheduleNote({
+        key: 'debug-test', clipId: 'debug', trackId: track,
+        pitch: PITCH, velocity: 100,
+        startTime: now + 0.15, stopTime: now + 0.85,
+        instrument: store?.tracks?.find((t: any) => t.id === track)?.instrument,
+    });
+    const sequenced = await peakOver(1400);
+
+    try { master.disconnect(analyser); } catch { /* already gone */ }
+
+    console.log('%c[testPlayback] track ' + track, 'color:#22d3ee;font-weight:bold');
+    console.log('  played live (keyboard path):  ' + verdict(live));
+    console.log('  scheduled (sequencer path):   ' + verdict(sequenced));
+
+    if (live > 0.001 && sequenced <= 0.001) {
+        console.log('%c  -> The instrument works but scheduled notes are silent. That is why nothing recorded plays back.', 'color:#ff4d4d;font-weight:bold');
+    } else if (live <= 0.001 && sequenced <= 0.001) {
+        console.log('%c  -> Nothing from this track reaches the master. Check the track routing, mute and volume.', 'color:#ff4d4d;font-weight:bold');
+    } else {
+        console.log('%c  -> Both paths make sound; the fault is not in note playback itself.', 'color:#4ade80');
+    }
+}
+
 // Make these available in the global scope for console debugging
 if (typeof window !== 'undefined') {
     (window as any).audioDebug = {
@@ -204,5 +307,6 @@ if (typeof window !== 'undefined') {
         testUrl: testAudioUrl,
         measureLatency,
         whySilent,
+        testPlayback,
     };
 }
