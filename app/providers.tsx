@@ -105,6 +105,15 @@ function EngineBoot() {
 
         void midiDeviceService.initialize();
 
+        // Console diagnostics — `audioDebug.whySilent()` above all, which walks
+        // every gate a note has to pass to be heard and names the first one
+        // that would stop it. The module was written but never imported, so
+        // `window.audioDebug` did not exist. Dynamic and guarded so it stays
+        // out of the production bundle.
+        if (process.env.NODE_ENV !== 'production') {
+            void import('@/engine/audioDebug');
+        }
+
         // Route notes from a connected keyboard to the armed track. Without
         // this, MIDI messages only reached the control-surface command matcher
         // and every played note was discarded.
