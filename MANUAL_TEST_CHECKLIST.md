@@ -22,8 +22,22 @@ Add a note on the line when something fails — what you did, what happened.
 **Two habits that catch most silent failures:**
 
 1. After anything that should make sound, confirm you *heard* it — not that a
-   playhead moved.
+   playhead moved and not that a meter twitched. A meter reads the mix bus,
+   which is upstream of the output: it can bounce happily into a dead end.
 2. After anything that should be saved, reload the page and look again.
+
+**When something is silent, two console helpers answer it faster than guessing:**
+
+- `audioDebug.whySilent()` — inspects state: context, master, per-track mute
+  and solo as the *audio engine* sees them beside what the UI shows, and
+  regions holding notes but typed `audio`.
+- `await audioDebug.testPlayback()` — plays a note the keyboard way and a note
+  the sequencer way, measures both at the mix bus and at the final output, and
+  says which stage lost the signal.
+
+**Run only one dev server.** Two instances share one `.next` directory and
+corrupt each other: chunk 404s, stale code, fixes that appear not to apply. If
+the address bar says port 3001, a second server is already running on 3000.
 
 ---
 
@@ -211,7 +225,7 @@ Keys: `a w s e d f t g y h u j` = C C♯ D D♯ E F F♯ G G♯ A A♯ B · `z`/
 - [ ] Zoom in/out; zoom to selection
 - [ ] Keyboard on the left plays notes when clicked
 - [ ] Loop range inputs
-- [ ] ⚠️ *Known broken: the piano roll's **own** play/stop/go-to-start buttons make no sound — use the main transport*
+- [ ] The piano roll's **own** play / stop / go-to-start buttons drive the real transport and make sound
 
 ### Editor tabs
 
@@ -362,6 +376,7 @@ Surfaces, View, My Info, Advanced.
 - [ ] Text is readable everywhere; no dark-on-dark
 - [ ] Keyboard shortcuts do not fire while typing in a text field
 - [ ] Long session (~15 min) — no audio degradation, no runaway memory
+- [ ] Toggle every routing control (mono/stereo, track monitor mode) and confirm audio survives — a lost connection here silences everything while meters still move
 - [ ] Nothing anywhere shows invented placeholder data
 
 ---
@@ -372,7 +387,6 @@ Do not spend time on these; they are recorded and unfixed.
 
 | Area | Problem |
 |---|---|
-| Piano roll transport | Its own play/stop/go-to-start make no sound — driven by a scheduler with no instruments registered |
 | Score tab | Shows the piano roll |
 | Smart Tempo tab | Shows the piano roll |
 | Flex Pitch | Module exists, nothing imports it |
@@ -404,6 +418,10 @@ If any of these fail, it is a regression and worth reporting immediately.
 - [ ] Grand Piano sounds like a piano (was falling back to a synth oscillator)
 - [ ] Octave 4 and its black keys are in tune (font sample rates were misread)
 - [ ] Count-in produces clicks before the transport rolls ⚠️ *never verified by ear*
+- [ ] **Mixer mono button**: switch monitor to mono and back to stereo — audio still plays *(this silenced the whole app while the meters kept moving)*
+- [ ] A new **Blank Project** opens with its Drums and Piano tracks present
+- [ ] The piano roll's own transport buttons play, stop and return to the start
+- [ ] No phantom "Audio 2: Comp B" region appears in a new project
 
 ---
 
