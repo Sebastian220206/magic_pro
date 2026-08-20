@@ -8,6 +8,7 @@ import { GoToBeatDialog } from './GoToBeatDialog';
 import { LocateNoteDialog } from './LocateNoteDialog';
 import { useMidiStore } from '../../store/midiStore';
 import { SnapMenu } from './SnapMenu';
+import { marqueeBox, notesInMarquee, isMarqueeDrag } from '@/lib/marqueeSelect';
 import { useProjectStore } from '../../store/projectStore';
 import { MidiRecorder } from '../../engine/midi/MidiRecorder';
 import { PianoRollTool, ScaleType, getScalePitches, pitchToNoteName } from '../../engine/midi/types';
@@ -684,49 +685,68 @@ export const PianoRoll = memo(function PianoRoll({
     window.removeEventListener('mouseup',   handleWindowMouseUp);
   }, [endDrag, handleWindowMouseMove]);
 
-const handleLassoMouseMove = useCallback((e: MouseEvent) => {
-    if (!lassoSelection) return;
+/*
+   * Rubber-band selection.
+   *
+   * The live rectangle lives in a ref, not in state. These handlers are added
+   * to `window` at mousedown, so whatever closure they captured is the one
+   * that runs for the whole drag — and `setLassoSelection` had not committed
+   * yet at that point, so the captured `lassoSelection` was null and every
+   * handler bailed on its first line. The band never drew, nothing was ever
+   * selected, and mouseup returned before removing its own listeners, so each
+   * attempt leaked another pair.
+   *
+   * State is still set alongside the ref, because the canvas draws from it.
+   */
+  const lassoRef = useRef<{
+    startX: number; startY: number; currentX: number; currentY: number;
+    startBeat: number; endBeat: number; additive: boolean;
+  } | null>(null);
+
+  const handleLassoMouseMove = useCallback((e: MouseEvent) => {
+    const lasso = lassoRef.current;
     const el = canvasRef.current?.parentElement;
-    if (!el) return;
+    if (!lasso || !el) return;
     const rect = el.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const vs = pianoRollNavigation.getState();
-    const beat = x / vs.pixelsPerBeat + vs.startBeat;
-    setLassoSelection(prev => prev ? { ...prev, currentX: x, currentY: y } : null);
-    setLassoEndBeat(beat);
-  }, [lassoSelection]);
+    lasso.currentX = x;
+    lasso.currentY = y;
+    lasso.endBeat = x / vs.pixelsPerBeat + vs.startBeat;
+    setLassoSelection({ startX: lasso.startX, startY: lasso.startY, currentX: x, currentY: y });
+    setLassoEndBeat(lasso.endBeat);
+  }, []);
 
   const handleLassoMouseUp = useCallback(() => {
-    if (!lassoSelection) return;
-    const startBeat = Math.min(lassoStartBeat, lassoEndBeat);
-    const endBeat = Math.max(lassoStartBeat, lassoEndBeat);
-    const startX = Math.min(lassoSelection.startX, lassoSelection.currentX);
-    const endX = Math.max(lassoSelection.startX, lassoSelection.currentX);
-    if (endX - startX > 5) {
-      const vs = pianoRollNavigation.getState();
-      const minY = Math.min(lassoSelection.startY, lassoSelection.currentY);
-      const maxY = Math.max(lassoSelection.startY, lassoSelection.currentY);
-      const highPitch = Math.min(127, Math.floor(vs.maxVisiblePitch - minY / vs.pixelsPerPitch));
-      const lowPitch = Math.max(0, Math.floor(vs.maxVisiblePitch - maxY / vs.pixelsPerPitch));
-      deselectAllNotes();
-      const clipData = getCurrentClip();
-      if (clipData?.notes) {
-        const selectedIds = clipData.notes
-          .filter(n => n.startBeat >= startBeat && n.startBeat <= endBeat && n.pitch >= lowPitch && n.pitch <= highPitch)
-          .map(n => n.id);
-        if (selectedIds.length > 0) {
-          selectNotesById(selectedIds, false);
-        }
-      }
-    } else {
-      // Click without dragging: deselect all
-      deselectAllNotes();
-    }
-    setLassoSelection(null);
+    // Removed first, so an early return below cannot strand them.
     window.removeEventListener('mousemove', handleLassoMouseMove);
     window.removeEventListener('mouseup', handleLassoMouseUp);
-  }, [lassoSelection, lassoStartBeat, lassoEndBeat, deselectAllNotes, getCurrentClip, selectNotesById]);
+
+    const lasso = lassoRef.current;
+    lassoRef.current = null;
+    setLassoSelection(null);
+    if (!lasso) return;
+
+    const store = useMidiStore.getState();
+    if (!isMarqueeDrag(lasso.currentX - lasso.startX, lasso.currentY - lasso.startY)) {
+      if (!lasso.additive) store.deselectAllNotes();
+      return;
+    }
+
+    const vs = pianoRollNavigation.getState();
+    const pitchAt = (screenY: number) =>
+      Math.max(0, Math.min(127, Math.floor(vs.maxVisiblePitch - screenY / vs.pixelsPerPitch)));
+
+    const box = marqueeBox(
+      { beat: lasso.startBeat, pitch: pitchAt(lasso.startY) },
+      { beat: lasso.endBeat, pitch: pitchAt(lasso.currentY) },
+    );
+    const ids = notesInMarquee(store.getCurrentClip()?.notes ?? [], box).map(n => n.id);
+
+    if (!lasso.additive) store.deselectAllNotes();
+    if (ids.length) store.selectNotesById(ids, lasso.additive);
+  }, [handleLassoMouseMove]);
 
   useEffect(() => {
     return () => {
@@ -876,6 +896,11 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
         window.addEventListener('mousemove', handleWindowMouseMove);
         window.addEventListener('mouseup',   handleWindowMouseUp);
       } else {
+        lassoRef.current = {
+          startX: x, startY: y, currentX: x, currentY: y,
+          startBeat: beat, endBeat: beat,
+          additive: e.shiftKey,
+        };
         setLassoSelection({ startX: x, startY: y, currentX: x, currentY: y });
         setLassoStartBeat(beat);
         setLassoEndBeat(beat);

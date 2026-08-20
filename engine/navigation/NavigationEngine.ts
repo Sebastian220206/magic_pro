@@ -26,3 +26,15 @@ globalViewportGroup.linkHorizontal(ViewportChannelId.ARRANGEMENT, [ViewportChann
 // Sync states to the group
 timelineNavigation.subscribe(state => globalViewportGroup.commitTransaction(ViewportChannelId.ARRANGEMENT, state));
 pianoRollNavigation.subscribe(state => globalViewportGroup.commitTransaction(ViewportChannelId.PIANO_ROLL, state));
+
+/**
+ * Viewport handle for debugging and end-to-end tests, alongside
+ * `window.__projectStore` and `window.__midiStore`.
+ *
+ * Development only. A test that drives the piano-roll grid needs to know which
+ * pitches and beats are actually on screen — without it, a drag that looks
+ * correct in page coordinates can be nowhere near the notes.
+ */
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    (window as unknown as Record<string, unknown>).__pianoRollNav = pianoRollNavigation;
+}
