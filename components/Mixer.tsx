@@ -9,6 +9,7 @@ import { LoudnessReadout } from "./MasterOutput"
 import { SendsSlot, OutputRouting, MonitorControls, SidechainPicker } from "./mixer/RoutingControls"
 import { PeakDisplay, LevelField, PanField, RecordMonitorButtons, resetAllPeakDisplays } from "./mixer/ChannelStripReadouts"
 import { ChannelModeButton, AutomationModeButton, VcaSlot, TrackNameField, OutputStripButtons } from "./mixer/ChannelStripSlots"
+import { STRIP_ROWS, STRIP_WIDTH, LEGEND_WIDTH, FADER_SCALE, stripTint, type StripRow } from "./mixer/stripLayout"
 import { MAX_GAIN } from "@/lib/mixerLevel"
 import { BUILTIN_PLUGIN_IDS } from "@/engine/plugins/pluginIds"
 import {
@@ -163,6 +164,42 @@ export function Mixer() {
             <div className="flex-1 flex overflow-x-auto custom-scrollbar-h relative">
 
                 {/* Dynamic Channel Strips */}
+                {/* Legend. Renders the same row spec as the strips, so each
+                    label sits at exactly the height of the slot it names —
+                    which is the only thing that makes a console layout
+                    readable. Sticky, so it stays put while the strips scroll
+                    sideways. */}
+                <div
+                    style={{ width: LEGEND_WIDTH }}
+                    className="shrink-0 sticky left-0 z-30 flex flex-col bg-studio-panel border-r border-black shadow-[4px_0_15px_rgba(0,0,0,0.5)]"
+                >
+                    {STRIP_ROWS.map((row: StripRow) => (
+                        <div
+                            key={row.key}
+                            data-legend-row={row.key}
+                            style={row.height === null ? undefined : { height: row.height }}
+                            className={`${row.height === null ? 'flex-1 min-h-0' : 'shrink-0'} pr-2 flex items-center justify-end`}
+                        >
+                            {row.key === 'fader' ? (
+                                // The dB scale is printed once, down the side of
+                                // the console, and read across every meter at
+                                // once — as on the reference desk.
+                                <div className="h-full w-full flex flex-col justify-between py-1 items-end">
+                                    {FADER_SCALE.map(mark => (
+                                        <span key={mark} className="text-[7px] leading-none text-studio-text-dim/60 tabular-nums">
+                                            {mark}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <span className="text-[8px] font-black uppercase tracking-tight text-studio-text-dim">
+                                    {row.label}
+                                </span>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
                 {filteredTracks.map(track => (
                     <TrackMixerChannelStrip
                         key={track.id}
@@ -313,10 +350,22 @@ function ChannelStripSettingButton({ track, isMaster }: { track: Track | null; i
  * How far Dim drops the monitor: -20 dB, the value Logic uses by default.
  * Applied to the output only, so the stored fader value is untouched.
  */
+/** Icon per channel type, shown in the strip's icon row. */
+const TRACK_GLYPH: Record<string, string> = {
+    audio: '🎙', midi: '🎹', 'software-instrument': '🎹', drummer: '🥁',
+    'external-midi': '🎛', bus: '🚌', folder: '📁', output: '🔊', video: '🎬',
+};
+
 const DIM_FACTOR = 0.1;
 
-/** Enough for a full channel strip: slots, fader, meters and the name row. */
-const MIXER_MIN_HEIGHT = 520;
+/**
+ * Enough for a full channel strip.
+ *
+ * The fixed rows come to about 406px; the fader row takes whatever is left, so
+ * anything much under this squeezes the fader down to a stub and the dB scale
+ * beside it becomes unreadable. This leaves roughly 180px of fader travel.
+ */
+const MIXER_MIN_HEIGHT = 640;
 
 interface MixerChannelStripProps {
     track: Track | null;
@@ -396,429 +445,371 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
         }
     }, [initialVolume]);
 
+    const analyser = isMaster
+        ? audioEngine.getMasterAnalyzer()
+        : (track ? (audioEngine.getTrackNodes(track.id)?.analyzer || null) : null);
+
+    const gain = isMaster ? masterVolume : (track?.volume ?? 0.8);
+    const tint = stripTint(track?.type, isMaster);
+
+    const applyGain = (value: number) => {
+        onUpdate({ volume: value });
+        if (isMaster) audioEngine2.setMasterVolume(value);
+        else if (track) audioEngine2.setTrackVolume(track.id, value);
+        if (faderCapRef.current) faderCapRef.current.style.bottom = `${Math.min(100, value * 100)}%`;
+    };
+
+    const applyPan = (value: number) => {
+        onUpdate({ pan: value });
+        if (isMaster) audioEngine2.setMasterPan(value);
+        else if (track) audioEngine2.setTrackPan(track.id, value);
+    };
+
+    /** Alt returns to unity; Shift drags four times finer. */
+    const beginFaderDrag = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (e.altKey) { applyGain(1); saveHistorySnapshot(); return; }
+
+        isDraggingRef.current = true;
+        const startY = e.clientY;
+        const startVol = gain;
+        let latest = startVol;
+
+        const onMove = (me: MouseEvent) => {
+            const travel = me.shiftKey ? 720 : 180;
+            let next = Math.max(0, Math.min(MAX_GAIN, startVol + (startY - me.clientY) / travel));
+            // Snap to unity, the one landmark on the scale.
+            if (Math.abs(next - 1) < 0.02) next = 1;
+            latest = next;
+            if (isMaster) audioEngine2.setMasterVolume(next);
+            else if (track) audioEngine2.setTrackVolume(track.id, next);
+        };
+
+        // Audio follows every move; the cap is repainted once per frame.
+        let raf: number | null = null;
+        const onRafMove = (me: MouseEvent) => {
+            onMove(me);
+            if (raf === null && faderCapRef.current) {
+                raf = requestAnimationFrame(() => {
+                    raf = null;
+                    if (faderCapRef.current) faderCapRef.current.style.bottom = `${Math.min(100, latest * 100)}%`;
+                });
+            }
+        };
+
+        const onUp = () => {
+            isDraggingRef.current = false;
+            if (raf !== null) cancelAnimationFrame(raf);
+            applyGain(latest);
+            saveHistorySnapshot();
+            window.removeEventListener('mousemove', onRafMove);
+            window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onRafMove);
+        window.addEventListener('mouseup', onUp);
+    };
+
+    /** Alt centres; Shift drags four times finer. */
+    const beginPanDrag = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (e.altKey) { applyPan(0); saveHistorySnapshot(); return; }
+        const startY = e.clientY;
+        const startPan = initialPan;
+        const onMove = (me: MouseEvent) => {
+            const travel = me.shiftKey ? 400 : 100;
+            let next = Math.max(-1, Math.min(1, startPan + (startY - me.clientY) / travel));
+            if (Math.abs(next) < 0.05) next = 0;
+            applyPan(next);
+        };
+        const onUp = () => {
+            saveHistorySnapshot();
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    };
+
+    /* Every row is rendered at the height the shared spec gives it, so the
+     * legend column on the left lines up with the slot it names on every
+     * strip. That alignment is the whole point of a console layout. */
+    const rows: Record<string, React.ReactNode> = {
+        setting: <ChannelStripSettingButton track={track} isMaster={isMaster} />,
+
+        // Reads the gain reduction of the first compressor. Nothing exposes
+        // that yet, so the slot is drawn empty and says why rather than
+        // animating something invented.
+        gainReduction: (
+            <div className="h-full rounded-[2px] bg-black/40 border border-white/5"
+                title="Gain reduction is not reported by the plug-ins yet" />
+        ),
+
+        eq: (
+            <div className="h-full rounded-[2px] bg-black/60 border border-white/5 overflow-hidden group/eq">
+                <svg viewBox="0 0 100 34" className="w-full h-full opacity-40 group-hover/eq:opacity-70 transition-opacity">
+                    <path d="M0,22 Q30,4 60,26 T100,17" fill="none" stroke={tint} strokeWidth="1.5" />
+                </svg>
+            </div>
+        ),
+
+        midiFx: (
+            <div className="h-full rounded-[2px] bg-black/40 border border-white/5 flex items-center justify-center text-[8px] font-black text-studio-text-dim uppercase"
+                title="MIDI effects are not implemented yet">
+                {track && !isMaster ? 'MIDI FX' : ''}
+            </div>
+        ),
+
+        input: (
+            <div className="h-full flex items-center gap-0.5">
+                {!isMaster && track && <ChannelModeButton track={track} />}
+                <div
+                    className="h-full flex-1 min-w-0 rounded-[2px] border flex items-center justify-center px-1 text-[8px] font-black truncate"
+                    style={{ background: `${tint}22`, borderColor: `${tint}66`, color: tint }}
+                    title={isMaster ? 'Summed output' : (track?.instrument || 'Input 1')}
+                >
+                    {isMaster ? 'Sum' : (track?.instrument || 'In 1')}
+                </div>
+            </div>
+        ),
+
+        audioFx: (
+            <div className="h-full flex flex-col gap-px overflow-y-auto no-scrollbar">
+                {fxChain.map((plugin: any) => (
+                    <div
+                        key={plugin.id}
+                        onClick={(e) => { e.stopPropagation(); if (track) setOpenPluginEditor({ trackId: track.id, pluginId: plugin.id }); }}
+                        title={plugin.name}
+                        className={`h-[13px] shrink-0 rounded-[2px] flex items-center px-1 text-[8px] font-black cursor-pointer truncate transition-all ${plugin.enabled
+                            ? 'bg-accent-cyan/80 text-black hover:bg-accent-cyan'
+                            : 'bg-studio-panel text-studio-text-dim opacity-60'}`}
+                    >
+                        {plugin.name}
+                    </div>
+                ))}
+                <PluginMenu
+                    onSelect={(type) => addToChain(type)}
+                    onBrowse={() => {
+                        const id = isMaster ? null : track?.id;
+                        if (id) useProjectStore.getState().setPluginBrowserTrack(id, 'effect');
+                    }}
+                />
+            </div>
+        ),
+
+        sends: <div className="h-full overflow-hidden"><SendsSlot track={track} /></div>,
+        output: <div className="h-full"><OutputRouting track={track} isMaster={isMaster} /></div>,
+        group: <div className="h-full"><GroupSlot track={track} /></div>,
+
+        automation: !isMaster && track
+            ? <AutomationModeButton track={track} />
+            : <div className="h-full rounded-[2px] bg-black/40 border border-white/5" />,
+
+        icon: (
+            <div className="h-full flex items-center justify-center">
+                <div
+                    className="w-6 h-6 rounded-[3px] flex items-center justify-center text-[12px] leading-none"
+                    style={{ background: `${tint}30`, border: `1px solid ${tint}80` }}
+                    aria-hidden
+                >
+                    {isMaster ? '🔊' : (TRACK_GLYPH[track?.type ?? 'audio'] ?? '🎚')}
+                </div>
+            </div>
+        ),
+
+        pan: (
+            <div className="h-full flex flex-col items-center justify-center gap-0.5">
+                <div className="relative cursor-ns-resize" onMouseDown={beginPanDrag} title="Pan — Alt-click to centre, Shift-drag for fine">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-studio-sunken via-studio-raised to-studio-control border border-studio-line shadow-md ring-1 ring-black/50">
+                        <div
+                            className="absolute top-0.5 left-[11px] w-[2px] h-2 bg-studio-text-mid rounded-full origin-bottom"
+                            style={{ transform: `rotate(${initialPan * 45}deg)` }}
+                        />
+                    </div>
+                </div>
+                <PanField pan={initialPan} onCommit={(value) => { applyPan(value); saveHistorySnapshot(); }} />
+            </div>
+        ),
+
+        vca: !isMaster && track
+            ? <VcaSlot track={track} />
+            : <div className="h-full rounded-[2px] bg-black/40 border border-white/5" />,
+
+        db: (
+            <div className="h-full flex items-center gap-0.5">
+                <LevelField gain={gain} onCommit={(value) => { applyGain(value); saveHistorySnapshot(); }} className="flex-1" />
+                <PeakDisplay analyzer={analyser} className="flex-1" />
+            </div>
+        ),
+
+        fader: (
+            <div className="h-full flex items-end justify-center gap-1 pb-1">
+                <div className="h-full w-1.5"><VerticalMeter analyzer={analyser} side="L" className="w-full h-full" /></div>
+
+                <div className="h-full w-5 bg-black/50 rounded-sm border border-studio-line relative cursor-ns-resize">
+                    <div className="absolute inset-y-1 inset-x-1 flex flex-col justify-between opacity-10 pointer-events-none">
+                        {Array.from({ length: 12 }).map((_, i) => <div key={i} className="w-full h-px bg-white" />)}
+                    </div>
+                    <div
+                        ref={faderCapRef}
+                        onMouseDown={beginFaderDrag}
+                        title="Volume — Alt-click for unity, Shift-drag for fine"
+                        className="absolute -left-0.5 w-6 h-3.5 bg-gradient-to-b from-studio-control to-studio-raised border border-studio-line-strong rounded-[2px] shadow-[0_3px_8px_rgba(0,0,0,0.8)] z-20 flex items-center justify-center"
+                    >
+                        <div className="w-[70%] h-px bg-white/25" />
+                    </div>
+                </div>
+
+                {/* Stereo draws two columns; every other format is one signal
+                    and draws one, which is what Channel Mode is telling you. */}
+                {(isMaster || (track?.channelMode ?? 'stereo') === 'stereo') && (
+                    <div className="h-full w-1.5"><VerticalMeter analyzer={analyser} side="R" className="w-full h-full" /></div>
+                )}
+            </div>
+        ),
+
+        recordMonitor: isMaster
+            ? (
+                <OutputStripButtons
+                    dimmed={dimmed}
+                    onToggleDim={() => {
+                        const next = !dimmed;
+                        setDimmed(next);
+                        audioEngine2.setMasterVolume(next ? masterVolume * DIM_FACTOR : masterVolume);
+                    }}
+                    onBounce={() => useProjectStore.getState().toggleExportDialog('all')}
+                />
+            )
+            : track
+                ? (
+                    <RecordMonitorButtons
+                        recordEnabled={!!track.recordEnabled}
+                        inputMonitoring={!!track.inputMonitoring}
+                        disabled={track.type === 'bus' || track.type === 'output'}
+                        onToggleRecord={() => onUpdate({ recordEnabled: !track.recordEnabled } as Partial<Track>)}
+                        onToggleMonitor={() => onUpdate({ inputMonitoring: !track.inputMonitoring } as Partial<Track>)}
+                    />
+                )
+                : null,
+
+        muteSolo: (
+            <div className="h-full flex gap-0.5 px-1">
+                <button
+                    id={track ? `mixer-mute-${track.id}` : 'mixer-mute-master'}
+                    title="Mute - Cmd-click to switch every strip in the same state"
+                    aria-label="Mute"
+                    aria-pressed={initialMuted}
+                    data-mute-button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        const next = !initialMuted;
+                        if (e.metaKey || e.ctrlKey) {
+                            const store = useProjectStore.getState();
+                            store.saveHistorySnapshot();
+                            store.tracks.filter(t => !!t.muted === initialMuted).forEach(t => {
+                                store.updateTrack(t.id, { muted: next });
+                                if (next) audioEngine2.muteTrack(t.id); else audioEngine2.unmuteTrack(t.id);
+                            });
+                            store.updateProjectSettings({ masterMuted: next });
+                            audioEngine2.setMasterMuted(next);
+                            return;
+                        }
+                        onUpdate({ muted: next });
+                        if (isMaster) audioEngine2.setMasterMuted(next);
+                        else if (track) { if (next) audioEngine2.muteTrack(track.id); else audioEngine2.unmuteTrack(track.id); }
+                    }}
+                    className={`flex-1 rounded-[2px] border text-[9px] font-black transition-all active:scale-95 ${initialMuted
+                        ? 'bg-[#ff4d4d]/25 border-[#ff4d4d] text-[#ff4d4d]'
+                        : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text'}`}
+                >M</button>
+
+                <button
+                    id={track ? `mixer-solo-${track.id}` : 'mixer-solo-master'}
+                    title={isMaster ? 'Dim' : 'Solo - Alt-click to solo only this strip, Ctrl-click for solo-safe'}
+                    aria-label={isMaster ? 'Dim' : 'Solo'}
+                    aria-pressed={isMaster ? dimmed : !!track?.soloed}
+                    data-solo-button
+                    data-solo-safe={track?.soloSafe || undefined}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        // The output strip carries Dim where a track carries
+                        // Solo, exactly as in the reference console.
+                        if (isMaster) {
+                            const next = !dimmed;
+                            setDimmed(next);
+                            audioEngine2.setMasterVolume(next ? masterVolume * DIM_FACTOR : masterVolume);
+                            return;
+                        }
+                        if (!track) return;
+                        const store = useProjectStore.getState();
+                        if (e.ctrlKey && !e.metaKey) {
+                            store.updateTrack(track.id, { soloSafe: !track.soloSafe } as Partial<Track>);
+                            return;
+                        }
+                        if (e.altKey) {
+                            store.saveHistorySnapshot();
+                            store.tracks.forEach(t => {
+                                const on = t.id === track.id;
+                                if (!!t.soloed === on) return;
+                                store.updateTrack(t.id, { soloed: on });
+                                if (on) audioEngine2.soloTrack(t.id); else audioEngine2.unsoloTrack(t.id);
+                            });
+                            return;
+                        }
+                        const next = !track.soloed;
+                        onUpdate({ soloed: next });
+                        if (next) audioEngine2.soloTrack(track.id); else audioEngine2.unsoloTrack(track.id);
+                    }}
+                    className={`relative flex-1 rounded-[2px] border text-[9px] font-black transition-all active:scale-95 ${(isMaster ? dimmed : track?.soloed)
+                        ? 'bg-[#ffc500]/25 border-[#ffc500] text-[#ffc500]'
+                        : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text'}`}
+                >
+                    {isMaster ? 'D' : 'S'}
+                    {track?.soloSafe && (
+                        <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span className="w-3 h-px bg-[#ff4d4d] rotate-[-45deg]" />
+                        </span>
+                    )}
+                </button>
+            </div>
+        ),
+
+        name: (
+            <div
+                className="h-full flex items-center justify-center px-1 text-[8px] font-black uppercase truncate tracking-tight"
+                style={{ background: tint, color: '#04070b' }}
+                title={isMaster ? 'Master' : track?.name}
+                onDoubleClick={(e) => {
+                    if (isMaster || !track) return;
+                    e.stopPropagation();
+                    const name = window.prompt('Track name', track.name);
+                    if (name && name.trim()) useProjectStore.getState().updateTrack(track.id, { name: name.trim() });
+                }}
+                data-track-name-field
+            >
+                {isMaster ? 'Master' : (track?.name || 'Track')}
+            </div>
+        ),
+    };
+
     return (
         <div
             onClick={onSelect}
-            className={`w-[120px] h-full flex flex-col border-r border-black shrink-0 transition-colors relative group ${isSelected ? 'bg-accent-cyan/[0.04]' : 'bg-studio-panel/50 hover:bg-white/[0.02]'}`}
+            style={{ width: STRIP_WIDTH }}
+            className={`h-full flex flex-col border-r border-black shrink-0 transition-colors relative group ${isSelected ? 'bg-accent-cyan/[0.06]' : 'bg-studio-panel/60 hover:bg-white/[0.02]'}`}
         >
-            {/* Routing slots scroll; the mixing controls below do not. The
-                strip used to be one scrolling column, so at the mixer's
-                default height the fader, meters and buttons were all below the
-                fold and the panel showed only routing. */}
-            <div className="flex-1 min-h-0 flex flex-col px-2 pt-3 gap-1 overflow-y-auto custom-scrollbar-v no-scrollbar">
-
-                {/* Setting / Icon Spot */}
-                <ChannelStripSettingButton
-                    track={track}
-                    isMaster={isMaster}
-                />
-
-                {/* EQ Visualizer Slot */}
-                <div className="h-10 bg-black/60 border border-white/5 rounded-sm flex items-center justify-center relative overflow-hidden group/eq">
-                    <div className="absolute inset-0 bg-gradient-to-t from-accent-cyan/20/20 to-transparent"></div>
-                    <svg viewBox="0 0 100 40" className="w-full h-full opacity-30 group-hover/eq:opacity-60 transition-opacity">
-                        <path d="M0,25 Q30,5 60,30 T100,20" fill="none" stroke="#38bdf8" strokeWidth="1.5" />
-                    </svg>
+            {isSelected && <div className="absolute inset-x-0 top-0 h-0.5 bg-accent-cyan z-10 shadow-[0_0_10px_var(--accent-cyan-glow)]" />}
+            {STRIP_ROWS.map((row: StripRow) => (
+                <div
+                    key={row.key}
+                    data-strip-row={row.key}
+                    style={row.height === null ? undefined : { height: row.height }}
+                    className={`${row.height === null ? 'flex-1 min-h-0' : 'shrink-0'} px-1 ${row.key === 'name' ? 'px-0' : ''}`}
+                >
+                    {rows[row.key] ?? null}
                 </div>
-
-                {/* Format and MIDI FX. The Channel Mode button decides how
-                    many columns the meter draws, which is why the guide puts it
-                    on the strip rather than in a dialog. */}
-                <div className="flex items-center gap-1">
-                    {!isMaster && track && <ChannelModeButton track={track} />}
-                    <div className="h-5 flex-1 bg-black/40 rounded-sm border border-white/5 flex items-center justify-center text-[8px] font-black text-studio-text-dim uppercase"
-                        title="MIDI effects are not implemented yet">
-                        Midi FX
-                    </div>
-                </div>
-
-                {/* FX Rack (Professional Dynamic Stack) */}
-                <div className="flex flex-col gap-0.5 h-[100px] mb-1 overflow-y-auto no-scrollbar">
-                    {fxChain.map((p: any) => (
-                        <div
-                            key={p.id}
-                            onClick={(e) => { e.stopPropagation(); if (track) setOpenPluginEditor({ trackId: track.id, pluginId: p.id }); }}
-                            className={`h-5 rounded-sm flex items-center px-2 text-[9px] font-black shadow-sm border-t border-white/10 cursor-pointer hover:brightness-125 transition-all ${p.enabled ? (p.name.includes('EQ') ? 'bg-accent-cyan text-white shadow-[0_0_10px_rgba(14,165,233,0.3)]' : 'bg-accent-cyan text-white') : 'bg-studio-panel text-studio-text-dim opacity-60'}`}
-                        >
-                            <div 
-                                onClick={(e) => { e.stopPropagation(); toggleInChain(p.id); }}
-                                className="mr-1.5 p-0.5 hover:bg-white/10 rounded"
-                            >
-                                <Power className={`w-2 h-2 ${p.enabled ? 'text-white' : 'text-studio-text-dim'}`} fill="currentColor" />
-                            </div>
-                            <span className="truncate">{p.name}</span>
-                        </div>
-                    ))}
-
-                    {/* Dynamics plugins can be keyed from another track. */}
-                    {track && fxChain
-                        .filter((p: any) => p.pluginId === BUILTIN_PLUGIN_IDS.sidechainCompressor)
-                        .map((p: any) => (
-                            <SidechainPicker key={`sc-${p.id}`} track={track} pluginId={p.id} />
-                        ))}
-
-                    {fxChain.length < 8 && (
-                        <PluginMenu
-                            onSelect={(type) => addToChain(type)}
-                            onBrowse={() => {
-                                const id = isMaster ? null : track?.id;
-                                // The FX menu is about effects; instruments are
-                                // chosen from the Inspector's Instrument slot.
-                                if (id) useProjectStore.getState().setPluginBrowserTrack(id, 'effect');
-                            }}
-                        />
-                    )}
-                </div>
-
-                {/* Sends */}
-                <SendsSlot track={track} />
-
-                {/* Output Routing */}
-                <OutputRouting track={track} isMaster={isMaster} />
-
-                <GroupSlot track={track} />
-
-                {/* Automation mode and VCA assignment. The first was a fixed
-                    green div reading "Read" that nothing set or read; the
-                    second had no control on the strip at all. */}
-                <div className="flex flex-col gap-1 mb-3">
-                    {!isMaster && track && <AutomationModeButton track={track} />}
-                    {!isMaster && track && <VcaSlot track={track} />}
-                </div>
-
-            </div>
-
-            {/* Always visible: the controls a mix is actually made with. */}
-            <div className="shrink-0 px-2 pb-2">
-                <div className="flex flex-col items-center justify-end gap-1.5">
-                    {/* Pan Knob */}
-                    <div 
-                        className="relative group/pan cursor-pointer"
-                        onMouseDown={(e) => {
-                            e.stopPropagation();
-                            // Alt-click returns the knob to centre, as in Logic.
-                            // Without it the only way back to dead centre was to
-                            // nudge until the snap caught, which is not a way to
-                            // work.
-                            if (e.altKey) {
-                                onUpdate({ pan: 0 });
-                                if (isMaster) audioEngine2.setMasterPan(0);
-                                else if (track) audioEngine2.setTrackPan(track.id, 0);
-                                saveHistorySnapshot();
-                                return;
-                            }
-                            const startY = e.clientY;
-                            const startPan = initialPan;
-                            const onMove = (me: MouseEvent) => {
-                                // Shift drags finer, for placing something just
-                                // off centre without fighting the control.
-                                const travel = me.shiftKey ? 400 : 100;
-                                const delta = (startY - me.clientY) / travel;
-                                let newPan = Math.max(-1, Math.min(1, startPan + delta));
-                                // Snap to center
-                                if (Math.abs(newPan) < 0.05) newPan = 0;
-                                
-                                onUpdate({ pan: newPan });
-                                if (isMaster) {
-                                    audioEngine2.setMasterPan(newPan);
-                                } else if (track) {
-                                    audioEngine2.setTrackPan(track.id, newPan);
-                                }
-                            };
-                            const onUp = () => {
-                                saveHistorySnapshot();
-                                window.removeEventListener('mousemove', onMove);
-                                window.removeEventListener('mouseup', onUp);
-                            };
-                            window.addEventListener('mousemove', onMove);
-                            window.addEventListener('mouseup', onUp);
-                        }}
-                    >
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-studio-sunken via-studio-raised to-studio-control border border-studio-line shadow-xl relative ring-1 ring-black/50">
-                            <div 
-                                className="absolute top-1 left-[16.5px] w-[2px] h-3 bg-studio-control rounded-full origin-bottom transition-transform duration-75" 
-                                style={{ transform: `rotate(${initialPan * 45}deg)` }}
-                            ></div>
-                        </div>
-                        {/* Laid out under the knob rather than floated above
-                            it: absolutely positioned, it overlapped the control
-                            above and swallowed its clicks. */}
-                        <div className="flex justify-center mt-0.5">
-                            <PanField
-                                pan={initialPan}
-                                onCommit={(value) => {
-                                    onUpdate({ pan: value });
-                                    if (isMaster) audioEngine2.setMasterPan(value);
-                                    else if (track) audioEngine2.setTrackPan(track.id, value);
-                                    saveHistorySnapshot();
-                                }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Peak level and fader position — the numbers a mix is
-                        actually set by. Neither existed before. */}
-                    <div className="w-full px-2 flex items-center gap-1">
-                        <LevelField
-                            gain={isMaster ? masterVolume : (track?.volume ?? 0.8)}
-                            onCommit={(gain) => {
-                                onUpdate({ volume: gain });
-                                if (isMaster) audioEngine2.setMasterVolume(gain);
-                                else if (track) audioEngine2.setTrackVolume(track.id, gain);
-                                if (faderCapRef.current) faderCapRef.current.style.bottom = `${Math.min(100, gain * 100)}%`;
-                                saveHistorySnapshot();
-                            }}
-                            className="flex-1"
-                        />
-                        <PeakDisplay
-                            analyzer={isMaster ? audioEngine.getMasterAnalyzer() : (track ? (audioEngine.getTrackNodes(track.id)?.analyzer || null) : null)}
-                            className="flex-1"
-                        />
-                    </div>
-
-                    {/* Fader Stack */}
-                    <div className="flex gap-2 items-end h-[76px]">
-                        <div className="h-full w-2 relative flex flex-col justify-end">
-                            <VerticalMeter 
-                                analyzer={isMaster ? audioEngine.getMasterAnalyzer() : (track ? (audioEngine.getTrackNodes(track.id)?.analyzer || null) : null)} 
-                                side="L" 
-                                className="w-full h-full"
-                            />
-                        </div>
-
-                        {/* Fader Track */}
-                        <div className="h-full w-6 bg-black/40 rounded border border-studio-line relative group/fader cursor-ns-resize">
-                            {/* Fader Markings */}
-                            <div className="absolute inset-y-2 inset-x-1 flex flex-col justify-between opacity-10 py-1 pointer-events-none">
-                                {[...Array(15)].map((_, i) => <div key={i} className="w-full h-px bg-white"></div>)}
-                            </div>
-
-                            {/* Fader Cap */}
-                            <div
-                                ref={faderCapRef}
-                                className="absolute -left-1 w-8 h-4 bg-gradient-to-b from-studio-control to-studio-raised border border-studio-line-strong rounded shadow-[0_4px_10px_rgba(0,0,0,0.8)] z-20 flex items-center justify-center"
-                                onMouseDown={(e) => {
-                                    e.stopPropagation();
-                                    // Alt-click returns the fader to unity gain,
-                                    // as in Logic. There was no way to get back
-                                    // to a known level once you had moved it.
-                                    if (e.altKey) {
-                                        const unity = 1;
-                                        onUpdate({ volume: unity });
-                                        if (isMaster) audioEngine2.setMasterVolume(unity);
-                                        else if (track) audioEngine2.setTrackVolume(track.id, unity);
-                                        if (faderCapRef.current) faderCapRef.current.style.bottom = `${unity * 100}%`;
-                                        saveHistorySnapshot();
-                                        return;
-                                    }
-                                    isDraggingRef.current = true;
-                                    const startY = e.clientY;
-                                    const startVol = isMaster ? masterVolume : (track?.volume || 0.8);
-                                    let lastFlushedVol = startVol;
-
-                                    // Audio updated on EVERY mousemove (no throttle) — O(1) Web Audio API call
-                                    const onMove = (me: MouseEvent) => {
-                                        // Shift drags in finer increments.
-                                        const travel = me.shiftKey ? 720 : 180;
-                                        let newVol = Math.max(0, Math.min(MAX_GAIN, startVol + (startY - me.clientY) / travel));
-                                        // Snap to unity — the landmark worth
-                                        // finding. It used to snap to 0.8, which
-                                        // is -1.9 dB and means nothing.
-                                        if (Math.abs(newVol - 1) < 0.02) newVol = 1;
-                                        lastFlushedVol = newVol;
-                                        if (isMaster) {
-                                            audioEngine2.setMasterVolume(newVol);
-                                        } else if (track) {
-                                            audioEngine2.setTrackVolume(track.id, newVol);
-                                        }
-                                    };
-
-                                    // Visual updates batched via RAF
-                                    let rafId: number | null = null;
-                                    const onRafMove = (me: MouseEvent) => {
-                                        onMove(me);
-                                        if (rafId === null && faderCapRef.current) {
-                                            rafId = requestAnimationFrame(() => {
-                                                rafId = null;
-                                                if (faderCapRef.current) {
-                                                    faderCapRef.current.style.bottom = `${Math.min(100, lastFlushedVol * 100)}%`;
-                                                }
-                                            });
-                                        }
-                                    };
-
-                                    const onUp = () => {
-                                        isDraggingRef.current = false;
-                                        if (rafId !== null) cancelAnimationFrame(rafId);
-                                        if (faderCapRef.current) {
-                                            faderCapRef.current.style.bottom = `${Math.min(100, lastFlushedVol * 100)}%`;
-                                        }
-                                        if (isMaster) {
-                                            audioEngine2.setMasterVolume(lastFlushedVol);
-                                        } else if (track) {
-                                            audioEngine2.setTrackVolume(track.id, lastFlushedVol);
-                                        }
-                                        saveHistorySnapshot(); 
-                                        window.removeEventListener('mousemove', onRafMove);
-                                        window.removeEventListener('mouseup', onUp);
-                                        onUpdate({ volume: lastFlushedVol });
-                                    };
-                                    window.addEventListener('mousemove', onRafMove);
-                                    window.addEventListener('mouseup', onUp);
-                                }}
-                            >
-                                <div className="w-[80%] h-px bg-white/20"></div>
-                            </div>
-                        </div>
-
-                        {/* Stereo shows two columns; every other format is
-                            a single signal and shows one, which is what the
-                            Channel Mode button is telling you. */}
-                        {(isMaster || (track?.channelMode ?? 'stereo') === 'stereo') && (
-                            <div className="h-full w-2 relative flex flex-col justify-end">
-                                <VerticalMeter
-                                    analyzer={isMaster ? audioEngine.getMasterAnalyzer() : (track ? (audioEngine.getTrackNodes(track.id)?.analyzer || null) : null)}
-                                    side="R"
-                                    className="w-full h-full"
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Record enable and input monitoring. Both flags existed
-                        on every track but the mixer showed neither, so setting
-                        a record level meant leaving the panel you set it in.
-                        Disabled where there is no input to arm. */}
-                    {!isMaster && track && (
-                        <RecordMonitorButtons
-                            recordEnabled={!!track.recordEnabled}
-                            inputMonitoring={!!track.inputMonitoring}
-                            disabled={track.type === 'bus' || track.type === 'output'}
-                            onToggleRecord={() => onUpdate({ recordEnabled: !track.recordEnabled } as Partial<Track>)}
-                            onToggleMonitor={() => onUpdate({ inputMonitoring: !track.inputMonitoring } as Partial<Track>)}
-                        />
-                    )}
-
-                    {/* Bounce and Dim, which the guide puts on output strips
-                        only. Dim drops the monitor by a fixed amount and puts
-                        it back exactly, so the fader keeps its position. */}
-                    {isMaster && (
-                        <OutputStripButtons
-                            dimmed={dimmed}
-                            onToggleDim={() => {
-                                const next = !dimmed;
-                                setDimmed(next);
-                                audioEngine2.setMasterVolume(next ? masterVolume * DIM_FACTOR : masterVolume);
-                            }}
-                            onBounce={() => useProjectStore.getState().toggleExportDialog('all')}
-                        />
-                    )}
-
-                    {/* M/S Commands */}
-                    <div className="flex gap-1.5 h-7 w-full px-2">
-                        <button
-                            id={track ? `mixer-mute-${track.id}` : 'mixer-mute-master'}
-                            title="Mute - Cmd-click to switch every strip in the same state"
-                            aria-label="Mute"
-                            aria-pressed={initialMuted}
-                            data-mute-button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                const nextMuted = !initialMuted;
-
-                                // Cmd/Ctrl-click switches every strip matching
-                                // the clicked strip state, as in Logic.
-                                if (e.metaKey || e.ctrlKey) {
-                                    const store = useProjectStore.getState();
-                                    store.saveHistorySnapshot();
-                                    store.tracks
-                                        .filter(t => !!t.muted === initialMuted)
-                                        .forEach(t => {
-                                            store.updateTrack(t.id, { muted: nextMuted });
-                                            if (nextMuted) audioEngine2.muteTrack(t.id);
-                                            else audioEngine2.unmuteTrack(t.id);
-                                        });
-                                    store.updateProjectSettings({ masterMuted: nextMuted });
-                                    audioEngine2.setMasterMuted(nextMuted);
-                                    return;
-                                }
-
-                                onUpdate({ muted: nextMuted });
-                                // Drive Web Audio mute bus immediately.
-                                if (isMaster) {
-                                    audioEngine2.setMasterMuted(nextMuted);
-                                } else if (track) {
-                                    if (nextMuted) audioEngine2.muteTrack(track.id);
-                                    else           audioEngine2.unmuteTrack(track.id);
-                                }
-                            }}
-                            className={`flex-1 border rounded-md text-[10px] font-black transition-all transform active:scale-95 ${initialMuted ? 'bg-red-500/20 border-red-500 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text-mid group-hover:border-studio-line'}`}
-                        >M</button>
-                        <button
-                            id={track ? `mixer-solo-${track.id}` : 'mixer-solo-master'}
-                            title="Solo - Alt-click to solo only this strip, Ctrl-click for solo-safe"
-                            aria-label="Solo"
-                            aria-pressed={!!track?.soloed}
-                            data-solo-button
-                            data-solo-safe={track?.soloSafe || undefined}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (isMaster) return; // The master has no solo of its own.
-                                if (!track) return;
-                                const store = useProjectStore.getState();
-
-                                // Ctrl-click marks the strip solo-safe: it keeps
-                                // playing when something else is soloed, which is
-                                // what a reverb return needs.
-                                if (e.ctrlKey && !e.metaKey) {
-                                    store.updateTrack(track.id, { soloSafe: !track.soloSafe } as Partial<Track>);
-                                    return;
-                                }
-
-                                // Alt-click solos this strip alone.
-                                if (e.altKey) {
-                                    store.saveHistorySnapshot();
-                                    store.tracks.forEach(t => {
-                                        const on = t.id === track.id;
-                                        if (!!t.soloed === on) return;
-                                        store.updateTrack(t.id, { soloed: on });
-                                        if (on) audioEngine2.soloTrack(t.id);
-                                        else audioEngine2.unsoloTrack(t.id);
-                                    });
-                                    return;
-                                }
-
-                                const nextSoloed = !track.soloed;
-                                onUpdate({ soloed: nextSoloed });
-                                // Drive Web Audio solo group immediately.
-                                if (nextSoloed) audioEngine2.soloTrack(track.id);
-                                else            audioEngine2.unsoloTrack(track.id);
-                            }}
-                            className={`relative flex-1 border rounded-md text-[10px] font-black transition-all transform active:scale-95 ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500] shadow-[0_0_10px_rgba(255,197,0,0.3)]' : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text-mid group-hover:border-studio-line'}`}
-                        >
-                            S
-                            {track?.soloSafe && (
-                                <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                    <span className="w-4 h-px bg-[#ff4d4d] rotate-[-45deg]" />
-                                </span>
-                            )}
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Name, colour, icon and the real track number. The number was
-                the literal 1 on every strip and the icon came from a two-way
-                guess, so neither told you which track you were looking at. */}
-            <TrackNameField
-                track={track}
-                index={trackIndex}
-                isMaster={isMaster}
-                isSelected={isSelected}
-            />
-
+            ))}
         </div>
-    )
+    );
 })
 
 /**

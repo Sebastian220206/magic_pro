@@ -88,7 +88,7 @@ export function PeakDisplay({ analyzer, className = '' }: {
             aria-label="Peak level"
             data-peak-display
             data-clipped={peak.clipped || undefined}
-            className={`h-4 px-1 rounded-[2px] text-[9px] font-black tabular-nums leading-none flex items-center justify-center border transition-colors ${band === 'clip'
+            className={`h-full px-0.5 rounded-[2px] text-[8px] font-black tabular-nums leading-none flex items-center justify-center border transition-colors ${band === 'clip'
                 ? 'bg-[#ff4d4d]/25 border-[#ff4d4d] text-[#ff4d4d]'
                 : band === 'hot'
                     ? 'bg-[#fbbf24]/15 border-[#fbbf24]/60 text-[#fbbf24]'
@@ -143,7 +143,7 @@ export function LevelField({ gain, onCommit, className = '' }: {
                 }}
                 onClick={(e) => e.stopPropagation()}
                 aria-label="Fader level in decibels"
-                className={`h-4 w-full px-1 rounded-[2px] bg-black text-[9px] font-black tabular-nums text-center text-accent-cyan border border-accent-cyan outline-none ${className}`}
+                className={`h-full w-full px-0.5 rounded-[2px] bg-black text-[8px] font-black tabular-nums text-center text-accent-cyan border border-accent-cyan outline-none ${className}`}
             />
         );
     }
@@ -160,7 +160,7 @@ export function LevelField({ gain, onCommit, className = '' }: {
             title="Fader level — double-click to type a value"
             aria-label="Fader level"
             data-level-field
-            className={`h-4 px-1 rounded-[2px] bg-black/50 border border-studio-line text-[9px] font-black tabular-nums text-studio-text leading-none flex items-center justify-center ${className}`}
+            className={`h-full px-0.5 rounded-[2px] bg-black/50 border border-studio-line text-[8px] font-black tabular-nums text-studio-text leading-none flex items-center justify-center ${className}`}
         >
             {formatDb(gainToDb(gain))}
         </button>

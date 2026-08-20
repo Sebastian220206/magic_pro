@@ -173,7 +173,7 @@ export function AutomationModeButton({ track }: { track: Track }) {
                 title="Automation mode"
                 aria-label="Automation mode"
                 onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
-                className={`h-6 w-full rounded-sm border text-[9px] font-black uppercase transition-colors ${mode === 'off'
+                className={`h-full w-full rounded-[2px] border text-[8px] font-black uppercase transition-colors ${mode === 'off'
                     ? 'bg-black/60 border-studio-line text-studio-text-dim'
                     : 'bg-black/60 border-accent-cyan/30 text-[#63ed63] hover:border-accent-cyan'}`}
             >
@@ -233,7 +233,7 @@ export function VcaSlot({ track }: { track: Track }) {
                 title="VCA group"
                 aria-label="VCA group"
                 onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
-                className={`h-5 w-full rounded-sm border text-[8px] font-black uppercase truncate px-1 transition-colors ${current
+                className={`h-full w-full rounded-[2px] border text-[8px] font-black uppercase truncate px-1 transition-colors ${current
                     ? 'bg-[#a78bfa]/15 border-[#a78bfa]/50 text-[#a78bfa]'
                     : 'bg-black/40 border-studio-line text-studio-text-dim hover:text-studio-text'}`}
             >
@@ -352,14 +352,14 @@ export function OutputStripButtons({ dimmed, onToggleDim, onBounce }: {
     onBounce: () => void;
 }) {
     return (
-        <div className="flex gap-1 w-full px-2">
+        <div className="flex gap-0.5 w-full h-full">
             <button
                 type="button"
                 data-bounce-button
                 title="Bounce the mix to an audio file"
                 aria-label="Bounce"
                 onClick={(e) => { e.stopPropagation(); onBounce(); }}
-                className="flex-1 h-4 rounded-[2px] border border-studio-line bg-studio-panel text-[8px] font-black text-studio-text-dim hover:text-accent-cyan hover:border-accent-cyan/50 transition-colors"
+                className="flex-1 h-full rounded-[2px] border border-studio-line bg-studio-panel text-[8px] font-black text-studio-text-dim hover:text-accent-cyan hover:border-accent-cyan/50 transition-colors"
             >BNC</button>
             <button
                 type="button"
@@ -368,7 +368,7 @@ export function OutputStripButtons({ dimmed, onToggleDim, onBounce }: {
                 aria-label="Dim"
                 aria-pressed={dimmed}
                 onClick={(e) => { e.stopPropagation(); onToggleDim(); }}
-                className={`flex-1 h-4 rounded-[2px] border text-[8px] font-black transition-colors ${dimmed
+                className={`flex-1 h-full rounded-[2px] border text-[8px] font-black transition-colors ${dimmed
                     ? 'bg-accent-cyan/25 border-accent-cyan text-accent-cyan'
                     : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text'}`}
             >DIM</button>
