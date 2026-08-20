@@ -146,6 +146,24 @@ export function whySilent(): void {
     if (s.masterMuted) problems.push('Master is muted.');
     if ((s.masterVolume ?? 1) === 0) problems.push('Master volume is 0.');
 
+    // Cycle is easy to switch on by accident and impossible to blame from the
+    // UI: the transport loops over a range that may hold none of your notes,
+    // and every wrap silences the notes that were already scheduled.
+    if (store.cycleEnabled) {
+        const lo = store.locatorLeft ?? 0;
+        const hi = store.locatorRight ?? 0;
+        const notesInRange = (store.clips ?? []).some((c: any) =>
+            (c.notes ?? []).some((n: any) => {
+                const at = (c.start ?? c.startBeat ?? 0) + n.start;
+                return at >= lo && at < hi;
+            }));
+        if (hi - lo < 0.25) {
+            problems.push(`Cycle is on with a ${(hi - lo).toFixed(2)}-beat loop (${lo.toFixed(2)}–${hi.toFixed(2)}) — the transport wraps constantly and cuts every note short.`);
+        } else if (!notesInRange) {
+            problems.push(`Cycle is on over ${lo.toFixed(2)}–${hi.toFixed(2)}, and no notes start inside it — playback loops over an empty stretch.`);
+        }
+    }
+
     // The scheduler decides audibility from the routing engine, not the store.
     // When the two disagree, the UI shows a perfectly normal track that cannot
     // be heard — which is the failure this whole helper exists for.
@@ -184,7 +202,9 @@ export function whySilent(): void {
     });
 
     console.log('%c[whySilent]', 'color:#22d3ee;font-weight:bold',
-        `context=${ctx?.state ?? 'none'} master=${s.masterVolume ?? 1}${s.masterMuted ? ' (muted)' : ''} playhead=${(store.playhead ?? 0).toFixed(2)} playing=${!!store.playing}`);
+        `context=${ctx?.state ?? 'none'} master=${s.masterVolume ?? 1}${s.masterMuted ? ' (muted)' : ''}`
+        + ` playhead=${(store.playhead ?? 0).toFixed(2)} playing=${!!store.playing}`
+        + ` cycle=${store.cycleEnabled ? `ON ${(store.locatorLeft ?? 0).toFixed(2)}-${(store.locatorRight ?? 0).toFixed(2)}` : 'off'}`);
     console.table(rows);
 
     if (problems.length) {

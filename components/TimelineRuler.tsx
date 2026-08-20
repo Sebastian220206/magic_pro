@@ -45,6 +45,8 @@ const RULER_HEIGHT = BAR_HEIGHT + BEAT_HEIGHT + LOOP_HEIGHT;
 
 const HANDLE_WIDTH = 6;       // px width of loop edge grab target
 const MIN_LOOP_BEATS = 0.25;  // snap minimum
+/** Below this, a pointer movement is a click, not a drag. */
+const DRAG_THRESHOLD_PX = 4;
 
 // Adaptive label density: at low zoom, only label every Nth bar.
 function chooseBarStep(pixelsPerBeat: number): number {
@@ -366,6 +368,12 @@ export function TimelineRuler({ pixelsPerBeat, scrollLeft, scrollContainerRef }:
         const noSnap = e.shiftKey || d.shift;
 
         if (d.kind === "create-loop") {
+            // A click that wobbles by a pixel is not a drag. Without this,
+            // clicking the ruler to move the playhead silently switched Cycle
+            // on and looped the transport over whatever range the wobble
+            // described — which plays nothing at all if the range holds no
+            // notes, and looks like the app has gone silent.
+            if (Math.abs(x - d.startX) < DRAG_THRESHOLD_PX) return;
             const lo = Math.min(d.startBeat, beat);
             const hi = Math.max(d.startBeat, beat);
             setLocators(lo, hi);
@@ -396,8 +404,11 @@ export function TimelineRuler({ pixelsPerBeat, scrollLeft, scrollContainerRef }:
         if (e.currentTarget.hasPointerCapture(e.pointerId)) {
             e.currentTarget.releasePointerCapture(e.pointerId);
         }
+        // Only a drag that actually created a loop gets normalised to a usable
+        // length. A plain click leaves the cycle exactly as the user left it.
+        const dragged = Math.abs((e.clientX - e.currentTarget.getBoundingClientRect().left) - d.startX) >= DRAG_THRESHOLD_PX;
         const span = locatorRight - locatorLeft;
-        if (d.kind === "create-loop" && span < MIN_LOOP_BEATS) {
+        if (d.kind === "create-loop" && dragged && span < MIN_LOOP_BEATS) {
             setLoop(d.startBeat, d.startBeat + 4, true);
         }
         dragRef.current = null;
