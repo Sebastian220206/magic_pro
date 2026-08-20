@@ -174,6 +174,12 @@ export class InsertChain {
             cursor = entry.processor.output;
         }
         this.safeConnect(cursor, this.fade);
+        // Re-assert the last hop. Connecting an existing pair is a no-op, so
+        // this costs nothing and removes a whole class of failure: made once at
+        // construction, it could be lost to a stray disconnect or a dispose
+        // racing this relink, and nothing would ever put it back — the chain
+        // then feeds a dead end while every meter upstream still moves.
+        this.safeConnect(this.fade, this.tail);
 
         if (canFade) {
             gain.cancelScheduledValues(this.ctx.currentTime);

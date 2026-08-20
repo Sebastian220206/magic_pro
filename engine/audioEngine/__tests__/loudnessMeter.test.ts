@@ -114,3 +114,38 @@ describe('LoudnessMeter', () => {
     }).not.toThrow();
   });
 });
+
+describe('LoudnessMeter — disposal must not unwire the source', () => {
+  /*
+   * `dispose()` called `sourceNode.disconnect()` with no argument, which drops
+   * *every* connection the source has — and the source is a node the meter was
+   * handed, not one it made. Measuring the master output that way detached the
+   * master from everything downstream: the mix went silent while every meter
+   * upstream carried on moving, so it read as the app dying rather than as a
+   * severed connection.
+   *
+   * Measured in a browser, the second play after a page load was silent and
+   * every play after it, because the meter was disposed on each transport stop.
+   */
+  test('drops only the edge it made', () => {
+    const ctx = createMockAudioContext();
+    const source = createMockSourceNode();
+    const meter = new LoudnessMeter(ctx, source);
+
+    meter.dispose();
+
+    expect(source.disconnect).toHaveBeenCalledTimes(1);
+    // With an argument — the meter's own analyser — never bare.
+    expect(source.disconnect.mock.calls[0]).toHaveLength(1);
+    expect(source.disconnect.mock.calls[0][0]).toBe(source.connect.mock.calls[0][0]);
+  });
+
+  test('survives a source that was never connected', () => {
+    const ctx = createMockAudioContext();
+    const source = createMockSourceNode();
+    source.disconnect.mockImplementation(() => { throw new Error('not connected'); });
+    const meter = new LoudnessMeter(ctx, source);
+
+    expect(() => meter.dispose()).not.toThrow();
+  });
+});

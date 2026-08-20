@@ -335,7 +335,12 @@ export async function testPlayback(trackId?: string): Promise<void> {
         try { t.node.disconnect(t.analyser); } catch { /* already gone */ }
     }
 
-    console.log('%c[testPlayback] track ' + track, 'color:#22d3ee;font-weight:bold');
+    const gainOf = (n?: AudioNode) => {
+        const g = (n as GainNode | undefined)?.gain;
+        return g ? g.value.toFixed(4) : 'n/a';
+    };
+    console.log('%c[testPlayback] track ' + track
+        + `  mixGain=${gainOf(mix)} outputGain=${gainOf(out)}`, 'color:#22d3ee;font-weight:bold');
     console.log('  played live (keyboard path):  ' + verdict(live));
     console.log('  scheduled (sequencer path):   ' + verdict(sequenced));
 

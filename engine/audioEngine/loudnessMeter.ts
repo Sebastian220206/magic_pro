@@ -350,7 +350,16 @@ export class LoudnessMeter {
 
   dispose() {
     this.stop();
-    this.sourceNode.disconnect();
+    // Drop only the edge this meter made. `sourceNode.disconnect()` with no
+    // argument wipes *every* connection the source has, and the source is a
+    // node the meter does not own — measuring the master output that way
+    // detached the master from everything downstream, so the mix went silent
+    // while every meter upstream carried on moving.
+    try {
+      this.sourceNode.disconnect(this.analyserNode);
+    } catch {
+      // Never connected, or already dropped.
+    }
     this.analyserNode.disconnect();
   }
 }
