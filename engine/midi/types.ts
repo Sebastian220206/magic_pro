@@ -73,7 +73,7 @@ export type MidiClip = MidiRegion;
 export type PianoRollTool = 'select' | 'draw' | 'erase' | 'velocity' | 'lasso' | 'mute' | 'brush' | 'scissors' | 'glue' | 'finger' | 'quantize' | 'zoom' | 'automation-select' | 'automation-curve';
 
 export interface ZoomLevel {
-  x: number;  // Horizontal zoom (beats per pixel)
+  x: number;  // Horizontal zoom (pixels per beat — `beat * x` gives pixels)
   y: number;  // Vertical zoom (pixels per semitone)
 }
 
@@ -108,10 +108,26 @@ export interface DragState {
 
 export type GridDivision = 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256;
 
+export type { SnapMode } from '@/lib/snapGrid';
+import type { SnapMode } from '@/lib/snapGrid';
+
 export interface GridSettings {
   division: GridDivision;
   snap: boolean;
   showSubdivisions: boolean;
+  /** Three in the space of two, for the menu's `1/8 T` style values. */
+  triplet: boolean;
+  /**
+   * What the grid is measured in. `division` uses the value above; the others
+   * ignore it, which is why the Snap menu reads as one list but is really two
+   * independent choices.
+   */
+  mode: SnapMode;
+  /**
+   * Relative keeps a note's existing distance from the gridline and moves it
+   * in whole grid steps; absolute lands it on the line.
+   */
+  relative: boolean;
 }
 
 // =============================================================================

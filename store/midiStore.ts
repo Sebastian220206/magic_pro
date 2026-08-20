@@ -73,6 +73,7 @@ import {
   randomizeVelocity,
   HumanizeOptions,
 } from '../engine/midi/midiTransforms';
+import { snapBeat, type SnapMode } from '@/lib/snapGrid';
 import { MidiScheduler } from '../engine/midi/midiScheduler';
 
 /**
@@ -275,7 +276,11 @@ interface MidiActions {
   setChannelFilter: (channel: number | null) => void;
   
   // Grid
-  setGridDivision: (division: number) => void;
+  setGridDivision: (division: number, triplet?: boolean) => void;
+  /** Bar / Beat / Division / Ticks / Smart — what the grid is measured in. */
+  setSnapMode: (mode: SnapMode) => void;
+  /** Relative moves by whole grid steps; absolute lands on the gridline. */
+  setSnapRelative: (relative: boolean) => void;
   toggleSnapToGrid: () => void;
   
   // Zoom
@@ -457,7 +462,7 @@ export const useMidiStore = create<MidiState & MidiActions>()(
 activeChannel: 0,
         slideMode: false,
         portaMode: false,
-        gridSettings: { division: 16, snap: true, showSubdivisions: true },
+        gridSettings: { division: 16, snap: true, showSubdivisions: true, triplet: false, mode: 'smart', relative: true },
         zoomLevel: DEFAULT_ZOOM,
         scrollPosition: DEFAULT_SCROLL,
         viewport: DEFAULT_VIEWPORT,
@@ -1050,8 +1055,14 @@ channelFilter: null,
 
         snapBeatToGrid: (beat) => {
           const { gridSettings } = get();
-          const gridSize = 4 / gridSettings.division;
-          return Math.floor(beat / gridSize) * gridSize;
+          if (!gridSettings.snap) return beat;
+          return snapBeat(beat, {
+            mode: gridSettings.mode,
+            division: gridSettings.division,
+            triplet: gridSettings.triplet,
+            beatsPerBar: 4,
+            pixelsPerBeat: get().zoomLevel?.x,
+          });
         },
 
         beatToPixel: (beat) => {
@@ -1835,9 +1846,25 @@ channelFilter: null,
         // Grid
         // =============================================================================
 
-        setGridDivision: (division) => {
+        setGridDivision: (division, triplet = false) => {
           set((state) => {
             state.gridSettings.division = division as any;
+            state.gridSettings.triplet = triplet;
+            // Choosing a value is choosing to snap by it. Leaving the mode on
+            // Bar while the menu ticks 1/16 would show one grid and use another.
+            state.gridSettings.mode = 'division';
+          });
+        },
+
+        setSnapMode: (mode) => {
+          set((state) => {
+            state.gridSettings.mode = mode;
+          });
+        },
+
+        setSnapRelative: (relative) => {
+          set((state) => {
+            state.gridSettings.relative = relative;
           });
         },
 

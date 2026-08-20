@@ -7,6 +7,7 @@ import { EventEditor } from './EventEditor';
 import { GoToBeatDialog } from './GoToBeatDialog';
 import { LocateNoteDialog } from './LocateNoteDialog';
 import { useMidiStore } from '../../store/midiStore';
+import { SnapMenu } from './SnapMenu';
 import { useProjectStore } from '../../store/projectStore';
 import { MidiRecorder } from '../../engine/midi/MidiRecorder';
 import { PianoRollTool, ScaleType, getScalePitches, pitchToNoteName } from '../../engine/midi/types';
@@ -142,6 +143,8 @@ export const PianoRoll = memo(function PianoRoll({
     setTool,
     setGridDivision,
     toggleSnapToGrid,
+    setSnapMode,
+    setSnapRelative,
     toggleVelocityLane,
     quantizeSelected,
     setSelectedNotesVelocity,
@@ -1402,10 +1405,20 @@ const handleLassoMouseMove = useCallback((e: MouseEvent) => {
           {playheadText}
         </div>
         
-        {/* Snap */}
-        <div className="flex items-center gap-1 text-[11px] ml-4">
-          <span className="text-studio-text-dim">Snap:</span>
-          <span className="font-medium">{gridSettings.snap ? 'On' : 'Off'}</span>
+        {/* Snap. Was a read-only "On"/"Off" label with no way to change the
+            grid from the editor at all. */}
+        <div className="ml-4">
+          <SnapMenu
+            snap={gridSettings.snap}
+            mode={gridSettings.mode}
+            division={gridSettings.division}
+            triplet={gridSettings.triplet}
+            relative={gridSettings.relative}
+            onToggleSnap={toggleSnapToGrid}
+            onSelectMode={setSnapMode}
+            onSelectDivision={setGridDivision}
+            onSelectRelative={setSnapRelative}
+          />
         </div>
 
         <div className="flex-1" />
