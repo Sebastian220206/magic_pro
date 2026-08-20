@@ -8,6 +8,7 @@ import { VerticalMeter } from "./VerticalMeter"
 import { LoudnessReadout } from "./MasterOutput"
 import { SendsSlot, OutputRouting, MonitorControls, SidechainPicker } from "./mixer/RoutingControls"
 import { PeakDisplay, LevelField, PanField, RecordMonitorButtons, resetAllPeakDisplays } from "./mixer/ChannelStripReadouts"
+import { ChannelModeButton, AutomationModeButton, VcaSlot, TrackNameField, OutputStripButtons } from "./mixer/ChannelStripSlots"
 import { MAX_GAIN } from "@/lib/mixerLevel"
 import { BUILTIN_PLUGIN_IDS } from "@/engine/plugins/pluginIds"
 import {
@@ -43,6 +44,21 @@ export function Mixer() {
             updateProjectSettings({ masterMuted: updates.muted });
         }
     }, [updateProjectSettings]);
+
+    /*
+     * A channel strip is tall. The bottom panel defaults to 320px, which is
+     * shared with the piano roll and smart controls and leaves the mixer
+     * showing routing slots with the fader below the fold. Opening the mixer
+     * grows the panel to fit a strip, and never shrinks it — a height the user
+     * chose is left alone.
+     */
+    const bottomPanelHeight = useProjectStore(s => s.bottomPanelHeight)
+    const setBottomPanelHeight = useProjectStore(s => s.setBottomPanelHeight)
+    useEffect(() => {
+        if (showMixer && bottomPanelHeight < MIXER_MIN_HEIGHT) {
+            setBottomPanelHeight(MIXER_MIN_HEIGHT)
+        }
+    }, [showMixer, bottomPanelHeight, setBottomPanelHeight])
 
     const [mixerMode, setMixerMode] = useState<'single' | 'tracks' | 'all'>('all')
     const [trackTypeFilter, setTrackTypeFilter] = useState<'All' | 'Audio' | 'Inst' | 'Aux' | 'Bus' | 'VCA' | 'Output' | 'Master'>('All')
@@ -152,6 +168,10 @@ export function Mixer() {
                         key={track.id}
                         track={track}
                         isSelected={track.id === focusedTrackId}
+                        // Position in the project, not in the filtered view, so
+                        // the number on a strip does not change when a filter
+                        // hides the strips before it.
+                        trackIndex={tracks.indexOf(track)}
                         focusedTrackId={focusedTrackId}
                     />
                 ))}
@@ -289,9 +309,20 @@ function ChannelStripSettingButton({ track, isMaster }: { track: Track | null; i
     );
 }
 
+/**
+ * How far Dim drops the monitor: -20 dB, the value Logic uses by default.
+ * Applied to the output only, so the stored fader value is untouched.
+ */
+const DIM_FACTOR = 0.1;
+
+/** Enough for a full channel strip: slots, fader, meters and the name row. */
+const MIXER_MIN_HEIGHT = 520;
+
 interface MixerChannelStripProps {
     track: Track | null;
     isSelected: boolean;
+    /** Position in the track list, for the number in the name row. */
+    trackIndex?: number;
     onSelect: (e?: React.MouseEvent) => void;
     onUpdate: (updates: Partial<Track>) => void;
     onAddPlugin: (type: string) => void;
@@ -306,7 +337,7 @@ interface MixerChannelStripProps {
     handleAction?: (field: keyof Track, value: any, e: React.MouseEvent) => void;
 }
 
-function TrackMixerChannelStrip({ track, isSelected, focusedTrackId }: { track: Track; isSelected: boolean; focusedTrackId: string | null }) {
+function TrackMixerChannelStrip({ track, isSelected, trackIndex, focusedTrackId }: { track: Track; isSelected: boolean; trackIndex: number; focusedTrackId: string | null }) {
     const selectTrack = useProjectStore(s => s.selectTrack);
     const updateTrack = useProjectStore(s => s.updateTrack);
     const addPlugin = useProjectStore(s => s.addPlugin);
@@ -323,6 +354,7 @@ function TrackMixerChannelStrip({ track, isSelected, focusedTrackId }: { track: 
         <MixerChannelStrip
             track={track}
             isSelected={isSelected}
+            trackIndex={trackIndex}
             onSelect={onSelect}
             onUpdate={onUpdate}
             onAddPlugin={onAddPluginFn}
@@ -334,12 +366,15 @@ function TrackMixerChannelStrip({ track, isSelected, focusedTrackId }: { track: 
 }
 
 const MixerChannelStrip = memo(function MixerChannelStrip({ 
-    track, isSelected, onSelect, onUpdate, onAddPlugin, onTogglePlugin, setOpenPluginEditor,
+    track, isSelected, trackIndex = 0, onSelect, onUpdate, onAddPlugin, onTogglePlugin, setOpenPluginEditor,
     saveHistorySnapshot,
     isMaster = false, masterVolume = 0.8, masterPan = 0, masterMuted = false,
     toggleTrackFreeze, handleAction
 }: MixerChannelStripProps) {
     const faderCapRef = useRef<HTMLDivElement>(null);
+    // Dim is a monitor-only cut: it never touches the stored fader value, so
+    // releasing it restores exactly the level that was set.
+    const [dimmed, setDimmed] = useState(false);
     const initialVolume = isMaster ? masterVolume : (track?.volume || 0.8);
     const initialPan = isMaster ? masterPan : (track?.pan || 0);
     const initialMuted = isMaster ? masterMuted : (track?.muted || false);
@@ -386,9 +421,15 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                     </svg>
                 </div>
 
-                {/* MIDI FX Slot */}
-                <div className="h-5 bg-black/40 rounded-sm border border-white/5 flex items-center justify-center text-[8px] font-black text-studio-text-dim uppercase">
-                    Midi FX
+                {/* Format and MIDI FX. The Channel Mode button decides how
+                    many columns the meter draws, which is why the guide puts it
+                    on the strip rather than in a dialog. */}
+                <div className="flex items-center gap-1">
+                    {!isMaster && track && <ChannelModeButton track={track} />}
+                    <div className="h-5 flex-1 bg-black/40 rounded-sm border border-white/5 flex items-center justify-center text-[8px] font-black text-studio-text-dim uppercase"
+                        title="MIDI effects are not implemented yet">
+                        Midi FX
+                    </div>
                 </div>
 
                 {/* FX Rack (Professional Dynamic Stack) */}
@@ -437,7 +478,13 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
 
                 <GroupSlot track={track} />
 
-                <div className="h-6 bg-black/60 border border-accent-cyan/20 rounded-sm flex items-center justify-center text-[9px] font-black text-[#63ed63] uppercase mb-4 shadow-inner">Read</div>
+                {/* Automation mode and VCA assignment. The first was a fixed
+                    green div reading "Read" that nothing set or read; the
+                    second had no control on the strip at all. */}
+                <div className="flex flex-col gap-1 mb-3">
+                    {!isMaster && track && <AutomationModeButton track={track} />}
+                    {!isMaster && track && <VcaSlot track={track} />}
+                </div>
 
             </div>
 
@@ -493,7 +540,10 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                                 style={{ transform: `rotate(${initialPan * 45}deg)` }}
                             ></div>
                         </div>
-                        <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                        {/* Laid out under the knob rather than floated above
+                            it: absolutely positioned, it overlapped the control
+                            above and swallowed its clicks. */}
+                        <div className="flex justify-center mt-0.5">
                             <PanField
                                 pan={initialPan}
                                 onCommit={(value) => {
@@ -621,13 +671,18 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                             </div>
                         </div>
 
-                        <div className="h-full w-2 relative flex flex-col justify-end">
-                            <VerticalMeter 
-                                analyzer={isMaster ? audioEngine.getMasterAnalyzer() : (track ? (audioEngine.getTrackNodes(track.id)?.analyzer || null) : null)} 
-                                side="R" 
-                                className="w-full h-full"
-                            />
-                        </div>
+                        {/* Stereo shows two columns; every other format is
+                            a single signal and shows one, which is what the
+                            Channel Mode button is telling you. */}
+                        {(isMaster || (track?.channelMode ?? 'stereo') === 'stereo') && (
+                            <div className="h-full w-2 relative flex flex-col justify-end">
+                                <VerticalMeter
+                                    analyzer={isMaster ? audioEngine.getMasterAnalyzer() : (track ? (audioEngine.getTrackNodes(track.id)?.analyzer || null) : null)}
+                                    side="R"
+                                    className="w-full h-full"
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Record enable and input monitoring. Both flags existed
@@ -641,6 +696,21 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                             disabled={track.type === 'bus' || track.type === 'output'}
                             onToggleRecord={() => onUpdate({ recordEnabled: !track.recordEnabled } as Partial<Track>)}
                             onToggleMonitor={() => onUpdate({ inputMonitoring: !track.inputMonitoring } as Partial<Track>)}
+                        />
+                    )}
+
+                    {/* Bounce and Dim, which the guide puts on output strips
+                        only. Dim drops the monitor by a fixed amount and puts
+                        it back exactly, so the fader keeps its position. */}
+                    {isMaster && (
+                        <OutputStripButtons
+                            dimmed={dimmed}
+                            onToggleDim={() => {
+                                const next = !dimmed;
+                                setDimmed(next);
+                                audioEngine2.setMasterVolume(next ? masterVolume * DIM_FACTOR : masterVolume);
+                            }}
+                            onBounce={() => useProjectStore.getState().toggleExportDialog('all')}
                         />
                     )}
 
@@ -737,21 +807,15 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                 </div>
             </div>
 
-            {/* Bottom Label Bar */}
-            <div className={`h-8 border-t border-black flex items-center px-4 justify-between shrink-0 relative ${isSelected ? 'bg-accent-cyan/20' : 'bg-studio-sunken'}`}>
-                {isSelected && <div className="absolute top-0 left-0 right-0 h-0.5 bg-accent-cyan shadow-[0_0_10px_rgba(14,165,233,0.8)]"></div>}
-
-                <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-black text-white/90 truncate uppercase tracking-tighter">
-                        {isMaster ? 'Master' : (track?.name || 'Track')}
-                    </span>
-                </div>
-                <div className="flex items-center gap-1.5 grayscale opacity-40 group-hover:grayscale-0 group-hover:opacity-100 transition-all">
-                    {track?.type === 'midi' ? <Keyboard className="w-3.5 h-3.5 text-green-400" /> : <Mic className="w-3.5 h-3.5 text-accent-cyan" />}
-                    <span className="text-[9px] font-black text-studio-text-dim uppercase tabular-nums">{`1`}</span>
-                </div>
-            </div>
-
+            {/* Name, colour, icon and the real track number. The number was
+                the literal 1 on every strip and the icon came from a two-way
+                guess, so neither told you which track you were looking at. */}
+            <TrackNameField
+                track={track}
+                index={trackIndex}
+                isMaster={isMaster}
+                isSelected={isSelected}
+            />
 
         </div>
     )

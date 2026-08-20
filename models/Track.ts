@@ -69,6 +69,24 @@ export interface Track {
      * a slash through the S; ours does the same.
      */
     soloSafe?: boolean;
+    /**
+     * Input format, shown on the strip's Channel Mode button.
+     *
+     * Decides how many columns the level meter draws: one for a mono or
+     * single-side format, two for stereo. Logic puts this immediately above
+     * the input slot because it changes what the meter means.
+     */
+    channelMode?: 'mono' | 'stereo' | 'left' | 'right';
+    /**
+     * How channel-strip moves are handled during playback.
+     *
+     * `off` ignores automation entirely; `read` plays it back; the write modes
+     * record it. Only the first two change playback today - see the strip's
+     * tooltip, which says so rather than implying the rest work.
+     */
+    automationMode?: 'off' | 'read' | 'touch' | 'latch' | 'write';
+    /** VCA fader this track is assigned to, by id. */
+    vcaId?: string | null;
     volume: number; // 0 to 1
     pan: number; // -1 to 1
     color: string;
