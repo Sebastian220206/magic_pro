@@ -208,7 +208,7 @@ class RoutingEngine {
     disconnectInput(inputId: string): void {
         const inputNode = this.inputNodes.get(inputId);
         if (inputNode) {
-            inputNode.disconnect();
+            this.safeDisconnect(inputNode);
             this.inputNodes.delete(inputId);
             console.log('[RoutingEngine] Input disconnected:', inputId);
         }
@@ -370,8 +370,8 @@ class RoutingEngine {
         const chain = this.trackNodes.get(trackId);
         if (!chain || !this.ctx || !this.masterGain || !this.outputNode) return;
 
-        try { chain.output.disconnect(this.masterGain); } catch { /* not connected */ }
-        try { chain.output.disconnect(this.outputNode); } catch { /* not connected */ }
+        this.safeDisconnectFrom(chain.output, this.masterGain);
+        this.safeDisconnectFrom(chain.output, this.outputNode);
         this.safeConnect(chain.output, mode === 'direct' ? this.outputNode : this.masterGain);
     }
 
@@ -390,7 +390,7 @@ class RoutingEngine {
                 const sum = this.ctx.createGain();
                 sum.gain.value = 0.5;
 
-                this.outputNode.disconnect();
+                this.safeDisconnect(this.outputNode);
                 this.safeConnect(this.outputNode, splitter);
                 splitter.connect(sum, 0);
                 splitter.connect(sum, 1);
@@ -400,8 +400,8 @@ class RoutingEngine {
                 this.monoMerger = merger;
             }
         } else if (this.monoMerger) {
-            this.outputNode.disconnect();
-            this.monoMerger.disconnect();
+            this.safeDisconnect(this.outputNode);
+            this.safeDisconnect(this.monoMerger);
             this.monoMerger = null;
             this.safeConnect(this.outputNode, this.ctx.destination);
         }
@@ -927,6 +927,25 @@ class RoutingEngine {
         if (!source) return;
         source.disconnect();
         this.connections.delete(source);
+    }
+
+    /**
+     * Drop one edge, and forget it.
+     *
+     * `safeConnect` skips a connection it believes already exists, so a raw
+     * `disconnect()` leaves the graph and the bookkeeping disagreeing and every
+     * later reconnect is silently ignored. Disconnecting the master output that
+     * way left it permanently detached from the speakers: meters still moved,
+     * because they read the mix upstream of it, and nothing could be heard.
+     */
+    private safeDisconnectFrom(source: AudioNode, destination: AudioNode): void {
+        if (!source || !destination) return;
+        try {
+            source.disconnect(destination);
+        } catch {
+            // Not connected — nothing to drop.
+        }
+        this.connections.get(source)?.delete(destination);
     }
 
     /**

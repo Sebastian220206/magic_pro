@@ -225,26 +225,50 @@ export async function testPlayback(trackId?: string): Promise<void> {
         ?? store?.focusedTrackId;
     if (!track) { console.log('%c[testPlayback] no instrument track to test', 'color:#fb923c'); return; }
 
-    // Tap the master output, which is everything that reaches the speakers.
+    /*
+     * Measure at two points, not one.
+     *
+     * `masterGain` is the summed mix; `outputNode` is the last node before
+     * `ctx.destination`. Tapping only the mix reports "audible" while the
+     * speakers get nothing, which is exactly what happened when a stale
+     * connection left the output detached: meters moved, this said fine, and
+     * the room was silent.
+     */
     const engine = routingEngine as unknown as { masterGain?: AudioNode; outputNode?: AudioNode };
-    const master = engine.masterGain ?? engine.outputNode;
-    if (!master) { console.log('%c[testPlayback] no master node to measure', 'color:#ff4d4d'); return; }
+    const mix = engine.masterGain;
+    const out = engine.outputNode;
+    if (!mix && !out) { console.log('%c[testPlayback] no master nodes to measure', 'color:#ff4d4d'); return; }
 
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 2048;
-    master.connect(analyser);
-    const buf = new Float32Array(analyser.fftSize);
+    const taps: { node: AudioNode; analyser: AnalyserNode; buf: Float32Array<ArrayBuffer> }[] = [];
+    for (const node of [mix, out]) {
+        if (!node) continue;
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        node.connect(analyser);
+        taps.push({ node, analyser, buf: new Float32Array(new ArrayBuffer(analyser.fftSize * 4)) });
+    }
+    const [mixTap, outTap] = taps.length === 2 ? taps : [taps[0], taps[0]];
+
+    const readPeaks = (peaks: number[]) => {
+        taps.forEach((t, i) => {
+            t.analyser.getFloatTimeDomainData(t.buf);
+            for (const v of t.buf) peaks[i] = Math.max(peaks[i], Math.abs(v));
+        });
+    };
 
     const peakOver = async (ms: number) => {
-        let peak = 0;
+        const peaks = taps.map(() => 0);
         const end = performance.now() + ms;
         while (performance.now() < end) {
-            analyser.getFloatTimeDomainData(buf);
-            for (const v of buf) peak = Math.max(peak, Math.abs(v));
+            readPeaks(peaks);
             await new Promise(r => setTimeout(r, 20));
         }
-        return peak;
+        return { mix: peaks[0], out: peaks[taps.length - 1] };
     };
+
+    const analyser = mixTap.analyser;
+    const buf = mixTap.buf;
+    void outTap;
 
     /** Wait until the output falls quiet, so one test cannot read the next. */
     const waitForQuiet = async (maxMs: number) => {
@@ -260,7 +284,11 @@ export async function testPlayback(trackId?: string): Promise<void> {
     };
 
     const PITCH = 60;
-    const verdict = (p: number) => p > 0.001 ? `AUDIBLE (peak ${p.toFixed(4)})` : 'SILENT';
+    const AUDIBLE = 0.001;
+    const verdict = (p: { mix: number; out: number }) =>
+        p.out > AUDIBLE ? `AUDIBLE (peak ${p.out.toFixed(4)})`
+            : p.mix > AUDIBLE ? `REACHES THE MIX BUT NOT THE OUTPUT (mix peak ${p.mix.toFixed(4)})`
+                : 'SILENT';
 
     await waitForQuiet(1500);
 
@@ -283,15 +311,19 @@ export async function testPlayback(trackId?: string): Promise<void> {
     });
     const sequenced = await peakOver(1400);
 
-    try { master.disconnect(analyser); } catch { /* already gone */ }
+    for (const t of taps) {
+        try { t.node.disconnect(t.analyser); } catch { /* already gone */ }
+    }
 
     console.log('%c[testPlayback] track ' + track, 'color:#22d3ee;font-weight:bold');
     console.log('  played live (keyboard path):  ' + verdict(live));
     console.log('  scheduled (sequencer path):   ' + verdict(sequenced));
 
-    if (live > 0.001 && sequenced <= 0.001) {
+    if (live.mix > AUDIBLE && live.out <= AUDIBLE) {
+        console.log('%c  -> Sound reaches the mix bus but not the output. The master output is detached from the speakers; meters read the mix, so they still move.', 'color:#ff4d4d;font-weight:bold');
+    } else if (live.out > AUDIBLE && sequenced.out <= AUDIBLE) {
         console.log('%c  -> The instrument works but scheduled notes are silent. That is why nothing recorded plays back.', 'color:#ff4d4d;font-weight:bold');
-    } else if (live <= 0.001 && sequenced <= 0.001) {
+    } else if (live.out <= AUDIBLE && sequenced.out <= AUDIBLE) {
         console.log('%c  -> Nothing from this track reaches the master. Check the track routing, mute and volume.', 'color:#ff4d4d;font-weight:bold');
     } else {
         console.log('%c  -> Both paths make sound; the fault is not in note playback itself.', 'color:#4ade80');
