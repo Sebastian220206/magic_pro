@@ -54,14 +54,32 @@ export class InsertChain {
     private queue: Promise<void> = Promise.resolve();
     private disposed = false;
 
+    /**
+     * The chain's own fade node, sitting just before the tail.
+     *
+     * The relink fade used to be applied to the tail itself. For the master
+     * chain the tail *is* the master output gain, so the fade wrote to a node
+     * this class does not own — and it captured the level to restore by
+     * reading `gain.value` live. `setTargetAtTime` only approaches its target,
+     * so a second rebuild read the gain a few milliseconds into the previous
+     * restore ramp and captured a fraction of the real level. Each rebuild
+     * multiplied the master volume down by roughly twenty; three in a row left
+     * the mix reaching the output at zero, with every meter still moving
+     * because they read upstream of it.
+     */
+    private readonly fade: GainNode;
+
     constructor(
         private readonly ctx: BaseAudioContext,
         private readonly head: AudioNode,
         private readonly tail: AudioNode,
         private readonly createProcessor: ProcessorFactory,
     ) {
+        this.fade = ctx.createGain();
+        this.fade.gain.value = 1;
+        this.fade.connect(this.tail);
         // Start connected straight through; there are no plugins yet.
-        this.safeConnect(this.head, this.tail);
+        this.safeConnect(this.head, this.fade);
     }
 
     /**
@@ -131,14 +149,15 @@ export class InsertChain {
      * the change. Without it, disconnecting a live graph clicks audibly.
      */
     private async relink(): Promise<void> {
-        const gain = (this.tail as GainNode).gain;
-        const canFade = !!gain && typeof gain.setTargetAtTime === 'function';
-        const now = this.ctx.currentTime;
+        // Fades the chain's own node, never the tail. Unity is a constant, so
+        // nothing has to be read back off an AudioParam that may still be
+        // ramping — which is what made repeated rebuilds decay the master.
+        const gain = this.fade.gain;
+        const canFade = typeof gain.setTargetAtTime === 'function';
 
-        let restore = 1;
         if (canFade) {
-            restore = gain.value;
-            gain.setTargetAtTime(0, now, RELINK_FADE / 3);
+            gain.cancelScheduledValues(this.ctx.currentTime);
+            gain.setTargetAtTime(0, this.ctx.currentTime, RELINK_FADE / 3);
             await wait(RELINK_FADE * 1000);
         }
 
@@ -154,10 +173,11 @@ export class InsertChain {
             this.safeConnect(cursor, entry.processor.input);
             cursor = entry.processor.output;
         }
-        this.safeConnect(cursor, this.tail);
+        this.safeConnect(cursor, this.fade);
 
         if (canFade) {
-            gain.setTargetAtTime(restore, this.ctx.currentTime, RELINK_FADE / 3);
+            gain.cancelScheduledValues(this.ctx.currentTime);
+            gain.setTargetAtTime(1, this.ctx.currentTime, RELINK_FADE / 3);
         }
     }
 
@@ -178,6 +198,7 @@ export class InsertChain {
     }
 
     dispose(): void {
+        try { this.fade.disconnect(); } catch { /* already detached */ }
         this.disposed = true;
         this.safeDisconnect(this.head);
         for (const entry of this.entries) {

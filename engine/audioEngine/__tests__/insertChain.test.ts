@@ -13,9 +13,11 @@ import type { PluginSpec } from '@/engine/plugins/pluginSpec';
 /** Records connect/disconnect so link order can be asserted. */
 class FakeNode {
     connected: FakeNode[] = [];
-    gain = { value: 1, setTargetAtTime: jest.fn() };
+    /** Whoever connected into this node most recently. */
+    fedBy: FakeNode | null = null;
+    gain = { value: 1, setTargetAtTime: jest.fn(), cancelScheduledValues: jest.fn() };
 
-    connect(target: FakeNode) { this.connected.push(target); return target; }
+    connect(target: FakeNode) { this.connected.push(target); target.fedBy = this; return target; }
     disconnect() { this.connected = []; }
 }
 
@@ -56,7 +58,13 @@ function setup(latencies: Record<string, number> = {}) {
         return p;
     });
 
-    const ctx = { currentTime: 0 } as unknown as BaseAudioContext;
+    // The chain owns a fade node of its own, so the context must be able to
+    // make one. It must never fade the tail: for the master chain the tail is
+    // the master output gain, and writing to it there decayed the whole mix.
+    const ctx = {
+        currentTime: 0,
+        createGain: () => new FakeNode(),
+    } as unknown as BaseAudioContext;
     const chain = new InsertChain(
         ctx,
         head as unknown as AudioNode,
@@ -64,18 +72,24 @@ function setup(latencies: Record<string, number> = {}) {
         factory,
     );
 
-    return { chain, head, tail, created, factory };
+    // The chain's own fade node is the last hop before the tail.
+    const fade = () => tail.fedBy;
+
+    return { chain, head, tail, created, factory, fade };
 }
 
 /** Follow the graph from head and report the processors passed through. */
 function linkOrder(head: FakeNode, created: FakeProcessor[], tail: FakeNode): string[] {
     const path: string[] = [];
     let node: FakeNode = head;
+    const fade = tail.fedBy;
 
     for (let guard = 0; guard < 20; guard++) {
         const next = node.connected[0] as unknown as FakeNode | undefined;
         if (!next) break;
-        if (next === tail) break;
+        // The chain ends at its own fade node, which is wired to the tail once
+        // at construction and never rewired.
+        if (next === tail || next === fade) break;
         const owner = created.find(p => (p.input as unknown as FakeNode) === next);
         if (!owner) break;
         path.push(owner.id);
@@ -89,7 +103,9 @@ describe('InsertChain — linking', () => {
         const { chain, head, tail } = setup();
         await chain.setSpecs([]);
 
-        expect(head.connected).toContain(tail);
+        const fade = tail.fedBy!;
+        expect(head.connected).toContain(fade);
+        expect(fade.connected).toContain(tail);
     });
 
     test('links head → p0 → p1 → tail', async () => {
@@ -98,7 +114,7 @@ describe('InsertChain — linking', () => {
 
         expect(linkOrder(head, created, tail)).toEqual(['a', 'b']);
         const last = created[1].output as unknown as FakeNode;
-        expect(last.connected).toContain(tail);
+        expect(last.connected).toContain(tail.fedBy!);
     });
 
     test('creates one processor per spec', async () => {
@@ -112,7 +128,7 @@ describe('InsertChain — linking', () => {
         const head = new FakeNode();
         const tail = new FakeNode();
         const chain = new InsertChain(
-            { currentTime: 0 } as unknown as BaseAudioContext,
+            { currentTime: 0, createGain: () => new FakeNode() } as unknown as BaseAudioContext,
             head as unknown as AudioNode,
             tail as unknown as AudioNode,
             async () => null,
@@ -121,7 +137,7 @@ describe('InsertChain — linking', () => {
         await chain.setSpecs([spec('missing')]);
 
         // Chain still passes audio rather than going silent.
-        expect(head.connected).toContain(tail);
+        expect(head.connected).toContain(tail.fedBy!);
         expect(chain.getInstanceIds()).toEqual([]);
     });
 });
@@ -253,5 +269,56 @@ describe('InsertChain — lifecycle', () => {
         await Promise.all([first, second]);
 
         expect(chain.getInstanceIds()).toEqual(['c']);
+    });
+});
+
+describe('InsertChain — the tail is not ours to fade', () => {
+    /*
+     * The relink fade used to be applied to the tail. For the master chain the
+     * tail is the master output gain, so rebuilding the chain wrote to a node
+     * this class does not own — and it captured the level to restore by reading
+     * `gain.value` live. `setTargetAtTime` only approaches its target, so the
+     * next rebuild read the gain a few milliseconds into the previous restore
+     * ramp and captured a fraction of the real level.
+     *
+     * Measured in a browser, three master-plugin toggles in a row took the mix
+     * from audible to nothing reaching the output, with every meter still
+     * moving because they read upstream of it.
+     */
+    test('never touches the tail gain, however many rebuilds', async () => {
+        const { chain, tail } = setup();
+
+        await chain.setSpecs([spec('a')]);
+        await chain.setSpecs([spec('a'), spec('b')]);
+        await chain.setSpecs([spec('b')]);
+        await chain.setSpecs([]);
+
+        expect(tail.gain.setTargetAtTime).not.toHaveBeenCalled();
+        expect(tail.gain.cancelScheduledValues).not.toHaveBeenCalled();
+        expect(tail.gain.value).toBe(1);
+    });
+
+    test('leaves its own fade node back at unity after a rebuild', async () => {
+        const { chain, tail } = setup();
+        await chain.setSpecs([spec('a')]);
+
+        const fade = tail.fedBy!;
+        const restored = fade.gain.setTargetAtTime.mock.calls.at(-1);
+        // Unity is a constant, so nothing has to be read back off a parameter
+        // that may still be ramping — which is what made this decay.
+        expect(restored?.[0]).toBe(1);
+    });
+
+    test('keeps the tail fed no matter how the chain is rebuilt', async () => {
+        const { chain, tail } = setup();
+        const fade = tail.fedBy!;
+
+        await chain.setSpecs([spec('a'), spec('b')]);
+        await chain.setSpecs([]);
+        await chain.setSpecs([spec('c')]);
+
+        // The fade node is wired to the tail once and never rewired, so the
+        // last hop to the output cannot be lost by a rebuild.
+        expect(fade.connected).toContain(tail);
     });
 });
