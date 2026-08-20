@@ -59,6 +59,13 @@ interface TrackNodeChain {
     baseVolume: number;
     isMuted: boolean;
     isSoloed: boolean;
+    /**
+     * Exempt from other tracks being soloed.
+     *
+     * A reverb return or a click track that should stay audible whatever is
+     * soloed. Without it, soloing a vocal also silences its own reverb.
+     */
+    isSoloSafe: boolean;
     /** Latency of this track's insert chain, in samples. */
     latencySamples: number;
 }
@@ -308,6 +315,7 @@ class RoutingEngine {
             baseVolume: normalizedTrack.volume,
             isMuted: normalizedTrack.muted,
             isSoloed: normalizedTrack.solo,
+            isSoloSafe: !!(normalizedTrack as { soloSafe?: boolean }).soloSafe,
             latencySamples: trackLatencySamples(
                 normalizedTrack.effects as unknown as PluginDescriptor[],
             ),
@@ -608,6 +616,11 @@ class RoutingEngine {
             recomputeGain = true;
         }
 
+        if ((updates as { soloSafe?: boolean }).soloSafe !== undefined) {
+            trackChain.isSoloSafe = !!(updates as { soloSafe?: boolean }).soloSafe;
+            this.recomputeAllTrackGains();
+        }
+
         // Update solo
         if (updates.solo !== undefined) {
             const wasSoloed = trackChain.isSoloed;
@@ -657,7 +670,7 @@ class RoutingEngine {
         if (chain.isMuted) {
             effectiveGain = 0;
         }
-        if (hasAnySolo && !chain.isSoloed) {
+        if (hasAnySolo && !chain.isSoloed && !chain.isSoloSafe) {
             effectiveGain = 0;
         }
 

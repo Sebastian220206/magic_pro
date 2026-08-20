@@ -102,6 +102,9 @@ export function useAudioPlayer() {
                 track.pan,
                 track.muted,
                 track.soloed,
+                // Solo-safe keeps a return audible while something else is
+                // soloed; without it here the engine never hears about it.
+                !!track.soloSafe,
             );
         });
     }, [tracks]);

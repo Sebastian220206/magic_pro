@@ -62,6 +62,13 @@ export interface Track {
     type: TrackType;
     muted: boolean;
     soloed: boolean;
+    /**
+     * Keeps playing when another track is soloed.
+     *
+     * A reverb return or a click you always want to hear. Logic marks it with
+     * a slash through the S; ours does the same.
+     */
+    soloSafe?: boolean;
     volume: number; // 0 to 1
     pan: number; // -1 to 1
     color: string;

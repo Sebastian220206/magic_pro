@@ -301,8 +301,8 @@ export class AudioEngineAdapter implements MidiSink {
 
     // ─── Mixer & Routing ──────────────────────────────────────────────────────────
 
-    syncTrack(id: string, volume: number, pan: number, muted: boolean, soloed: boolean) {
-        routingEngine.updateTrack(id, { volume, pan, muted, solo: soloed });
+    syncTrack(id: string, volume: number, pan: number, muted: boolean, soloed: boolean, soloSafe = false) {
+        routingEngine.updateTrack(id, { volume, pan, muted, solo: soloed, soloSafe } as never);
     }
 
     addTrack(track: Partial<AudioTrack> & Pick<AudioTrack, 'id'>) {

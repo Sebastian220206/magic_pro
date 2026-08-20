@@ -7,6 +7,8 @@ import { audioEngine } from "@/engine/AudioEngineAdapter"
 import { VerticalMeter } from "./VerticalMeter"
 import { LoudnessReadout } from "./MasterOutput"
 import { SendsSlot, OutputRouting, MonitorControls, SidechainPicker } from "./mixer/RoutingControls"
+import { PeakDisplay, LevelField, PanField, RecordMonitorButtons, resetAllPeakDisplays } from "./mixer/ChannelStripReadouts"
+import { MAX_GAIN } from "@/lib/mixerLevel"
 import { BUILTIN_PLUGIN_IDS } from "@/engine/plugins/pluginIds"
 import {
     ChevronDown, Filter, MoreHorizontal,
@@ -144,23 +146,6 @@ export function Mixer() {
             {/* 2. Main Console View */}
             <div className="flex-1 flex overflow-x-auto custom-scrollbar-h relative">
 
-                {/* Fixed Label Column (Pro Look) */}
-                <div className="w-[100px] bg-studio-panel border-r border-black flex flex-col shrink-0 sticky left-0 z-30 shadow-[4px_0_15px_rgba(0,0,0,0.5)]">
-                    <div className="h-10 border-b border-black/20"></div> {/* Setting */}
-                    <div className="h-12 border-b border-black/20"></div> {/* EQ Visual */}
-                    <div className="flex-1 flex flex-col py-2 px-3 gap-0.5">
-                        <LabelRow label="Midi FX" />
-                        <div className="h-[100px] relative border-b border-black/20 mb-2">
-                            <LabelRow label="Audio FX" />
-                        </div>
-                        <LabelRow label="Sends" />
-                        <div className="h-16 border-b border-black/20 mb-2"></div>
-                        <LabelRow label="Output" />
-                        <LabelRow label="Group" />
-                        <LabelRow label="Automation" />
-                    </div>
-                </div>
-
                 {/* Dynamic Channel Strips */}
                 {filteredTracks.map(track => (
                     <TrackMixerChannelStrip
@@ -197,14 +182,6 @@ export function Mixer() {
             </div>
 
 
-        </div>
-    )
-}
-
-function LabelRow({ label }: { label: string }) {
-    return (
-        <div className="h-4 flex items-center justify-end pr-2">
-            <span className="text-[8px] font-black text-studio-text-dim uppercase tracking-widest leading-none truncate">{label}</span>
         </div>
     )
 }
@@ -389,7 +366,11 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
             onClick={onSelect}
             className={`w-[120px] h-full flex flex-col border-r border-black shrink-0 transition-colors relative group ${isSelected ? 'bg-accent-cyan/[0.04]' : 'bg-studio-panel/50 hover:bg-white/[0.02]'}`}
         >
-            <div className="flex-1 flex flex-col px-2 py-3 gap-1 overflow-y-auto custom-scrollbar-v no-scrollbar">
+            {/* Routing slots scroll; the mixing controls below do not. The
+                strip used to be one scrolling column, so at the mixer's
+                default height the fader, meters and buttons were all below the
+                fold and the panel showed only routing. */}
+            <div className="flex-1 min-h-0 flex flex-col px-2 pt-3 gap-1 overflow-y-auto custom-scrollbar-v no-scrollbar">
 
                 {/* Setting / Icon Spot */}
                 <ChannelStripSettingButton
@@ -458,17 +439,34 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
 
                 <div className="h-6 bg-black/60 border border-accent-cyan/20 rounded-sm flex items-center justify-center text-[9px] font-black text-[#63ed63] uppercase mb-4 shadow-inner">Read</div>
 
-                {/* Fader & Metering Area */}
-                <div className="flex-1 flex flex-col items-center justify-end pb-4 gap-3">
+            </div>
+
+            {/* Always visible: the controls a mix is actually made with. */}
+            <div className="shrink-0 px-2 pb-2">
+                <div className="flex flex-col items-center justify-end gap-1.5">
                     {/* Pan Knob */}
                     <div 
                         className="relative group/pan cursor-pointer"
                         onMouseDown={(e) => {
                             e.stopPropagation();
+                            // Alt-click returns the knob to centre, as in Logic.
+                            // Without it the only way back to dead centre was to
+                            // nudge until the snap caught, which is not a way to
+                            // work.
+                            if (e.altKey) {
+                                onUpdate({ pan: 0 });
+                                if (isMaster) audioEngine2.setMasterPan(0);
+                                else if (track) audioEngine2.setTrackPan(track.id, 0);
+                                saveHistorySnapshot();
+                                return;
+                            }
                             const startY = e.clientY;
                             const startPan = initialPan;
                             const onMove = (me: MouseEvent) => {
-                                const delta = (startY - me.clientY) / 100;
+                                // Shift drags finer, for placing something just
+                                // off centre without fighting the control.
+                                const travel = me.shiftKey ? 400 : 100;
+                                const delta = (startY - me.clientY) / travel;
                                 let newPan = Math.max(-1, Math.min(1, startPan + delta));
                                 // Snap to center
                                 if (Math.abs(newPan) < 0.05) newPan = 0;
@@ -495,13 +493,41 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                                 style={{ transform: `rotate(${initialPan * 45}deg)` }}
                             ></div>
                         </div>
-                        <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] font-black text-studio-text-dim group-hover/pan:text-accent-cyan uppercase">
-                            {initialPan === 0 ? 'Center' : (initialPan < 0 ? `L${Math.abs(Math.round(initialPan * 64))}` : `R${Math.round(initialPan * 64)}`)}
-                        </span>
+                        <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                            <PanField
+                                pan={initialPan}
+                                onCommit={(value) => {
+                                    onUpdate({ pan: value });
+                                    if (isMaster) audioEngine2.setMasterPan(value);
+                                    else if (track) audioEngine2.setTrackPan(track.id, value);
+                                    saveHistorySnapshot();
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Peak level and fader position — the numbers a mix is
+                        actually set by. Neither existed before. */}
+                    <div className="w-full px-2 flex items-center gap-1">
+                        <LevelField
+                            gain={isMaster ? masterVolume : (track?.volume ?? 0.8)}
+                            onCommit={(gain) => {
+                                onUpdate({ volume: gain });
+                                if (isMaster) audioEngine2.setMasterVolume(gain);
+                                else if (track) audioEngine2.setTrackVolume(track.id, gain);
+                                if (faderCapRef.current) faderCapRef.current.style.bottom = `${Math.min(100, gain * 100)}%`;
+                                saveHistorySnapshot();
+                            }}
+                            className="flex-1"
+                        />
+                        <PeakDisplay
+                            analyzer={isMaster ? audioEngine.getMasterAnalyzer() : (track ? (audioEngine.getTrackNodes(track.id)?.analyzer || null) : null)}
+                            className="flex-1"
+                        />
                     </div>
 
                     {/* Fader Stack */}
-                    <div className="flex gap-2 items-end h-[180px]">
+                    <div className="flex gap-2 items-end h-[76px]">
                         <div className="h-full w-2 relative flex flex-col justify-end">
                             <VerticalMeter 
                                 analyzer={isMaster ? audioEngine.getMasterAnalyzer() : (track ? (audioEngine.getTrackNodes(track.id)?.analyzer || null) : null)} 
@@ -523,6 +549,18 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                                 className="absolute -left-1 w-8 h-4 bg-gradient-to-b from-studio-control to-studio-raised border border-studio-line-strong rounded shadow-[0_4px_10px_rgba(0,0,0,0.8)] z-20 flex items-center justify-center"
                                 onMouseDown={(e) => {
                                     e.stopPropagation();
+                                    // Alt-click returns the fader to unity gain,
+                                    // as in Logic. There was no way to get back
+                                    // to a known level once you had moved it.
+                                    if (e.altKey) {
+                                        const unity = 1;
+                                        onUpdate({ volume: unity });
+                                        if (isMaster) audioEngine2.setMasterVolume(unity);
+                                        else if (track) audioEngine2.setTrackVolume(track.id, unity);
+                                        if (faderCapRef.current) faderCapRef.current.style.bottom = `${unity * 100}%`;
+                                        saveHistorySnapshot();
+                                        return;
+                                    }
                                     isDraggingRef.current = true;
                                     const startY = e.clientY;
                                     const startVol = isMaster ? masterVolume : (track?.volume || 0.8);
@@ -530,8 +568,13 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
 
                                     // Audio updated on EVERY mousemove (no throttle) — O(1) Web Audio API call
                                     const onMove = (me: MouseEvent) => {
-                                        let newVol = Math.max(0, Math.min(1.2, startVol + (startY - me.clientY) / 180));
-                                        if (Math.abs(newVol - 0.8) < 0.02) newVol = 0.8;
+                                        // Shift drags in finer increments.
+                                        const travel = me.shiftKey ? 720 : 180;
+                                        let newVol = Math.max(0, Math.min(MAX_GAIN, startVol + (startY - me.clientY) / travel));
+                                        // Snap to unity — the landmark worth
+                                        // finding. It used to snap to 0.8, which
+                                        // is -1.9 dB and means nothing.
+                                        if (Math.abs(newVol - 1) < 0.02) newVol = 1;
                                         lastFlushedVol = newVol;
                                         if (isMaster) {
                                             audioEngine2.setMasterVolume(newVol);
@@ -587,13 +630,49 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                         </div>
                     </div>
 
+                    {/* Record enable and input monitoring. Both flags existed
+                        on every track but the mixer showed neither, so setting
+                        a record level meant leaving the panel you set it in.
+                        Disabled where there is no input to arm. */}
+                    {!isMaster && track && (
+                        <RecordMonitorButtons
+                            recordEnabled={!!track.recordEnabled}
+                            inputMonitoring={!!track.inputMonitoring}
+                            disabled={track.type === 'bus' || track.type === 'output'}
+                            onToggleRecord={() => onUpdate({ recordEnabled: !track.recordEnabled } as Partial<Track>)}
+                            onToggleMonitor={() => onUpdate({ inputMonitoring: !track.inputMonitoring } as Partial<Track>)}
+                        />
+                    )}
+
                     {/* M/S Commands */}
                     <div className="flex gap-1.5 h-7 w-full px-2">
                         <button
                             id={track ? `mixer-mute-${track.id}` : 'mixer-mute-master'}
+                            title="Mute - Cmd-click to switch every strip in the same state"
+                            aria-label="Mute"
+                            aria-pressed={initialMuted}
+                            data-mute-button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 const nextMuted = !initialMuted;
+
+                                // Cmd/Ctrl-click switches every strip matching
+                                // the clicked strip state, as in Logic.
+                                if (e.metaKey || e.ctrlKey) {
+                                    const store = useProjectStore.getState();
+                                    store.saveHistorySnapshot();
+                                    store.tracks
+                                        .filter(t => !!t.muted === initialMuted)
+                                        .forEach(t => {
+                                            store.updateTrack(t.id, { muted: nextMuted });
+                                            if (nextMuted) audioEngine2.muteTrack(t.id);
+                                            else audioEngine2.unmuteTrack(t.id);
+                                        });
+                                    store.updateProjectSettings({ masterMuted: nextMuted });
+                                    audioEngine2.setMasterMuted(nextMuted);
+                                    return;
+                                }
+
                                 onUpdate({ muted: nextMuted });
                                 // Drive Web Audio mute bus immediately.
                                 if (isMaster) {
@@ -607,18 +686,53 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                         >M</button>
                         <button
                             id={track ? `mixer-solo-${track.id}` : 'mixer-solo-master'}
+                            title="Solo - Alt-click to solo only this strip, Ctrl-click for solo-safe"
+                            aria-label="Solo"
+                            aria-pressed={!!track?.soloed}
+                            data-solo-button
+                            data-solo-safe={track?.soloSafe || undefined}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                if (isMaster) return; // Master usually doesn't have a solo button
+                                if (isMaster) return; // The master has no solo of its own.
                                 if (!track) return;
+                                const store = useProjectStore.getState();
+
+                                // Ctrl-click marks the strip solo-safe: it keeps
+                                // playing when something else is soloed, which is
+                                // what a reverb return needs.
+                                if (e.ctrlKey && !e.metaKey) {
+                                    store.updateTrack(track.id, { soloSafe: !track.soloSafe } as Partial<Track>);
+                                    return;
+                                }
+
+                                // Alt-click solos this strip alone.
+                                if (e.altKey) {
+                                    store.saveHistorySnapshot();
+                                    store.tracks.forEach(t => {
+                                        const on = t.id === track.id;
+                                        if (!!t.soloed === on) return;
+                                        store.updateTrack(t.id, { soloed: on });
+                                        if (on) audioEngine2.soloTrack(t.id);
+                                        else audioEngine2.unsoloTrack(t.id);
+                                    });
+                                    return;
+                                }
+
                                 const nextSoloed = !track.soloed;
                                 onUpdate({ soloed: nextSoloed });
                                 // Drive Web Audio solo group immediately.
                                 if (nextSoloed) audioEngine2.soloTrack(track.id);
                                 else            audioEngine2.unsoloTrack(track.id);
                             }}
-                            className={`flex-1 border rounded-md text-[10px] font-black transition-all transform active:scale-95 ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500] shadow-[0_0_10px_rgba(255,197,0,0.3)]' : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text-mid group-hover:border-studio-line'}`}
-                        >S</button>
+                            className={`relative flex-1 border rounded-md text-[10px] font-black transition-all transform active:scale-95 ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500] shadow-[0_0_10px_rgba(255,197,0,0.3)]' : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text-mid group-hover:border-studio-line'}`}
+                        >
+                            S
+                            {track?.soloSafe && (
+                                <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <span className="w-4 h-px bg-[#ff4d4d] rotate-[-45deg]" />
+                                </span>
+                            )}
+                        </button>
                     </div>
                 </div>
             </div>
