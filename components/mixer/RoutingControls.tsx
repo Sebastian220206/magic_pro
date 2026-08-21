@@ -13,6 +13,7 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from "react"
 import { ChevronDown, Plus, X, Radio } from "lucide-react"
 import { useProjectStore } from "@/store/projectStore"
+import { SendSlotMenu } from './SendSlotMenu'
 import type { Track } from "@/models/Track"
 
 /** Busses a track may feed without creating a loop. */
@@ -75,10 +76,10 @@ function Popover({
 
 export function SendsSlot({ track }: { track: Track | null }) {
     const setTrackSend = useProjectStore(s => s.setTrackSend)
+    const setTrackSendPosition = useProjectStore(s => s.setTrackSendPosition)
     const removeTrackSend = useProjectStore(s => s.removeTrackSend)
     const tracks = useProjectStore(s => s.tracks)
     const busses = useRoutableBusses(track?.id)
-    const [adding, setAdding] = useState(false)
 
     const sends = track?.sends ?? []
     const busName = useCallback(
@@ -87,69 +88,61 @@ export function SendsSlot({ track }: { track: Track | null }) {
     )
 
     if (!track) {
-        return <div className="h-16 mb-2 flex items-center justify-center text-[8px] font-black text-studio-text-dim uppercase">No Sends</div>
+        return <div className="h-full flex items-center justify-center text-[8px] font-black text-studio-text-dim uppercase">No Sends</div>
     }
 
-    const available = busses.filter(b => !sends.some(s => s.busId === b.id))
+    /*
+     * One slot per send plus an empty one, which is how a console works: the
+     * empty slot is where the next send is made. Each slot opens the same menu
+     * — its own settings first, then the bus list — so choosing a bus and
+     * changing where the send taps are the same gesture.
+     */
+    const slots: (typeof sends[number] | null)[] = [...sends, null]
+    const taken = new Set(sends.map(x => x.busId))
 
     return (
-        <div className="flex flex-col gap-0.5 h-16 mb-2 overflow-y-auto no-scrollbar">
-            {sends.map(send => (
-                <div
-                    key={send.busId}
-                    className="h-5 shrink-0 bg-accent-cyan/15 border border-accent-cyan/30 rounded-sm flex items-center px-1.5 gap-1 group/send"
-                    title={`${busName(send.busId)} — ${Math.round(send.level * 100)}%`}
+        <div className="flex flex-col gap-px h-full overflow-y-auto no-scrollbar">
+            {slots.map((send, i) => (
+                <SendSlotMenu
+                    key={send?.busId ?? `empty-${i}`}
+                    busses={busses
+                        .filter(b => b.id === send?.busId || !taken.has(b.id))
+                        .map(b => ({ id: b.id, name: b.name }))}
+                    busId={send?.busId ?? null}
+                    position={send?.position ?? 'postPan'}
+                    level={send?.level ?? 0}
+                    busName={busName}
+                    onPick={(busId) => {
+                        // Moving an existing slot to another bus, rather than
+                        // stacking a second send on the same channel.
+                        if (send && send.busId !== busId) removeTrackSend(track.id, send.busId)
+                        setTrackSend(track.id, busId, send?.level ?? 0.25)
+                        if (send?.position) setTrackSendPosition(track.id, busId, send.position)
+                    }}
+                    onPosition={(position) => {
+                        if (send) setTrackSendPosition(track.id, send.busId, position)
+                    }}
+                    onRemove={() => { if (send) removeTrackSend(track.id, send.busId) }}
                 >
-                    <span className="text-[8px] font-black text-accent-cyan uppercase truncate flex-1">
-                        {busName(send.busId)}
-                    </span>
-                    <input
-                        type="range"
-                        min={0} max={1} step={0.01}
-                        value={send.level}
-                        onClick={e => e.stopPropagation()}
-                        onChange={e => setTrackSend(track.id, send.busId, Number(e.target.value))}
-                        className="w-8 h-1 accent-cyan-400 cursor-pointer"
-                        aria-label={`Send level to ${busName(send.busId)}`}
-                    />
-                    <button
-                        onClick={e => { e.stopPropagation(); removeTrackSend(track.id, send.busId) }}
-                        className="opacity-0 group-hover/send:opacity-100 text-studio-text-mid hover:text-red-400"
-                        aria-label={`Remove send to ${busName(send.busId)}`}
+                    <div
+                        className={`h-[15px] w-full rounded-[2px] border flex items-center px-1 gap-1 text-[8px] font-black uppercase ${send
+                            ? 'bg-accent-cyan/15 border-accent-cyan/40 text-accent-cyan'
+                            : 'bg-black/30 border-white/5 text-studio-text-dim hover:border-accent-cyan/30 hover:text-accent-cyan'}`}
                     >
-                        <X className="w-2 h-2" />
-                    </button>
-                </div>
+                        <span className="truncate flex-1 text-left">
+                            {send ? busName(send.busId) : 'Send'}
+                        </span>
+                        {send && (
+                            <span className="tabular-nums shrink-0 opacity-70">
+                                {Math.round(send.level * 100)}
+                            </span>
+                        )}
+                    </div>
+                </SendSlotMenu>
             ))}
-
-            <div className="relative shrink-0">
-                <button
-                    onClick={e => { e.stopPropagation(); setAdding(v => !v) }}
-                    disabled={available.length === 0}
-                    className="w-full h-4 bg-black/20 rounded-sm border border-white/5 text-[7px] font-black text-studio-text-dim hover:text-accent-cyan hover:border-accent-cyan/30 flex items-center justify-center gap-1 uppercase disabled:opacity-40 disabled:hover:text-studio-text-dim"
-                >
-                    <Plus className="w-2 h-2" /> Send
-                </button>
-                <Popover open={adding} onClose={() => setAdding(false)} className="bottom-5 left-0">
-                    {available.length === 0 ? (
-                        <div className="px-2 py-1 text-studio-text-dim">Create a bus track first</div>
-                    ) : available.map(bus => (
-                        <button
-                            key={bus.id}
-                            onClick={() => { setTrackSend(track.id, bus.id, 0.25); setAdding(false) }}
-                            className="text-left px-2 py-1 hover:bg-white/10 rounded text-studio-text"
-                        >
-                            {bus.name}
-                        </button>
-                    ))}
-                </Popover>
-            </div>
         </div>
     )
 }
-
-// ── Output routing ─────────────────────────────────────────────────────────
-
 export function OutputRouting({ track, isMaster }: { track: Track | null; isMaster?: boolean }) {
     const routeTrackTo = useProjectStore(s => s.routeTrackTo)
     const tracks = useProjectStore(s => s.tracks)

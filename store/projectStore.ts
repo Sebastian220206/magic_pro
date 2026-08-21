@@ -624,6 +624,8 @@ interface ProjectState {
     updateMasterPluginParams: (pluginId: string, params: Record<string, number>) => void;
     /** Create or update a track's send to a bus. Level 0-1. */
     setTrackSend: (trackId: string, busId: string, level: number) => void;
+    /** Move a send's tap: post-pan, post-fader or pre-fader. */
+    setTrackSendPosition: (trackId: string, busId: string, position: 'postPan' | 'postFader' | 'preFader') => void;
     /** Route a track's main output into a bus (or 'stereo-out'). */
     routeTrackTo: (trackId: string, busId: string) => void;
     /** Playback offset in ms, for nudging a layer behind its partner. */
@@ -2978,6 +2980,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             },
             settings,
         );
+    },
+
+    setTrackSendPosition: (trackId, busId, position) => {
+        set(s => ({
+            tracks: s.tracks.map(t => t.id !== trackId ? t : {
+                ...t,
+                sends: (t.sends ?? []).map(x => x.busId === busId ? { ...x, position } : x),
+            }),
+            isDirty: true,
+        }));
+        // The tap has to move in the audio graph too, or the menu would only
+        // change a label.
+        audioEngine.setSendPosition?.(trackId, busId, position);
     },
 
     setTrackSend: (trackId, busId, level) => {

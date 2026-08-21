@@ -37,6 +37,9 @@ import { createProcessor } from '../plugins/processorFactory';
 import { toPluginSpecs } from '../plugins/pluginSpec';
 import type { PluginSetting } from '../../models/Track';
 
+/** Where a send taps its channel. */
+export type SendPosition = 'postPan' | 'postFader' | 'preFader';
+
 // ─── Node Chain Types ────────────────────────────────────────────────────────
 
 interface TrackNodeChain {
@@ -45,6 +48,8 @@ interface TrackNodeChain {
     preEffects: AudioEffectNode[];
     postEffects: AudioEffectNode[];
     sendGains: Map<string, GainNode>;
+    /** Where each send taps the channel, by bus id. */
+    sendPositions: Map<string, SendPosition>;
     mainGain: GainNode;
     panner: StereoPannerNode;
     /**
@@ -268,11 +273,13 @@ class RoutingEngine {
         
         // Create send gains for each bus send
         const sendGains = new Map<string, GainNode>();
+        const sendPositions = new Map<string, SendPosition>();
         if (normalizedTrack.sends) {
             normalizedTrack.sends.forEach(send => {
                 const sendGain = this.nodePool!.getGain();
                 sendGain.gain.value = sendLevel(send);
                 sendGains.set(send.busId, sendGain);
+                sendPositions.set(send.busId, (send as { position?: SendPosition }).position ?? 'postPan');
             });
         }
 
@@ -306,6 +313,7 @@ class RoutingEngine {
             preEffects,
             postEffects,
             sendGains,
+            sendPositions,
             mainGain,
             panner,
             pdcDelay,
@@ -662,6 +670,38 @@ class RoutingEngine {
         }
     }
 
+    /**
+     * The node a send taps for a given position.
+     *
+     * Pre-fader comes off the insert chain's output: after the plug-ins,
+     * before the volume fader, so the send keeps its level while the channel
+     * fader moves. Post-fader is the fader itself, before the panner. Post-pan
+     * is the end of the channel and is what every send used to get.
+     */
+    private sendTapNode(trackId: string, chain: TrackNodeChain, position: SendPosition): AudioNode {
+        if (position === 'preFader') {
+            return this.insertChains.get(trackId)?.output ?? chain.inputGain;
+        }
+        if (position === 'postFader') return chain.mainGain;
+        return chain.pdcDelay;
+    }
+
+    /** Move a send to a different tap on the channel. */
+    setSendPosition(trackId: string, busId: string, position: SendPosition): void {
+        const chain = this.trackNodes.get(trackId);
+        const sendGain = chain?.sendGains.get(busId);
+        if (!chain || !sendGain) return;
+
+        const previous = chain.sendPositions.get(busId) ?? 'postPan';
+        if (previous === position) return;
+
+        // Drop only the edge that fed this send. A bare disconnect on the tap
+        // node would take the master and the meter with it.
+        this.safeDisconnectFrom(this.sendTapNode(trackId, chain, previous), sendGain);
+        chain.sendPositions.set(busId, position);
+        this.safeConnect(this.sendTapNode(trackId, chain, position), sendGain);
+    }
+
     private recomputeTrackGain(trackId: string, chain: TrackNodeChain): void {
         const now = this.ctx?.currentTime || 0;
         const hasAnySolo = this.soloedTracks.size > 0;
@@ -880,9 +920,12 @@ class RoutingEngine {
         // Tap analyzer for metering (doesn't pass signal through, just monitors)
         this.safeConnect(currentNode, chain.analyzer);
 
-        // Connect sends to buses
+        // Connect sends to buses, each from the tap its position names. Post
+        // pan is `currentNode`, the end of the channel; the other two are
+        // further upstream, which is the entire point of the choice.
         chain.sendGains.forEach((sendGain, busId) => {
-            this.safeConnect(currentNode, sendGain);
+            const position = chain.sendPositions.get(busId) ?? 'postPan';
+            this.safeConnect(this.sendTapNode(trackId, chain, position), sendGain);
             const busChain = this.busNodes.get(busId);
             if (busChain) {
                 this.safeConnect(sendGain, busChain.inputGain);

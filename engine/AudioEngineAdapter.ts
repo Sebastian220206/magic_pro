@@ -301,6 +301,11 @@ export class AudioEngineAdapter implements MidiSink {
 
     // ─── Mixer & Routing ──────────────────────────────────────────────────────────
 
+    /** Move a send to a different tap on its channel. */
+    setSendPosition(trackId: string, busId: string, position: 'postPan' | 'postFader' | 'preFader') {
+        routingEngine.setSendPosition(trackId, busId, position);
+    }
+
     syncTrack(id: string, volume: number, pan: number, muted: boolean, soloed: boolean, soloSafe = false) {
         routingEngine.updateTrack(id, { volume, pan, muted, solo: soloed, soloSafe } as never);
     }

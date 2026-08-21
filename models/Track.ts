@@ -162,7 +162,20 @@ export interface Track {
 
     // --- Advanced Signal Chain ---
     plugins: PluginSetting[];
-    sends: { busId: string; level: number }[];
+    sends: {
+        busId: string;
+        level: number;
+        /**
+         * Where the send taps the channel.
+         *
+         * `postPan` follows the fader and the pan knob — the usual choice for
+         * a reverb. `postFader` follows the fader but not the pan. `preFader`
+         * follows neither, so a headphone mix keeps its level while you move
+         * the channel fader. Defaults to `postPan`, which is what the engine
+         * did before the choice existed.
+         */
+        position?: 'postPan' | 'postFader' | 'preFader';
+    }[];
     outputBusId: string; // "stereo-out" by default
     channelStripId?: string; // used for multiple tracks sharing the same mixer channel
     defaultRegionType?: 'midi' | 'pattern' | 'session-player';

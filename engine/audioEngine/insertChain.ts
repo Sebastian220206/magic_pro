@@ -83,6 +83,17 @@ export class InsertChain {
     }
 
     /**
+     * The last node the chain drives, which is post-plug-in and pre-tail.
+     *
+     * A pre-fader send taps here: after the inserts, before the volume fader.
+     * Tapping the head instead would miss the plug-ins, and tapping the tail
+     * would be post-fader.
+     */
+    get output(): AudioNode {
+        return this.fade;
+    }
+
+    /**
      * Reconcile the chain against a new plugin list.
      *
      * Processors are matched by instance id, so reordering reuses the existing
