@@ -11,6 +11,7 @@ import { PeakDisplay, LevelField, PanField, RecordMonitorButtons, resetAllPeakDi
 import { ChannelModeButton, AutomationModeButton, VcaSlot, TrackNameField, OutputStripButtons } from "./mixer/ChannelStripSlots"
 import { STRIP_ROWS, STRIP_WIDTH, LEGEND_WIDTH, FADER_SCALE, stripTint, type StripRow } from "./mixer/stripLayout"
 import { MidiFxMenu } from "./mixer/MidiFxMenu"
+import { MixerMenus, type MixerViewOptions } from "./mixer/MixerMenus"
 import type { MidiFxId } from "@/lib/midiFxCatalog"
 import { isMidiTrackType } from "@/lib/trackKinds"
 import { MAX_GAIN } from "@/lib/mixerLevel"
@@ -64,6 +65,14 @@ export function Mixer() {
         }
     }, [showMixer, bottomPanelHeight, setBottomPanelHeight])
 
+    const [viewOptions, setViewOptions] = useState<MixerViewOptions>({
+        showLegend: true,
+        longFaders: false,
+        autoscrollToSelection: true,
+        followTrackStacks: true,
+        sendsOnly: false,
+    })
+
     const [mixerMode, setMixerMode] = useState<'single' | 'tracks' | 'all'>('all')
     const [trackTypeFilter, setTrackTypeFilter] = useState<'All' | 'Audio' | 'Inst' | 'Aux' | 'Bus' | 'VCA' | 'Output' | 'Master'>('All')
     const [showTrackStacks, setShowTrackStacks] = useState(true)
@@ -83,6 +92,11 @@ export function Mixer() {
 
     const filteredTracks = tracks.filter(track => {
         if (!showTrackStacks && (track.parentId || track.isStack)) return false
+        // View > Channels with Sends only.
+        if (viewOptions.sendsOnly && !(track.sends?.length)) return false
+        // View > Follow Track Stacks: off, the members of a stack are listed
+        // beside it rather than folded into it.
+        if (!viewOptions.followTrackStacks && track.isStack) return false
         if (mixerMode === 'single') {
             return track.id === focusedTrackId
         }
@@ -103,18 +117,7 @@ export function Mixer() {
             {/* 1. Mixer Command Header (High Fidelity Menu Bar) */}
             <div className="h-9 bg-studio-raised border-b border-[var(--accent-cyan)]/30 flex items-center px-4 justify-between shrink-0">
                 <div className="flex items-center gap-1">
-                    <div className="flex items-center gap-1.5 bg-studio-void border border-[var(--accent-cyan)]/40 rounded px-2.5 h-7 cursor-pointer hover:border-[var(--accent-cyan)] hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all group">
-                        <span className="text-[10px] font-black text-studio-text-mid group-hover:text-white uppercase tracking-tighter">Edit</span>
-                        <ChevronDown className="w-3 h-3 text-studio-text-dim" />
-                    </div>
-                    <div className="flex items-center gap-1.5 bg-studio-void border border-[var(--accent-cyan)]/40 rounded px-2.5 h-7 cursor-pointer hover:border-[var(--accent-cyan)] hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all group">
-                        <span className="text-[10px] font-black text-studio-text-mid group-hover:text-[var(--accent-cyan)] uppercase tracking-tighter">Options</span>
-                        <ChevronDown className="w-3 h-3 text-studio-text-dim" />
-                    </div>
-                    <div className="flex items-center gap-1.5 bg-studio-void border border-[var(--accent-cyan)]/40 rounded px-2.5 h-7 cursor-pointer hover:border-[var(--accent-cyan)] hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all group">
-                        <span className="text-[10px] font-black text-studio-text-mid group-hover:text-[var(--accent-cyan)] uppercase tracking-tighter">View</span>
-                        <ChevronDown className="w-3 h-3 text-studio-text-dim" />
-                    </div>
+                    <MixerMenus view={viewOptions} onView={patch => setViewOptions(v => ({ ...v, ...patch }))} />
 
                     <div className="w-px h-5 bg-[var(--accent-cyan)]/30 mx-2"></div>
 
@@ -173,7 +176,8 @@ export function Mixer() {
                     readable. Sticky, so it stays put while the strips scroll
                     sideways. */}
                 <div
-                    style={{ width: LEGEND_WIDTH }}
+                    style={{ width: LEGEND_WIDTH, display: viewOptions.showLegend ? undefined : 'none' }}
+                    data-mixer-legend
                     className="shrink-0 sticky left-0 z-30 flex flex-col bg-studio-panel border-r border-black shadow-[4px_0_15px_rgba(0,0,0,0.5)]"
                 >
                     {STRIP_ROWS.map((row: StripRow) => (
@@ -212,6 +216,7 @@ export function Mixer() {
                         // the number on a strip does not change when a filter
                         // hides the strips before it.
                         trackIndex={tracks.indexOf(track)}
+                        longFaders={viewOptions.longFaders}
                         focusedTrackId={focusedTrackId}
                     />
                 ))}
@@ -375,6 +380,8 @@ interface MixerChannelStripProps {
     isSelected: boolean;
     /** Position in the track list, for the number in the name row. */
     trackIndex?: number;
+    /** View > Long Faders: a wider strip with more fader travel. */
+    longFaders?: boolean;
     onSelect: (e?: React.MouseEvent) => void;
     onUpdate: (updates: Partial<Track>) => void;
     onAddPlugin: (type: string) => void;
@@ -389,7 +396,7 @@ interface MixerChannelStripProps {
     handleAction?: (field: keyof Track, value: any, e: React.MouseEvent) => void;
 }
 
-function TrackMixerChannelStrip({ track, isSelected, trackIndex, focusedTrackId }: { track: Track; isSelected: boolean; trackIndex: number; focusedTrackId: string | null }) {
+function TrackMixerChannelStrip({ track, isSelected, trackIndex, longFaders, focusedTrackId }: { track: Track; isSelected: boolean; trackIndex: number; longFaders?: boolean; focusedTrackId: string | null }) {
     const selectTrack = useProjectStore(s => s.selectTrack);
     const updateTrack = useProjectStore(s => s.updateTrack);
     const addPlugin = useProjectStore(s => s.addPlugin);
@@ -407,6 +414,7 @@ function TrackMixerChannelStrip({ track, isSelected, trackIndex, focusedTrackId 
             track={track}
             isSelected={isSelected}
             trackIndex={trackIndex}
+            longFaders={longFaders}
             onSelect={onSelect}
             onUpdate={onUpdate}
             onAddPlugin={onAddPluginFn}
@@ -418,7 +426,7 @@ function TrackMixerChannelStrip({ track, isSelected, trackIndex, focusedTrackId 
 }
 
 const MixerChannelStrip = memo(function MixerChannelStrip({ 
-    track, isSelected, trackIndex = 0, onSelect, onUpdate, onAddPlugin, onTogglePlugin, setOpenPluginEditor,
+    track, isSelected, trackIndex = 0, longFaders = false, onSelect, onUpdate, onAddPlugin, onTogglePlugin, setOpenPluginEditor,
     saveHistorySnapshot,
     isMaster = false, masterVolume = 0.8, masterPan = 0, masterMuted = false,
     toggleTrackFreeze, handleAction
@@ -802,7 +810,7 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
     return (
         <div
             onClick={onSelect}
-            style={{ width: STRIP_WIDTH }}
+            style={{ width: longFaders ? STRIP_WIDTH * 1.5 : STRIP_WIDTH }}
             className={`h-full flex flex-col border-r border-black shrink-0 transition-colors relative group ${isSelected ? 'bg-accent-cyan/[0.06]' : 'bg-studio-panel/60 hover:bg-white/[0.02]'}`}
         >
             {isSelected && <div className="absolute inset-x-0 top-0 h-0.5 bg-accent-cyan z-10 shadow-[0_0_10px_var(--accent-cyan-glow)]" />}

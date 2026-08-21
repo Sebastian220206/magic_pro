@@ -86,6 +86,18 @@ describe('project creation', () => {
         expect(b.name).toBe('Piano');
     });
 
+    it('gives every track a unique id, even in one batch', () => {
+        // `Date.now().toString()` collides when several tracks are built in the
+        // same tick. Two shared an id, so selecting one selected both and
+        // inverting that selection dropped both — which is how it surfaced.
+        useProjectStore.getState().addTracks([
+            track('', 'A'), track('', 'B'), track('', 'C'),
+        ].map(({ name, type }) => ({ name, type })) as never);
+
+        const ids = useProjectStore.getState().tracks.map(t => t.id);
+        expect(new Set(ids).size).toBe(ids.length);
+    });
+
     it('appends after tracks that already exist', () => {
         useProjectStore.getState().addTracks([track('t1', 'A')] as never);
         useProjectStore.getState().addTracks([track('t2', 'B'), track('t3', 'C')] as never);

@@ -1192,9 +1192,15 @@ async function editClipSamples(
     return true;
 }
 
+/** Unique within a millisecond, which `Date.now()` alone is not. */
+let trackIdSeq = 0;
+
 /** A track with every default filled in; `overrides` wins. */
 function buildNewTrack(overrides: Partial<Track>, orderIndex: number): Track {
-    const trackId = overrides.id || Date.now().toString();
+    // `Date.now()` alone collides: `addTracks` builds several in one tick, so
+    // two tracks came out sharing an id. Selecting one then selected both, and
+    // inverting the selection dropped both — which is how this surfaced.
+    const trackId = overrides.id || `${Date.now()}-${trackIdSeq++}`;
     return {
         id: trackId, name: 'Audio Track', type: 'audio', muted: false, soloed: false,
         volume: 0.8, pan: 0, color: '#888', orderIndex,
