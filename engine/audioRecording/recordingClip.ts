@@ -160,6 +160,9 @@ export function addClipToTimeline(clip: RecordingClip): void {
     alternativeId: track.activeAlternativeId || 'default',
     start: clip.startTime,
     startTime: clip.startTime,
+    // Written explicitly: the scheduler's window test reads `startBeat`, and a
+    // clip that carried only `start` was dropped before it could be scheduled.
+    startBeat: clip.startTime,
     duration: durationInBeats,
     offset: 0,
     muted: false,

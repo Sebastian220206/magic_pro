@@ -8,6 +8,7 @@ import { TimelineAnnotation } from '@/models/Annotation';
 import { ArticulationSet, Articulation } from '@/models/Articulation';
 import { libraryData, Preset } from '@/lib/libraryData';
 import { serializeStoreState, deserializeState, saveToIndexedDB, loadFromIndexedDB, CURRENT_SCHEMA_VERSION } from '@/engine/persistence/projectPersistence';
+import { getAudioRecorder } from '@/engine/audioRecording/recorder';
 import { rebuildEngine } from '@/engine/persistence/engineRebuilder';
 import { storeAudioFile } from '@/engine/persistence/audioFileStore';
 import { extractPeaksAsync } from '@/engine/waveform';
@@ -383,6 +384,8 @@ interface ProjectState {
     autoInputMonitoring: boolean;
     allowQuickPunchIn: boolean;
     recordingStartTime: number | null;
+    /** Why the last take could not capture, usually a refused microphone. */
+    recordingError: string | null;
     liveRecordingClips: { [trackId: string]: string }; // trackId -> clipId
 
     flashback: boolean;
@@ -1278,6 +1281,53 @@ function chordTriggerFor(track: { id: string; midiFx?: string | null } | undefin
     return processor;
 }
 
+/**
+ * Audio tracks that a take should capture from.
+ *
+ * The same rule the transport loop uses: explicitly armed tracks, or the
+ * focused one when nothing is armed at all.
+ */
+function armedAudioTracks(state: { tracks: Track[]; focusedTrackId: string | null }): Track[] {
+    const anyArmed = state.tracks.some(t => t.recordEnabled);
+    return state.tracks.filter(t =>
+        t.type === 'audio' && (t.recordEnabled || (!anyArmed && t.id === state.focusedTrackId)));
+}
+
+/**
+ * Start capturing audio for a take.
+ *
+ * `AudioRecorder` is a complete implementation — arm, capture, encode, build
+ * the clip, register its buffer for playback — and nothing called it. Pressing
+ * record on an audio track rolled the transport and grew an empty region,
+ * because the only thing missing was the call.
+ *
+ * One recorder, so the first armed audio track wins. Multi-track capture needs
+ * a recorder per input, which this does not pretend to do.
+ */
+async function beginAudioCapture(state: { tracks: Track[]; focusedTrackId: string | null; playhead: number }): Promise<void> {
+    const target = armedAudioTracks(state)[0];
+    if (!target) return;
+    try {
+        const recorder = getAudioRecorder();
+        await recorder.arm();
+        await recorder.start({ trackId: target.id, startTime: state.playhead });
+    } catch (error) {
+        // A dismissed microphone prompt is the usual cause. Say so rather than
+        // leaving the transport rolling over a take that records nothing.
+        console.error('[Recording] Could not start audio capture:', error);
+        useProjectStore.setState({ recordingError: String((error as Error)?.message ?? error) });
+    }
+}
+
+/** Finish the take. The recorder adds the clip and registers its buffer. */
+async function endAudioCapture(): Promise<void> {
+    try {
+        await getAudioRecorder().stop();
+    } catch (error) {
+        console.error('[Recording] Could not finish audio capture:', error);
+    }
+}
+
 /** Pending count-in, so cancelling record does not start the transport late. */
 let countInTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -1619,6 +1669,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     autoInputMonitoring: true,
     allowQuickPunchIn: true,
     recordingStartTime: null,
+    recordingError: null,
     liveRecordingClips: {},
 
     flashback: false,
@@ -1848,7 +1899,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             if (recording) {
                 const isWithinPunchRange = !autopunchEnabled || (nextPlayhead >= autopunchStart && nextPlayhead <= autopunchEnd);
                 
-                const recEnabledTracks = state.tracks.filter(t => t.recordEnabled || (t.id === focusedTrackId && !state.tracks.some(rt => rt.recordEnabled)));
+                // Audio takes get their clip from the recorder when the take
+                // ends, complete with a buffer and a waveform. A placeholder
+                // here would leave a second, empty region beside the real one.
+                const recEnabledTracks = state.tracks.filter(t =>
+                    t.type !== 'audio'
+                    && (t.recordEnabled || (t.id === focusedTrackId && !state.tracks.some(rt => rt.recordEnabled))));
                 
                 recEnabledTracks.forEach(track => {
                     const existingClipId = liveRecordingClips[track.id];
@@ -5910,10 +5966,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             set({ recording: false, recordingStartTime: null, liveRecordingClips: {} });
             heldRecordingNotes.clear();
             cancelCountIn();
+            void endAudioCapture();
             return;
         }
 
-        set({ recording: true, recordingStartTime: s.playhead });
+        set({ recording: true, recordingStartTime: s.playhead, recordingError: null });
+        void beginAudioCapture(get());
 
         // Logic Pro pattern: recording rolls the transport. The transport is
         // `play()`, not a `playing: true` flag — `play()` is what starts the
@@ -5981,7 +6039,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         if (!s.playing) {
             get().play();
         }
-        set({ recording: true, recordingStartTime: get().playhead });
+        set({ recording: true, recordingStartTime: get().playhead, recordingError: null });
+        void beginAudioCapture(get());
         // Recording has its own click preference, so re-evaluate now that the
         // transport is in record mode.
         syncMetronome(s.settings, s.metronomeEnabled, 'record');
@@ -5991,6 +6050,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const s = get();
         if (s.recording) {
             set({ recording: false, recordingStartTime: null, liveRecordingClips: {} });
+            // The recorder builds the clip, its waveform and its buffer; this
+            // is the call that was missing, so takes captured nothing.
+            void endAudioCapture();
         }
     },
 

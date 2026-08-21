@@ -51,6 +51,22 @@ const DEFAULT_CONFIG: SchedulerConfig = {
 
 // ─── Advanced Scheduler ────────────────────────────────────────────────────────────
 
+/**
+ * Where a clip sits on the timeline, in beats.
+ *
+ * Clips carry their position as `startBeat`, `start`, or both, depending on
+ * which part of the app made them — the MIDI sequencer already reads them the
+ * same way. Reading only `startBeat` meant a recorded audio clip, which has
+ * `start`, produced `undefined + duration = NaN`; the window test compared NaN
+ * and came out false, so every take was filtered out before it could be
+ * scheduled and a recording played back silently.
+ */
+export function clipStartBeatOf(clip: { startBeat?: number; start?: number }): number {
+    if (Number.isFinite(clip.startBeat as number)) return clip.startBeat as number;
+    if (Number.isFinite(clip.start as number)) return clip.start as number;
+    return 0;
+}
+
 class AdvancedScheduler {
     private config: SchedulerConfig;
     private isPlaying: boolean = false;
@@ -267,8 +283,8 @@ class AdvancedScheduler {
             if (!this.isTrackAudible(clip.trackId)) return false;
 
             // Check if clip is within scheduling window
-            const clipStartBeat = clip.startBeat;
-            const clipEndBeat = clip.startBeat + clip.duration;
+            const clipStartBeat = clipStartBeatOf(clip);
+            const clipEndBeat = clipStartBeat + (clip.duration ?? 0);
 
             return clipEndBeat >= window.windowStart && clipStartBeat <= window.windowEnd;
         });
@@ -408,7 +424,7 @@ class AdvancedScheduler {
 
         buffer = this.resolveFlexBuffer(clip, buffer, ctx);
 
-        const clipStartBeat = Number.isFinite(clip.startBeat) ? clip.startBeat : 0;
+        const clipStartBeat = clipStartBeatOf(clip);
         if (!Number.isFinite(clipStartBeat)) return;
         const clipDuration = clip.duration ?? 0;
         if (!Number.isFinite(clipDuration)) return;
