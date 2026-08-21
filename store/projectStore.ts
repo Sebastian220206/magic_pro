@@ -3,6 +3,7 @@ import { audioEngine } from '@/engine/AudioEngineAdapter';
 import { Track, TrackAlternative, PluginSetting } from '@/models/Track';
 import { Clip, Note, ClipType } from '@/models/Clip';
 import { recordedClipType } from '@/lib/trackKinds';
+import { createChordTrigger, type ChordTrigger } from '@/engine/midi/fx/chordTrigger';
 import { TimelineAnnotation } from '@/models/Annotation';
 import { ArticulationSet, Articulation } from '@/models/Articulation';
 import { libraryData, Preset } from '@/lib/libraryData';
@@ -1227,13 +1228,42 @@ let transportLoopGeneration = 0;
  * the one being released — so re-playing a pitch corrupted the earlier note.
  * Transient by nature, so it lives outside the serialized store.
  */
-const heldRecordingNotes = new Map<string, { clipId: string; noteId: string; startBeat: number }>();
+const heldRecordingNotes = new Map<string, {
+    clipId: string;
+    noteId: string;
+    startBeat: number;
+    /** The rest of a recorded chord, so note-off lengthens every note of it. */
+    extraIds?: string[];
+}>();
 
 /** Unique within a millisecond, which `Date.now()` alone is not. */
 let recordedNoteSeq = 0;
 
 /** Floor for a recorded note, so a stray tap is still visible and audible. */
 const MIN_RECORDED_NOTE_BEATS = 0.125;
+
+/**
+ * Live MIDI-effect processors, one per track, keyed by track id.
+ *
+ * Held outside the store because they carry sounding-voice state rather than
+ * project data, and are rebuilt from `track.midiFx` on demand. `engine/midi/fx`
+ * had working processors that nothing imported; this is what reaches them.
+ */
+const midiFxProcessors = new Map<string, ChordTrigger>();
+
+/** The chord trigger for a track, or null when the slot is empty. */
+function chordTriggerFor(track: { id: string; midiFx?: string | null } | undefined): ChordTrigger | null {
+    if (!track || track.midiFx !== 'chordTrigger') {
+        if (track) midiFxProcessors.delete(track.id);
+        return null;
+    }
+    let processor = midiFxProcessors.get(track.id);
+    if (!processor) {
+        processor = createChordTrigger();
+        midiFxProcessors.set(track.id, processor);
+    }
+    return processor;
+}
 
 /** Pending count-in, so cancelling record does not start the transport late. */
 let countInTimer: ReturnType<typeof setTimeout> | null = null;
@@ -4534,9 +4564,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }
 
         const repeatRate = (targetTrackId === focusedTrackId && noteRepeatSettings.enabled) ? noteRepeatSettings.rate : undefined;
+
+        // A MIDI effect in the strip's slot rewrites the note before it is
+        // played. One key in, a chord out.
+        const chordTrigger = chordTriggerFor(targetTrack);
+        const sounded = chordTrigger
+            ? chordTrigger.noteOn(pitch, velocity)
+                .filter(e => e.type === 'note-on')
+                .map(e => ({ pitch: e.pitch, velocity: e.velocity }))
+            : [{ pitch, velocity }];
+
         // Pass the track's instrument: without it the engine cannot reach the
         // sampler backends and every note fell through to the built-in synth.
-        audioEngine.triggerNote(targetTrackId, pitch, velocity, repeatRate, targetTrack.instrument);
+        for (const note of sounded) {
+            audioEngine.triggerNote(targetTrackId, note.pitch, note.velocity, repeatRate, targetTrack.instrument);
+        }
         
         if (recording && (targetTrack.recordEnabled || (targetTrackId === focusedTrackId && !tracks.some(t => t.recordEnabled)))) {
             let liveClipId = liveRecordingClips[targetTrackId];
@@ -4571,12 +4613,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 }));
             }
 
+            // "Record MIDI to Track Here": on, the region gets what the effect
+            // produced; off, it gets the note actually played. Off is the
+            // default, so a chord trigger can be changed after the take.
+            const recordedPitches = targetTrack.recordMidiFxOutput
+                ? sounded.map(n => n.pitch)
+                : [pitch];
+
             const noteId = `note-${Date.now()}-${recordedNoteSeq++}-${pitch}`;
             // Remember which note this is, so note-off lengthens exactly this
             // one. Re-pressing a pitch that is still held closes the old note
             // first rather than orphaning it.
             heldRecordingNotes.set(`${targetTrackId}:${pitch}`, {
                 clipId: liveClipId, noteId, startBeat: playhead,
+                extraIds: recordedPitches.slice(1).map((_, i) => `${noteId}-${i + 1}`),
             });
 
             set(s => ({
@@ -4589,13 +4639,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                         // of them: the sequencer clips every note to the clip
                         // end. This used to be created at a fixed 1 beat.
                         duration: Math.max(c.duration ?? 0, startInClip + MIN_RECORDED_NOTE_BEATS),
-                        notes: [...(c.notes || []), {
-                            id: noteId,
-                            pitch,
+                        notes: [...(c.notes || []), ...recordedPitches.map((recordedPitch, i) => ({
+                            // Every note of a recorded chord needs its own id,
+                            // or note-off would lengthen only the first.
+                            id: i === 0 ? noteId : `${noteId}-${i}`,
+                            pitch: recordedPitch,
                             velocity,
                             start: startInClip,
-                            duration: MIN_RECORDED_NOTE_BEATS
-                        }]
+                            duration: MIN_RECORDED_NOTE_BEATS,
+                        }))]
                     };
                 })
             }));
@@ -4619,7 +4671,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const targetTrackId = trackId || focusedTrackId;
         if (!targetTrackId) return;
 
-        audioEngine.releaseNote(targetTrackId, pitch);
+        // Release whatever the effect sounded, not just the key pressed —
+        // otherwise a chord trigger leaves its upper notes ringing.
+        const releasingTrack = tracks.find(t => t.id === targetTrackId);
+        const chordTrigger = chordTriggerFor(releasingTrack);
+        if (chordTrigger) {
+            for (const event of chordTrigger.noteOff(pitch)) {
+                if (event.type === 'note-off') audioEngine.releaseNote(targetTrackId, event.pitch);
+            }
+        } else {
+            audioEngine.releaseNote(targetTrackId, pitch);
+        }
 
         // Update flashback buffer durations on note release
         set(s => ({
@@ -4642,12 +4704,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                         if (c.id !== held.clipId) return c;
                         const note = c.notes?.find(n => n.id === held.noteId);
                         const end = (note?.start ?? 0) + duration;
+                        const ids = new Set([held.noteId, ...(held.extraIds ?? [])]);
                         return {
                             ...c,
                             duration: Math.max(c.duration ?? 0, end),
                             // Matched by identity, so releasing one note cannot
-                            // rewrite another that shares its pitch.
-                            notes: c.notes?.map(n => n.id === held.noteId ? { ...n, duration } : n),
+                            // rewrite another that shares its pitch. A recorded
+                            // chord lengthens every note it wrote.
+                            notes: c.notes?.map(n => ids.has(n.id) ? { ...n, duration } : n),
                         };
                     })
                 }));

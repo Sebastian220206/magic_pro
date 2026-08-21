@@ -10,6 +10,9 @@ import { SendsSlot, OutputRouting, MonitorControls, SidechainPicker } from "./mi
 import { PeakDisplay, LevelField, PanField, RecordMonitorButtons, resetAllPeakDisplays } from "./mixer/ChannelStripReadouts"
 import { ChannelModeButton, AutomationModeButton, VcaSlot, TrackNameField, OutputStripButtons } from "./mixer/ChannelStripSlots"
 import { STRIP_ROWS, STRIP_WIDTH, LEGEND_WIDTH, FADER_SCALE, stripTint, type StripRow } from "./mixer/stripLayout"
+import { MidiFxMenu } from "./mixer/MidiFxMenu"
+import type { MidiFxId } from "@/lib/midiFxCatalog"
+import { isMidiTrackType } from "@/lib/trackKinds"
 import { MAX_GAIN } from "@/lib/mixerLevel"
 import { BUILTIN_PLUGIN_IDS } from "@/engine/plugins/pluginIds"
 import {
@@ -552,11 +555,16 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
             </div>
         ),
 
+        // Was a dead label. `engine/midi/fx` holds working processors that
+        // nothing imported, so this slot is the first way to reach them.
         midiFx: (
-            <div className="h-full rounded-[2px] bg-black/40 border border-white/5 flex items-center justify-center text-[8px] font-black text-studio-text-dim uppercase"
-                title="MIDI effects are not implemented yet">
-                {track && !isMaster ? 'MIDI FX' : ''}
-            </div>
+            <MidiFxMenu
+                inserted={(track?.midiFx ?? null) as MidiFxId | null}
+                recordOutput={!!track?.recordMidiFxOutput}
+                disabled={isMaster || !track || !isMidiTrackType(track.type)}
+                onSelect={(id) => track && onUpdate({ midiFx: id } as Partial<Track>)}
+                onToggleRecordOutput={() => track && onUpdate({ recordMidiFxOutput: !track.recordMidiFxOutput } as Partial<Track>)}
+            />
         ),
 
         input: (

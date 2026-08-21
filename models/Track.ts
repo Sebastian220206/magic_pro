@@ -85,6 +85,16 @@ export interface Track {
      * tooltip, which says so rather than implying the rest work.
      */
     automationMode?: 'off' | 'read' | 'touch' | 'latch' | 'write';
+    /** MIDI effect inserted in the strip's MIDI FX slot, by catalogue id. */
+    midiFx?: string | null;
+    /**
+     * Record what the MIDI effect produced rather than what was played.
+     *
+     * Logic's "Record MIDI to Track Here". Off, a chord trigger sounds a chord
+     * but records the single note you pressed; on, the chord itself is written
+     * into the region.
+     */
+    recordMidiFxOutput?: boolean;
     /** VCA fader this track is assigned to, by id. */
     vcaId?: string | null;
     volume: number; // 0 to 1
