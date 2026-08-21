@@ -78,6 +78,7 @@ export function SendsSlot({ track }: { track: Track | null }) {
     const setTrackSend = useProjectStore(s => s.setTrackSend)
     const setTrackSendPosition = useProjectStore(s => s.setTrackSendPosition)
     const removeTrackSend = useProjectStore(s => s.removeTrackSend)
+    const ensureBusTrack = useProjectStore(s => s.ensureBusTrack)
     const tracks = useProjectStore(s => s.tracks)
     const busses = useRoutableBusses(track?.id)
 
@@ -107,12 +108,15 @@ export function SendsSlot({ track }: { track: Track | null }) {
                     key={send?.busId ?? `empty-${i}`}
                     busses={busses
                         .filter(b => b.id === send?.busId || !taken.has(b.id))
-                        .map(b => ({ id: b.id, name: b.name }))}
+                        .map(b => ({ id: b.id, name: b.name, busNumber: b.busNumber }))}
                     busId={send?.busId ?? null}
                     position={send?.position ?? 'postPan'}
                     level={send?.level ?? 0}
                     busName={busName}
-                    onPick={(busId) => {
+                    onPick={(busNumber) => {
+                        // Choosing an unused bus brings its aux strip into
+                        // being, the way a console's buses already exist.
+                        const busId = ensureBusTrack(busNumber)
                         // Moving an existing slot to another bus, rather than
                         // stacking a second send on the same channel.
                         if (send && send.busId !== busId) removeTrackSend(track.id, send.busId)

@@ -624,6 +624,11 @@ interface ProjectState {
     updateMasterPluginParams: (pluginId: string, params: Record<string, number>) => void;
     /** Create or update a track's send to a bus. Level 0-1. */
     setTrackSend: (trackId: string, busId: string, level: number) => void;
+    /**
+     * The aux strip for a bus number, creating it if the bus is unused.
+     * Returns the track id.
+     */
+    ensureBusTrack: (busNumber: number) => string;
     /** Move a send's tap: post-pan, post-fader or pre-fader. */
     setTrackSendPosition: (trackId: string, busId: string, position: 'postPan' | 'postFader' | 'preFader') => void;
     /** Route a track's main output into a bus (or 'stereo-out'). */
@@ -2980,6 +2985,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             },
             settings,
         );
+    },
+
+    ensureBusTrack: (busNumber) => {
+        const name = `Bus ${busNumber}`;
+        const existing = get().tracks.find(t => t.type === 'bus' && t.busNumber === busNumber);
+        if (existing) return existing.id;
+
+        // A console's buses exist whether or not you have used one; assigning a
+        // send to an unused bus is what brings its aux strip into being. Before
+        // this you had to go and create an aux track first, then come back.
+        const id = `bus-${busNumber}-${Date.now()}`;
+        get().saveHistorySnapshot();
+        get().addTrack({ id, name, type: 'bus', color: '#fbbf24', busNumber } as Partial<Track>);
+        return id;
     },
 
     setTrackSendPosition: (trackId, busId, position) => {

@@ -95,6 +95,13 @@ export interface Track {
      * into the region.
      */
     recordMidiFxOutput?: boolean;
+    /**
+     * Which numbered bus this aux strip is. Set when a send creates it.
+     *
+     * Kept separate from the name so renaming an aux does not detach it from
+     * its bus.
+     */
+    busNumber?: number;
     /** VCA fader this track is assigned to, by id. */
     vcaId?: string | null;
     volume: number; // 0 to 1

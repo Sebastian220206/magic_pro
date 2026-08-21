@@ -16,12 +16,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronRight, Search } from 'lucide-react';
+import {
+    busName as busNumberName, busPages, busesInPage, firstPageBuses, type BusPage,
+} from '@/lib/busCatalog';
 
 export type SendPosition = 'postPan' | 'postFader' | 'preFader';
 
 export interface SendBusOption {
     id: string;
     name: string;
+    /** Which numbered bus this aux is, when it is one. */
+    busNumber?: number;
 }
 
 const POSITIONS: { id: SendPosition; label: string }[] = [
@@ -41,7 +46,8 @@ export function SendSlotMenu({
     position: SendPosition;
     level: number;
     busName: (id: string) => string;
-    onPick: (busId: string) => void;
+    /** Chosen by bus number; the caller creates the aux if it does not exist. */
+    onPick: (busNumber: number) => void;
     onPosition: (position: SendPosition) => void;
     onRemove: () => void;
     /** The slot face that opens the menu. */
@@ -50,6 +56,8 @@ export function SendSlotMenu({
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [showBuses, setShowBuses] = useState(false);
+    /** Which paged range is open, or null while the first 32 are showing. */
+    const [page, setPage] = useState<BusPage | null>(null);
     const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number } | null>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -100,10 +108,39 @@ export function SendSlotMenu({
         };
     }, [open]);
 
-    const close = () => { setOpen(false); setQuery(''); setShowBuses(false); };
+    const close = () => { setOpen(false); setQuery(''); setShowBuses(false); setPage(null); };
+
+    /*
+     * What each bus row shows: the aux's own name when it has one — a renamed
+     * aux keeps its name — and `Bus N` otherwise. `used` marks buses that
+     * already have a strip, so the list distinguishes what exists from what
+     * would be created by choosing it.
+     */
+    const auxByNumber = new Map(
+        busses.filter(b => b.busNumber !== undefined).map(b => [b.busNumber!, b]),
+    );
+    const labelFor = (n: number) => auxByNumber.get(n)?.name ?? busNumberName(n);
+    const busRow = (n: number) => {
+        const aux = auxByNumber.get(n);
+        return (
+            <button
+                key={n}
+                type="button"
+                role="menuitem"
+                data-bus-row={n}
+                onClick={() => { onPick(n); close(); }}
+                className={`w-full h-[24px] pl-4 pr-2 flex items-center justify-between text-left text-[12px] relative transition-colors ${busId && aux?.id === busId
+                    ? 'text-accent-cyan'
+                    : 'text-studio-text hover:bg-accent-cyan hover:text-black'}`}
+            >
+                {busId && aux?.id === busId && <Check className="w-3 h-3 absolute left-0" strokeWidth={3} />}
+                <span className="truncate">{labelFor(n)}</span>
+                {!aux && <span className="text-[10px] opacity-30 shrink-0 ml-2">new</span>}
+            </button>
+        );
+    };
 
     const needle = query.trim().toLowerCase();
-    const matches = busses.filter(b => !needle || b.name.toLowerCase().includes(needle));
     // Typing jumps straight to the bus list; there is nothing else to search.
     const busListOpen = showBuses || needle.length > 0;
 
@@ -129,6 +166,13 @@ export function SendSlotMenu({
     );
 
     const hasSend = !!busId;
+
+    // Matches a bus by its number or by a renamed aux's own name.
+    const searchHits = needle
+        ? [...firstPageBuses(), ...busPages().flatMap(busesInPage)]
+            .filter(n => labelFor(n).toLowerCase().includes(needle))
+            .slice(0, 40)
+        : [];
 
     return (
         <>
@@ -163,7 +207,7 @@ export function SendSlotMenu({
                                 onChange={(e) => setQuery(e.target.value)}
                                 onKeyDown={(e) => {
                                     e.stopPropagation();
-                                    if (e.key === 'Enter' && matches[0]) { onPick(matches[0].id); close(); }
+                                    if (e.key === 'Enter' && searchHits[0] !== undefined) { onPick(searchHits[0]); close(); }
                                 }}
                                 placeholder="Search"
                                 aria-label="Search buses"
@@ -198,31 +242,51 @@ export function SendSlotMenu({
 
                     {row('Bus', {
                         submenu: true,
-                        disabled: busses.length === 0,
-                        reason: busses.length === 0 ? 'Create a bus track first' : undefined,
-                        onSelect: () => setShowBuses(v => !v),
+                        onSelect: () => { setShowBuses(v => !v); setPage(null); },
                     })}
 
                     {busListOpen && (
                         <div className="pl-2">
-                            {matches.length === 0 ? (
-                                <div className="h-[26px] pl-4 flex items-center text-[12px] text-studio-text-dim/50">
-                                    No matching bus
-                                </div>
-                            ) : matches.map(bus => (
-                                <button
-                                    key={bus.id}
-                                    type="button"
-                                    role="menuitem"
-                                    onClick={() => { onPick(bus.id); close(); }}
-                                    className={`w-full h-[26px] pl-4 pr-2 flex items-center text-left text-[12px] relative transition-colors ${busId === bus.id
-                                        ? 'text-accent-cyan'
-                                        : 'text-studio-text hover:bg-accent-cyan hover:text-black'}`}
-                                >
-                                    {busId === bus.id && <Check className="w-3 h-3 absolute left-0" strokeWidth={3} />}
-                                    <span className="truncate">{bus.name}</span>
-                                </button>
-                            ))}
+                            {needle ? (
+                                // Searching looks across all of them at once;
+                                // paging is only there to keep 256 rows usable.
+                                searchHits.length === 0 ? (
+                                    <div className="h-[26px] pl-4 flex items-center text-[12px] text-studio-text-dim/50">
+                                        No matching bus
+                                    </div>
+                                ) : searchHits.map(busRow)
+                            ) : page ? (
+                                <>
+                                    <button
+                                        type="button"
+                                        role="menuitem"
+                                        onClick={() => setPage(null)}
+                                        className="w-full h-[24px] pl-4 pr-2 flex items-center text-left text-[12px] text-studio-text-dim hover:text-accent-cyan"
+                                    >
+                                        <ChevronRight className="w-3 h-3 rotate-180 mr-1" />
+                                        Back
+                                    </button>
+                                    {busesInPage(page).map(busRow)}
+                                </>
+                            ) : (
+                                <>
+                                    {firstPageBuses().map(busRow)}
+                                    <div className="h-px my-1 bg-studio-line-strong" />
+                                    {busPages().map(p => (
+                                        <button
+                                            key={p.label}
+                                            type="button"
+                                            role="menuitem"
+                                            data-bus-page={p.label}
+                                            onClick={() => setPage(p)}
+                                            className="w-full h-[24px] pl-4 pr-2 flex items-center justify-between text-left text-[12px] text-studio-text hover:bg-accent-cyan hover:text-black transition-colors"
+                                        >
+                                            <span>{p.label}</span>
+                                            <ChevronRight className="w-3 h-3 shrink-0" />
+                                        </button>
+                                    ))}
+                                </>
+                            )}
                         </div>
                     )}
                 </div>,
