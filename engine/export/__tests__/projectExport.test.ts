@@ -135,14 +135,28 @@ describe('exportProjectAudio', () => {
         expect(result.degradedTracks).toEqual(['t1']);
     });
 
-    it('says so when MP3 falls back to WAV', async () => {
+    it('encodes MP3 when MP3 is asked for', async () => {
         const result = await exportProjectAudio(
             { tracks: [track({})], clips: [clip({})], tempo: 120 },
-            { format: 'mp3' },
+            { format: 'mp3', mp3: { bitRateStereo: '128 kbit/s' } },
         );
 
-        expect(result.formatNotice).toMatch(/WAV/);
+        // This used to hand back a WAV with a notice attached, because the
+        // encoder was never loaded. It is a real MP3 now, so there is nothing
+        // to warn about.
+        expect(result.fileName.endsWith('.mp3')).toBe(true);
+        expect(result.blob.type).toBe('audio/mpeg');
+        expect(result.formatNotice).toBeUndefined();
+    });
+
+    it('still writes WAV, and says so, when MP3 is not requested', async () => {
+        const result = await exportProjectAudio(
+            { tracks: [track({})], clips: [clip({})], tempo: 120 },
+            { format: 'wav' },
+        );
+
         expect(result.fileName.endsWith('.wav')).toBe(true);
+        expect(result.formatNotice).toBeUndefined();
     });
 
     it('makes the project name safe to use as a filename', async () => {

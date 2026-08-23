@@ -1,6 +1,19 @@
 "use client"
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useProjectStore } from '@/store/projectStore'
+import { audioEngine2 } from '@/engine/AudioEngineAdapter';
+import { audioContextManager } from '@/engine/audioEngine/audioContext';
+import {
+    outputLatencyMs, roundTripLatencyMs, effectiveBufferSize, formatMs,
+} from '@/lib/audioLatency';
+import { withAudioDefaults, virtualMemoryBytes, formatMegabytes } from '@/lib/audioSettingsDefaults';
+import {
+    SURROUND_FORMATS, SURROUND_CHANNEL_LABELS, DEFAULT_BOUNCE_EXTENSIONS,
+    defaultAssignments, defaultExtensions, portOptions,
+    type SurroundChannel, type InitializeOrder,
+} from '@/lib/surroundLayout';
+import { SurroundGrid, gridControlClass } from '@/components/settings/SurroundGrid';
+import { MP3_MONO_BITRATES, MP3_STEREO_BITRATES, MP3_STEREO_MODES, MP3_QUALITIES, MP3_UNSUPPORTED } from '@/lib/mp3Encoding';
 import {
     describeMidiStatus,
     midiDeviceService,
@@ -26,9 +39,11 @@ interface DropdownProps {
     onChange: (value: any) => void;
     suffix?: string;
     disabled?: boolean;
+    /** Why the control is dimmed. Shown beneath it rather than only on hover. */
+    hint?: string;
 }
 
-function Dropdown({ label, value, options, onChange, suffix, disabled }: DropdownProps) {
+function Dropdown({ label, value, options, onChange, suffix, disabled, hint }: DropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
 
     const normalizedOptions = options.map(opt =>
@@ -38,6 +53,7 @@ function Dropdown({ label, value, options, onChange, suffix, disabled }: Dropdow
     const displayLabel = normalizedOptions.find(o => o.value === value)?.label || value;
 
     return (
+        <div className="flex flex-col">
         <div className={`flex items-center justify-between transition-all ${disabled ? 'opacity-30 pointer-events-none' : ''}`}>
             <span className="text-[12px] font-medium text-studio-text w-1/3 text-right pr-6">{label}:</span>
             <div className="flex items-center gap-3 relative w-2/3">
@@ -81,27 +97,118 @@ function Dropdown({ label, value, options, onChange, suffix, disabled }: Dropdow
                 )}
             </div>
         </div>
+        {hint && (
+            <p className="text-[10px] text-studio-text-dim pl-[33.33%] pt-1">{hint}</p>
+        )}
+        </div>
     );
 }
 
-interface ToggleProps { label: string; enabled: boolean; onChange: (enabled: boolean) => void; }
-function Toggle({ label, enabled, onChange }: ToggleProps) {
+interface ToggleProps {
+    label: string;
+    enabled: boolean;
+    onChange: (enabled: boolean) => void;
+    disabled?: boolean;
+    /** Why the control is dimmed. Shown beneath it rather than only on hover. */
+    hint?: string;
+    /**
+     * Put the label beside the box instead of in the right-aligned column.
+     *
+     * The reference draws indented checkboxes this way, and a sentence-length
+     * label wraps to three lines in a one-third-width column.
+     */
+    inline?: boolean;
+}
+function Toggle({ label, enabled, onChange, disabled, hint, inline }: ToggleProps) {
+    const box = (
+        <div
+            onClick={() => onChange(!enabled)}
+            className="flex items-center gap-2 cursor-pointer group"
+        >
+            <div className={`w-[14px] h-[14px] shrink-0 rounded-[3px] border flex items-center justify-center transition-all ${enabled ? 'bg-accent-cyan border-accent-cyan' : 'bg-studio-panel border-studio-line-strong'}`}>
+                {enabled && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
+            </div>
+            <span className={`text-[12px] transition-colors ${enabled ? 'text-studio-text' : 'text-studio-text-dim group-hover:text-studio-text-mid'}`}>
+                {inline ? label : (enabled ? 'Enabled' : 'Disabled')}
+            </span>
+        </div>
+    );
+
     return (
-        <div className="flex items-center justify-between">
-            <span className="text-[12px] font-medium text-studio-text w-1/3 text-right pr-6">{label}:</span>
+        <div className="flex flex-col">
+        <div className={`flex items-start justify-between transition-all ${disabled ? 'opacity-30 pointer-events-none' : ''}`}>
+            {inline
+                ? <span className="w-1/3 shrink-0" />
+                : <span className="text-[12px] font-medium text-studio-text w-1/3 text-right pr-6">{label}:</span>}
             <div className="w-2/3 flex items-center">
-                <div
-                    onClick={() => onChange(!enabled)}
-                    className="flex items-center gap-2 cursor-pointer group"
-                >
-                    <div className={`w-[14px] h-[14px] rounded-[3px] border flex items-center justify-center transition-all ${enabled ? 'bg-accent-cyan border-accent-cyan' : 'bg-studio-panel border-studio-line-strong'}`}>
-                        {enabled && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
+                {box}
+            </div>
+        </div>
+        {hint && (
+            <p className="text-[10px] text-studio-text-dim pl-[33.33%] pt-1">{hint}</p>
+        )}
+        </div>
+    );
+}
+
+/**
+ * A number field with working steppers.
+ *
+ * The one inside `Slider` had `pointer-events-none` on its chevrons, so they
+ * were a picture of a stepper. This is the same control where the reference
+ * shows a stepper on its own, and its arrows increment.
+ */
+interface StepperProps {
+    label: string;
+    value: number;
+    min: number;
+    max: number;
+    step?: number;
+    onChange: (value: number) => void;
+    suffix?: string;
+    disabled?: boolean;
+    hint?: string;
+}
+function Stepper({ label, value, min, max, step = 1, onChange, suffix, disabled, hint }: StepperProps) {
+    const clamp = (next: number) => Math.max(min, Math.min(max, next));
+    return (
+        <div className="flex flex-col">
+            <div className={`flex items-center justify-between transition-all ${disabled ? 'opacity-30 pointer-events-none' : ''}`}>
+                <span className="text-[12px] font-medium text-studio-text w-1/3 text-right pr-6">{label}:</span>
+                <div className="w-2/3 flex items-center gap-3">
+                    <div className="w-[90px] h-6 bg-studio-panel border border-studio-line-strong rounded-md flex items-center justify-between px-2 shadow-inner">
+                        <div className="flex flex-col gap-0.5">
+                            <button
+                                type="button"
+                                aria-label={`Increase ${label}`}
+                                onClick={() => onChange(clamp(value + step))}
+                                className="text-studio-text-dim hover:text-accent-cyan transition-colors"
+                            >
+                                <ChevronUp className="w-2.5 h-2.5" />
+                            </button>
+                            <button
+                                type="button"
+                                aria-label={`Decrease ${label}`}
+                                onClick={() => onChange(clamp(value - step))}
+                                className="text-studio-text-dim hover:text-accent-cyan transition-colors"
+                            >
+                                <ChevronDown className="w-2.5 h-2.5" />
+                            </button>
+                        </div>
+                        <input
+                            type="number"
+                            value={value}
+                            onChange={(e) => {
+                                const next = parseInt(e.target.value, 10);
+                                if (!Number.isNaN(next)) onChange(clamp(next));
+                            }}
+                            className="text-[11px] text-studio-text bg-transparent outline-none w-full font-mono text-right"
+                        />
                     </div>
-                    <span className={`text-[12px] transition-colors ${enabled ? 'text-studio-text' : 'text-studio-text-dim group-hover:text-studio-text-mid'}`}>
-                        {enabled ? 'Enabled' : 'Disabled'}
-                    </span>
+                    {suffix && <span className="text-[11px] text-studio-text-dim">{suffix}</span>}
                 </div>
             </div>
+            {hint && <p className="text-[10px] text-studio-text-dim pl-[33.33%] pt-1">{hint}</p>}
         </div>
     );
 }
@@ -165,9 +272,23 @@ function Slider({ label, value, min, max, onChange, suffix, disabled }: SliderPr
                         }}
                         className="text-[11px] text-studio-text bg-transparent outline-none w-full font-mono"
                     />
-                    <div className="flex flex-col gap-0.5 pointer-events-none opacity-40">
-                        <ChevronUp className="w-2.5 h-2.5 text-studio-text" />
-                        <ChevronDown className="w-2.5 h-2.5 text-studio-text" />
+                    <div className="flex flex-col gap-0.5">
+                        <button
+                            type="button"
+                            aria-label={`Increase ${label}`}
+                            onClick={() => onChange(Math.min(max, value + 1))}
+                            className="text-studio-text-dim hover:text-accent-cyan transition-colors"
+                        >
+                            <ChevronUp className="w-2.5 h-2.5" />
+                        </button>
+                        <button
+                            type="button"
+                            aria-label={`Decrease ${label}`}
+                            onClick={() => onChange(Math.max(min, value - 1))}
+                            className="text-studio-text-dim hover:text-accent-cyan transition-colors"
+                        >
+                            <ChevronDown className="w-2.5 h-2.5" />
+                        </button>
                     </div>
                 </div>
                 <span className="text-[11px] text-studio-text-dim w-16">{suffix}</span>
@@ -185,13 +306,48 @@ export function PreferencesDialog() {
         settingsActiveTab,
         settingsActiveSubTab,
         globalSettings,
-        updateGlobalSettings
+        updateGlobalSettings,
+        surroundFormat,
+        updateProjectSettings,
     } = useProjectStore();
 
     const [isApplying, setIsApplying] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
     const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
+    const [outputDeviceError, setOutputDeviceError] = useState<string | null>(null);
+    /**
+     * Whether the page has been granted a microphone.
+     *
+     * Until it has, `enumerateDevices` returns entries with empty labels, so
+     * every device reads "Unknown Device" — which is what the reference's
+     * "Allow Access..." button is for.
+     */
+    const [inputAccessGranted, setInputAccessGranted] = useState(false);
+
+    const canChooseOutput = audioContextManager.canChooseOutput();
+
+    /** Route the mix at a chosen output, and report it when that is refused. */
+    const applyOutputDevice = useCallback(async (deviceId: string) => {
+        const result = await audioContextManager.setOutputDevice(deviceId);
+        setOutputDeviceError(result.ok ? null : (result.reason ?? 'Could not switch output'));
+    }, []);
+
+    /** Ask for a microphone, then re-read the device list now it has names. */
+    const requestInputAccess = useCallback(async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // The permission is all that was wanted; holding the stream open
+            // would leave the input light on.
+            stream.getTracks().forEach(t => t.stop());
+            setInputAccessGranted(true);
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            setInputDevices(devices.filter(d => d.kind === 'audioinput'));
+            setOutputDevices(devices.filter(d => d.kind === 'audiooutput'));
+        } catch (error) {
+            setOutputDeviceError(String((error as Error)?.message ?? error));
+        }
+    }, []);
     const [hasPermission, setHasPermission] = useState(false);
     const [midiSnapshot, setMidiSnapshot] = useState<MidiDeviceSnapshot>(
         () => midiDeviceService.getSnapshot(),
@@ -263,7 +419,14 @@ export function PreferencesDialog() {
 
     if (!showSettingsDialog) return null;
 
-    const audio = globalSettings.audio;
+    /*
+     * Merged over defaults, not read raw.
+     *
+     * `globalSettings.audio` is `{}` on every project, so each panel used to
+     * fall back to a literal typed into its own JSX — and the surround grids,
+     * which had no such fallback, rendered rows of empty dropdowns.
+     */
+    const audio = withAudioDefaults(globalSettings.audio);
     const recording = globalSettings.recording;
     const midi = globalSettings.midi;
     // `globalSettings.midi` defaults to `{}` and is persisted that way, so
@@ -283,6 +446,38 @@ export function PreferencesDialog() {
     const updateAudio = (updates: Partial<typeof audio>) => {
         updateGlobalSettings({ audio: { ...audio, ...updates } });
     };
+
+    // -- I/O Assignments --------------------------------------------------
+    // "Show as" is the project's own surround format rather than a fourth copy
+    // of it: changing it here reconfigures the engine, as it does everywhere
+    // else the format is offered.
+    const io = audio.ioAssignments;
+    const updateIo = (updates: Partial<typeof io>) => {
+        updateAudio({ ioAssignments: { ...io, ...updates } });
+    };
+
+    /**
+     * Re-wire every channel the format carries, in the chosen order.
+     *
+     * This is what separates the three Initialize buttons - the same layout,
+     * numbered onto the hardware in Logic's film order, ITU-R BS.775 order, or
+     * AES WG-4 order.
+     */
+    const initializeMapping = (order: InitializeOrder) => {
+        const kind = io.activeSubTab === 'Input' ? 'Input' : 'Output';
+        updateIo({
+            initializeOrder: order,
+            [kind === 'Input' ? 'inputMapping' : 'outputMapping']: defaultAssignments(surroundFormat, kind, order),
+        } as Partial<typeof io>);
+    };
+
+    const resetExtensions = () => updateIo({
+        bounceExtensions: {
+            stereoLeft: '.L',
+            stereoRight: '.R',
+            mapping: defaultExtensions(surroundFormat),
+        },
+    });
 
     const updateRecording = (updates: Partial<typeof recording>) => {
         updateGlobalSettings({ recording: { ...recording, ...updates } });
@@ -324,9 +519,19 @@ export function PreferencesDialog() {
         updateGlobalSettings({ general: { ...general, ...updates } });
     };
 
-    const outputLatency = (audio.ioBufferSize / audio.sampleRate) * 1000;
-    const roundTripLatency = outputLatency * 2;
-    const isLowBuffer = audio.ioBufferSize <= 64;
+    /*
+     * Measured, not calculated from a preference.
+     *
+     * These figures used to come from the "I/O Buffer Size" setting, which the
+     * engine never read — so the milliseconds shown had no relationship to the
+     * audio path. The browser owns the buffer size and reports the real
+     * numbers on the context.
+     */
+    const liveCtx = audioEngine2.getContext();
+    const outputLatency = outputLatencyMs(liveCtx?.baseLatency ?? 0, liveCtx?.outputLatency);
+    const roundTripLatency = roundTripLatencyMs(liveCtx?.baseLatency ?? 0, liveCtx?.outputLatency);
+    const actualBufferSize = effectiveBufferSize(liveCtx?.baseLatency ?? 0, liveCtx?.sampleRate ?? audio.sampleRate);
+    const isLowBuffer = actualBufferSize > 0 && actualBufferSize <= 64;
 
     const mainTabs = [
         { name: 'General', icon: Settings },
@@ -349,7 +554,8 @@ export function PreferencesDialog() {
     const subTabs = settingsTab === 'General'
         ? ['Project Handling', 'Editing', 'Cycle', 'Catch', 'Notifications', 'Accessibility']
         : settingsTab === 'Audio'
-            ? ['Devices', 'General', 'Sampler', 'Editing', 'I/O Assignments', 'File Editor']
+            // 'MP3' had a fully built panel and no tab, so nothing could open it.
+            ? ['Devices', 'General', 'Sampler', 'Editing', 'I/O Assignments', 'File Editor', 'MP3']
             : settingsTab === 'Control Surfaces'
                 ? ['General', 'Help Tags', 'MIDI Controllers']
                 : settingsTab === 'View'
@@ -684,36 +890,72 @@ export function PreferencesDialog() {
                                     onChange={(val) => updateAudio({ coreAudioEnabled: val })}
                                 />
 
-                                <Dropdown
-                                    label="Output Device"
-                                    value={audio.outputDevice || 'default'}
-                                    options={[
-                                        { label: 'System Setting', value: 'default' },
-                                        ...outputDevices.map(d => ({ label: d.label || 'Unknown Device', value: d.deviceId }))
-                                    ]}
-                                    onChange={(val) => updateAudio({ outputDevice: val })}
-                                    disabled={!audio.coreAudioEnabled}
-                                />
+                                <div data-output-device>
+                                    <Dropdown
+                                        label="Output Device"
+                                        value={audio.outputDevice || 'default'}
+                                        options={[
+                                            { label: 'System Setting', value: 'default' },
+                                            ...outputDevices.map(d => ({ label: d.label || 'Unknown Device', value: d.deviceId }))
+                                        ]}
+                                        onChange={(val) => { updateAudio({ outputDevice: val }); void applyOutputDevice(val); }}
+                                        disabled={!audio.coreAudioEnabled || !canChooseOutput}
+                                    />
+                                    {!canChooseOutput && (
+                                        <p className="text-[10px] text-studio-text-dim pl-[33.33%] pt-1">
+                                            This browser cannot choose an audio output; it follows the system setting.
+                                        </p>
+                                    )}
+                                    {outputDeviceError && (
+                                        <p className="text-[10px] text-orange-400 pl-[33.33%] pt-1">{outputDeviceError}</p>
+                                    )}
+                                </div>
 
-                                <Dropdown
-                                    label="Input Device"
-                                    value={audio.inputDevice || 'default'}
-                                    options={[
-                                        { label: 'System Setting', value: 'default' },
-                                        ...inputDevices.map(d => ({ label: d.label || 'Unknown Device', value: d.deviceId }))
-                                    ]}
-                                    onChange={(val) => updateAudio({ inputDevice: val })}
-                                    disabled={!audio.coreAudioEnabled}
-                                />
+                                {/* Device names are hidden until the page has
+                                    been granted a microphone once — without it
+                                    every entry reads "Unknown Device", which is
+                                    why the reference has this button. */}
+                                <div className="flex items-end gap-2" data-input-device>
+                                    <div className="flex-1">
+                                        <Dropdown
+                                            label="Input Device"
+                                            value={audio.inputDevice || 'default'}
+                                            options={[
+                                                { label: 'System Setting', value: 'default' },
+                                                ...inputDevices.map(d => ({ label: d.label || 'Unknown Device', value: d.deviceId }))
+                                            ]}
+                                            onChange={(val) => updateAudio({ inputDevice: val })}
+                                            disabled={!audio.coreAudioEnabled}
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        data-allow-access
+                                        onClick={() => void requestInputAccess()}
+                                        disabled={inputAccessGranted}
+                                        title={inputAccessGranted
+                                            ? 'Microphone access already granted'
+                                            : 'Ask for microphone access so devices can be named'}
+                                        className="h-7 px-3 shrink-0 rounded-md border text-[11px] font-bold transition-colors disabled:opacity-40 disabled:cursor-default bg-studio-control border-studio-line text-studio-text hover:border-accent-cyan hover:text-accent-cyan"
+                                    >
+                                        {inputAccessGranted ? 'Access Granted' : 'Allow Access...'}
+                                    </button>
+                                </div>
 
+                                {/* Shown rather than offered: Web Audio gives no
+                                    way to set the buffer size, so a dropdown
+                                    here would be a control that does nothing. */}
                                 <Dropdown
                                     label="I/O Buffer Size"
-                                    value={audio.ioBufferSize}
-                                    options={bufferSizeOptions}
-                                    onChange={(val) => updateAudio({ ioBufferSize: val })}
+                                    value={String(actualBufferSize || audio.ioBufferSize)}
+                                    options={[{ label: String(actualBufferSize || audio.ioBufferSize), value: String(actualBufferSize || audio.ioBufferSize) }]}
+                                    onChange={() => { }}
                                     suffix="Samples"
-                                    disabled={!audio.coreAudioEnabled}
+                                    disabled
                                 />
+                                <p className="text-[10px] text-studio-text-dim pl-[33.33%] -mt-2">
+                                    The browser chooses the buffer size; this is what it is using.
+                                </p>
                             </div>
 
                             <div className="space-y-4">
@@ -722,10 +964,13 @@ export function PreferencesDialog() {
                                         <span className="text-[12px] font-medium text-studio-text w-1/3 text-right pr-6">Resulting Latency:</span>
                                         <div className="w-2/3 flex items-center gap-2">
                                             <span className="text-[11px] text-accent-cyan font-mono bg-accent-cyan/10 px-2 py-0.5 rounded border border-accent-cyan/20">
-                                                {roundTripLatency.toFixed(1)} ms Roundtrip
+                                                {formatMs(roundTripLatency)} ms Roundtrip
                                             </span>
                                             <span className="text-[11px] text-studio-text-dim">
-                                                ({outputLatency.toFixed(1)} ms Output)
+                                                ({formatMs(outputLatency)} ms Output)
+                                            </span>
+                                            <span className="text-[10px] text-studio-text-dim/60" title="Input latency is not reported to a web page, so the roundtrip doubles the output figure">
+                                                estimated
                                             </span>
                                         </div>
                                     </div>
@@ -749,34 +994,38 @@ export function PreferencesDialog() {
 
                                 <Dropdown
                                     label="Processing Threads"
+                                    hint="The browser schedules audio threads"
                                     value={audio.processingThreads}
                                     options={threadOptions}
                                     onChange={(val) => updateAudio({ processingThreads: val })}
-                                    disabled={!audio.coreAudioEnabled}
+                                    disabled
                                 />
 
                                 <Dropdown
                                     label="Process Buffer Range"
+                                    hint="The browser owns the process buffer"
                                     value={audio.processBufferRange}
                                     options={bufferRangeOptions}
                                     onChange={(val) => updateAudio({ processBufferRange: val })}
-                                    disabled={!audio.coreAudioEnabled}
+                                    disabled
                                 />
 
                                 <Dropdown
                                     label="Multithreading"
+                                    hint="The browser schedules audio threads"
                                     value={audio.multithreading}
                                     options={multithreadingOptions}
                                     onChange={(val) => updateAudio({ multithreading: val })}
-                                    disabled={!audio.coreAudioEnabled}
+                                    disabled
                                 />
 
                                 <Dropdown
                                     label="Summing"
+                                    hint="Web Audio sums at 32-bit float throughout"
                                     value={audio.summing}
                                     options={summingOptions}
                                     onChange={(val) => updateAudio({ summing: val })}
-                                    disabled={!audio.coreAudioEnabled}
+                                    disabled
                                 />
                             </div>
                         </div>
@@ -787,6 +1036,7 @@ export function PreferencesDialog() {
                             <div className="space-y-4 pb-6 border-b border-white/5">
                                 <Toggle
                                     label="Display audio engine overload message"
+                                    inline
                                     enabled={audio.displayOverloadMessage}
                                     onChange={(val) => updateAudio({ displayOverloadMessage: val })}
                                 />
@@ -812,17 +1062,20 @@ export function PreferencesDialog() {
                                 <div className="space-y-4 pt-2">
                                     <Toggle
                                         label="Software monitoring"
+                                    inline
                                         enabled={audio.softwareMonitoring}
                                         onChange={(val) => updateAudio({ softwareMonitoring: val })}
                                     />
-                                    <div className="pl-[33.33%] space-y-3">
+                                    <div className="space-y-3 pl-6">
                                         <Toggle
                                             label="Input monitoring only for the focused track, and only when input monitoring is enabled (as in GarageBand)"
+                                    inline
                                             enabled={audio.inputMonitoringOnlyFocused}
                                             onChange={(val) => updateAudio({ inputMonitoringOnlyFocused: val })}
                                         />
                                         <Toggle
                                             label="Independent monitoring level for record-enabled channel strips"
+                                    inline
                                             enabled={audio.independentMonitoringLevel}
                                             onChange={(val) => updateAudio({ independentMonitoringLevel: val })}
                                         />
@@ -848,19 +1101,21 @@ export function PreferencesDialog() {
                                     options={[
                                         { label: 'Off', value: 'Off' },
                                         { label: 'Audio and Software Instrument Tracks', value: 'AudioAndSI' },
-                                        { label: 'All', value: 'All' }
+                                        { label: 'All (recommended)', value: 'All' }
                                     ]}
                                     onChange={(val) => updateAudio({ pluginLatencyCompensation: val })}
                                 />
 
                                 <Toggle
                                     label="Playback pre-roll"
+                                    inline
                                     enabled={audio.playbackPreRoll}
                                     onChange={(val) => updateAudio({ playbackPreRoll: val })}
                                 />
 
                                 <Toggle
                                     label="Low Latency Monitoring Mode"
+                                    inline
                                     enabled={audio.lowLatencyMonitoring}
                                     onChange={(val) => updateAudio({ lowLatencyMonitoring: val })}
                                 />
@@ -926,6 +1181,7 @@ export function PreferencesDialog() {
                                     <div className="pt-2">
                                         <Toggle
                                             label="Keep common samples in memory when switching projects"
+                                    inline
                                             enabled={audio?.sampler?.keepCommonSamplesInMemory || false}
                                             onChange={(val) => updateAudio({ sampler: { ...audio?.sampler, keepCommonSamplesInMemory: val } })}
                                         />
@@ -938,6 +1194,7 @@ export function PreferencesDialog() {
                                     <div className="flex justify-center mb-6">
                                         <Toggle
                                             label="Active"
+                                    inline
                                             enabled={audio?.sampler?.virtualMemory?.active || false}
                                             onChange={(val) => updateAudio({ sampler: { ...audio?.sampler, virtualMemory: { ...audio?.sampler?.virtualMemory, active: val } } })}
                                         />
@@ -964,7 +1221,13 @@ export function PreferencesDialog() {
                                             <div className="flex items-center justify-between">
                                                 <span className="text-[12px] font-medium text-studio-text-mid w-1/3 text-right pr-6">Requires Constant RAM Allocation Of:</span>
                                                 <div className="w-2/3">
-                                                    <span className="text-[12px] text-studio-text">81.0 MB</span>
+                                                    <span className="text-[12px] text-studio-text">
+                                                        {formatMegabytes(virtualMemoryBytes(
+                                                            audio.sampler.virtualMemory.bufferRange,
+                                                            audio.sampler.virtualMemory.hostDiskActivity,
+                                                            liveCtx?.sampleRate ?? audio.sampleRate,
+                                                        ))}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
@@ -1030,6 +1293,7 @@ export function PreferencesDialog() {
                                 <div className="pt-2">
                                     <Toggle
                                         label="Scrubbing with audio in Tracks area"
+                                    inline
                                         enabled={audio?.editing?.scrubbingEnabled || false}
                                         onChange={(val) => updateAudio({ editing: { ...audio?.editing, scrubbingEnabled: val } })}
                                     />
@@ -1056,412 +1320,223 @@ export function PreferencesDialog() {
                         <div className="max-w-3xl mx-auto flex flex-col items-center">
                             {/* Sub-Sub Tabs */}
                             <div className="flex bg-studio-panel rounded-md p-0.5 mb-8 border border-black/20 shadow-inner">
-                                {['Output', 'Bounce Extensions', 'Input'].map((tab) => (
+                                {(['Output', 'Bounce Extensions', 'Input'] as const).map((tab) => (
                                     <button
                                         key={tab}
-                                        onClick={() => updateAudio({ ioAssignments: { ...audio?.ioAssignments, activeSubTab: tab as any } })}
-                                        className={`px-4 py-1 text-[11px] font-semibold rounded-[4px] transition-all ${audio?.ioAssignments?.activeSubTab === tab ? 'bg-studio-control text-white shadow-sm' : 'text-studio-text-dim hover:text-studio-text'}`}
+                                        onClick={() => updateIo({ activeSubTab: tab })}
+                                        className={`px-4 py-1 text-[11px] font-semibold rounded-[4px] transition-all ${io.activeSubTab === tab ? 'bg-studio-control text-white shadow-sm' : 'text-studio-text-dim hover:text-studio-text'}`}
                                     >
                                         {tab}
                                     </button>
                                 ))}
                             </div>
 
-                            {audio?.ioAssignments?.activeSubTab === 'Output' && (
-                                <div className="w-full space-y-8">
+                            <div className="w-full space-y-8">
+                                {/* The Stereo block differs per tab; Surround below is shared. */}
+                                {io.activeSubTab === 'Output' && (
                                     <div className="space-y-4 pb-6 border-b border-white/5">
                                         <h3 className="text-[12px] font-bold text-studio-text mb-4 pl-4 border-l-2 border-accent-cyan">Stereo</h3>
                                         <Dropdown
                                             label="Output"
-                                            value={audio?.ioAssignments?.stereoOutput || '1/2'}
-                                            options={['1/2', '3/4', '5/6', '7/8']}
-                                            onChange={(val) => updateAudio({ ioAssignments: { ...audio?.ioAssignments, stereoOutput: val } })}
+                                            value={io.stereoOutput}
+                                            options={['Output 1-2', 'Output 3-4', 'Output 5-6', 'Output 7-8']}
+                                            onChange={(val) => updateIo({ stereoOutput: val })}
                                         />
-                                        <div className="pt-2 opacity-50 pointer-events-none">
+                                        <div
+                                            className="opacity-30 pointer-events-none"
+                                            title="Mirroring sends the same mix to a second hardware pair, which a browser cannot address"
+                                        >
                                             <Toggle
                                                 label="Mirroring"
-                                                enabled={audio?.ioAssignments?.stereoMirroring || false}
+                                                enabled={io.stereoMirroring}
                                                 onChange={() => { }}
                                             />
                                         </div>
                                     </div>
+                                )}
 
-                                    <div className="space-y-4">
-                                        <h3 className="text-[12px] font-bold text-studio-text mb-4 pl-4 border-l-2 border-accent-cyan">Surround</h3>
-                                        <Dropdown
-                                            label="Show as"
-                                            value={audio?.ioAssignments?.surroundShowAs || '5.1 (ITU 775)'}
-                                            options={['5.1 (ITU 775)', '7.1', '7.1.4 (Dolby Atmos)']}
-                                            onChange={(val) => updateAudio({ ioAssignments: { ...audio?.ioAssignments, surroundShowAs: val } })}
-                                        />
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[12px] font-medium text-studio-text-mid w-1/3 text-right pr-6">Initialize:</span>
-                                            <div className="w-2/3 flex gap-1">
-                                                {['Default', 'ITU', 'WG-4'].map(mode => (
-                                                    <button key={mode} className="px-3 py-0.5 bg-white/5 hover:bg-white/10 text-[10px] text-studio-text rounded border border-white/10 transition-colors">
-                                                        {mode}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Surround Mapping Grid */}
-                                        <div className="mt-8 bg-black/20 rounded-xl p-6 border border-white/5">
-                                            <div className="grid grid-cols-3 gap-x-8 gap-y-6">
-                                                {/* Left Column */}
-                                                <div className="space-y-4">
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">Left:</label>
-                                                        <select className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner">
-                                                            <option>{audio?.ioAssignments?.surroundMapping?.left}</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">L. mid:</label>
-                                                        <select disabled className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-studio-text-dim outline-none shadow-inner opacity-50">
-                                                            <option>{audio?.ioAssignments?.surroundMapping?.lm}</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">L. surround:</label>
-                                                        <select className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner">
-                                                            <option>{audio?.ioAssignments?.surroundMapping?.ls}</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-
-                                                {/* Center Column */}
-                                                <div className="space-y-4 text-center">
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">Center:</label>
-                                                        <select className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner text-center">
-                                                            <option>{audio?.ioAssignments?.surroundMapping?.center}</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">LFE:</label>
-                                                        <select className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner text-center">
-                                                            <option>{audio?.ioAssignments?.surroundMapping?.lfe}</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">Surround:</label>
-                                                        <select disabled className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-studio-text-dim outline-none shadow-inner text-center opacity-50">
-                                                            <option>{audio?.ioAssignments?.surroundMapping?.surround || '---'}</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-
-                                                {/* Right Column */}
-                                                <div className="space-y-4 text-right">
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">Right:</label>
-                                                        <select className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner">
-                                                            <option>{audio?.ioAssignments?.surroundMapping?.right}</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">R. mid:</label>
-                                                        <select disabled className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-studio-text-dim outline-none shadow-inner opacity-50">
-                                                            <option>{audio?.ioAssignments?.surroundMapping?.rm}</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">R. surround:</label>
-                                                        <select className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner">
-                                                            <option>{audio?.ioAssignments?.surroundMapping?.rs}</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Bottom Atmos/Top rows */}
-                                            <div className="grid grid-cols-2 gap-x-12 mt-8 px-12">
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[9px] font-bold text-studio-text-dim uppercase w-20 text-right">L. top:</label>
-                                                        <select disabled className="flex-1 bg-studio-panel border border-white/5 rounded px-2 py-0.5 text-[10px] text-studio-text-dim outline-none"><option>{audio?.ioAssignments?.surroundMapping?.lt}</option></select>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[9px] font-bold text-studio-text-dim uppercase w-20 text-right">L. top mid:</label>
-                                                        <select disabled className="flex-1 bg-studio-panel border border-white/5 rounded px-2 py-0.5 text-[10px] text-studio-text-dim outline-none"><option>{audio?.ioAssignments?.surroundMapping?.ltm}</option></select>
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <select disabled className="flex-1 bg-studio-panel border border-white/5 rounded px-2 py-0.5 text-[10px] text-studio-text-dim outline-none text-right"><option>{audio?.ioAssignments?.surroundMapping?.rt}</option></select>
-                                                        <label className="text-[9px] font-bold text-studio-text-dim uppercase w-20 text-left">R. top:</label>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <select disabled className="flex-1 bg-studio-panel border border-white/5 rounded px-2 py-0.5 text-[10px] text-studio-text-dim outline-none text-right"><option>{audio?.ioAssignments?.surroundMapping?.rtm}</option></select>
-                                                        <label className="text-[9px] font-bold text-studio-text-dim uppercase w-20 text-left">R. top mid:</label>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {audio?.ioAssignments?.activeSubTab === 'Bounce Extensions' && (
-                                <div className="w-full space-y-8">
+                                {io.activeSubTab === 'Bounce Extensions' && (
                                     <div className="space-y-4 pb-6 border-b border-white/5">
                                         <h3 className="text-[12px] font-bold text-studio-text mb-4 pl-4 border-l-2 border-accent-cyan">Stereo</h3>
-                                        <div className="flex gap-12 pl-[33.33%]">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-studio-text-dim uppercase">Left:</label>
-                                                <input
-                                                    type="text"
-                                                    value={audio?.ioAssignments?.bounceExtensions?.mapping?.left || ''}
-                                                    onChange={(e) => updateAudio({ ioAssignments: { ...audio.ioAssignments, bounceExtensions: { mapping: { ...audio.ioAssignments.bounceExtensions.mapping, left: e.target.value } } } })}
-                                                    className="w-24 bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner"
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-studio-text-dim uppercase">Right:</label>
-                                                <input
-                                                    type="text"
-                                                    value={audio?.ioAssignments?.bounceExtensions?.mapping?.right || ''}
-                                                    onChange={(e) => updateAudio({ ioAssignments: { ...audio.ioAssignments, bounceExtensions: { mapping: { ...audio.ioAssignments.bounceExtensions.mapping, right: e.target.value } } } })}
-                                                    className="w-24 bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner"
-                                                />
-                                            </div>
+                                        <div className="flex justify-center gap-12">
+                                            {([['Left', 'stereoLeft'], ['Right', 'stereoRight']] as const).map(([label, key]) => (
+                                                <div key={key} className="space-y-1">
+                                                    <label className="block text-[10px] font-bold text-studio-text-dim uppercase">{label}:</label>
+                                                    <input
+                                                        type="text"
+                                                        value={io.bounceExtensions[key]}
+                                                        onChange={(e) => updateIo({ bounceExtensions: { ...io.bounceExtensions, [key]: e.target.value } })}
+                                                        className="w-28 h-6 bg-studio-panel border border-studio-line-strong rounded px-2 text-[11px] text-accent-cyan outline-none shadow-inner focus:border-accent-cyan"
+                                                    />
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
+                                )}
 
-                                    <div className="space-y-4">
-                                        <h3 className="text-[12px] font-bold text-studio-text mb-4 pl-4 border-l-2 border-accent-cyan">Surround</h3>
-                                        <Dropdown
-                                            label="Show as"
-                                            value={audio?.ioAssignments?.surroundShowAs || '5.1 (ITU 775)'}
-                                            options={['5.1 (ITU 775)', '7.1', '7.1.4 (Dolby Atmos)']}
-                                            onChange={(val) => updateAudio({ ioAssignments: { ...audio?.ioAssignments, surroundShowAs: val } })}
-                                        />
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[12px] font-medium text-studio-text-mid w-1/3 text-right pr-6">Initialize:</span>
-                                            <div className="w-2/3">
-                                                <button className="px-3 py-0.5 bg-white/5 hover:bg-white/10 text-[10px] text-studio-text rounded border border-white/10 transition-colors">
+                                <div className="space-y-4">
+                                    <h3 className="text-[12px] font-bold text-studio-text mb-4 pl-4 border-l-2 border-accent-cyan">Surround</h3>
+                                    <Dropdown
+                                        label="Show as"
+                                        value={surroundFormat}
+                                        options={SURROUND_FORMATS}
+                                        onChange={(val) => updateProjectSettings({ surroundFormat: val } as any)}
+                                    />
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[12px] font-medium text-studio-text w-1/3 text-right pr-6">Initialize:</span>
+                                        <div className="w-2/3 flex gap-1">
+                                            {io.activeSubTab === 'Bounce Extensions' ? (
+                                                <button
+                                                    onClick={resetExtensions}
+                                                    className="px-3 py-0.5 text-[10px] rounded border transition-colors bg-white/5 hover:bg-white/10 text-studio-text border-white/10"
+                                                >
                                                     Reset Extensions
                                                 </button>
-                                            </div>
+                                            ) : (['Default', 'ITU', 'WG-4'] as const).map(order => (
+                                                <button
+                                                    key={order}
+                                                    onClick={() => initializeMapping(order)}
+                                                    title={`Number the ${surroundFormat} channels in ${order} order`}
+                                                    className={`px-3 py-0.5 text-[10px] rounded border transition-colors ${io.initializeOrder === order
+                                                        ? 'bg-accent-cyan/15 text-accent-cyan border-accent-cyan/40'
+                                                        : 'bg-white/5 hover:bg-white/10 text-studio-text border-white/10'}`}
+                                                >
+                                                    {order}
+                                                </button>
+                                            ))}
                                         </div>
-
-                                        {/* Extensions Mapping Grid */}
-                                        <div className="mt-8 bg-black/20 rounded-xl p-6 border border-white/5">
-                                            <div className="grid grid-cols-3 gap-x-8 gap-y-6">
-                                                {/* Mapping Helper */}
-                                                {[
-                                                    { label: 'Left:', key: 'left' }, { label: 'L. center:', key: 'lc' }, { label: 'Center:', key: 'center' }, { label: 'R. center:', key: 'rc' }, { label: 'Right:', key: 'right' },
-                                                    { label: 'L. mid:', key: 'lm' }, { label: 'LFE:', key: 'lfe' }, { label: 'R. mid:', key: 'rm' },
-                                                    { label: 'L. surround:', key: 'ls' }, { label: 'Surround:', key: 'surround' }, { label: 'R. surround:', key: 'rs' }
-                                                ].map((item, idx) => (
-                                                    <div key={idx} className={`space-y-1 ${idx % 3 === 1 ? 'text-center' : idx % 3 === 2 ? 'text-right' : ''}`}>
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">{item.label}</label>
-                                                        <input
-                                                            type="text"
-                                                            value={audio?.ioAssignments?.bounceExtensions?.mapping?.[item.key] || ''}
-                                                            onChange={(e) => updateAudio({ ioAssignments: { ...audio.ioAssignments, bounceExtensions: { mapping: { ...audio.ioAssignments.bounceExtensions.mapping, [item.key]: e.target.value } } } })}
-                                                            className={`w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan/70 outline-none shadow-inner ${idx % 3 === 1 ? 'text-center' : idx % 3 === 2 ? 'text-right' : ''}`}
-                                                        />
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            {/* Top rows */}
-                                            <div className="grid grid-cols-2 gap-x-12 mt-8 px-12">
-                                                {[
-                                                    { label: 'L. top:', key: 'lt' }, { label: 'R. top:', key: 'rt', reverse: true },
-                                                    { label: 'L. top mid:', key: 'ltm' }, { label: 'R. top mid:', key: 'rtm', reverse: true },
-                                                    { label: 'L. top surround:', key: 'lts' }, { label: 'R. top surround:', key: 'rts', reverse: true }
-                                                ].map((item, idx) => (
-                                                    <div key={idx} className={`flex items-center gap-2 ${item.reverse ? 'flex-row-reverse' : ''}`}>
-                                                        <label className={`text-[9px] font-bold text-studio-text-dim uppercase w-24 ${item.reverse ? 'text-left' : 'text-right'}`}>{item.label}</label>
-                                                        <input
-                                                            type="text"
-                                                            value={audio?.ioAssignments?.bounceExtensions?.mapping?.[item.key] || ''}
-                                                            onChange={(e) => updateAudio({ ioAssignments: { ...audio.ioAssignments, bounceExtensions: { mapping: { ...audio.ioAssignments.bounceExtensions.mapping, [item.key]: e.target.value } } } })}
-                                                            className={`flex-1 bg-studio-panel border border-white/5 rounded px-2 py-0.5 text-[10px] text-studio-text-dim outline-none ${item.reverse ? 'text-right' : ''}`}
-                                                        />
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <p className="text-[10px] text-studio-text-dim leading-relaxed max-w-lg mt-4 pl-4">
-                                            The above extensions will be appended to audio file names when bouncing in split format. They will also determine how split audio files are handled when imported.
-                                        </p>
                                     </div>
-                                </div>
-                            )}
 
-                            {audio?.ioAssignments?.activeSubTab === 'Input' && (
-                                <div className="w-full space-y-8">
-                                    <div className="space-y-4">
-                                        <h3 className="text-[12px] font-bold text-studio-text mb-4 pl-4 border-l-2 border-accent-cyan">Surround</h3>
-                                        <Dropdown
-                                            label="Show as"
-                                            value={audio?.ioAssignments?.surroundShowAs || '5.1 (ITU 775)'}
-                                            options={['5.1 (ITU 775)', '7.1', '7.1.4 (Dolby Atmos)']}
-                                            onChange={(val) => updateAudio({ ioAssignments: { ...audio?.ioAssignments, surroundShowAs: val } })}
+                                    <div className="pt-4">
+                                        <SurroundGrid
+                                            format={surroundFormat}
+                                            renderCell={(channel, enabled, align) => {
+                                                const absent = `${surroundFormat} does not carry ${SURROUND_CHANNEL_LABELS[channel]}`;
+
+                                                if (io.activeSubTab === 'Bounce Extensions') {
+                                                    return (
+                                                        <input
+                                                            type="text"
+                                                            value={io.bounceExtensions.mapping[channel] ?? ''}
+                                                            readOnly={!enabled}
+                                                            title={enabled ? undefined : absent}
+                                                            placeholder={DEFAULT_BOUNCE_EXTENSIONS[channel]}
+                                                            onChange={(e) => updateIo({
+                                                                bounceExtensions: {
+                                                                    ...io.bounceExtensions,
+                                                                    mapping: { ...io.bounceExtensions.mapping, [channel]: e.target.value },
+                                                                },
+                                                            })}
+                                                            className={gridControlClass(enabled, align)}
+                                                        />
+                                                    );
+                                                }
+
+                                                const kind = io.activeSubTab === 'Input' ? 'Input' : 'Output';
+                                                const mapping = kind === 'Input' ? io.inputMapping : io.outputMapping;
+                                                const mappingKey = kind === 'Input' ? 'inputMapping' : 'outputMapping';
+                                                return (
+                                                    <select
+                                                        value={mapping[channel] ?? ''}
+                                                        disabled={!enabled}
+                                                        title={enabled ? undefined : absent}
+                                                        onChange={(e) => updateIo({ [mappingKey]: { ...mapping, [channel]: e.target.value } } as Partial<typeof io>)}
+                                                        className={gridControlClass(enabled, align)}
+                                                    >
+                                                        {enabled
+                                                            ? portOptions(surroundFormat, kind).map(port => (
+                                                                <option key={port} value={port}>{port}</option>
+                                                            ))
+                                                            : <option value="">&mdash;</option>}
+                                                    </select>
+                                                );
+                                            }}
                                         />
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[12px] font-medium text-studio-text-mid w-1/3 text-right pr-6">Initialize:</span>
-                                            <div className="w-2/3 flex gap-1">
-                                                {['Default', 'ITU', 'WG-4'].map(mode => (
-                                                    <button key={mode} className="px-3 py-0.5 bg-white/5 hover:bg-white/10 text-[10px] text-studio-text rounded border border-white/10 transition-colors">
-                                                        {mode}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Input Mapping Grid */}
-                                        <div className="mt-8 bg-black/20 rounded-xl p-6 border border-white/5">
-                                            <div className="grid grid-cols-3 gap-x-8 gap-y-6">
-                                                {/* Left Column */}
-                                                <div className="space-y-4">
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">Left:</label>
-                                                        <select className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner">
-                                                            <option>{audio?.ioAssignments?.inputMapping?.left}</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">L. center:</label>
-                                                        <select disabled className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-studio-text-dim outline-none shadow-inner opacity-40">
-                                                            <option>{audio?.ioAssignments?.inputMapping?.lc}</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">L. surround:</label>
-                                                        <select className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner">
-                                                            <option>{audio?.ioAssignments?.inputMapping?.ls}</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-
-                                                {/* Center Column */}
-                                                <div className="space-y-4 text-center">
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">Center:</label>
-                                                        <select className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner text-center">
-                                                            <option>{audio?.ioAssignments?.inputMapping?.center}</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">LFE:</label>
-                                                        <select className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner text-center">
-                                                            <option>{audio?.ioAssignments?.inputMapping?.lfe}</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">Surround:</label>
-                                                        <select disabled className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-studio-text-dim outline-none shadow-inner text-center opacity-40">
-                                                            <option>{audio?.ioAssignments?.inputMapping?.surround || 'Input 7'}</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-
-                                                {/* Right Column */}
-                                                <div className="space-y-4 text-right">
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">Right:</label>
-                                                        <select className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner">
-                                                            <option>{audio?.ioAssignments?.inputMapping?.right}</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">R. center:</label>
-                                                        <select disabled className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-studio-text-dim outline-none shadow-inner opacity-40">
-                                                            <option>{audio?.ioAssignments?.inputMapping?.rc}</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-studio-text-dim uppercase">R. surround:</label>
-                                                        <select className="w-full bg-studio-panel border border-black/40 rounded px-2 py-0.5 text-[11px] text-accent-cyan outline-none shadow-inner">
-                                                            <option>{audio?.ioAssignments?.inputMapping?.rs}</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Bottom rows */}
-                                            <div className="grid grid-cols-2 gap-x-12 mt-8 px-12 opacity-30">
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[9px] font-bold text-studio-text-dim uppercase w-20 text-right">L. top:</label>
-                                                        <select disabled className="flex-1 bg-studio-panel border border-white/5 rounded px-2 py-0.5 text-[10px] text-studio-text-dim outline-none"><option>{audio?.ioAssignments?.inputMapping?.lt}</option></select>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[9px] font-bold text-studio-text-dim uppercase w-20 text-right">L. top mid:</label>
-                                                        <select disabled className="flex-1 bg-studio-panel border border-white/5 rounded px-2 py-0.5 text-[10px] text-studio-text-dim outline-none"><option>{audio?.ioAssignments?.inputMapping?.ltm}</option></select>
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <select disabled className="flex-1 bg-studio-panel border border-white/5 rounded px-2 py-0.5 text-[10px] text-studio-text-dim outline-none text-right"><option>{audio?.ioAssignments?.inputMapping?.rt}</option></select>
-                                                        <label className="text-[9px] font-bold text-studio-text-dim uppercase w-20 text-left">R. top:</label>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <select disabled className="flex-1 bg-studio-panel border border-white/5 rounded px-2 py-0.5 text-[10px] text-studio-text-dim outline-none text-right"><option>{audio?.ioAssignments?.inputMapping?.rtm}</option></select>
-                                                        <label className="text-[9px] font-bold text-studio-text-dim uppercase w-20 text-left">R. top mid:</label>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
                                     </div>
+
+                                    {io.activeSubTab === 'Bounce Extensions' && (
+                                        <p className="text-[10px] text-studio-text-dim leading-relaxed max-w-lg mt-4 mx-auto text-center">
+                                            The above extensions will be appended to audio file names when bouncing in split format. They will also determine the channel assignment when importing split surround files.
+                                        </p>
+                                    )}
                                 </div>
-                            )}
+                            </div>
                         </div>
                     )}
 
                     {settingsTab === 'Audio' && settingsActiveSubTab === 'File Editor' && (
                         <div className="max-w-2xl mx-auto space-y-6">
-                            <div className="space-y-3 pb-6 border-b border-white/5 pl-[33.33%]">
+                            <div className="space-y-3 pb-6 border-b border-white/5">
+                                {/*
+                                    Only one of these has anything to act on.
+                                    The other three govern the Audio File Editor's
+                                    destructive processing, which is not built —
+                                    saying so beats four switches that do nothing.
+                                */}
                                 <Toggle
                                     label="Warning before processing function by key command"
-                                    enabled={audio?.fileEditor?.warnBeforeProcessing || false}
+                                    inline
+                                    enabled={audio.fileEditor.warnBeforeProcessing}
                                     onChange={(val) => updateAudio({ fileEditor: { ...audio.fileEditor, warnBeforeProcessing: val } })}
+                                    disabled
+                                    hint="The Audio File Editor has no destructive processing functions yet"
                                 />
                                 <Toggle
                                     label="Clear Undo History when closing project"
-                                    enabled={audio?.fileEditor?.clearUndoOnClose || false}
+                                    inline
+                                    enabled={audio.fileEditor.clearUndoOnClose}
                                     onChange={(val) => updateAudio({ fileEditor: { ...audio.fileEditor, clearUndoOnClose: val } })}
                                 />
-                                <Toggle 
-                                    label="Record selection changes in Undo History" 
-                                    enabled={audio?.fileEditor?.recordSelectionChanges || false} 
-                                    onChange={(val) => updateAudio({ fileEditor: { ...audio.fileEditor, recordSelectionChanges: val } })} 
+                                <Toggle
+                                    label="Record selection changes in Undo History"
+                                    inline
+                                    enabled={audio.fileEditor.recordSelectionChanges}
+                                    onChange={(val) => updateAudio({ fileEditor: { ...audio.fileEditor, recordSelectionChanges: val } })}
+                                    disabled
+                                    hint="Selection is not pushed onto the undo stack in this build"
                                 />
-                                <Toggle 
-                                    label="Record Normalize operations in Undo History" 
-                                    enabled={audio?.fileEditor?.recordNormalizeInUndo || false} 
-                                    onChange={(val) => updateAudio({ fileEditor: { ...audio.fileEditor, recordNormalizeInUndo: val } })} 
+                                <Toggle
+                                    label="Record Normalize operations in Undo History"
+                                    inline
+                                    enabled={audio.fileEditor.recordNormalizeInUndo}
+                                    onChange={(val) => updateAudio({ fileEditor: { ...audio.fileEditor, recordNormalizeInUndo: val } })}
+                                    disabled
+                                    hint="Normalize is a bounce option here, not an editor operation"
                                 />
                             </div>
 
                             <div className="space-y-4">
-                                <Dropdown 
+                                <Stepper
                                     label="Number of Undo Steps"
-                                    value={audio?.fileEditor?.undoSteps || 5}
-                                    options={[1, 5, 10, 20, 50, 100]}
-                                    onChange={(val) => updateAudio({ fileEditor: { ...audio.fileEditor, undoSteps: Number(val) } })}
+                                    value={audio.fileEditor.undoSteps}
+                                    min={1}
+                                    max={100}
+                                    onChange={(val) => updateAudio({ fileEditor: { ...audio.fileEditor, undoSteps: val } })}
+                                    disabled
+                                    hint="The Audio File Editor keeps no undo history of its own yet"
                                 />
 
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[12px] font-medium text-studio-text-mid w-1/3 text-right pr-6">External Sample Editor:</span>
+                                <div className="flex items-center justify-between opacity-30 pointer-events-none">
+                                    <span className="text-[12px] font-medium text-studio-text w-1/3 text-right pr-6">External Sample Editor:</span>
                                     <div className="w-2/3 flex items-center gap-2">
-                                        <div className="flex-1 bg-studio-panel border border-black/40 rounded px-3 py-1.5 min-h-[32px] text-[11px] text-studio-text-mid shadow-inner flex items-center">
-                                            {audio?.fileEditor?.externalSampleEditorPath || ''}
-                                        </div>
-                                        <button className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-[11px] text-studio-text rounded border border-white/10 transition-colors shadow-sm whitespace-nowrap">
+                                        <input
+                                            type="text"
+                                            value={audio.fileEditor.externalSampleEditorPath}
+                                            onChange={(e) => updateAudio({ fileEditor: { ...audio.fileEditor, externalSampleEditorPath: e.target.value } })}
+                                            className="flex-1 h-8 bg-studio-panel border border-studio-line-strong rounded px-3 text-[11px] text-studio-text outline-none shadow-inner"
+                                        />
+                                        <button className="px-3 py-1.5 bg-white/5 text-[11px] text-studio-text rounded border border-white/10 whitespace-nowrap">
                                             Choose...
                                         </button>
                                     </div>
                                 </div>
-                                <div className="flex justify-end pl-[33.33%] pt-1">
-                                    <button className="px-4 py-1 bg-white/5 hover:bg-white/10 text-[10px] text-studio-text-mid rounded border border-white/10 transition-colors">
+                                <div className="flex items-center gap-3 pl-[33.33%]">
+                                    <button className="px-4 py-1 bg-white/5 text-[10px] text-studio-text-mid rounded border border-white/10 opacity-30 pointer-events-none">
                                         Remove
                                     </button>
+                                    <p className="text-[10px] text-studio-text-dim">
+                                        A web page cannot hand a file to another application, so no external editor can be launched.
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -1469,55 +1544,70 @@ export function PreferencesDialog() {
 
                     {settingsTab === 'Audio' && settingsActiveSubTab === 'MP3' && (
                         <div className="max-w-xl mx-auto space-y-6">
+                            {/*
+                                These reach the encoder. `bounceEngine` used to
+                                have `const bitRate = 192` typed into it and read
+                                nothing from this panel.
+                            */}
                             <div className="space-y-4">
-                                <Dropdown 
+                                <Dropdown
                                     label="Bit Rate Mono"
-                                    value={audio?.mp3?.bitRateMono || '80 kbit/s'}
-                                    options={['32 kbit/s', '64 kbit/s', '80 kbit/s', '128 kbit/s', '160 kbit/s']}
-                                    onChange={(val) => updateAudio({ mp3: { ...audio?.mp3, bitRateMono: val } })}
+                                    value={audio.mp3.bitRateMono}
+                                    options={MP3_MONO_BITRATES}
+                                    onChange={(val) => updateAudio({ mp3: { ...audio.mp3, bitRateMono: val } })}
                                 />
-                                <Dropdown 
+                                <Dropdown
                                     label="Bit Rate Stereo"
-                                    value={audio?.mp3?.bitRateStereo || '160 kbit/s'}
-                                    options={['128 kbit/s', '160 kbit/s', '192 kbit/s', '256 kbit/s', '320 kbit/s']}
-                                    onChange={(val) => updateAudio({ mp3: { ...audio?.mp3, bitRateStereo: val } })}
+                                    value={audio.mp3.bitRateStereo}
+                                    options={MP3_STEREO_BITRATES}
+                                    onChange={(val) => updateAudio({ mp3: { ...audio.mp3, bitRateStereo: val } })}
                                 />
-                                <div className="pl-[33.33%] pt-2">
-                                    <Toggle 
-                                        label="Use Variable Bit Rate (VBR) encoding" 
-                                        enabled={audio?.mp3?.useVBR || false} 
-                                        onChange={(val) => updateAudio({ mp3: { ...audio?.mp3, useVBR: val } })} 
+                                <div className="pt-2">
+                                    <Toggle
+                                        label="Use Variable Bit Rate (VBR) encoding"
+                                    inline
+                                        enabled={audio.mp3.useVBR}
+                                        onChange={(val) => updateAudio({ mp3: { ...audio.mp3, useVBR: val } })}
+                                        disabled
+                                        hint={MP3_UNSUPPORTED.useVBR}
                                     />
                                 </div>
                             </div>
 
                             <div className="space-y-4 border-t border-white/5 pt-6">
-                                <Dropdown 
+                                <Dropdown
                                     label="Quality"
-                                    value={audio?.mp3?.quality || 'Highest'}
-                                    options={['Low', 'Medium', 'High', 'Highest']}
-                                    onChange={(val) => updateAudio({ mp3: { ...audio?.mp3, quality: val } })}
+                                    value={audio.mp3.quality}
+                                    options={MP3_QUALITIES}
+                                    onChange={(val) => updateAudio({ mp3: { ...audio.mp3, quality: val } })}
+                                    disabled
+                                    hint={MP3_UNSUPPORTED.quality}
                                 />
-                                <div className="pl-[33.33%] space-y-3 pt-2">
-                                    <Toggle 
-                                        label="Use best encoding" 
-                                        enabled={audio?.mp3?.useBestEncoding || true} 
-                                        onChange={(val) => updateAudio({ mp3: { ...audio?.mp3, useBestEncoding: val } })} 
+                                <div className="space-y-3 pt-2">
+                                    <Toggle
+                                        label="Use best encoding"
+                                    inline
+                                        enabled={audio.mp3.useBestEncoding}
+                                        onChange={(val) => updateAudio({ mp3: { ...audio.mp3, useBestEncoding: val } })}
+                                        disabled
+                                        hint={MP3_UNSUPPORTED.useBestEncoding}
                                     />
-                                    <Toggle 
-                                        label="Filter frequencies below 10 Hz" 
-                                        enabled={audio?.mp3?.filterBelow10Hz || true} 
-                                        onChange={(val) => updateAudio({ mp3: { ...audio?.mp3, filterBelow10Hz: val } })} 
+                                    <Toggle
+                                        label="Filter frequencies below 10 Hz"
+                                    inline
+                                        enabled={audio.mp3.filterBelow10Hz}
+                                        onChange={(val) => updateAudio({ mp3: { ...audio.mp3, filterBelow10Hz: val } })}
                                     />
                                 </div>
                             </div>
 
                             <div className="pt-4">
-                                <Dropdown 
+                                <Dropdown
                                     label="Stereo Mode"
-                                    value={audio?.mp3?.stereoMode || 'Joint Stereo'}
-                                    options={['Stereo', 'Joint Stereo', 'Mono']}
-                                    onChange={(val) => updateAudio({ mp3: { ...audio?.mp3, stereoMode: val } })}
+                                    value={audio.mp3.stereoMode}
+                                    options={MP3_STEREO_MODES}
+                                    onChange={(val) => updateAudio({ mp3: { ...audio.mp3, stereoMode: val } })}
+                                    hint={MP3_UNSUPPORTED.jointStereo + ', so Mono is the setting that changes the file'}
                                 />
                             </div>
                         </div>
@@ -2181,7 +2271,7 @@ export function PreferencesDialog() {
                                     options={['Always', 'Never', 'Ask']}
                                     onChange={(val) => updateAutomation({ moveWithRegions: val })}
                                 />
-                                <div className="pl-[33.33%] space-y-3">
+                                <div className="space-y-3">
                                     <Toggle 
                                         label="Include trails, if possible" 
                                         enabled={automation?.includeTrails || false} 
@@ -2391,7 +2481,7 @@ export function PreferencesDialog() {
 
                             <div className="space-y-4">
                                 <h4 className="text-[10px] font-bold text-studio-text-dim uppercase tracking-widest pl-[33.33%]">Show Value Units For</h4>
-                                <div className="pl-[33.33%] space-y-3">
+                                <div className="space-y-3">
                                     <div className="flex items-center gap-2 cursor-pointer group" onClick={() => updateControlSurfaces({ showValueUnitsForInstrument: !controlSurfaces.showValueUnitsForInstrument })}>
                                         <div className={`w-[14px] h-[14px] rounded-[3px] border flex items-center justify-center transition-all ${controlSurfaces.showValueUnitsForInstrument ? 'bg-accent-cyan border-accent-cyan' : 'bg-studio-panel border-studio-line-strong'}`}>
                                             {controlSurfaces.showValueUnitsForInstrument && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
@@ -2422,7 +2512,7 @@ export function PreferencesDialog() {
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-4 pb-6 border-b border-white/5">
                                 <h4 className="text-[10px] font-bold text-studio-text-dim uppercase tracking-widest pl-[33.33%]">While Editing Show Long Names For</h4>
-                                <div className="pl-[33.33%] space-y-3">
+                                <div className="space-y-3">
                                     <div className="flex items-center gap-2 cursor-pointer group" onClick={() => updateControlSurfaces({ helpTags: { ...(controlSurfaces.helpTags || {}), parameterName: !controlSurfaces.helpTags?.parameterName } })}>
                                         <div className={`w-[14px] h-[14px] rounded-[3px] border flex items-center justify-center transition-all ${controlSurfaces.helpTags?.parameterName ? 'bg-accent-cyan border-accent-cyan' : 'bg-studio-panel border-studio-line-strong'}`}>
                                             {controlSurfaces.helpTags?.parameterName && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
@@ -2470,7 +2560,7 @@ export function PreferencesDialog() {
 
                             <div className="space-y-4">
                                 <h4 className="text-[10px] font-bold text-studio-text-dim uppercase tracking-widest pl-[33.33%]">Show Value Units For</h4>
-                                <div className="pl-[33.33%] space-y-3">
+                                <div className="space-y-3">
                                     <div className="flex items-center gap-2 cursor-pointer group" onClick={() => updateControlSurfaces({ showValueUnitsForInstrument: !controlSurfaces.showValueUnitsForInstrument })}>
                                         <div className={`w-[14px] h-[14px] rounded-[3px] border flex items-center justify-center transition-all ${controlSurfaces.showValueUnitsForInstrument ? 'bg-accent-cyan border-accent-cyan' : 'bg-studio-panel border-studio-line-strong'}`}>
                                             {controlSurfaces.showValueUnitsForInstrument && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
@@ -2566,7 +2656,7 @@ export function PreferencesDialog() {
 
                             <div className="space-y-4">
                                 <h4 className="text-[10px] font-bold text-studio-text-dim uppercase tracking-widest pl-[33.33%]">Windows</h4>
-                                <div className="pl-[33.33%] space-y-3">
+                                <div className="space-y-3">
                                     {[
                                         { label: 'Large local window menus', key: 'largeLocalWindowMenus' },
                                         { label: 'Large inspectors', key: 'largeInspectors' },
@@ -2708,7 +2798,7 @@ export function PreferencesDialog() {
 
                             <div className="space-y-4">
                                 <h4 className="text-[10px] font-bold text-studio-text-dim uppercase tracking-widest pl-[33.33%]">Regions</h4>
-                                <div className="pl-[33.33%] space-y-3">
+                                <div className="space-y-3">
                                     <div 
                                         onClick={() => updateView({ shadedLoops: !view.shadedLoops })}
                                         className="flex items-center gap-2 cursor-pointer group"
@@ -2748,7 +2838,7 @@ export function PreferencesDialog() {
 
                             <div className="space-y-4">
                                 <h4 className="text-[10px] font-bold text-studio-text-dim uppercase tracking-widest pl-[33.33%]">Plug-in Window</h4>
-                                <div className="pl-[33.33%] space-y-3">
+                                <div className="space-y-3">
                                     <div 
                                         onClick={() => updateView({ openPluginWindowOnInsertion: !view.openPluginWindowOnInsertion })}
                                         className="flex items-center gap-2 cursor-pointer group"

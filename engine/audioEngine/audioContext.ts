@@ -155,6 +155,36 @@ class AudioContextManager {
     // ── Device Management ────────────────────────────────────────────────────────
 
     /**
+     * Send the whole mix to a chosen output.
+     *
+     * The Devices panel has offered an Output Device for a while and nothing
+     * read the setting, so choosing one changed a label and left the audio
+     * where it was. `setSinkId` on the AudioContext is the mechanism; it is
+     * recent enough that a browser without it has to be reported rather than
+     * silently ignored.
+     */
+    async setOutputDevice(deviceId: string): Promise<{ ok: boolean; reason?: string }> {
+        const ctx = this.ctx as (AudioContext & { setSinkId?: (id: string) => Promise<void> }) | null;
+        if (!ctx) return { ok: false, reason: 'The audio engine has not started yet' };
+        if (typeof ctx.setSinkId !== 'function') {
+            return { ok: false, reason: 'This browser cannot choose an audio output' };
+        }
+        try {
+            // The empty string is what the spec uses for the system default.
+            await ctx.setSinkId(deviceId === 'default' ? '' : deviceId);
+            return { ok: true };
+        } catch (error) {
+            return { ok: false, reason: String((error as Error)?.message ?? error) };
+        }
+    }
+
+    /** Whether this browser can route audio to a chosen output at all. */
+    canChooseOutput(): boolean {
+        const ctx = this.ctx as (AudioContext & { setSinkId?: unknown }) | null;
+        return typeof ctx?.setSinkId === 'function';
+    }
+
+    /**
      * Get available audio input devices.
      */
     async getInputDevices(): Promise<InputDevice[]> {

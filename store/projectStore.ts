@@ -2569,7 +2569,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 console.warn('[Persistence] Close save failed:', e)
             );
         }
-        set({ id: null, name: 'Untitled Project', tracks: [], clips: [], isDirty: false, loadError: null, playing: false, playhead: 0, history: [], future: [] });
+        // Audio > File Editor > "Clear Undo History when closing project". The
+        // history was cleared unconditionally, so the setting described a
+        // behaviour it did not control; keeping it lets an accidental close be
+        // undone, which is the reason the option exists.
+        const clearUndo = s.globalSettings?.audio?.fileEditor?.clearUndoOnClose ?? true;
+        set({
+            id: null, name: 'Untitled Project', tracks: [], clips: [],
+            isDirty: false, loadError: null, playing: false, playhead: 0,
+            ...(clearUndo ? { history: [], future: [] } : {}),
+        });
     },
 
     setDirty: (dirty) => set({ isDirty: dirty }),
@@ -4416,7 +4425,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 projectName: s.name,
                 masterPlugins: s.masterPlugins,
             },
-            settings,
+            // Audio > MP3 is where bit rate and channel mode live; the export
+            // dialog does not ask again, so they are supplied from here.
+            { mp3: s.globalSettings?.audio?.mp3, ...settings },
         );
 
         if (result.degradedTracks.length) {

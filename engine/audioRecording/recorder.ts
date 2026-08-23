@@ -4,6 +4,7 @@ import { createRecordingClip, addClipToTimeline, RecordingClip } from './recordi
 import { generateWaveformData } from './waveformAnalyzer';
 import { encodeWav, downloadWav } from './wavEncoder';
 import { useProjectStore } from '@/store/projectStore';
+import { recordingDelaySeconds } from '@/lib/audioLatency';
 
 export interface RecordingConfig {
   trackId: string;
@@ -257,8 +258,17 @@ export class AudioRecorder {
     
     // Latency compensation in BEATS
     const latency = (context.baseLatency || 0) + (context.outputLatency || 0);
-    const { tempo } = useProjectStore.getState();
-    const latencyBeats = latency * (tempo / 60);
+    const { tempo, globalSettings } = useProjectStore.getState();
+
+    // The Recording Delay slider in Audio > Devices, which nothing read: an
+    // interface that reports its latency short leaves takes late by a fixed
+    // amount, and this is the correction for it. Positive pulls a take earlier.
+    const userDelaySeconds = recordingDelaySeconds(
+        globalSettings?.audio?.recordingDelay ?? 0,
+        context.sampleRate,
+    );
+
+    const latencyBeats = (latency + userDelaySeconds) * (tempo / 60);
     const compensatedStartTime = Math.max(0, (this.config?.startTime || 0) - latencyBeats);
     
     const clip = createRecordingClip({

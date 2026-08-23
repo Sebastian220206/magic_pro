@@ -13,6 +13,7 @@
 
 import { renderSongOffline, type ExportClip, type ExportTrack } from './OfflineRenderer';
 import { encodeWav } from './wavEncoder';
+import { encodeMp3, type Mp3Settings } from '../../lib/mp3Encoding';
 import { tagWavBlob } from './wavMetadata';
 import { analyseLoudness, type LoudnessAnalysis } from '../metering/offlineLoudness';
 import type { Track, PluginSetting } from '../../models/Track';
@@ -32,6 +33,12 @@ export interface ProjectExportSettings {
     fileName?: string;
     /** Delivery metadata, carried through to the result for tagging. */
     metadata?: ExportMetadata;
+    /**
+     * What Audio > MP3 is set to, when the format is MP3.
+     *
+     * Supplied by the caller so this module does not reach into the store.
+     */
+    mp3?: Mp3Settings;
 }
 
 /** Tags a delivered master carries. */
@@ -124,8 +131,10 @@ function sanitiseFileName(name: string): string {
 /**
  * Render the project and encode it.
  *
- * MP3 needs an encoder this app does not bundle, so it is reported as a
- * fallback to WAV rather than silently handing back a mislabelled file.
+ * MP3 is encoded for real — `lamejs` has been a dependency all along, and this
+ * function reported it "not available in the browser build" while writing a
+ * WAV under an MP3 request. If the encoder does fail to load it still falls
+ * back to WAV, but it says so rather than doing it silently.
  */
 export async function exportProjectAudio(
     input: ProjectExportInput,
@@ -162,13 +171,6 @@ export async function exportProjectAudio(
         },
     );
 
-    // Tags go into the file itself, not just the result object — a delivered
-    // master should arrive with its ISRC already embedded.
-    const blob = await tagWavBlob(
-        await encodeWav(buffer, { bitDepth: settings.bitDepth ?? 24 }),
-        settings.metadata,
-    );
-
     const channels = Array.from(
         { length: buffer.numberOfChannels },
         (_, i) => buffer.getChannelData(i),
@@ -178,6 +180,29 @@ export async function exportProjectAudio(
     const base = sanitiseFileName(settings.fileName ?? input.projectName ?? 'Untitled');
     const requested = settings.format ?? 'wav';
 
+    if (requested === 'mp3') {
+        const encoded = encodeMp3(channels, buffer.sampleRate, settings.mp3 ?? {});
+        if (encoded) {
+            // MP3 carries ID3 rather than the WAV chunks `tagWavBlob` writes,
+            // so the metadata rides on the result for the caller to use.
+            return {
+                buffer,
+                blob: new Blob([encoded], { type: 'audio/mpeg' }),
+                fileName: `${base}.mp3`,
+                degradedTracks,
+                loudness,
+                metadata: settings.metadata,
+            };
+        }
+    }
+
+    // Tags go into the file itself, not just the result object — a delivered
+    // master should arrive with its ISRC already embedded.
+    const blob = await tagWavBlob(
+        await encodeWav(buffer, { bitDepth: settings.bitDepth ?? 24 }),
+        settings.metadata,
+    );
+
     return {
         buffer,
         blob,
@@ -186,7 +211,7 @@ export async function exportProjectAudio(
         loudness,
         metadata: settings.metadata,
         formatNotice: requested === 'mp3'
-            ? 'MP3 encoding is not available in the browser build — exported as WAV.'
+            ? 'The MP3 encoder would not load — exported as WAV instead.'
             : undefined,
     };
 }

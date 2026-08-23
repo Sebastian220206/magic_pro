@@ -403,10 +403,11 @@ describe('making a simple beat, end to end', () => {
             expect(result.blob.size).toBeGreaterThan(0);
         });
 
-        it('reports that MP3 fell back to WAV rather than mislabelling the file', async () => {
+        it('delivers a real MP3 when MP3 is chosen', async () => {
             const result = await store().exportProject({ format: 'mp3' });
-            expect(result.formatNotice).toMatch(/WAV/);
-            expect(result.fileName.endsWith('.wav')).toBe(true);
+            expect(result.fileName.endsWith('.mp3')).toBe(true);
+            expect(result.blob.type).toBe('audio/mpeg');
+            expect(result.formatNotice).toBeUndefined();
         });
 
         it('refuses to export an empty range instead of writing silence', async () => {

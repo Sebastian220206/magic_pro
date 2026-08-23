@@ -18,6 +18,7 @@ import {
     AudioTrack 
 } from './types';
 import { audioContextManager } from './audioContext';
+import { encodeMp3, type Mp3Settings } from '@/lib/mp3Encoding';
 
 // ─── Bounce Engine Configuration ────────────────────────────────────────────────────────
 
@@ -27,6 +28,13 @@ interface BounceEngineConfig {
     normalize: boolean;
     dither: boolean;
     format: 'wav' | 'mp3' | 'ogg';
+    /**
+     * What Audio > MP3 is set to.
+     *
+     * Passed in rather than read from the store so the engine stays free of it.
+     * Absent means the encoder's own defaults.
+     */
+    mp3?: Mp3Settings;
 }
 
 const DEFAULT_BOUNCE_CONFIG: BounceEngineConfig = {
@@ -388,7 +396,7 @@ class BounceEngine {
             case 'wav':
                 return this.convertToWAV(buffer, config.bitDepth);
             case 'mp3':
-                return this.convertToMP3(buffer);
+                return this.convertToMP3(buffer, config.mp3);
             case 'ogg':
                 return this.convertToOGG(buffer);
             default:
@@ -396,66 +404,24 @@ class BounceEngine {
         }
     }
 
-    private convertToMP3(buffer: AudioBuffer): Blob {
-        try {
-            // Use lamejs for MP3 encoding
-            const lamejs = require('lamejs');
-            const numChannels = buffer.numberOfChannels;
-            const sampleRate = buffer.sampleRate;
-            const bitRate = 192;
-
-            const mp3Encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, bitRate);
-            const mp3Data: Uint8Array[] = [];
-
-            const channelData: Float32Array[] = [];
-            for (let c = 0; c < numChannels; c++) {
-                channelData.push(buffer.getChannelData(c));
-            }
-
-            // Convert float32 samples to int16 (lamejs expects Int16Array)
-            const sampleBlockSize = 1152;
-            const totalSamples = buffer.length;
-
-            for (let i = 0; i < totalSamples; i += sampleBlockSize) {
-                const blockSize = Math.min(sampleBlockSize, totalSamples - i);
-                const left = new Int16Array(blockSize);
-                const right = numChannels > 1 ? new Int16Array(blockSize) : left;
-
-                for (let j = 0; j < blockSize; j++) {
-                    const idx = i + j;
-                    const ls = Math.max(-1, Math.min(1, channelData[0][idx]));
-                    left[j] = ls < 0 ? ls * 0x8000 : ls * 0x7FFF;
-
-                    if (numChannels > 1) {
-                        const rs = Math.max(-1, Math.min(1, channelData[1][idx]));
-                        right[j] = rs < 0 ? rs * 0x8000 : rs * 0x7FFF;
-                    }
-                }
-
-                const mp3Buf = mp3Encoder.encodeBuffer(left, right);
-                if (mp3Buf.length > 0) {
-                    mp3Data.push(mp3Buf);
-                }
-            }
-
-            const finalBuf = mp3Encoder.flush();
-            if (finalBuf.length > 0) {
-                mp3Data.push(finalBuf);
-            }
-
-            const totalLength = mp3Data.reduce((acc, buf) => acc + buf.length, 0);
-            const combined = new Uint8Array(totalLength);
-            let offset = 0;
-            for (const buf of mp3Data) {
-                combined.set(buf, offset);
-                offset += buf.length;
-            }
-
-            return new Blob([combined], { type: 'audio/mpeg' });
-        } catch (e) {
-            console.error('[BounceEngine] MP3 encoding failed, falling back to WAV:', e);
+    /**
+     * Encode to MP3 at the settings the Audio > MP3 panel holds.
+     *
+     * The bit rate used to be `const bitRate = 192`, with the panel's controls
+     * reading into nothing. The encoding itself now lives in
+     * `lib/mp3Encoding` so it can be tested without running a bounce.
+     */
+    private convertToMP3(buffer: AudioBuffer, settings?: Mp3Settings): Blob {
+        const channels = Array.from(
+            { length: buffer.numberOfChannels },
+            (_, c) => buffer.getChannelData(c),
+        );
+        const encoded = encodeMp3(channels, buffer.sampleRate, settings ?? {});
+        if (!encoded) {
+            console.error('[BounceEngine] MP3 encoding unavailable, falling back to WAV');
             return this.convertToWAV(buffer, 16);
         }
+        return new Blob([encoded], { type: 'audio/mpeg' });
     }
 
     private convertToOGG(buffer: AudioBuffer): Blob {
