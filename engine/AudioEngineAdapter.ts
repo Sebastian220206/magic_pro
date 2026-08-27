@@ -510,7 +510,22 @@ export class AudioEngineAdapter implements MidiSink {
         return this.getTrackNodes(trackId)?.analyzer ?? this.getMasterAnalyzer();
     }
 
-    getEQFrequencyResponse(_trackId: string, _pluginId: string, frequencies: Float32Array): Float32Array {
+    /**
+     * The EQ's combined magnitude response, in dB, at the given frequencies.
+     *
+     * Returned an array of zeros — a stub. The editor drew that as its curve,
+     * so the line on screen was a picture of a flat EQ no matter where the
+     * bands were. It now asks the live filters.
+     */
+    getEQFrequencyResponse(trackId: string, pluginId: string, frequencies: Float32Array): Float32Array {
+        const processor = routingEngine.getInsertProcessor(trackId, pluginId) as
+            { builtinEffect?: { getFrequencyResponse?: (f: Float32Array) => Float32Array } } | null;
+        const effect = processor?.builtinEffect;
+        if (typeof effect?.getFrequencyResponse === 'function') {
+            return effect.getFrequencyResponse(frequencies);
+        }
+        // No EQ on that slot yet — a flat line is the honest answer, and the
+        // editor renders it as one.
         return new Float32Array(frequencies.length);
     }
 

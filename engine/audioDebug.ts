@@ -398,6 +398,36 @@ export async function testMixer(trackId?: string): Promise<void> {
     })));
 }
 
+/** Print what each EQ band does to a tone at its own frequency. */
+export async function testEq(): Promise<void> {
+    const { probeEqBands } = await import('./effectsProbe');
+    const results = await probeEqBands();
+    console.table(results.map(r => ({
+        Check: r.name,
+        Works: r.changesSignal ? 'yes' : 'NO',
+        'Change (dB)': r.difference.toFixed(2),
+        Peak: r.peak.toFixed(4),
+    })));
+}
+
+/** Why is the EQ curve flat? Reports each step of the response lookup. */
+export async function whyFlatEq(trackId: string, pluginId: string): Promise<unknown> {
+    const { routingEngine } = await import('./audioEngine/routingEngine');
+    const { audioEngine2 } = await import('./AudioEngineAdapter');
+    const processor = routingEngine.getInsertProcessor(trackId, pluginId) as
+        { builtinEffect?: { getFrequencyResponse?: unknown } } | null;
+    const freqs = new Float32Array(new ArrayBuffer(5 * 4));
+    [100, 500, 1000, 4000, 10000].forEach((f, i) => { freqs[i] = f; });
+    const response = audioEngine2.getEQFrequencyResponse(trackId, pluginId, freqs);
+    return {
+        hasChain: !!routingEngine.getTrackNodes(trackId),
+        hasProcessor: !!processor,
+        hasEffect: !!processor?.builtinEffect,
+        hasMethod: typeof processor?.builtinEffect?.getFrequencyResponse,
+        response: Array.from(response).map(v => Number(v.toFixed(2))),
+    };
+}
+
 // Make these available in the global scope for console debugging
 if (typeof window !== 'undefined') {
     (window as any).audioDebug = {
@@ -410,5 +440,7 @@ if (typeof window !== 'undefined') {
         testPlayback,
         testEffects,
         testMixer,
+        testEq,
+        whyFlatEq,
     };
 }

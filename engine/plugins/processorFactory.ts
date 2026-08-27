@@ -69,6 +69,15 @@ class BuiltinProcessor implements InsertProcessor {
     get input(): AudioNode { return this.effect.input; }
     get output(): AudioNode { return this.effect.output; }
 
+    /**
+     * The wrapped effect, for the few editors that need more than parameters.
+     *
+     * The EQ draws its curve from the filters themselves; without a way to
+     * reach them the editor had to be handed a stub, and drew a line that had
+     * no relationship to what the audio was doing.
+     */
+    get builtinEffect(): unknown { return this.effect; }
+
     setParams(params: Record<string, number>): void {
         if (!params || Object.keys(params).length === 0) return;
         try {

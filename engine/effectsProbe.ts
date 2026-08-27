@@ -135,6 +135,104 @@ const PROBE_SPECS: { pluginId: string; params: Record<string, unknown> }[] = [
 ];
 
 /**
+ * Does an EQ band change the level at its own frequency?
+ *
+ * The editor's eight bands wrote `bandN_*` keys into a three-band DSP that
+ * read none of them, so this is the check that matters: set one band, play a
+ * tone at its centre, and see whether the level moves by the gain asked for.
+ */
+export async function probeEqBands(): Promise<EffectProbeResult[]> {
+    const results: EffectProbeResult[] = [];
+    const TONE_HZ = 1000;
+
+    /** Render a steady tone through the EQ with the given parameters. */
+    const renderTone = async (params: Record<string, number>): Promise<number> => {
+        const rate = 48000;
+        const ctx = new OfflineAudioContext(2, rate, rate);
+        const osc = ctx.createOscillator();
+        osc.frequency.value = TONE_HZ;
+        const level = ctx.createGain();
+        level.gain.value = 0.5;
+
+        const processor = await createProcessor(ctx, {
+            pluginId: BUILTIN_PLUGIN_IDS.eq, format: 'builtin', params,
+        } as PluginSpec);
+        if (!processor) throw new Error('no EQ processor');
+
+        osc.connect(level);
+        level.connect(processor.input);
+        processor.output.connect(ctx.destination);
+        osc.start(0);
+        const rendered = await ctx.startRendering();
+
+        // Peak over the second half, past the parameter ramps.
+        const data = rendered.getChannelData(0);
+        let peak = 0;
+        for (let i = Math.floor(data.length / 2); i < data.length; i++) {
+            peak = Math.max(peak, Math.abs(data[i]));
+        }
+        return peak;
+    };
+
+    const flat = await renderTone({});
+    const db = (a: number, b: number) => 20 * Math.log10(Math.max(a, 1e-9) / Math.max(b, 1e-9));
+
+    // Band 5 is a bell; put it on the tone and boost it.
+    const boosted = await renderTone({
+        band5_type: 2, band5_freq: TONE_HZ, band5_gain: 12, band5_q: 1, band5_enabled: 1,
+    });
+    results.push({
+        pluginId: 'eq.band.boost', name: 'Band 5 bell +12 dB at 1 kHz',
+        built: true, peak: boosted, passesAudio: boosted > 0.001,
+        changesSignal: db(boosted, flat) > 8,
+        difference: db(boosted, flat),
+    });
+
+    const cut = await renderTone({
+        band5_type: 2, band5_freq: TONE_HZ, band5_gain: -12, band5_q: 1, band5_enabled: 1,
+    });
+    results.push({
+        pluginId: 'eq.band.cut', name: 'Band 5 bell -12 dB at 1 kHz',
+        built: true, peak: cut, passesAudio: true,
+        changesSignal: db(cut, flat) < -8,
+        difference: db(cut, flat),
+    });
+
+    // A band switched off must do nothing, whatever its gain says.
+    const disabled = await renderTone({
+        band5_type: 2, band5_freq: TONE_HZ, band5_gain: 12, band5_q: 1, band5_enabled: 0,
+    });
+    results.push({
+        pluginId: 'eq.band.disabled', name: 'Band 5 off, gain still +12',
+        built: true, peak: disabled, passesAudio: true,
+        changesSignal: Math.abs(db(disabled, flat)) < 0.5,
+        difference: db(disabled, flat),
+    });
+
+    // A high cut below the tone must remove it.
+    const cutAway = await renderTone({
+        band8_type: 5, band8_freq: 200, band8_q: 0.7, band8_enabled: 1,
+    });
+    results.push({
+        pluginId: 'eq.band.highcut', name: 'Band 8 high cut at 200 Hz',
+        built: true, peak: cutAway, passesAudio: true,
+        changesSignal: db(cutAway, flat) < -20,
+        difference: db(cutAway, flat),
+    });
+
+    // Output trim moves the whole thing.
+    const trimmed = await renderTone({ outputGain: -6 });
+    results.push({
+        pluginId: 'eq.outputGain', name: 'Output trim -6 dB',
+        built: true, peak: trimmed, passesAudio: true,
+        changesSignal: Math.abs(db(trimmed, flat) + 6) < 1,
+        difference: db(trimmed, flat),
+    });
+
+    return results;
+}
+
+/**
  * Measure every built-in effect.
  *
  * Returns one row per effect rather than throwing, so one broken processor does
