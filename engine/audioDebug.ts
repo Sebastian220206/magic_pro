@@ -375,6 +375,29 @@ export async function testEffects(): Promise<void> {
     })));
 }
 
+/**
+ * Check that each mixer control changes what leaves the master.
+ *
+ * `audioDebug.testMixer()` in the console. Runs against the live graph and puts
+ * every control back where it found it.
+ */
+export async function testMixer(trackId?: string): Promise<void> {
+    const { probeMixer } = await import('./mixerProbe');
+    const { useProjectStore } = await import('@/store/projectStore');
+    const target = trackId ?? useProjectStore.getState().tracks[0]?.id;
+    if (!target) {
+        console.warn('[AudioDebug] No track to test.');
+        return;
+    }
+    const checks = await probeMixer(target);
+    console.table(checks.map(c => ({
+        Control: c.control,
+        Expected: c.expectation,
+        Result: c.pass ? 'PASS' : 'FAIL',
+        Detail: c.detail,
+    })));
+}
+
 // Make these available in the global scope for console debugging
 if (typeof window !== 'undefined') {
     (window as any).audioDebug = {
@@ -386,5 +409,6 @@ if (typeof window !== 'undefined') {
         whySilent,
         testPlayback,
         testEffects,
+        testMixer,
     };
 }

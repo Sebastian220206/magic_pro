@@ -582,9 +582,20 @@ class RoutingEngine {
         return samplesToSeconds(this.getProjectLatencySamples(), this.ctx.sampleRate);
     }
 
-    /** The master summing node, for metering and mastering inserts. */
+    /** The master summing node — where every track arrives, before the fader. */
     getMasterGain(): GainNode | null {
         return this.masterGain;
+    }
+
+    /**
+     * The last node before the speakers: post master inserts, post fader.
+     *
+     * Metering belongs here. `masterGain` is where tracks sum, which is ahead
+     * of the mastering chain and the master fader, so a meter tapping it cannot
+     * see a limiter working or the fader moving.
+     */
+    getMasterOutputNode(): GainNode | null {
+        return this.outputNode;
     }
 
     /**

@@ -478,7 +478,11 @@ export class AudioEngineAdapter implements MidiSink {
      */
     startLoudnessMetering(callback: (data: LoudnessData) => void): () => void {
         const ctx = this.getContext();
-        const master = routingEngine.getMasterGain();
+        // Tapped after the mastering chain and the master fader, not at the
+        // summing node. `getMasterGain()` is where tracks arrive — a meter
+        // there reads the same LUFS whatever the fader is set to and cannot
+        // see a limiter working, which is most of what the meter is read for.
+        const master = routingEngine.getMasterOutputNode();
         if (!ctx || !master) return () => { };
 
         this.stopLoudnessMetering();
