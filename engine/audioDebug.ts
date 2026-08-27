@@ -355,6 +355,26 @@ export async function testPlayback(trackId?: string): Promise<void> {
     }
 }
 
+/**
+ * Print what every built-in effect does to a test signal.
+ *
+ * `audioDebug.testEffects()` in the console. Renders offline, so it needs no
+ * output device and no user gesture.
+ */
+export async function testEffects(): Promise<void> {
+    const { probeBuiltinEffects } = await import('./effectsProbe');
+    const results = await probeBuiltinEffects();
+    console.table(results.map(r => ({
+        Effect: r.name,
+        Built: r.built ? 'yes' : 'NO',
+        Peak: r.peak.toFixed(4),
+        Audible: r.passesAudio ? 'yes' : 'NO',
+        Processing: r.pluginId === '(dry reference)' ? '—' : (r.changesSignal ? 'yes' : 'NO'),
+        Difference: r.difference.toFixed(5),
+        Error: r.error ?? '',
+    })));
+}
+
 // Make these available in the global scope for console debugging
 if (typeof window !== 'undefined') {
     (window as any).audioDebug = {
@@ -365,5 +385,6 @@ if (typeof window !== 'undefined') {
         measureLatency,
         whySilent,
         testPlayback,
+        testEffects,
     };
 }

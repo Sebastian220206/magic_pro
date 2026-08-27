@@ -14,6 +14,7 @@ import type { InsertProcessor } from '../audioEngine/insertChain';
 import type { PluginSpec } from './pluginSpec';
 import { createSidechainCompressor } from '../audioEngine/dsp/sidechainCompressorNode';
 import { BUILTIN_PLUGIN_IDS } from './pluginIds';
+import { decodeBuiltinParams } from './builtinManifests';
 import {
     createCompressorPlugin,
     createDelayPlugin,
@@ -58,6 +59,7 @@ class BuiltinProcessor implements InsertProcessor {
     constructor(
         private readonly effect: BuiltinEffect,
         private readonly latencySamples: number,
+        private readonly pluginId: string = '',
     ) {
         // Bypass is handled by the chain excluding the node, so the effect
         // itself always runs wet. Two bypass mechanisms would fight.
@@ -70,7 +72,10 @@ class BuiltinProcessor implements InsertProcessor {
     setParams(params: Record<string, number>): void {
         if (!params || Object.keys(params).length === 0) return;
         try {
-            this.effect.setState(params as never);
+            // Everything is a number on the wire so it can be automated; the
+            // manifest says which of those are enum indices or booleans, and
+            // `decodeBuiltinParams` turns them back into what the setters take.
+            this.effect.setState(decodeBuiltinParams(this.pluginId, params) as never);
         } catch (error) {
             console.warn('[Plugin] Failed to apply parameters:', error);
         }
@@ -172,7 +177,14 @@ export async function createProcessor(
         // The built-ins are typed against AudioContext but only use methods
         // present on BaseAudioContext, so they work in an OfflineAudioContext.
         const effect = build(ctx as AudioContext);
-        return new BuiltinProcessor(effect, BUILTIN_LATENCY[spec.pluginId] ?? 0);
+        const processor = new BuiltinProcessor(effect, BUILTIN_LATENCY[spec.pluginId] ?? 0, spec.pluginId);
+        // Configure before handing it back, as the sidechain and WAM branches
+        // above already do. `InsertChain` applies these again, but a caller
+        // that builds a processor directly used to get a default one — an EQ
+        // that came back flat no matter what the spec asked for.
+        if (spec.state !== undefined) processor.setState(spec.state);
+        if (spec.params) processor.setParams(spec.params);
+        return processor;
     } catch (error) {
         console.error(`[Plugin] Failed to create "${spec.pluginId}":`, error);
         return null;

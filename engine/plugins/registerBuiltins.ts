@@ -1,6 +1,8 @@
 import { PluginRegistry } from './PluginRegistry';
 import { registerPluginUI } from './UIRegistry';
 import type { PluginManifest } from './manifest';
+import { BUILTIN_MANIFESTS } from './builtinManifests';
+import { resolvePluginId } from './pluginIds';
 import { WasmEQUI } from '@/components/plugins/WasmEQUI';
 import { WasmCompressorUI } from '@/components/plugins/WasmCompressorUI';
 
@@ -143,6 +145,15 @@ export function registerBuiltinPlugins(): void {
   registerPluginUI('magic_wasm_comp', WasmCompressorUI, { width: 320, height: 260 });
 }
 
+/**
+ * The manifest for a built-in effect, by any spelling of its id.
+ *
+ * This used to read `PluginRegistry.getDescriptor(id)` — a map that
+ * `registerBuiltinPlugins()` filled and which nothing ever called, keyed by ids
+ * that no longer matched. Every lookup missed, so every plugin editor fell
+ * through to a read-only key/value dump. `BUILTIN_MANIFESTS` is plain data, so
+ * there is nothing to forget to call.
+ */
 export function getBuiltinManifest(id: string): PluginManifest | undefined {
-  return PluginRegistry.getDescriptor(id)?.manifest;
+    return BUILTIN_MANIFESTS[resolvePluginId(id)];
 }
