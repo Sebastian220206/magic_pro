@@ -443,6 +443,11 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
     // The master strip has no Track, so its inserts come from `masterPlugins`.
     // Before this it read `track?.plugins` — always undefined — so the master
     // rack rendered empty however many plugins the chain actually held.
+    // Automation write modes need to know when a control is grabbed and what
+    // it passes through; the runtime ignores these in Off and Read.
+    const beginAutomationTouch = useProjectStore(s => s.beginAutomationTouch);
+    const updateAutomationTouch = useProjectStore(s => s.updateAutomationTouch);
+    const endAutomationTouch = useProjectStore(s => s.endAutomationTouch);
     const masterPlugins = useProjectStore(s => s.masterPlugins);
     const addMasterPlugin = useProjectStore(s => s.addMasterPlugin);
     const toggleMasterPlugin = useProjectStore(s => s.toggleMasterPlugin);
@@ -486,6 +491,10 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
         const startVol = gain;
         let latest = startVol;
 
+        // Touch, Latch and Write record what the fader passes through. The
+        // runtime ignores this when the track is in Off or Read.
+        if (track) beginAutomationTouch(track.id, 'volume');
+
         const onMove = (me: MouseEvent) => {
             const travel = me.shiftKey ? 720 : 180;
             let next = Math.max(0, Math.min(MAX_GAIN, startVol + (startY - me.clientY) / travel));
@@ -493,7 +502,10 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
             if (Math.abs(next - 1) < 0.02) next = 1;
             latest = next;
             if (isMaster) audioEngine2.setMasterVolume(next);
-            else if (track) audioEngine2.setTrackVolume(track.id, next);
+            else if (track) {
+                audioEngine2.setTrackVolume(track.id, next);
+                updateAutomationTouch(track.id, 'volume', next);
+            }
         };
 
         // Audio follows every move; the cap is repainted once per frame.
@@ -512,6 +524,7 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
             isDraggingRef.current = false;
             if (raf !== null) cancelAnimationFrame(raf);
             applyGain(latest);
+            if (track) endAutomationTouch(track.id, 'volume');
             saveHistorySnapshot();
             window.removeEventListener('mousemove', onRafMove);
             window.removeEventListener('mouseup', onUp);
@@ -526,13 +539,16 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
         if (e.altKey) { applyPan(0); saveHistorySnapshot(); return; }
         const startY = e.clientY;
         const startPan = initialPan;
+        if (track) beginAutomationTouch(track.id, 'pan');
         const onMove = (me: MouseEvent) => {
             const travel = me.shiftKey ? 400 : 100;
             let next = Math.max(-1, Math.min(1, startPan + (startY - me.clientY) / travel));
             if (Math.abs(next) < 0.05) next = 0;
             applyPan(next);
+            if (track) updateAutomationTouch(track.id, 'pan', next);
         };
         const onUp = () => {
+            if (track) endAutomationTouch(track.id, 'pan');
             saveHistorySnapshot();
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);

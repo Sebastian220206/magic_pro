@@ -30,6 +30,7 @@ import type { GridDivision } from '@/engine/midi/types';
 import { NEON_TRACK_PALETTE } from '@/lib/trackColor'
 import { MuteSoloGroupManager, type MuteSoloGroup } from '@/engine/mixer/muteSoloGroups'
 import { firstSubTab, resolveSubTab } from '@/lib/settingsTabs';
+import { automationRuntime } from '@/engine/automationRuntime';
 
 interface GlobalTrackPoint {
     time: number; // beats
@@ -648,6 +649,17 @@ interface ProjectState {
     duplicateClipAcross: (clipId: string, startBeat: number, endBeat: number) => string[];
     /** Interpolated value of an automation lane at a point in time. */
     automationValueAt: (trackId: string, parameter: string, time: number) => number | undefined;
+    /**
+     * A mixer control was grabbed, moved, released.
+     *
+     * Touch, Latch and Write need to know when a control is held and what it
+     * is passing through; without it the three write modes had nothing to
+     * record and were shown disabled. Cheap to call when the mode is Off or
+     * Read — the runtime ignores it.
+     */
+    beginAutomationTouch: (trackId: string, parameter: string) => void;
+    updateAutomationTouch: (trackId: string, parameter: string, value: number) => void;
+    endAutomationTouch: (trackId: string, parameter: string) => void;
     /** Monitor path: 'stereo' normally, 'mono' for a phase check. */
     monitorMode: 'stereo' | 'mono';
     setMonitorMode: (mode: 'stereo' | 'mono') => void;
@@ -1896,6 +1908,40 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 set({ liveRecordingClips: {} });
             }
 
+            /*
+             * Automation.
+             *
+             * Lanes used to be data nothing played: `automationValueAt` was
+             * called by one test and the mixer's Read/Touch/Latch/Write button
+             * wrote a field nothing read. The runtime decides per parameter
+             * whether the lane drives the control or the control is being
+             * recorded, and hands back only what changed this frame.
+             */
+            if (wrapped) automationRuntime.invalidate();
+            const { playback } = automationRuntime.tick(state.tracks, nextPlayhead, true);
+            if (playback.length > 0) {
+                set(s2 => ({
+                    tracks: s2.tracks.map(t => {
+                        const changes = playback.filter(p => p.trackId === t.id);
+                        if (changes.length === 0) return t;
+                        const next = { ...t };
+                        for (const change of changes) {
+                            if (change.parameter === 'volume') next.volume = change.value;
+                            else if (change.parameter === 'pan') next.pan = change.value;
+                        }
+                        return next;
+                    }),
+                }));
+                // The engine takes volume and pan together, so one call per
+                // touched track rather than one per parameter.
+                const touched = new Set(playback.map(p => p.trackId));
+                const after = get().tracks;
+                for (const id of touched) {
+                    const t = after.find(x => x.id === id);
+                    if (t) audioEngine.updateTrackParams(id, t.muted ? 0 : t.volume, t.pan);
+                }
+            }
+
             // --- Real-time Recording Logic ---
             if (recording) {
                 const isWithinPunchRange = !autopunchEnabled || (nextPlayhead >= autopunchStart && nextPlayhead <= autopunchEnd);
@@ -2028,6 +2074,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     stop: () => {
         const s = get();
         cancelCountIn();
+
+        // A Latch or Write pass ends when the transport does; that is what
+        // "until stop" means. Points are thinned and merged over the stretch
+        // the pass covered, so punching in on one phrase leaves the rest alone.
+        const committed = automationRuntime.commitPasses(s.tracks);
+        if (committed.length > 0) {
+            set(state => ({
+                tracks: state.tracks.map(t => {
+                    const forTrack = committed.filter(c => c.trackId === t.id);
+                    if (forTrack.length === 0) return t;
+                    const lanes = [...(t.automation ?? [])];
+                    for (const c of forTrack) {
+                        const idx = lanes.findIndex(l => l.parameter === c.parameter);
+                        if (idx >= 0) lanes[idx] = { ...lanes[idx], points: c.points };
+                        else lanes.push({ parameter: c.parameter, points: c.points });
+                    }
+                    return { ...t, automation: lanes };
+                }),
+                isDirty: true,
+            }));
+        }
+        automationRuntime.invalidate();
         if (s.recording) {
             // Finalize recordings
             set({ recording: false });
@@ -2960,6 +3028,22 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
      * Interpolated automation value. The store could record points but nothing
      * could read a lane back, so an automation curve was write-only.
      */
+    beginAutomationTouch: (trackId, parameter) => {
+        const track = get().tracks.find(t => t.id === trackId);
+        if (!track) return;
+        const value = parameter === 'pan' ? (track.pan ?? 0) : (track.volume ?? 0.8);
+        automationRuntime.beginTouch(trackId, parameter, track.automationMode ?? 'read', value);
+    },
+
+    updateAutomationTouch: (trackId, parameter, value) => {
+        automationRuntime.updateTouch(trackId, parameter, value);
+    },
+
+    endAutomationTouch: (trackId, parameter) => {
+        const track = get().tracks.find(t => t.id === trackId);
+        automationRuntime.endTouch(trackId, parameter, track?.automationMode ?? 'read');
+    },
+
     automationValueAt: (trackId, parameter, time) => {
         const lane = get().tracks.find(t => t.id === trackId)
             ?.automation?.find(a => a.parameter === parameter);

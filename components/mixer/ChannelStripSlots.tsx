@@ -15,6 +15,7 @@ import { createPortal } from 'react-dom';
 import { Check } from 'lucide-react';
 import type { Track } from '@/models/Track';
 import { useProjectStore } from '@/store/projectStore';
+import { AUTOMATION_MODES, isWriteMode, type AutomationMode } from '@/lib/automationModes';
 
 /* ─── A small menu, portalled so a strip cannot clip it ──────────────────── */
 
@@ -141,27 +142,22 @@ export function ChannelModeButton({ track }: { track: Track }) {
 
 /* ─── Automation Mode ───────────────────────────────────────────────────── */
 
-const AUTOMATION_MODES = [
-    { id: 'off', label: 'Off', works: true },
-    { id: 'read', label: 'Read', works: true },
-    { id: 'touch', label: 'Touch', works: false },
-    { id: 'latch', label: 'Latch', works: false },
-    { id: 'write', label: 'Write', works: false },
-] as const;
+
 
 /**
  * Off / Read / Touch / Latch / Write.
  *
- * The strip showed a fixed green "Read" that was a `<div>` — no menu, no
- * state, nothing read it. Off and Read change playback; the three write modes
- * need automation recording, which does not exist yet, so they are shown
- * disabled with a reason instead of quietly doing nothing.
+ * The strip showed a fixed green "Read" that was a `<div>`, then a menu that
+ * wrote `track.automationMode` — a field nothing read, because nothing applied
+ * an automation lane during playback at all. All five modes are live now; the
+ * three that write are tinted red, as a console does, because leaving one
+ * armed by accident overwrites a lane on the next pass.
  */
 export function AutomationModeButton({ track }: { track: Track }) {
     const updateTrack = useProjectStore(s => s.updateTrack);
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLButtonElement>(null);
-    const mode = track.automationMode ?? 'read';
+    const mode = (track.automationMode ?? 'read') as AutomationMode;
     const current = AUTOMATION_MODES.find(m => m.id === mode) ?? AUTOMATION_MODES[1];
 
     return (
@@ -175,7 +171,9 @@ export function AutomationModeButton({ track }: { track: Track }) {
                 onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
                 className={`h-full w-full rounded-[2px] border text-[8px] font-black uppercase transition-colors ${mode === 'off'
                     ? 'bg-black/60 border-studio-line text-studio-text-dim'
-                    : 'bg-black/60 border-accent-cyan/30 text-[#63ed63] hover:border-accent-cyan'}`}
+                    : isWriteMode(mode)
+                        ? 'bg-red-950/60 border-red-500/50 text-red-400 hover:border-red-400'
+                        : 'bg-black/60 border-accent-cyan/30 text-[#63ed63] hover:border-accent-cyan'}`}
             >
                 {current.label}
             </button>
@@ -185,8 +183,7 @@ export function AutomationModeButton({ track }: { track: Track }) {
                         key={m.id}
                         label={m.label}
                         checked={mode === m.id}
-                        disabled={!m.works}
-                        title={m.works ? undefined : 'Needs automation recording, which this DAW does not have yet'}
+                        title={m.hint}
                         onSelect={() => { updateTrack(track.id, { automationMode: m.id }); setOpen(false); }}
                     />
                 ))}
