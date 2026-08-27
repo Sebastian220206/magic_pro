@@ -4,6 +4,7 @@ import { useProjectStore } from '@/store/projectStore'
 import { PluginHost } from '@/components/plugins/PluginHost'
 import { ChannelEQ } from '@/components/ChannelEQ'
 import { Compressor } from './Compressor'
+import { Limiter } from './Limiter'
 import { BUILTIN_PLUGIN_IDS, resolvePluginId } from '@/engine/plugins/pluginIds'
 import { getBuiltinManifest } from '@/engine/plugins/registerBuiltins'
 import { WamGuiMount } from '@/components/plugins/WamGuiMount'
@@ -45,6 +46,8 @@ export function PluginEditorWindow() {
      * through to the manifest-driven list of sliders.
      */
     const isCompressor = resolvePluginId(plugin.pluginId) === BUILTIN_PLUGIN_IDS.compressor
+    /* The limiter had no editor at all, so it opened as generated sliders. */
+    const isLimiter = resolvePluginId(plugin.pluginId) === BUILTIN_PLUGIN_IDS.limiter
     const onParamChange = handleParamChange(trackId, pluginId)
 
     // Live processor for this slot, so a WAM can render its own GUI.
@@ -65,6 +68,8 @@ export function PluginEditorWindow() {
                     <ChannelEQ trackId={trackId} pluginId={pluginId} />
                 ) : isCompressor ? (
                     <Compressor trackId={trackId} pluginId={pluginId} />
+                ) : isLimiter ? (
+                    <Limiter trackId={trackId} pluginId={pluginId} />
                 ) : wamProcessor ? (
                     // A Web Audio Module ships its own interface; prefer it over
                     // anything we could generate.

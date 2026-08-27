@@ -533,6 +533,22 @@ export class AudioEngineAdapter implements MidiSink {
         return typeof effect?.getMeterData === 'function' ? effect.getMeterData() : null;
     }
 
+    /** A limiter's live input, reduction and output figures, per channel. */
+    getLimiterMeters(trackId: string, pluginId: string): {
+        inputLeft: number; inputRight: number;
+        outputLeft: number; outputRight: number; reduction: number;
+    } | null {
+        const processor = routingEngine.getInsertProcessor(trackId, pluginId) as
+            { builtinEffect?: { getMeterData?: () => unknown } } | null;
+        const effect = processor?.builtinEffect;
+        if (typeof effect?.getMeterData !== 'function') return null;
+        const data = effect.getMeterData() as Record<string, number>;
+        // The compressor's `getMeterData` has a different shape; only the
+        // limiter reports per-channel figures.
+        if (typeof data?.inputLeft !== 'number') return null;
+        return data as never;
+    }
+
     getEQFrequencyResponse(trackId: string, pluginId: string, frequencies: Float32Array): Float32Array {
         const processor = routingEngine.getInsertProcessor(trackId, pluginId) as
             { builtinEffect?: { getFrequencyResponse?: (f: Float32Array) => Float32Array } } | null;

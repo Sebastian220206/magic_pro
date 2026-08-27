@@ -440,6 +440,18 @@ export async function testCompressor(): Promise<void> {
     })));
 }
 
+/** Print what each limiter control does to a loud tone. */
+export async function testLimiter(): Promise<void> {
+    const { probeLimiter } = await import('./effectsProbe');
+    const results = await probeLimiter();
+    console.table(results.map(r => ({
+        Check: r.name,
+        Works: r.changesSignal ? 'yes' : 'NO',
+        'Change (dB)': r.difference.toFixed(2),
+        Peak: r.peak.toFixed(4),
+    })));
+}
+
 // Make these available in the global scope for console debugging
 if (typeof window !== 'undefined') {
     (window as any).audioDebug = {
@@ -455,5 +467,6 @@ if (typeof window !== 'undefined') {
         testEq,
         whyFlatEq,
         testCompressor,
+        testLimiter,
     };
 }

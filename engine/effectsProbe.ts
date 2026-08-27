@@ -364,6 +364,91 @@ export async function probeCompressor(): Promise<EffectProbeResult[]> {
 }
 
 /**
+ * Does each limiter control change the audio?
+ *
+ * The limiter had no editor, and its ceiling was applied twice: the compressor
+ * thresholded at it and the output stage was then scaled by it as well, so a
+ * -3 dB Output Level came out at -6.
+ */
+export async function probeLimiter(): Promise<EffectProbeResult[]> {
+    const results: EffectProbeResult[] = [];
+
+    const renderTone = async (params: Record<string, number>): Promise<number> => {
+        const rate = 48000;
+        const ctx = new OfflineAudioContext(2, rate, rate);
+        const osc = ctx.createOscillator();
+        osc.frequency.value = 220;
+        const level = ctx.createGain();
+        level.gain.value = 0.9;
+
+        const processor = await createProcessor(ctx, {
+            pluginId: BUILTIN_PLUGIN_IDS.limiter, format: 'builtin', params,
+        } as PluginSpec);
+        if (!processor) throw new Error('no limiter processor');
+
+        osc.connect(level);
+        level.connect(processor.input);
+        processor.output.connect(ctx.destination);
+        osc.start(0);
+        const rendered = await ctx.startRendering();
+
+        const data = rendered.getChannelData(0);
+        let peak = 0;
+        for (let i = Math.floor(data.length * 0.6); i < data.length; i++) {
+            peak = Math.max(peak, Math.abs(data[i]));
+        }
+        return peak;
+    };
+
+    const dbOf = (a: number) => 20 * Math.log10(Math.max(a, 1e-9));
+    const rel = (a: number, b: number) => dbOf(a) - dbOf(b);
+
+    const base = { ceiling: -6, release: 0.1, lookahead: 2, mode: 1, softKnee: 0 };
+    const flat = await renderTone(base);
+
+    // The ceiling is the ceiling — applied once, not twice.
+    results.push({
+        pluginId: 'lim.ceiling', name: 'Output Level -6 dB holds the peak at -6 dB',
+        built: true, peak: flat, passesAudio: flat > 0.001,
+        changesSignal: Math.abs(dbOf(flat) + 6) < 1.2, difference: dbOf(flat),
+    });
+
+    const lower = await renderTone({ ...base, ceiling: -12 });
+    results.push({
+        pluginId: 'lim.ceiling2', name: 'A lower ceiling lowers the output by the same amount',
+        built: true, peak: lower, passesAudio: true,
+        changesSignal: Math.abs(rel(lower, flat) + 6) < 1.2, difference: rel(lower, flat),
+    });
+
+    // Driving it harder must not push past the ceiling.
+    const driven = await renderTone({ ...base, gain: 12 });
+    results.push({
+        pluginId: 'lim.gain', name: 'Gain drives it harder without breaking the ceiling',
+        built: true, peak: driven, passesAudio: true,
+        changesSignal: dbOf(driven) < -4.5, difference: dbOf(driven),
+    });
+
+    // Legacy has no clipper, so a hard drive slips further past.
+    const legacy = await renderTone({ ...base, mode: 0, gain: 18, ceiling: -6 });
+    const precision = await renderTone({ ...base, mode: 1, gain: 18, ceiling: -6 });
+    results.push({
+        pluginId: 'lim.mode', name: 'Precision holds the ceiling tighter than Legacy',
+        built: true, peak: precision, passesAudio: true,
+        changesSignal: dbOf(precision) <= dbOf(legacy) + 0.05, difference: rel(precision, legacy),
+    });
+
+    // Bypass returns the untouched signal.
+    const bypassed = await renderTone({ ...base, bypass: 1 });
+    results.push({
+        pluginId: 'lim.bypass', name: 'Bypass returns the signal untouched',
+        built: true, peak: bypassed, passesAudio: true,
+        changesSignal: rel(bypassed, flat) > 3, difference: rel(bypassed, flat),
+    });
+
+    return results;
+}
+
+/**
  * Measure every built-in effect.
  *
  * Returns one row per effect rather than throwing, so one broken processor does
