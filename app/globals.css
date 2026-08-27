@@ -14,11 +14,20 @@
     /* Logic blue */
     --daw-text: #e0e0e0;
     --daw-text-dim: #999;
-    /* Cyan futuristic accent - single source of truth */
-    --accent-cyan: #22d3ee;
-    --accent-cyan-rgb: 34, 211, 238;
-    --accent-cyan-glow: rgba(var(--accent-cyan-rgb), 0.35);
-    --accent-cyan-glow-strong: rgba(var(--accent-cyan-rgb), 0.55);
+    /*
+     * Cyan futuristic accent - single source of truth.
+     *
+     * Held as space-separated channels, not a hex literal, because Tailwind's
+     * opacity modifier expands `bg-accent-cyan/80` to
+     * `rgb(var(--accent-cyan-rgb) / 0.8)`. With `34, 211, 238` the commas make
+     * that invalid, and an invalid colour paints nothing — which is why 184
+     * accent and studio classes carrying an opacity modifier were rendering
+     * transparent across the app. Insert chips in the mixer had no background.
+     */
+    --accent-cyan-rgb: 34 211 238;
+    --accent-cyan: rgb(var(--accent-cyan-rgb));
+    --accent-cyan-glow: rgb(var(--accent-cyan-rgb) / 0.35);
+    --accent-cyan-glow-strong: rgb(var(--accent-cyan-rgb) / 0.55);
 
     /*
      * Studio surfaces.
@@ -32,25 +41,35 @@
      * Deliberately separate from the --daw-* variables above, which are shared
      * with /dashboard, /login and /p/[shareId] and must not move.
      */
-    --studio-void: #04070b;
+    /* Channels, for the same reason as the accent above. */
+    --studio-void-rgb: 4 7 11;
+    --studio-panel-rgb: 13 20 29;
+    --studio-sunken-rgb: 8 13 20;
+    --studio-raised-rgb: 18 27 38;
+    --studio-control-rgb: 22 32 44;
+    --studio-text-rgb: 230 244 248;
+    --studio-text-mid-rgb: 163 186 205;
+    --studio-text-dim-rgb: 125 148 168;
+
+    --studio-void: rgb(var(--studio-void-rgb));
     /* Page ground, behind everything. */
-    --studio-panel: #0d141d;
+    --studio-panel: rgb(var(--studio-panel-rgb));
     /* Standard panel fill. */
-    --studio-sunken: #080d14;
+    --studio-sunken: rgb(var(--studio-sunken-rgb));
     /* Wells, canvas beds, anything recessed. */
-    --studio-raised: #121b26;
+    --studio-raised: rgb(var(--studio-raised-rgb));
     /* Headers and list rows, one step up from a panel. */
-    --studio-control: #16202c;
+    --studio-control: rgb(var(--studio-control-rgb));
     /* Buttons, inputs, anything you click. */
-    --studio-line: rgba(var(--accent-cyan-rgb), 0.12);
+    --studio-line: rgb(var(--accent-cyan-rgb) / 0.12);
     /* Ordinary dividers. */
-    --studio-line-strong: rgba(var(--accent-cyan-rgb), 0.22);
+    --studio-line-strong: rgb(var(--accent-cyan-rgb) / 0.22);
     /* Panel edges and focus. */
-    --studio-text: #e6f4f8;
+    --studio-text: rgb(var(--studio-text-rgb));
     /* Secondary labels. Sits between text and text-dim so the three tiers the
        old grey scale had (gray-300/400/500) survive the remap. */
-    --studio-text-mid: #a3bacd;
-    --studio-text-dim: #7d94a8;
+    --studio-text-mid: rgb(var(--studio-text-mid-rgb));
+    --studio-text-dim: rgb(var(--studio-text-dim-rgb));
 }
 
 @layer base {

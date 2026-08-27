@@ -11,7 +11,13 @@ const config: Config = {
             colors: {
                 background: "var(--daw-bg)",
                 foreground: "var(--daw-text)",
-                "accent-cyan": "var(--accent-cyan)",
+                /*
+                 * Built from channels with the alpha placeholder, so the
+                 * opacity modifier works. As a bare `var()` holding a hex,
+                 * `bg-accent-cyan/20` compiled to an invalid colour and
+                 * painted nothing — across 184 uses.
+                 */
+                "accent-cyan": "rgb(var(--accent-cyan-rgb) / <alpha-value>)",
                 "accent-cyan-glow": "var(--accent-cyan-glow)",
                 "accent-cyan-glow-strong": "var(--accent-cyan-glow-strong)",
                 daw: {
@@ -35,16 +41,19 @@ const config: Config = {
                  * hard-coded hex tokens with no shared name between them.
                  */
                 studio: {
-                    void: "var(--studio-void)",
-                    panel: "var(--studio-panel)",
-                    sunken: "var(--studio-sunken)",
-                    raised: "var(--studio-raised)",
-                    control: "var(--studio-control)",
+                    void: "rgb(var(--studio-void-rgb) / <alpha-value>)",
+                    panel: "rgb(var(--studio-panel-rgb) / <alpha-value>)",
+                    sunken: "rgb(var(--studio-sunken-rgb) / <alpha-value>)",
+                    raised: "rgb(var(--studio-raised-rgb) / <alpha-value>)",
+                    control: "rgb(var(--studio-control-rgb) / <alpha-value>)",
+                    // The two line colours are already translucent by
+                    // definition, so they stay whole rather than gaining a
+                    // second alpha on top of their own.
                     line: "var(--studio-line)",
                     "line-strong": "var(--studio-line-strong)",
-                    text: "var(--studio-text)",
-                    "text-mid": "var(--studio-text-mid)",
-                    "text-dim": "var(--studio-text-dim)",
+                    text: "rgb(var(--studio-text-rgb) / <alpha-value>)",
+                    "text-mid": "rgb(var(--studio-text-mid-rgb) / <alpha-value>)",
+                    "text-dim": "rgb(var(--studio-text-dim-rgb) / <alpha-value>)",
                 }
             },
 

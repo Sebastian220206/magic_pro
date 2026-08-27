@@ -9,7 +9,7 @@ import { LoudnessReadout } from "./MasterOutput"
 import { SendsSlot, OutputRouting, MonitorControls, SidechainPicker } from "./mixer/RoutingControls"
 import { PeakDisplay, LevelField, PanField, RecordMonitorButtons, resetAllPeakDisplays } from "./mixer/ChannelStripReadouts"
 import { ChannelModeButton, AutomationModeButton, VcaSlot, TrackNameField, OutputStripButtons } from "./mixer/ChannelStripSlots"
-import { STRIP_ROWS, STRIP_WIDTH, LEGEND_WIDTH, FADER_SCALE, stripTint, type StripRow } from "./mixer/stripLayout"
+import { STRIP_ROWS, STRIP_WIDTH, LEGEND_WIDTH, FADER_SCALE, MIXER_MIN_HEIGHT, MIXER_HEADER_HEIGHT, MIXER_FOOTER_HEIGHT, stripTint, type StripRow } from "./mixer/stripLayout"
 import { MidiFxMenu } from "./mixer/MidiFxMenu"
 import { MixerMenus, type MixerViewOptions } from "./mixer/MixerMenus"
 import type { MidiFxId } from "@/lib/midiFxCatalog"
@@ -115,7 +115,13 @@ export function Mixer() {
     return (
         <div className="h-full flex flex-col bg-studio-panel select-none text-studio-text-mid border-t border-[var(--accent-cyan)]/50 shadow-[0_-10px_30px_var(--accent-cyan-glow),0_-10px_30px_rgba(0,0,0,0.3)]">
             {/* 1. Mixer Command Header (High Fidelity Menu Bar) */}
-            <div className="h-9 bg-studio-raised border-b border-[var(--accent-cyan)]/30 flex items-center px-4 justify-between shrink-0">
+            {/* Height is a constant because the panel's minimum is derived
+                from it plus the rows; a Tailwind class here and a number in
+                `stripLayout` would drift apart. */}
+            <div
+                style={{ height: MIXER_HEADER_HEIGHT }}
+                className="bg-studio-raised border-b border-[var(--accent-cyan)]/30 flex items-center px-4 justify-between shrink-0"
+            >
                 <div className="flex items-center gap-1">
                     <MixerMenus view={viewOptions} onView={patch => setViewOptions(v => ({ ...v, ...patch }))} />
 
@@ -167,7 +173,7 @@ export function Mixer() {
             </div>
 
             {/* 2. Main Console View */}
-            <div className="flex-1 flex overflow-x-auto custom-scrollbar-h relative">
+            <div className="flex-1 flex overflow-x-auto overflow-y-hidden custom-scrollbar-h relative">
 
                 {/* Dynamic Channel Strips */}
                 {/* Legend. Renders the same row spec as the strips, so each
@@ -185,7 +191,7 @@ export function Mixer() {
                             key={row.key}
                             data-legend-row={row.key}
                             style={row.height === null ? undefined : { height: row.height }}
-                            className={`${row.height === null ? 'flex-1 min-h-0' : 'shrink-0'} pr-2 flex items-center justify-end`}
+                            className={`${row.height === null ? 'flex-1 min-h-0' : 'shrink-0'} overflow-hidden pr-2.5 flex items-center justify-end`}
                         >
                             {row.key === 'fader' ? (
                                 // The dB scale is printed once, down the side of
@@ -242,7 +248,10 @@ export function Mixer() {
 
             {/* EBU R128 loudness on the master bus — the figures needed to
                 master to a streaming target rather than by eye. */}
-            <div className="shrink-0 border-t border-white/5 px-2 py-1 flex justify-end">
+            <div
+                style={{ height: MIXER_FOOTER_HEIGHT }}
+                className="shrink-0 border-t border-white/5 px-2 flex items-center justify-end"
+            >
                 <LoudnessReadout />
             </div>
 
@@ -373,7 +382,7 @@ const DIM_FACTOR = 0.1;
  * anything much under this squeezes the fader down to a stub and the dB scale
  * beside it becomes unreadable. This leaves roughly 180px of fader travel.
  */
-const MIXER_MIN_HEIGHT = 640;
+
 
 interface MixerChannelStripProps {
     track: Track | null;
@@ -611,9 +620,9 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                         key={plugin.id}
                         onClick={(e) => { e.stopPropagation(); if (track) setOpenPluginEditor({ trackId: track.id, pluginId: plugin.id }); }}
                         title={plugin.name}
-                        className={`h-[13px] shrink-0 rounded-[2px] flex items-center px-1 text-[8px] font-black cursor-pointer truncate transition-all ${plugin.enabled
+                        className={`h-[15px] shrink-0 rounded-[2px] flex items-center px-1.5 text-[8px] font-bold cursor-pointer truncate transition-all ${plugin.enabled
                             ? 'bg-accent-cyan/80 text-black hover:bg-accent-cyan'
-                            : 'bg-studio-panel text-studio-text-dim opacity-60'}`}
+                            : 'bg-studio-control/80 border border-studio-line text-studio-text-dim hover:text-studio-text'}`}
                     >
                         {plugin.name}
                     </div>
@@ -835,7 +844,10 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                     key={row.key}
                     data-strip-row={row.key}
                     style={row.height === null ? undefined : { height: row.height }}
-                    className={`${row.height === null ? 'flex-1 min-h-0' : 'shrink-0'} px-1 ${row.key === 'name' ? 'px-0' : ''}`}
+                    /* `overflow-hidden` on every row: the Audio FX slot holds a
+                       list, and without it three inserts and an add button
+                       painted straight over the Sends slot below. */
+                    className={`${row.height === null ? 'flex-1 min-h-0' : 'shrink-0'} overflow-hidden px-1.5 py-px ${row.key === 'name' ? 'px-0 py-0' : ''}`}
                 >
                     {rows[row.key] ?? null}
                 </div>
