@@ -14,6 +14,8 @@
  * Input → Compressor → Makeup Gain → Output
  */
 
+import { modelProfile, autoMakeupDb, COMPRESSOR_MODELS } from '../../../lib/compressorCurve';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -32,6 +34,23 @@ export interface CompressorParameters {
 
 export interface CompressorState extends CompressorParameters {
   bypass: boolean;
+  /** Which character model, from `lib/compressorCurve`. */
+  model: string;
+  /** dB of trim before the detector — it changes how hard the unit works. */
+  inputGain: number;
+  /** dB of trim on the way out, after everything else. */
+  outputGain: number;
+  /** 0-1 parallel blend. Below 1 the uncompressed signal comes back in. */
+  mix: number;
+  /** Brickwall after the compressor. */
+  limiterOn: boolean;
+  limiterThreshold: number;
+  /** 0-1 drive into the waveshaper, on top of the model's own character. */
+  distortion: number;
+  /** How the waveshaper bends: rounded, or straight into a clip. */
+  distortionHard: boolean;
+  /** Makeup the unit works out for itself: off, to 0 dBFS, or to -12. */
+  autoGain: 'off' | '0db' | '-12db';
 }
 
 export interface CompressorOptions {
@@ -104,6 +123,26 @@ export class CompressorPlugin {
   private compressor!: DynamicsCompressorNode;
   private makeupGainNode!: GainNode;
   private saturationNode!: WaveShaperNode;
+  private trimIn!: GainNode;
+  private trimOut!: GainNode;
+  private limiterNode!: DynamicsCompressorNode;
+  private wetNode!: GainNode;
+  private dryNode!: GainNode;
+  private inputAnalyser!: AnalyserNode;
+  private outputAnalyser!: AnalyserNode;
+  private meterBuffer!: Float32Array<ArrayBuffer>;
+  /** Everything the editor shows beyond the three original knobs. */
+  private extras = {
+    model: 'platinum',
+    inputGain: 0,
+    outputGain: 0,
+    mix: 1,
+    limiterOn: false,
+    limiterThreshold: -3,
+    distortion: 0,
+    distortionHard: false,
+    autoGain: 'off' as 'off' | '0db' | '-12db',
+  };
   private inputNode!: GainNode;
   private outputNode!: GainNode;
   private bypassNode!: GainNode;
@@ -162,10 +201,48 @@ export class CompressorPlugin {
     this.makeupGainNode.gain.value = this.dbToGain(this.params.makeupGain);
     
     // Chain: input → compressor → saturation → makeup gain → output
-    this.inputNode.connect(this.compressor);
+    // The stages the editor exposes, in the order a hardware unit has them.
+    this.trimIn = ctx.createGain();
+    this.trimOut = ctx.createGain();
+    this.wetNode = ctx.createGain();
+    this.dryNode = ctx.createGain();
+    this.dryNode.gain.value = 0;
+
+    // A limiter is a compressor with a huge ratio and no attack to speak of.
+    this.limiterNode = ctx.createDynamicsCompressor();
+    this.limiterNode.threshold.value = this.extras.limiterThreshold;
+    this.limiterNode.ratio.value = 20;
+    this.limiterNode.knee.value = 0;
+    this.limiterNode.attack.value = 0.001;
+    this.limiterNode.release.value = 0.05;
+
+    // Metering, so the editor's meters read the signal rather than a guess.
+    this.inputAnalyser = ctx.createAnalyser();
+    this.outputAnalyser = ctx.createAnalyser();
+    this.inputAnalyser.fftSize = 1024;
+    this.outputAnalyser.fftSize = 1024;
+    this.meterBuffer = new Float32Array(new ArrayBuffer(1024 * 4));
+
+    // Chain: in → trim → [meter] → comp → saturation → makeup → limiter
+    //           → out trim → [meter] → wet ┐
+    //        └───────────────────────  dry ┴→ out
+    this.inputNode.connect(this.trimIn);
+    this.trimIn.connect(this.inputAnalyser);
+    this.trimIn.connect(this.compressor);
     this.compressor.connect(this.saturationNode);
     this.saturationNode.connect(this.makeupGainNode);
-    this.makeupGainNode.connect(this.outputNode);
+    this.makeupGainNode.connect(this.limiterNode);
+    this.limiterNode.connect(this.trimOut);
+    this.trimOut.connect(this.outputAnalyser);
+    this.trimOut.connect(this.wetNode);
+    this.wetNode.connect(this.outputNode);
+
+    // The dry path taps ahead of the input trim, so Mix blends the signal as
+    // it arrived — parallel compression, not a trimmed copy.
+    this.inputNode.connect(this.dryNode);
+    this.dryNode.connect(this.outputNode);
+
+    // The bypass edge below is untouched.
     
     // Bypass: input → bypassNode → output
     this.inputNode.connect(this.bypassNode);
@@ -173,19 +250,30 @@ export class CompressorPlugin {
   }
   
   /**
-   * Create a waveshaper curve for saturation
+   * The waveshaper's transfer curve.
+   *
+   * `hard` is the editor's Soft/Hard switch: soft rounds the peaks over, hard
+   * runs straight until it hits the ceiling and stops, which is the difference
+   * between saturation and clipping.
    */
-  private makeSaturationCurve(drive: number): Float32Array<ArrayBuffer> {
-    const samples = 44100;
-    const curve: Float32Array<ArrayBuffer> = new Float32Array(samples);
+  private makeSaturationCurve(drive: number, hard = false): Float32Array<ArrayBuffer> {
+    // 8192 points is plenty for a smooth curve and builds in under a
+    // millisecond; 44100 rebuilt on every knob turn was the expensive part.
+    const samples = 8192;
+    const curve: Float32Array<ArrayBuffer> = new Float32Array(new ArrayBuffer(samples * 4));
     const deg = Math.PI / 180;
-    
+
     for (let i = 0; i < samples; i++) {
-      const x = (i * 2) / samples - 1;
-      // Soft-clipping saturation
-      curve[i] = ((3 + drive) * x * 20 * deg) / (Math.PI + drive * Math.abs(x));
+      const x = (i * 2) / (samples - 1) - 1;
+      if (hard) {
+        // Straight through, then flat. The ceiling closes as drive rises.
+        const ceiling = 1 / (1 + drive * 0.5);
+        curve[i] = Math.max(-1, Math.min(1, x / ceiling));
+      } else {
+        curve[i] = ((3 + drive) * x * 20 * deg) / (Math.PI + drive * Math.abs(x));
+      }
     }
-    
+
     return curve;
   }
   
@@ -326,13 +414,28 @@ export class CompressorPlugin {
   /**
    * Get full metering data
    */
+  /** Peak of one analyser read, as dBFS. */
+  private peakDb(analyser: AnalyserNode): number {
+    analyser.getFloatTimeDomainData(this.meterBuffer);
+    let peak = 0;
+    for (let i = 0; i < this.meterBuffer.length; i++) {
+      const value = Math.abs(this.meterBuffer[i]);
+      if (value > peak) peak = value;
+    }
+    return peak > 0 ? Math.max(-60, 20 * Math.log10(peak)) : -60;
+  }
+
+  /**
+   * Input level, output level and gain reduction, all measured.
+   *
+   * The input and output figures used to be `0` with a comment saying they
+   * would need analysers. The editor's two meters had nothing to show.
+   */
   public getMeterData(): CompressorReduction {
-    // Note: Web Audio API doesn't provide direct input/output level
-    // These would need to be measured with separate analyzers
     return {
       reduction: this.getReduction(),
-      inputLevel: 0,    // Would need analyzer
-      outputLevel: 0,   // Would need analyzer
+      inputLevel: this.peakDb(this.inputAnalyser),
+      outputLevel: this.peakDb(this.outputAnalyser),
     };
   }
   
@@ -348,9 +451,12 @@ export class CompressorPlugin {
     const currentTime = this.audioContext.currentTime;
     
     if (bypass) {
-      // Enable bypass path, compressor output muted
+      // Enable bypass path, compressor output muted. The dry path is muted
+      // too: with Mix below 1 it would otherwise add a second copy of the
+      // signal on top of the bypass.
       this.bypassNode.gain.setTargetAtTime(1, currentTime, this.SMOOTHING_TIME);
       this.makeupGainNode.gain.setTargetAtTime(0, currentTime, this.SMOOTHING_TIME);
+      this.dryNode.gain.setTargetAtTime(0, currentTime, this.SMOOTHING_TIME);
     } else {
       // Disable bypass, enable compressor
       this.bypassNode.gain.setTargetAtTime(0, currentTime, this.SMOOTHING_TIME);
@@ -359,6 +465,7 @@ export class CompressorPlugin {
         currentTime,
         this.SMOOTHING_TIME
       );
+      this.applyExtras();
     }
   }
   
@@ -399,6 +506,7 @@ export class CompressorPlugin {
   public getState(): CompressorState {
     return {
       ...this.params,
+      ...this.extras,
       bypass: this.isBypassed,
     };
   }
@@ -411,7 +519,94 @@ export class CompressorPlugin {
     if (state.knee !== undefined) this.setKnee(state.knee);
     if (state.makeupGain !== undefined) this.setMakeupGain(state.makeupGain);
     if (state.mode !== undefined) this.setMode(state.mode);
+
+    // Everything the redesigned editor adds. Booleans arrive as 0/1 from
+    // automation, which only carries numbers, so they are coerced rather than
+    // compared against `true`.
+    const e = this.extras;
+    if (state.model !== undefined) {
+      // The editor writes an index, because automation carries only numbers;
+      // a saved project holds the id. Stringifying the index gave "6", which
+      // matches no model, so every one of them fell back to Platinum and the
+      // seven characters were identical.
+      e.model = typeof state.model === 'number'
+        ? (COMPRESSOR_MODELS[Math.round(state.model)]?.id ?? 'platinum')
+        : String(state.model);
+    }
+    if (state.inputGain !== undefined) e.inputGain = Number(state.inputGain);
+    if (state.outputGain !== undefined) e.outputGain = Number(state.outputGain);
+    if (state.mix !== undefined) e.mix = Number(state.mix);
+    if (state.limiterOn !== undefined) e.limiterOn = !!state.limiterOn;
+    if (state.limiterThreshold !== undefined) e.limiterThreshold = Number(state.limiterThreshold);
+    if (state.distortion !== undefined) e.distortion = Number(state.distortion);
+    if (state.distortionHard !== undefined) e.distortionHard = !!state.distortionHard;
+    if (state.autoGain !== undefined) {
+      // The editor writes an index; a saved project may hold the name.
+      const modes = ['off', '0db', '-12db'] as const;
+      e.autoGain = typeof state.autoGain === 'number'
+        ? (modes[Math.round(state.autoGain)] ?? 'off')
+        : (state.autoGain as typeof e.autoGain);
+    }
+    this.applyExtras();
+
     if (state.bypass !== undefined) this.setBypass(state.bypass);
+  }
+
+  /**
+   * Push the added stages to their nodes.
+   *
+   * Kept in one place so any of the eight can be written without the caller
+   * having to know which node it lands on.
+   */
+  private applyExtras(): void {
+    const now = this.audioContext.currentTime;
+    const e = this.extras;
+    const clamp = (v: number, lo: number, hi: number) =>
+      Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : lo));
+
+    this.trimIn.gain.setTargetAtTime(
+      this.dbToGain(clamp(e.inputGain, -30, 30)), now, this.SMOOTHING_TIME);
+
+    // Auto Gain replaces the makeup knob when it is on; the model's own
+    // character sets the rest.
+    const profile = modelProfile(e.model);
+    const auto = autoMakeupDb(e.autoGain, this.params.threshold, this.params.ratio, this.params.knee);
+    const makeup = e.autoGain === 'off' ? this.params.makeupGain : auto;
+    if (!this.isBypassed) {
+      this.makeupGainNode.gain.setTargetAtTime(
+        this.dbToGain(clamp(makeup, -30, 30)), now, this.SMOOTHING_TIME);
+    }
+
+    this.trimOut.gain.setTargetAtTime(
+      this.dbToGain(clamp(e.outputGain, -30, 30)), now, this.SMOOTHING_TIME);
+
+    // A limiter that is off is a threshold no signal can reach, rather than a
+    // node unlinked from the chain — relinking a live graph clicks.
+    this.limiterNode.threshold.setTargetAtTime(
+      e.limiterOn ? clamp(e.limiterThreshold, -30, 0) : 0, now, this.SMOOTHING_TIME);
+    this.limiterNode.ratio.setTargetAtTime(e.limiterOn ? 20 : 1, now, this.SMOOTHING_TIME);
+
+    const wet = clamp(e.mix, 0, 1);
+    this.wetNode.gain.setTargetAtTime(wet, now, this.SMOOTHING_TIME);
+    this.dryNode.gain.setTargetAtTime(1 - wet, now, this.SMOOTHING_TIME);
+
+    // Drive is the model's character plus whatever the knob adds.
+    const drive = clamp(profile.drive + e.distortion * 3, 0, 4);
+    this.saturationNode.curve = this.makeSaturationCurve(1 + drive, e.distortionHard);
+
+    /*
+     * The model bends the times the user dialled in.
+     *
+     * This is what makes an Opto feel slow and a FET instant at the same knob
+     * setting — without it the seven models would differ only in saturation,
+     * which is a colour, not a character.
+     */
+    this.compressor.attack.setTargetAtTime(
+      clamp(this.params.attack * profile.attackScale, 0, 1), now, this.SMOOTHING_TIME);
+    this.compressor.release.setTargetAtTime(
+      clamp(this.params.release * profile.releaseScale, 0.001, 1), now, this.SMOOTHING_TIME);
+    this.compressor.knee.setTargetAtTime(
+      clamp(this.params.knee + profile.kneeBias, 0, 40), now, this.SMOOTHING_TIME);
   }
   
   // ===========================================================================

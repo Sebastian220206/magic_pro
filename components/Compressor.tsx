@@ -1,304 +1,468 @@
 "use client"
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/store/projectStore'
 import { audioEngine } from '@/engine/AudioEngineAdapter'
+import { EqKnob } from './eq/EqKnob'
+import {
+    COMPRESSOR_MODELS, transferCurve, meterFraction, autoMakeupDb,
+    type AutoGainMode,
+} from '@/lib/compressorCurve'
 
-// --- Component Definition ---
+/**
+ * The compressor.
+ *
+ * This editor was in the unreachable baseline — nothing imported it, so the
+ * compressor opened as the manifest-driven list of sliders. The DSP underneath
+ * had three character modes, no input or output trim, no parallel blend, no
+ * limiter, no distortion control, and metering that returned zero for input
+ * and output with a comment saying analysers would be needed. All of that is
+ * real now, and this is the interface over it.
+ */
 
-interface CompressorProps {
-    trackId: string
-    pluginId: string
+const AUTO_GAIN_MODES: { id: AutoGainMode; label: string }[] = [
+    { id: 'off', label: 'Off' },
+    { id: '0db', label: '0 dB' },
+    { id: '-12db', label: '-12 dB' },
+];
+
+interface CompState {
+    model: string;
+    threshold: number;
+    ratio: number;
+    makeupGain: number;
+    knee: number;
+    attack: number;
+    release: number;
+    inputGain: number;
+    outputGain: number;
+    mix: number;
+    limiterOn: boolean;
+    limiterThreshold: number;
+    distortion: number;
+    distortionHard: boolean;
+    autoGain: AutoGainMode;
 }
 
-export function Compressor({ trackId, pluginId }: CompressorProps) {
-    const { updatePluginParams, tracks } = useProjectStore()
-    const track = tracks.find(t => t.id === trackId)
-    const plugin = track?.plugins.find(p => p.id === pluginId)
+const DEFAULTS: CompState = {
+    model: 'platinum',
+    threshold: -24, ratio: 4, makeupGain: 0,
+    knee: 6, attack: 0.01, release: 0.1,
+    inputGain: 0, outputGain: 0, mix: 1,
+    limiterOn: false, limiterThreshold: -3,
+    distortion: 0, distortionHard: false,
+    autoGain: 'off',
+};
 
-    const [params, setParams] = useState({
-        threshold: plugin?.params?.threshold ?? -20,
-        ratio: plugin?.params?.ratio ?? 2,
-        makeup: plugin?.params?.makeup ?? 0,
-        knee: plugin?.params?.knee ?? 0.5,
-        attack: plugin?.params?.attack ?? 0.003,
-        release: plugin?.params?.release ?? 0.25,
-        inputGain: plugin?.params?.inputGain ?? 0,
-        outputGain: plugin?.params?.outputGain ?? 0,
-        mix: plugin?.params?.mix ?? 100,
-        distortion: plugin?.params?.distortion ?? 0,
-        autoGain: plugin?.params?.autoGain ?? 0,
-        circuit: plugin?.params?.circuit ?? 0,
-        limiter: plugin?.params?.limiter ?? 0,
-        limiterThreshold: plugin?.params?.limiterThreshold ?? -6,
-    })
+function stateFromParams(p: Record<string, number> | undefined): CompState {
+    const num = (k: keyof CompState, fallback: number) =>
+        typeof p?.[k as string] === 'number' ? (p![k as string] as number) : fallback;
+    return {
+        model: COMPRESSOR_MODELS[Math.round(num('model' as never, 0))]?.id ?? DEFAULTS.model,
+        threshold: num('threshold', DEFAULTS.threshold),
+        ratio: num('ratio', DEFAULTS.ratio),
+        makeupGain: num('makeupGain', DEFAULTS.makeupGain),
+        knee: num('knee', DEFAULTS.knee),
+        attack: num('attack', DEFAULTS.attack),
+        release: num('release', DEFAULTS.release),
+        inputGain: num('inputGain', DEFAULTS.inputGain),
+        outputGain: num('outputGain', DEFAULTS.outputGain),
+        mix: num('mix', DEFAULTS.mix),
+        limiterOn: num('limiterOn' as never, 0) !== 0,
+        limiterThreshold: num('limiterThreshold', DEFAULTS.limiterThreshold),
+        distortion: num('distortion', DEFAULTS.distortion),
+        distortionHard: num('distortionHard' as never, 0) !== 0,
+        autoGain: AUTO_GAIN_MODES[Math.round(num('autoGain' as never, 0))]?.id ?? 'off',
+    };
+}
 
-    const [viewMode, setViewMode] = useState<'meter' | 'graph'>('meter')
-    const meterRef = useRef<HTMLCanvasElement>(null)
-    const [reduction, setReduction] = useState(0)
-    const smoothedReduction = useRef(0)
-    
-    // Meter States
-    const [inputLevel, setInputLevel] = useState(-60)
-    const [outputLevel, setOutputLevel] = useState(-60)
-    const inputAnalyser = useRef<AnalyserNode | null>(null)
-    const outputAnalyser = useRef<AnalyserNode | null>(null)
+/** A vertical meter with the scale printed beside it, as in the reference. */
+function LevelMeter({ db, label, scaleOnLeft }: { db: number; label: string; scaleOnLeft?: boolean }) {
+    const MARKS = [3, 0, -3, -6, -9, -12, -18, -24, -30, -40, -50, -60];
+    const fraction = meterFraction(db);
+    return (
+        <div className="flex flex-col items-center gap-1">
+            <div className="px-1.5 py-0.5 rounded border border-accent-cyan/30 bg-black/60 text-[8px] font-bold tabular-nums text-accent-cyan">
+                {db <= -60 ? '-∞ dB' : `${db.toFixed(1)} dB`}
+            </div>
+            <div className={`flex items-stretch gap-1 ${scaleOnLeft ? '' : 'flex-row-reverse'}`}>
+                <div className="flex flex-col justify-between py-0.5">
+                    {MARKS.map(m => (
+                        <span key={m} className="text-[6px] leading-none tabular-nums text-studio-text-dim">{m}</span>
+                    ))}
+                </div>
+                <div className="relative w-3 h-[248px] rounded-sm bg-black/70 border border-studio-line overflow-hidden">
+                    <div
+                        className="absolute bottom-0 left-0 right-0 transition-[height] duration-75"
+                        style={{
+                            height: `${fraction * 100}%`,
+                            background: 'linear-gradient(to top, #22d3ee, #67e8f9 70%, #fbbf24 92%, #ef4444)',
+                        }}
+                    />
+                </div>
+            </div>
+            <span className="text-[8px] font-bold uppercase tracking-wider text-studio-text-dim">{label}</span>
+        </div>
+    );
+}
 
+export function Compressor({ trackId, pluginId }: { trackId: string; pluginId: string }) {
+    const updatePluginParams = useProjectStore(s => s.updatePluginParams);
+    const tracks = useProjectStore(s => s.tracks);
+    const track = tracks.find(t => t.id === trackId);
+    const plugin = track?.plugins.find(p => p.id === pluginId);
+
+    const [state, setState] = useState<CompState>(() => stateFromParams(plugin?.params as never));
+    const [view, setView] = useState<'meter' | 'graph'>('meter');
+    const [meters, setMeters] = useState({ reduction: 0, inputLevel: -60, outputLevel: -60 });
+
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const drawState = useRef({ state, view, meters });
+    useEffect(() => { drawState.current = { state, view, meters }; }, [state, view, meters]);
+
+    /** Write everything as the flat numbers automation can carry. */
+    const commit = useCallback((next: CompState) => {
+        updatePluginParams(trackId, pluginId, {
+            model: COMPRESSOR_MODELS.findIndex(m => m.id === next.model),
+            threshold: next.threshold,
+            ratio: next.ratio,
+            makeupGain: next.makeupGain,
+            knee: next.knee,
+            attack: next.attack,
+            release: next.release,
+            inputGain: next.inputGain,
+            outputGain: next.outputGain,
+            mix: next.mix,
+            limiterOn: next.limiterOn ? 1 : 0,
+            limiterThreshold: next.limiterThreshold,
+            distortion: next.distortion,
+            distortionHard: next.distortionHard ? 1 : 0,
+            autoGain: AUTO_GAIN_MODES.findIndex(m => m.id === next.autoGain),
+        });
+    }, [trackId, pluginId, updatePluginParams]);
+
+    const edit = useCallback((patch: Partial<CompState>) => {
+        setState(prev => {
+            const next = { ...prev, ...patch };
+            commit(next);
+            return next;
+        });
+    }, [commit]);
+
+    // Meters, read from the live processor.
     useEffect(() => {
-        const nodes = audioEngine.getTrackNodes(trackId);
-        const compEntry = nodes?.nodes?.find(n => n.id === pluginId);
-        if (compEntry && (compEntry as any).internalNodes) {
-            const [input, comp, makeup] = (compEntry as any).internalNodes;
-            const ctx = audioEngine.getContext();
-            if (ctx && ctx.state !== 'suspended') {
-                inputAnalyser.current = ctx.createAnalyser();
-                outputAnalyser.current = ctx.createAnalyser();
-                inputAnalyser.current!.fftSize = 256;
-                outputAnalyser.current!.fftSize = 256;
-                input.connect(inputAnalyser.current);
-                makeup.connect(outputAnalyser.current);
-            }
-        }
-        let frame: number;
-        const update = () => {
-            const trackNodes = audioEngine.getTrackNodes(trackId);
-            const compNode = trackNodes?.nodes?.find(n => n.id === pluginId)?.instance as DynamicsCompressorNode | any;
-            if (compNode && compNode.reduction !== undefined) {
-                const target = Math.abs(typeof compNode.reduction === 'number' ? compNode.reduction : 0);
-                smoothedReduction.current += (target - smoothedReduction.current) * 0.12;
-                setReduction(smoothedReduction.current);
-            }
-            if (inputAnalyser.current && outputAnalyser.current) {
-                const data = new Float32Array(inputAnalyser.current.frequencyBinCount);
-                inputAnalyser.current.getFloatTimeDomainData(data);
-                let rms = 0; for (let i = 0; i < data.length; i++) rms += data[i] * data[i];
-                const dbIn = rms > 0 ? 20 * Math.log10(Math.sqrt(rms / data.length)) : -60;
-                setInputLevel(prev => prev + (dbIn - prev) * 0.25);
-                outputAnalyser.current.getFloatTimeDomainData(data);
-                rms = 0; for (let i = 0; i < data.length; i++) rms += data[i] * data[i];
-                const dbOut = rms > 0 ? 20 * Math.log10(Math.sqrt(rms / data.length)) : -60;
-                setOutputLevel(prev => prev + (dbOut - prev) * 0.25);
-            }
-            drawDisplay();
-            frame = requestAnimationFrame(update);
+        let raf = 0;
+        const tick = () => {
+            raf = requestAnimationFrame(tick);
+            const data = audioEngine.getCompressorMeters?.(trackId, pluginId);
+            if (data) setMeters(data);
         };
-        update();
-        return () => { cancelAnimationFrame(frame); inputAnalyser.current?.disconnect(); outputAnalyser.current?.disconnect(); };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
     }, [trackId, pluginId]);
 
-    const drawDisplay = () => {
-        const canvas = meterRef.current; if (!canvas) return;
-        const ctx = canvas.getContext('2d'); if (!ctx) return;
-        const w = canvas.width; const h = canvas.height;
-        ctx.clearRect(0, 0, w, h);
-        if (viewMode === 'meter') drawAnalogMeter(ctx, w, h);
-        else drawCompressionGraph(ctx, w, h);
-    };
+    // The display: a gain-reduction meter, or the transfer curve.
+    useEffect(() => {
+        let raf = 0;
+        const draw = () => {
+            raf = requestAnimationFrame(draw);
+            const canvas = canvasRef.current;
+            const ctx = canvas?.getContext('2d');
+            if (!canvas || !ctx) return;
+            const dpr = window.devicePixelRatio || 1;
+            const w = canvas.clientWidth;
+            const h = canvas.clientHeight;
+            if (!w || !h) return;
+            if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+                canvas.width = w * dpr; canvas.height = h * dpr;
+            }
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = '#060c14';
+            ctx.fillRect(0, 0, w, h);
 
-    const drawAnalogMeter = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-        const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, '#f8fafc'); grad.addColorStop(1, '#cbd5e1');
-        ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
-        ctx.strokeStyle = '#334155'; ctx.font = 'bold 12px "Inter", sans-serif'; ctx.fillStyle = '#334155'; ctx.textAlign = 'center';
-        const cx = w/2; const cy = h + 130; const rad = h * 1.6;
-        const startA = -Math.PI * 0.62; const endA = -Math.PI * 0.38;
-        [0, 5, 10, 20, 30, 50].forEach(v => {
-            const an = endA + (v/50) * (startA - endA);
-            ctx.beginPath(); ctx.lineWidth = 1.5;
-            ctx.moveTo(cx + Math.cos(an) * rad, cy + Math.sin(an) * rad);
-            ctx.lineTo(cx + Math.cos(an) * (rad - 12), cy + Math.sin(an) * (rad - 12));
-            ctx.stroke();
-            ctx.fillText(v === 0 ? '0' : `-${v}`, cx + Math.cos(an) * (rad - 30), cy + Math.sin(an) * (rad - 30));
-        });
-        const nAn = endA + (Math.min(50, reduction) / 50) * (startA - endA);
-        ctx.beginPath(); ctx.strokeStyle = '#cc2a1a'; ctx.lineWidth = 2.5; ctx.lineCap='round';
-        ctx.moveTo(cx + Math.cos(nAn) * 30, cy + Math.sin(nAn) * 30);
-        ctx.lineTo(cx + Math.cos(nAn) * (rad - 5), cy + Math.sin(nAn) * (rad - 5));
-        ctx.stroke();
-    };
+            const live = drawState.current;
 
-    const drawCompressionGraph = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-        ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, w, h);
-        ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
-        for(let i=0; i<=10; i++) { 
-            const x = (i/10)*w; const y = (i/10)*h;
-            ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
-        }
-        const thresh = (params.threshold + 50) / 50; const r = params.ratio;
-        ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.beginPath();
-        for(let i=0; i<w; i++) {
-            const xN = i/w; const yN = xN > thresh ? thresh + (xN - thresh) / r : xN;
-            if (i === 0) ctx.moveTo(i, h - yN * h); else ctx.lineTo(i, h - yN * h);
-        }
-        ctx.stroke();
-    };
+            if (live.view === 'graph') {
+                // Transfer curve: input level in, output level out.
+                ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+                ctx.lineWidth = 1;
+                for (let db = -60; db <= 0; db += 12) {
+                    const x = ((db + 60) / 60) * w;
+                    const y = h - ((db + 60) / 60) * h;
+                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+                }
+                // Unity, for reference.
+                ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath(); ctx.moveTo(0, h); ctx.lineTo(w, 0); ctx.stroke();
+                ctx.setLineDash([]);
 
-    const handleParamChange = (k: string, v: number) => {
-        const newParams = { ...params, [k]: v }; setParams(newParams);
-        updatePluginParams(trackId, pluginId, newParams);
-    };
+                const makeup = live.state.autoGain === 'off'
+                    ? live.state.makeupGain
+                    : autoMakeupDb(live.state.autoGain, live.state.threshold, live.state.ratio, live.state.knee);
+                const points = transferCurve(
+                    live.state.threshold, live.state.ratio, live.state.knee, makeup,
+                    { enabled: live.state.limiterOn, threshold: live.state.limiterThreshold },
+                );
+                ctx.beginPath();
+                points.forEach((p, i) => {
+                    const x = ((p.inputDb + 60) / 60) * w;
+                    const y = h - ((Math.max(-60, Math.min(6, p.outputDb)) + 60) / 66) * h;
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                });
+                ctx.strokeStyle = '#22d3ee';
+                ctx.lineWidth = 2;
+                ctx.stroke();
 
-    const circuits = ["Platinum Digital", "Studio VCA", "Studio FET", "Classic VCA", "Vintage VCA", "Vintage FET", "Vintage Opto"];
+                // Where the signal sits on that curve right now.
+                const inX = ((Math.max(-60, live.meters.inputLevel) + 60) / 60) * w;
+                ctx.strokeStyle = 'rgba(251,191,36,0.7)';
+                ctx.beginPath(); ctx.moveTo(inX, 0); ctx.lineTo(inX, h); ctx.stroke();
+            } else {
+                // Gain-reduction meter, reading right to left from 0.
+                const SCALE = [-50, -30, -20, -10, -5, 0];
+                ctx.font = '10px ui-monospace, monospace';
+                ctx.fillStyle = 'rgba(255,255,255,0.45)';
+                for (const db of SCALE) {
+                    const x = ((db + 60) / 60) * w;
+                    ctx.fillText(String(db), x - 8, 18);
+                    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+                    ctx.beginPath(); ctx.moveTo(x, 22); ctx.lineTo(x, 30); ctx.stroke();
+                }
+
+                const reduction = Math.abs(live.meters.reduction);
+                const barY = h * 0.45;
+                const barH = h * 0.22;
+                ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                ctx.fillRect(0, barY, w, barH);
+
+                // Reduction grows leftward from 0 dB at the right edge.
+                const span = (reduction / 30) * w;
+                const gradient = ctx.createLinearGradient(w - span, 0, w, 0);
+                gradient.addColorStop(0, '#22d3ee');
+                gradient.addColorStop(1, '#fbbf24');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(w - span, barY, span, barH);
+
+                ctx.fillStyle = '#e6f4f8';
+                ctx.font = 'bold 13px ui-monospace, monospace';
+                ctx.fillText(`${reduction.toFixed(1)} dB GR`, 12, h - 14);
+            }
+        };
+        raf = requestAnimationFrame(draw);
+        return () => cancelAnimationFrame(raf);
+    }, []);
 
     return (
-        <div className="flex flex-col bg-[#0f172a] rounded-sm text-white select-none border border-black shadow-[0_50px_100px_rgba(0,0,0,0.8)] overflow-hidden" 
-             style={{ width: '1024px', height: '720px' }}>
-            
-            {/* Phase 2: Design System - Header */}
-            <div className="h-[56px] bg-[#1e293b] border-b border-black flex items-center px-4 justify-between gap-1 shadow-md">
-                {circuits.map((c, i) => (
-                    <button key={i} onClick={() => handleParamChange('circuit', i)}
-                        className={`flex-1 h-9 text-[10px] font-bold uppercase transition-all border border-black/40 ${params.circuit === i ? 'bg-[#38bdf8] text-black border-[#38bdf8] shadow-lg' : 'bg-[#1e293b] text-slate-500 hover:text-slate-300'}`}>
-                        {c}
-                    </button>
-                ))}
+        <div
+            data-compressor-editor
+            className="w-[1000px] max-w-[calc(100vw-1rem)] rounded-xl border border-accent-cyan/25 bg-gradient-to-b from-[#0c1826] to-[#060a10] shadow-[0_30px_80px_rgba(0,0,0,0.85)] overflow-hidden"
+        >
+            {/* Title */}
+            <div className="relative px-6 pt-3 pb-2 text-center border-b border-accent-cyan/15">
+                <div className="absolute left-6 top-3 text-[8px] font-bold uppercase tracking-[0.2em] text-studio-text-dim">
+                    {track?.name ?? 'Track'}
+                </div>
+                <h2 className="text-[22px] leading-none font-light tracking-wide text-accent-cyan drop-shadow-[0_0_16px_rgba(34,211,238,0.5)]">
+                    Compressor
+                </h2>
             </div>
 
-            <div className="flex flex-1 gap-0">
-                {/* PHASE 3: LEFT PANEL (cols 1-2) - 160px */}
-                <div className="w-[160px] flex flex-col items-center py-10 border-r border-black/20 justify-between bg-black/10">
-                    <div className="flex flex-col items-center gap-2">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest [font-variant:small-caps]">Input Level</span>
-                        <div className="h-[420px] w-6 bg-black relative rounded shadow-[inset_0_2px_15px_rgba(0,0,0,1)] border border-white/5 overflow-hidden">
-                            <div className="absolute inset-x-0 bottom-0 bg-[#38bdf8] transition-all duration-75 shadow-[0_0_20px_#38bdf8]" style={{ height: `${Math.max(0, (inputLevel + 60) * (100/63))}%` }}></div>
-                            {[3, 0, -6, -12, -24, -48].map(v => (
-                                <div key={v} className="absolute left-[8px] w-6 border-t border-white/10" style={{ bottom: `${(v + 60) * (100 / 63)}%` }}></div>
-                            ))}
-                        </div>
-                        <span className="text-[11px] font-mono text-[#38bdf8] mt-1">{(inputLevel).toFixed(1)} dB</span>
-                    </div>
-                    {/* Input gain knob bottom aligned */}
-                    <div className="mb-4">
-                        <KnobSection label="Input Gain" val={params.inputGain} min={-30} max={30} unit="dB" onChange={(v: number)=>handleParamChange('inputGain', v)} />
-                    </div>
+            {/* Model row + side-chain */}
+            <div className="px-4 pt-3 flex items-start gap-3">
+                <div className="flex-1 flex gap-1">
+                    {COMPRESSOR_MODELS.map(m => (
+                        <button
+                            key={m.id}
+                            data-comp-model={m.id}
+                            onClick={() => edit({ model: m.id })}
+                            className={`flex-1 h-9 rounded-md border text-[9px] font-bold leading-tight px-1 transition-colors ${state.model === m.id
+                                ? 'bg-accent-cyan/15 border-accent-cyan text-accent-cyan shadow-[0_0_12px_rgba(34,211,238,0.25)]'
+                                : 'bg-black/40 border-studio-line-strong text-studio-text-dim hover:text-studio-text hover:border-accent-cyan/40'}`}
+                        >
+                            {m.label}
+                        </button>
+                    ))}
                 </div>
 
-                {/* PHASE 3: CENTER PANEL (cols 3-10) - Dominant */}
-                <div className="flex-1 flex flex-col items-center py-8 px-12 gap-12 bg-black/5">
-                    {/* TOP: Graph Panel - Recessed Rectangle */}
-                    <div className="w-[600px] h-[260px] bg-black p-[2px] rounded border border-black shadow-[inset_0_3px_50px_rgba(0,0,0,1)] relative overflow-hidden group">
-                        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center bg-[#1e293b]/90 backdrop-blur-md rounded border border-white/10 p-1 z-10 shadow-2xl">
-                             <button onClick={()=>setViewMode('meter')} className={`flex items-center justify-center w-[120px] h-9 text-[11px] font-bold uppercase transition-all ${viewMode==='meter'?'bg-slate-700 text-white shadow-lg':'text-slate-500'}`}>Meter</button>
-                             <button onClick={()=>setViewMode('graph')} className={`flex items-center justify-center w-[120px] h-9 text-[11px] font-bold uppercase transition-all ${viewMode==='graph'?'bg-slate-700 text-white shadow-lg':'text-slate-500'}`}>Graph</button>
-                        </div>
-                        <canvas ref={meterRef} width={596} height={256} className="w-full h-full rounded opacity-90" />
+                {/* Dimmed with its reason: a side-chain key needs a second
+                    input, which the insert chain does not route to a
+                    compressor. The Sidechain Comp plugin is the one that does. */}
+                <div
+                    className="w-[190px] rounded-md border border-studio-line-strong bg-black/40 p-1.5 opacity-40"
+                    title="Keying from another track is the Sidechain Comp plugin; this insert has one input"
+                >
+                    <div className="text-[8px] font-bold uppercase tracking-wider text-studio-text-dim text-center mb-1">
+                        Side-Chain
                     </div>
+                    <div className="flex gap-1">
+                        <span className="flex-1 h-6 grid place-items-center rounded bg-black/50 text-[9px] text-studio-text-dim">Side Chain</span>
+                        <span className="flex-1 h-6 grid place-items-center rounded bg-studio-control text-[9px] text-studio-text">Output</span>
+                    </div>
+                </div>
+            </div>
 
-                    {/* MIDDLE: Control Grid 2x3 + Side Pillar */}
-                    <div className="flex gap-16 w-full justify-center items-end">
-                        {/* 2 Row x 3 Column Matrix */}
-                        <div className="flex flex-col gap-16">
-                             {/* Row 1 */}
-                            <div className="flex gap-16">
-                                <KnobSection label="Threshold" val={params.threshold} min={-50} max={0} unit="dB" onChange={(v: number)=>handleParamChange('threshold', v)} />
-                                <KnobSection label="Ratio" val={params.ratio} min={1} max={30} unit=":1" onChange={(v: number)=>handleParamChange('ratio', v)} />
-                                <KnobSection label="Make Up" val={params.makeup} min={-20} max={50} unit="dB" onChange={(v: number)=>handleParamChange('makeup', v)} />
-                            </div>
-                            {/* Row 2 */}
-                            <div className="flex gap-16">
-                                <KnobSection label="Knee" val={params.knee} min={0} max={1} unit="" onChange={(v: number)=>handleParamChange('knee', v)} />
-                                <KnobSection label="Attack" val={params.attack*1000} min={1} max={200} unit="ms" onChange={(v: number)=>handleParamChange('attack', v/1000)} />
-                                <KnobSection label="Release" val={params.release*1000} min={5} max={5000} unit="ms" onChange={(v: number)=>handleParamChange('release', v/1000)} />
-                            </div>
-                        </div>
+            <div className="px-4 py-3 flex gap-4 items-start">
+                {/* Input meter, with its trim beneath — as the reference has it. */}
+                <div className="flex flex-col items-center gap-2">
+                    <LevelMeter db={meters.inputLevel} label="Input" scaleOnLeft />
+                    <Control label="Input Gain" value={`${state.inputGain.toFixed(1)} dB`}>
+                        <EqKnob size={44} value={state.inputGain} min={-30} max={30} defaultValue={0}
+                            onChange={v => edit({ inputGain: Math.round(v * 10) / 10 })}
+                            title="Trim before the detector" />
+                    </Control>
+                </div>
 
-                        {/* SIDE: Aligned Right inside center - Logic strip */}
-                        <div className="flex flex-col gap-12 pb-14 min-w-[70px]">
-                            <div className="flex flex-col gap-1">
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest text-center [font-variant:small-caps]">Auto Gain</span>
-                                {['OFF', '0 dB', '-12 dB'].map((l, i) => (
-                                    <button key={i} onClick={() => handleParamChange('autoGain', i)} 
-                                        className={`w-[70px] h-7 text-[10px] font-bold border border-black rounded-sm transition-all ${params.autoGain === i ? 'bg-[#38bdf8] text-black shadow-[0_0_12px_rgba(56,189,248,0.4)]' : 'bg-black/40 text-slate-500 hover:text-slate-300'}`}>
-                                        {l}
+                {/* Centre column */}
+                <div className="flex-1 min-w-0 flex flex-col gap-3">
+                    {/* Display */}
+                    <div className="rounded-lg border border-accent-cyan/20 bg-black/40 p-2">
+                        <div className="flex justify-center mb-2">
+                            <div className="flex rounded-md overflow-hidden border border-studio-line-strong">
+                                {(['meter', 'graph'] as const).map(v => (
+                                    <button
+                                        key={v}
+                                        data-comp-view={v}
+                                        onClick={() => setView(v)}
+                                        className={`px-6 h-6 text-[10px] font-bold capitalize transition-colors ${view === v
+                                            ? 'bg-accent-cyan/20 text-accent-cyan'
+                                            : 'bg-black/50 text-studio-text-dim hover:text-studio-text'}`}
+                                    >
+                                        {v}
                                     </button>
                                 ))}
                             </div>
-                            <div className="flex flex-col gap-1">
-                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest text-center [font-variant:small-caps]">Release</span>
-                                <button className="w-[70px] h-10 bg-black/40 text-[#38bdf8] border border-[#38bdf8]/20 rounded-sm font-bold text-[10px] shadow-sm hover:bg-[#38bdf8]/10">AUTO</button>
-                            </div>
                         </div>
+                        <canvas ref={canvasRef} data-comp-canvas className="w-full h-[130px] rounded" />
+                    </div>
+
+                    {/* Main knobs */}
+                    <div className="grid grid-cols-4 gap-2">
+                        <Control label="Threshold" value={`${state.threshold.toFixed(1)} dB`}>
+                            <EqKnob size={54} value={state.threshold} min={-60} max={0} defaultValue={-24}
+                                onChange={v => edit({ threshold: Math.round(v * 10) / 10 })} title="Where compression starts" />
+                        </Control>
+                        <Control label="Ratio" value={`${state.ratio.toFixed(1)}:1`}>
+                            <EqKnob size={54} value={state.ratio} min={1} max={30} defaultValue={4}
+                                onChange={v => edit({ ratio: Math.round(v * 10) / 10 })} title="How hard it pulls down" />
+                        </Control>
+                        <Control label="Make Up" value={`${state.makeupGain.toFixed(1)} dB`}>
+                            <EqKnob size={54} value={state.makeupGain} min={-30} max={30} defaultValue={0}
+                                disabled={state.autoGain !== 'off'}
+                                onChange={v => edit({ makeupGain: Math.round(v * 10) / 10 })}
+                                title={state.autoGain === 'off' ? 'Gain back after compression' : 'Auto Gain is setting this'} />
+                        </Control>
+                        <div className="flex flex-col items-center gap-1">
+                            <span className="text-[8px] font-bold uppercase tracking-wider text-studio-text-dim">Auto Gain</span>
+                            {AUTO_GAIN_MODES.map(m => (
+                                <button
+                                    key={m.id}
+                                    data-comp-autogain={m.id}
+                                    onClick={() => edit({ autoGain: m.id })}
+                                    className={`w-full h-6 rounded border text-[9px] font-bold transition-colors ${state.autoGain === m.id
+                                        ? 'bg-accent-cyan/15 border-accent-cyan text-accent-cyan'
+                                        : 'bg-black/40 border-studio-line-strong text-studio-text-dim hover:text-studio-text'}`}
+                                >
+                                    {m.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Time knobs */}
+                    <div className="grid grid-cols-3 gap-2">
+                        <Control label="Knee" value={state.knee.toFixed(1)}>
+                            <EqKnob size={44} value={state.knee} min={0} max={40} defaultValue={6}
+                                onChange={v => edit({ knee: Math.round(v * 10) / 10 })} title="How rounded the corner is" />
+                        </Control>
+                        <Control label="Attack" value={`${(state.attack * 1000).toFixed(0)} ms`}>
+                            <EqKnob size={44} value={state.attack * 1000} min={0} max={200} defaultValue={10}
+                                onChange={v => edit({ attack: Math.round(v) / 1000 })} title="How fast it grabs" />
+                        </Control>
+                        <Control label="Release" value={`${(state.release * 1000).toFixed(0)} ms`}>
+                            <EqKnob size={44} value={state.release * 1000} min={5} max={2000} defaultValue={100}
+                                onChange={v => edit({ release: Math.round(v) / 1000 })} title="How fast it lets go" />
+                        </Control>
                     </div>
                 </div>
 
-                {/* PHASE 3: RIGHT PANEL (cols 11-12) - 220px Vertical Stack */}
-                <div className="w-[220px] flex flex-col items-center py-10 px-8 border-l border-black/20 justify-between bg-black/10">
-                    <div className="flex flex-col items-center gap-4 w-full">
-                        <div className="flex items-center gap-3">
-                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest [font-variant:small-caps]">Limiter</span>
-                             <div className={`w-2.5 h-2.5 rounded-full ring-2 ring-black ${params.limiter ? 'bg-red-500 shadow-[0_0_10px_red]' : 'bg-red-950'}`}></div>
-                        </div>
-                        <button onClick={()=>handleParamChange('limiter', params.limiter?0:1)} className={`w-[84px] h-10 text-[11px] font-bold rounded border border-black shadow-lg transition-all ${params.limiter ? 'bg-slate-200 text-black':'bg-black/40 text-slate-500'}`}>ON</button>
+                {/* Right column: limiter, distortion, mix */}
+                <div className="w-[150px] shrink-0 flex flex-col gap-3">
+                    <div className="rounded-lg border border-amber-400/25 bg-black/40 p-2 flex flex-col items-center gap-1">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-amber-300">Limiter</span>
+                        <button
+                            data-comp-limiter
+                            onClick={() => edit({ limiterOn: !state.limiterOn })}
+                            className={`h-6 px-5 rounded border text-[9px] font-black transition-colors ${state.limiterOn
+                                ? 'bg-amber-500/25 border-amber-400 text-amber-300'
+                                : 'bg-black/50 border-studio-line-strong text-studio-text-dim'}`}
+                        >
+                            ON
+                        </button>
+                        <span className="text-[8px] font-bold uppercase tracking-wider text-studio-text-dim mt-1">Threshold</span>
+                        <EqKnob size={42} color="#fbbf24" value={state.limiterThreshold} min={-30} max={0} defaultValue={-3}
+                            disabled={!state.limiterOn}
+                            onChange={v => edit({ limiterThreshold: Math.round(v * 10) / 10 })}
+                            title={state.limiterOn ? 'Brickwall ceiling' : 'Turn the limiter on first'} />
+                        <span className="text-[8px] font-bold tabular-nums text-amber-300">{state.limiterThreshold.toFixed(1)} dB</span>
                     </div>
 
-                    <div className="flex flex-col gap-8 w-full items-center">
-                        <KnobSection label="Limiter" val={params.limiterThreshold} min={-20} max={0} unit="dB" onChange={(v: number)=>handleParamChange('limiterThreshold', v)} />
-                        <KnobSection label="Distortion" val={params.distortion} min={0} max={100} unit="%" onChange={(v: number)=>handleParamChange('distortion', v)} />
-                        <KnobSection label="Mix" val={params.mix} min={0} max={100} unit="%" onChange={(v: number)=>handleParamChange('mix', v)} />
-                        <KnobSection label="Out Gain" val={params.outputGain} min={-30} max={30} unit="dB" onChange={(v: number)=>handleParamChange('outputGain', v)} />
-                        
-                        {/* Peak Meter Recessed LED */}
-                        <div className="w-full h-8 bg-black rounded shadow-[inset_0_2px_8px_rgba(0,0,0,1)] relative overflow-hidden flex items-center p-1 border border-white/5">
-                            <div className="h-full bg-[#38bdf8] shadow-[0_0_15px_#38bdf8] transition-all" style={{ width: `${Math.max(0, (outputLevel + 60) * (100/63))}%` }}></div>
-                            <div className="absolute left-1/2 -translate-x-1/2 text-[10px] font-bold text-white font-mono tracking-tighter mix-blend-difference opacity-50">{(outputLevel).toFixed(1)}dB</div>
+                    <div className="rounded-lg border border-studio-line-strong bg-black/40 p-2 flex flex-col items-center gap-1">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-studio-text-dim">Distortion</span>
+                        <div className="flex gap-1 w-full">
+                            {([['Soft', false], ['Hard', true]] as const).map(([label, hard]) => (
+                                <button
+                                    key={label}
+                                    data-comp-distortion={label.toLowerCase()}
+                                    onClick={() => edit({ distortionHard: hard })}
+                                    className={`flex-1 h-5 rounded border text-[8px] font-bold transition-colors ${state.distortionHard === hard
+                                        ? 'bg-accent-cyan/15 border-accent-cyan text-accent-cyan'
+                                        : 'bg-black/40 border-studio-line text-studio-text-dim'}`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
                         </div>
+                        <EqKnob size={42} value={state.distortion} min={0} max={1} defaultValue={0}
+                            onChange={v => edit({ distortion: Math.round(v * 100) / 100 })}
+                            title="How hard the signal is driven into the shaper" />
+                        <span className="text-[8px] font-bold tabular-nums text-studio-text-mid">{Math.round(state.distortion * 100)}%</span>
+                    </div>
+
+                    <div className="rounded-lg border border-studio-line-strong bg-black/40 p-2 flex flex-col items-center gap-1">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-studio-text-dim">Mix</span>
+                        <EqKnob size={42} value={state.mix} min={0} max={1} defaultValue={1}
+                            onChange={v => edit({ mix: Math.round(v * 100) / 100 })}
+                            title="Blend the uncompressed signal back in" />
+                        <div className="flex justify-between w-full text-[7px] text-studio-text-dim">
+                            <span>Input</span><span>Output</span>
+                        </div>
+                        <span className="text-[8px] font-bold tabular-nums text-accent-cyan">{Math.round(state.mix * 100)}%</span>
                     </div>
                 </div>
+
+                {/* Output meter, with its trim beneath. */}
+                <div className="flex flex-col items-center gap-2">
+                    <LevelMeter db={meters.outputLevel} label="Output" />
+                    <Control label="Output Gain" value={`${state.outputGain.toFixed(1)} dB`}>
+                        <EqKnob size={44} value={state.outputGain} min={-30} max={30} defaultValue={0}
+                            onChange={v => edit({ outputGain: Math.round(v * 10) / 10 })}
+                            title="Trim on the way out" />
+                    </Control>
+                </div>
             </div>
-            
-            {/* Footer Status Bar */}
-            <div className="h-8 bg-black/60 flex items-center justify-center border-t border-black/50 backdrop-blur-sm">
-                <span className="text-[10px] font-bold text-slate-700 tracking-[1.5em] uppercase italic">Precision Dynamics Engine · Industrial Edition v7.0</span>
-            </div>
+
         </div>
-    )
+    );
 }
 
-function KnobSection({ label, val, min, max, unit, onChange }: any) {
-    const handleMouseDown = (e: React.MouseEvent) => {
-        const startY = e.clientY; const startVal = val;
-        const move = (me: MouseEvent) => {
-            const dY = startY - me.clientY; const sensitivity = me.shiftKey ? 0.005 : 0.02;
-            const newVal = startVal + (dY * (max-min) * sensitivity) / 180;
-            onChange(Math.max(min, Math.min(max, newVal)));
-        };
-        const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
-        window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
-    };
-
+function Control({ label, value, children }: { label: string; value: string; children: React.ReactNode }) {
     return (
-        <div className="flex flex-col items-center">
-            {/* Phase 4: Component System - Knob Container */}
-            <div className="relative cursor-ns-resize h-[84px] w-[84px] shadow-2xl transition-transform active:scale-[0.98]" onMouseDown={handleMouseDown}>
-                <KnobDisplay value={val} min={min} max={max} size="w-full h-full" />
-                <div className="absolute -inset-4 border border-white/5 rounded-full pointer-events-none opacity-20" />
-            </div>
-            {/* Phase 2: Strict Labels/Values BELOW */}
-            <div className="flex flex-col items-center mt-3 h-[42px] justify-center gap-0.5">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center [font-variant:small-caps]">{label}</span>
-                <span className="text-[12px] font-black text-[#38bdf8] font-mono drop-shadow-[0_0_10px_rgba(56,189,248,0.3)]">
-                    {val.toFixed(1)}<span className="text-[8px] text-slate-700 ml-0.5 font-sans lowercase">{unit}</span>
-                </span>
-            </div>
+        <div className="flex flex-col items-center gap-0.5">
+            <span className="text-[8px] font-bold uppercase tracking-wider text-studio-text-dim">{label}</span>
+            {children}
+            <span className="text-[8px] font-bold tabular-nums text-accent-cyan">{value}</span>
         </div>
-    )
-}
-
-function KnobDisplay({ value, min, max, size }: { value: number, min: number, max: number, size: string }) {
-    const rotation = ((value - min) / (max - min)) * 270 - 135;
-    return (
-        <div className={`relative ${size} rounded-full border border-black/80 overflow-hidden shadow-2xl`}>
-            {/* Phase 4: Radical Metallic Gradient */}
-            <div className="absolute inset-0 bg-[#cbd5e1]" 
-                 style={{ backgroundImage: 'conic-gradient(from 0deg, #94a3b8, #cbd5e1, #f1f5f9, #cbd5e1, #94a3b8, #64748b, #94a3b8)' }}>
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.1),transparent)]" />
-            </div>
-            {/* Inset Ring */}
-            <div className="absolute inset-2 rounded-full border border-black/10 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
-            {/* Tactile Indicator */}
-            <div className="absolute inset-0 transition-transform duration-75" style={{ transform: `rotate(${rotation}deg)` }}>
-                <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-[3px] h-3.5 rounded-full bg-black/90 shadow-[0_0_2px_rgba(255,255,255,0.3)]" />
-            </div>
-        </div>
-    )
+    );
 }

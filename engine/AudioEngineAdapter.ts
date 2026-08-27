@@ -517,6 +517,22 @@ export class AudioEngineAdapter implements MidiSink {
      * so the line on screen was a picture of a flat EQ no matter where the
      * bands were. It now asks the live filters.
      */
+    /**
+     * A compressor's live input, output and gain-reduction figures.
+     *
+     * The editor's two meters and its reduction readout need measured numbers;
+     * `getMeterData` used to return zeros for input and output with a comment
+     * saying analysers were needed. They exist now.
+     */
+    getCompressorMeters(trackId: string, pluginId: string): {
+        reduction: number; inputLevel: number; outputLevel: number;
+    } | null {
+        const processor = routingEngine.getInsertProcessor(trackId, pluginId) as
+            { builtinEffect?: { getMeterData?: () => { reduction: number; inputLevel: number; outputLevel: number } } } | null;
+        const effect = processor?.builtinEffect;
+        return typeof effect?.getMeterData === 'function' ? effect.getMeterData() : null;
+    }
+
     getEQFrequencyResponse(trackId: string, pluginId: string, frequencies: Float32Array): Float32Array {
         const processor = routingEngine.getInsertProcessor(trackId, pluginId) as
             { builtinEffect?: { getFrequencyResponse?: (f: Float32Array) => Float32Array } } | null;

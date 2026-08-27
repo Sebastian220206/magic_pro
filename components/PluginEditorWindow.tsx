@@ -3,6 +3,7 @@ import React, { useCallback } from 'react'
 import { useProjectStore } from '@/store/projectStore'
 import { PluginHost } from '@/components/plugins/PluginHost'
 import { ChannelEQ } from '@/components/ChannelEQ'
+import { Compressor } from './Compressor'
 import { BUILTIN_PLUGIN_IDS, resolvePluginId } from '@/engine/plugins/pluginIds'
 import { getBuiltinManifest } from '@/engine/plugins/registerBuiltins'
 import { WamGuiMount } from '@/components/plugins/WamGuiMount'
@@ -38,6 +39,12 @@ export function PluginEditorWindow() {
      * manifest-driven host, i.e. a column of numeric sliders for a curve.
      */
     const isChannelEq = resolvePluginId(plugin.pluginId) === BUILTIN_PLUGIN_IDS.eq
+    /*
+     * The compressor has a purpose-built editor too, and it was in the
+     * unreachable baseline: nothing imported it, so opening a compressor fell
+     * through to the manifest-driven list of sliders.
+     */
+    const isCompressor = resolvePluginId(plugin.pluginId) === BUILTIN_PLUGIN_IDS.compressor
     const onParamChange = handleParamChange(trackId, pluginId)
 
     // Live processor for this slot, so a WAM can render its own GUI.
@@ -56,6 +63,8 @@ export function PluginEditorWindow() {
 
                 {isChannelEq ? (
                     <ChannelEQ trackId={trackId} pluginId={pluginId} />
+                ) : isCompressor ? (
+                    <Compressor trackId={trackId} pluginId={pluginId} />
                 ) : wamProcessor ? (
                     // A Web Audio Module ships its own interface; prefer it over
                     // anything we could generate.

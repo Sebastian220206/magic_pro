@@ -233,6 +233,137 @@ export async function probeEqBands(): Promise<EffectProbeResult[]> {
 }
 
 /**
+ * Does each compressor control change the audio?
+ *
+ * The editor for this plugin was unreachable and the DSP had none of the
+ * stages it drew — no input or output trim, no parallel blend, no limiter, no
+ * distortion knob. This renders a loud tone through it and reads the level.
+ */
+export async function probeCompressor(): Promise<EffectProbeResult[]> {
+    const results: EffectProbeResult[] = [];
+
+    const renderTone = async (params: Record<string, number>): Promise<number> => {
+        const rate = 48000;
+        const ctx = new OfflineAudioContext(2, rate, rate);
+        const osc = ctx.createOscillator();
+        osc.frequency.value = 220;
+        const level = ctx.createGain();
+        // Loud enough to be well over any threshold under test.
+        level.gain.value = 0.9;
+
+        const processor = await createProcessor(ctx, {
+            pluginId: BUILTIN_PLUGIN_IDS.compressor, format: 'builtin', params,
+        } as PluginSpec);
+        if (!processor) throw new Error('no compressor processor');
+
+        osc.connect(level);
+        level.connect(processor.input);
+        processor.output.connect(ctx.destination);
+        osc.start(0);
+        const rendered = await ctx.startRendering();
+
+        const data = rendered.getChannelData(0);
+        let peak = 0;
+        for (let i = Math.floor(data.length * 0.6); i < data.length; i++) {
+            peak = Math.max(peak, Math.abs(data[i]));
+        }
+        return peak;
+    };
+
+    const db = (a: number, b: number) => 20 * Math.log10(Math.max(a, 1e-9) / Math.max(b, 1e-9));
+    // A gentle baseline that still compresses, so each control has something
+    // to change relative to it.
+    const base = { threshold: -12, ratio: 4, attack: 0.005, release: 0.1, knee: 0 };
+    const flat = await renderTone(base);
+
+    const check = (id: string, name: string, peak: number, pass: boolean) => {
+        results.push({
+            pluginId: id, name, built: true, peak,
+            passesAudio: peak > 0.001, changesSignal: pass, difference: db(peak, flat),
+        });
+    };
+
+    const harder = await renderTone({ ...base, threshold: -30, ratio: 12 });
+    check('comp.threshold', 'A lower threshold compresses harder', harder, db(harder, flat) < -4);
+
+    const trimmedIn = await renderTone({ ...base, inputGain: -12 });
+    check('comp.inputGain', 'Input trim reaches the detector', trimmedIn, db(trimmedIn, flat) < -3);
+
+    const trimmedOut = await renderTone({ ...base, outputGain: -6 });
+    check('comp.outputGain', 'Output trim is exactly -6 dB', trimmedOut,
+        Math.abs(db(trimmedOut, flat) + 6) < 0.6);
+
+    // Mix at 0 is the untouched signal, so it must be louder than compressed.
+    const dry = await renderTone({ ...base, mix: 0 });
+    check('comp.mix', 'Mix at 0 returns the uncompressed signal', dry, db(dry, flat) > 1);
+
+    const limited = await renderTone({ ...base, makeupGain: 18, limiterOn: 1, limiterThreshold: -12 });
+    const unlimited = await renderTone({ ...base, makeupGain: 18 });
+    results.push({
+        pluginId: 'comp.limiter', name: 'The limiter holds the output down',
+        built: true, peak: limited, passesAudio: true,
+        changesSignal: db(limited, unlimited) < -3, difference: db(limited, unlimited),
+    });
+
+    const driven = await renderTone({ ...base, distortion: 1, distortionHard: 1 });
+    check('comp.distortion', 'Distortion changes the waveform', driven,
+        Math.abs(db(driven, flat)) > 0.5);
+
+    /*
+     * Character shows in the transient, not the sustain.
+     *
+     * A steady tone reaches steady state and every model settles to the same
+     * reduction — measuring there reported the seven models as identical, which
+     * was the measurement's fault, not the DSP's. This renders a sudden burst
+     * and reads the first 10 ms, where a fast FET has already clamped and a
+     * slow Opto has not.
+     */
+    const renderBurstAttack = async (params: Record<string, number>): Promise<number> => {
+        const rate = 48000;
+        const ctx = new OfflineAudioContext(1, Math.round(rate * 0.2), rate);
+        const osc = ctx.createOscillator();
+        osc.frequency.value = 220;
+        const level = ctx.createGain();
+        // Silent, then full level at 50 ms — a step the detector has to chase.
+        level.gain.setValueAtTime(0.0001, 0);
+        level.gain.setValueAtTime(0.9, 0.05);
+
+        const processor = await createProcessor(ctx, {
+            pluginId: BUILTIN_PLUGIN_IDS.compressor, format: 'builtin', params,
+        } as PluginSpec);
+        if (!processor) throw new Error('no compressor processor');
+        osc.connect(level);
+        level.connect(processor.input);
+        processor.output.connect(ctx.destination);
+        osc.start(0);
+        const rendered = await ctx.startRendering();
+
+        const data = rendered.getChannelData(0);
+        // `DynamicsCompressorNode` runs a fixed ~6.4 ms lookahead, so the burst
+        // does not appear at the output until after it. Reading from 50 ms
+        // measured the silence before it and reported every model as identical.
+        const from = Math.floor(rate * 0.058);
+        const to = Math.floor(rate * 0.075);
+        let peak = 0;
+        for (let i = from; i < to; i++) peak = Math.max(peak, Math.abs(data[i]));
+        return peak;
+    };
+
+    const optoBurst = await renderBurstAttack({ ...base, model: 6, attack: 0.02 });
+    const fetBurst = await renderBurstAttack({ ...base, model: 5, attack: 0.02 });
+    results.push({
+        pluginId: 'comp.model', name: 'A slow Opto lets more transient through than a fast FET',
+        built: true, peak: optoBurst, passesAudio: true,
+        changesSignal: db(optoBurst, fetBurst) > 0.3, difference: db(optoBurst, fetBurst),
+    });
+
+    const auto = await renderTone({ ...base, autoGain: 1 });
+    check('comp.autoGain', 'Auto Gain adds makeup by itself', auto, db(auto, flat) > 2);
+
+    return results;
+}
+
+/**
  * Measure every built-in effect.
  *
  * Returns one row per effect rather than throwing, so one broken processor does

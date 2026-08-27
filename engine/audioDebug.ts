@@ -428,6 +428,18 @@ export async function whyFlatEq(trackId: string, pluginId: string): Promise<unkn
     };
 }
 
+/** Print what each compressor control does to a loud tone. */
+export async function testCompressor(): Promise<void> {
+    const { probeCompressor } = await import('./effectsProbe');
+    const results = await probeCompressor();
+    console.table(results.map(r => ({
+        Check: r.name,
+        Works: r.changesSignal ? 'yes' : 'NO',
+        'Change (dB)': r.difference.toFixed(2),
+        Peak: r.peak.toFixed(4),
+    })));
+}
+
 // Make these available in the global scope for console debugging
 if (typeof window !== 'undefined') {
     (window as any).audioDebug = {
@@ -442,5 +454,6 @@ if (typeof window !== 'undefined') {
         testMixer,
         testEq,
         whyFlatEq,
+        testCompressor,
     };
 }
