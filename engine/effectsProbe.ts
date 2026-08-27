@@ -449,6 +449,98 @@ export async function probeLimiter(): Promise<EffectProbeResult[]> {
 }
 
 /**
+ * Do the rack's voicings actually sound different?
+ *
+ * A Hall and a Plate are the same reverb with different settings, which is
+ * only worth two menu entries if the two differ by ear. Renders a burst
+ * through each and measures the tail it leaves behind.
+ */
+export async function probeFxVoicings(): Promise<EffectProbeResult[]> {
+    const { FX_CATALOG } = await import('../lib/fxCatalog');
+    const results: EffectProbeResult[] = [];
+
+    /** The same burst with no effect on it, to compare against. */
+    const renderBurst = async (spec: PluginSpec | null) => {
+        const rate = 48000;
+        const ctx = new OfflineAudioContext(2, rate * 2, rate);
+        const source = ctx.createBufferSource();
+        const input = ctx.createBuffer(2, rate * 2, rate);
+        for (let c = 0; c < 2; c++) {
+            const data = input.getChannelData(c);
+            for (let i = 0; i < rate * 0.02; i++) data[i] = Math.sin(i / 6) * 0.8;
+        }
+        source.buffer = input;
+        if (spec) {
+            const processor = await createProcessor(ctx, spec);
+            if (!processor) throw new Error('no processor');
+            source.connect(processor.input);
+            processor.output.connect(ctx.destination);
+        } else {
+            source.connect(ctx.destination);
+        }
+        source.start(0);
+        return ctx.startRendering();
+    };
+
+    const rate = 48000;
+    const dry = await renderBurst(null);
+
+    for (const category of FX_CATALOG) {
+        for (const entry of category.entries) {
+            if (!entry.pluginId) continue;
+            try {
+                const rendered = await renderBurst({
+                    pluginId: entry.pluginId, format: 'builtin', params: entry.params ?? {},
+                } as PluginSpec);
+
+                /*
+                 * Two numbers, because one does not cover every effect.
+                 *
+                 * The tail is what is still ringing after the burst — the
+                 * thing that separates a Hall from a Room. But an EQ or a
+                 * limiter leaves no tail at all, and measuring only that
+                 * reported them as broken. So the pass condition is that the
+                 * render differs from the dry signal; the tail is reported
+                 * beside it for the time-based entries.
+                 */
+                const data = rendered.getChannelData(0);
+                const dryData = dry.getChannelData(0);
+
+                let diffSum = 0;
+                for (let i = 0; i < data.length; i++) {
+                    const d = data[i] - dryData[i];
+                    diffSum += d * d;
+                }
+                const difference = Math.sqrt(diffSum / data.length);
+
+                // From just past the burst to the end.
+                const from = Math.floor(rate * 0.05);
+                let tailSum = 0;
+                for (let i = from; i < data.length; i++) tailSum += data[i] * data[i];
+                const tail = Math.sqrt(tailSum / (data.length - from));
+
+                results.push({
+                    pluginId: entry.pluginId,
+                    name: `${category.name} / ${entry.name}`,
+                    built: true,
+                    peak: tail,
+                    passesAudio: true,
+                    changesSignal: difference > 1e-6,
+                    difference,
+                });
+            } catch (error) {
+                results.push({
+                    pluginId: entry.pluginId, name: `${category.name} / ${entry.name}`,
+                    built: false, peak: 0, passesAudio: false, changesSignal: false,
+                    difference: 0, error: String((error as Error)?.message ?? error),
+                });
+            }
+        }
+    }
+    return results;
+}
+
+/**
  * Measure every built-in effect.
  *
  * Returns one row per effect rather than throwing, so one broken processor does

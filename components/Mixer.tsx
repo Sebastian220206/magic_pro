@@ -10,6 +10,7 @@ import { SendsSlot, OutputRouting, MonitorControls, SidechainPicker } from "./mi
 import { PeakDisplay, LevelField, PanField, RecordMonitorButtons, resetAllPeakDisplays } from "./mixer/ChannelStripReadouts"
 import { ChannelModeButton, AutomationModeButton, VcaSlot, TrackNameField, OutputStripButtons } from "./mixer/ChannelStripSlots"
 import { STRIP_ROWS, STRIP_WIDTH, LEGEND_WIDTH, FADER_SCALE, MIXER_MIN_HEIGHT, MIXER_HEADER_HEIGHT, MIXER_FOOTER_HEIGHT, stripTint, type StripRow } from "./mixer/stripLayout"
+import { FX_CATALOG, fxCatalogCounts } from "@/lib/fxCatalog"
 import { MidiFxMenu } from "./mixer/MidiFxMenu"
 import { MixerMenus, type MixerViewOptions } from "./mixer/MixerMenus"
 import type { MidiFxId } from "@/lib/midiFxCatalog"
@@ -393,7 +394,7 @@ interface MixerChannelStripProps {
     longFaders?: boolean;
     onSelect: (e?: React.MouseEvent) => void;
     onUpdate: (updates: Partial<Track>) => void;
-    onAddPlugin: (type: string) => void;
+    onAddPlugin: (type: string, params?: Record<string, number>, name?: string) => void;
     onTogglePlugin: (pid: string) => void;
     setOpenPluginEditor: (editor: { trackId: string, pluginId: string } | null) => void;
     saveHistorySnapshot: () => void;
@@ -415,7 +416,10 @@ function TrackMixerChannelStrip({ track, isSelected, trackIndex, longFaders, foc
 
     const onSelect = useCallback((e?: React.MouseEvent) => selectTrack(track.id, e?.metaKey || e?.ctrlKey, e?.shiftKey), [track.id, selectTrack]);
     const onUpdate = useCallback((updates: Partial<Track>) => updateTrack(track.id, updates), [track.id, updateTrack]);
-    const onAddPluginFn = useCallback((type: string) => addPlugin(track.id, type), [track.id, addPlugin]);
+    const onAddPluginFn = useCallback(
+        (type: string, params?: Record<string, number>, name?: string) =>
+            addPlugin(track.id, type, params, name),
+        [track.id, addPlugin]);
     const onTogglePluginFn = useCallback((pid: string) => togglePlugin(track.id, pid), [track.id, togglePlugin]);
 
     return (
@@ -628,7 +632,7 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                     </div>
                 ))}
                 <PluginMenu
-                    onSelect={(type) => addToChain(type)}
+                    onSelect={(type, params, name) => addToChain(type, params, name)}
                     onBrowse={() => {
                         const id = isMaster ? null : track?.id;
                         if (id) useProjectStore.getState().setPluginBrowserTrack(id, 'effect');
@@ -1034,7 +1038,8 @@ function VcaStrips() {
 }
 
 function PluginMenu({ onSelect, onBrowse }: {
-    onSelect: (type: string) => void;
+    /** The entry's plugin, the settings that voice it, and its rack name. */
+    onSelect: (type: string, params?: Record<string, number>, name?: string) => void;
     /** Open the full third-party plugin catalogue. */
     onBrowse: () => void;
 }) {
@@ -1042,6 +1047,7 @@ function PluginMenu({ onSelect, onBrowse }: {
     const [coords, setCoords] = useState({ top: 0, left: 0 });
     const buttonRef = useRef<HTMLButtonElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
+    const counts = fxCatalogCounts();
 
     useEffect(() => {
         if (!open) return;
@@ -1063,15 +1069,6 @@ function PluginMenu({ onSelect, onBrowse }: {
         setOpen(!open);
     };
 
-    const plugins = [
-        { id: 'comp', name: 'Compressor', category: 'Dynamics' },
-        { id: 'sidechain', name: 'Sidechain Comp', category: 'Dynamics' },
-        { id: 'limiter', name: 'Limiter', category: 'Dynamics' },
-        { id: 'eq', name: 'Channel EQ', category: 'EQ' },
-        { id: 'reverb', name: 'ChromaVerb', category: 'Reverb' },
-        { id: 'delay', name: 'Delay Designer', category: 'Delay' },
-        { id: 'widener', name: 'Stereo Widener', category: 'Imaging' },
-    ];
 
     return (
         <div className="relative w-full">
@@ -1086,19 +1083,50 @@ function PluginMenu({ onSelect, onBrowse }: {
                 <div 
                     ref={menuRef}
                     style={{ top: coords.top, left: coords.left }}
-                    className="fixed z-[999] w-[180px] bg-studio-panel border border-studio-line-strong rounded shadow-[0_15px_50px_rgba(0,0,0,1)] p-1 overflow-hidden"
+                    className="fixed z-[999] w-[210px] bg-studio-panel border border-studio-line-strong rounded shadow-[0_15px_50px_rgba(0,0,0,1)] p-1"
                 >
-                    <div className="text-[7px] uppercase text-studio-text-dim font-black px-2 py-1 border-b border-white/5 mb-1 tracking-widest">Plug-ins</div>
-                    {plugins.map(p => (
-                        <button
-                            key={p.id}
-                            onClick={(e) => { e.stopPropagation(); onSelect(p.id as any); setOpen(false); }}
-                            className="w-full text-left px-3 py-1.5 hover:bg-accent-cyan hover:text-white text-[10px] font-black text-studio-text transition-colors flex items-center justify-between group"
+                    <div className="flex items-center justify-between px-2 py-1 border-b border-white/5 mb-1">
+                        <span className="text-[7px] uppercase text-studio-text-dim font-black tracking-widest">Audio FX</span>
+                        <span
+                            className="text-[7px] tabular-nums text-studio-text-dim"
+                            title="Entries with no effect behind them are dimmed and say why"
                         >
-                            <span>{p.name}</span>
-                            <span className="text-[8px] text-studio-text-dim group-hover:text-accent-cyan">{p.category}</span>
-                        </button>
-                    ))}
+                            {counts.available}/{counts.total}
+                        </span>
+                    </div>
+
+                    <div className="max-h-[420px] overflow-y-auto no-scrollbar">
+                        {FX_CATALOG.map(category => (
+                            <div key={category.name} className="mb-1 last:mb-0">
+                                <div className="px-2 py-0.5 text-[7px] font-black uppercase tracking-widest text-accent-cyan/70 bg-white/[0.03]">
+                                    {category.name}
+                                </div>
+                                {category.entries.map(entry => (
+                                    <button
+                                        key={entry.name}
+                                        data-fx-entry={entry.name}
+                                        data-fx-available={entry.pluginId ? 'true' : 'false'}
+                                        disabled={!entry.pluginId}
+                                        title={entry.unavailable ?? `Insert ${entry.name}`}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (!entry.pluginId) return;
+                                            onSelect(entry.pluginId, entry.params, entry.name);
+                                            setOpen(false);
+                                        }}
+                                        className={`w-full text-left pl-4 pr-3 py-1 text-[10px] font-bold transition-colors flex items-center justify-between ${entry.pluginId
+                                            ? 'text-studio-text hover:bg-accent-cyan hover:text-white'
+                                            : 'text-studio-text-dim/45 cursor-default'}`}
+                                    >
+                                        <span>{entry.name}</span>
+                                        {!entry.pluginId && (
+                                            <span className="text-[7px] uppercase tracking-wide">n/a</span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
                     <div className="mt-1 pt-1 border-t border-white/5">
                         <button
                             onClick={(e) => { e.stopPropagation(); onBrowse(); setOpen(false); }}

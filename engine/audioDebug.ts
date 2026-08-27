@@ -452,6 +452,19 @@ export async function testLimiter(): Promise<void> {
     })));
 }
 
+/** Print the tail each FX rack voicing leaves, to see they differ. */
+export async function testFxRack(): Promise<void> {
+    const { probeFxVoicings } = await import('./effectsProbe');
+    const results = await probeFxVoicings();
+    console.table(results.map(r => ({
+        Entry: r.name,
+        Works: r.changesSignal ? 'yes' : 'NO',
+        'Change vs dry': r.difference.toExponential(2),
+        Tail: r.peak.toExponential(2),
+        Error: r.error ?? '',
+    })));
+}
+
 // Make these available in the global scope for console debugging
 if (typeof window !== 'undefined') {
     (window as any).audioDebug = {
@@ -468,5 +481,6 @@ if (typeof window !== 'undefined') {
         whyFlatEq,
         testCompressor,
         testLimiter,
+        testFxRack,
     };
 }

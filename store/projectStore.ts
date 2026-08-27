@@ -620,7 +620,13 @@ interface ProjectState {
     updateTrack: (id: string, updates: Partial<Track>) => void;
     deleteTrack: (id: string) => void;
     /** Insert a plugin on a track. Accepts any registered plugin id. */
-    addPlugin: (trackId: string, pluginType: string) => void;
+    /**
+     * Insert a plugin on a track.
+     *
+     * `params` seeds it, which is what makes the rack's Hall, Plate and Spring
+     * different from each other: one reverb, voiced three ways.
+     */
+    addPlugin: (trackId: string, pluginType: string, params?: Record<string, number>, name?: string) => void;
     /** Inserts across the summed mix — bus compression, limiting. */
     masterPlugins: PluginSetting[];
     addMasterPlugin: (pluginType: string) => void;
@@ -2826,16 +2832,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         set(s => ({ tracks: s.tracks.filter(t => t.id !== id), clips: s.clips.filter(c => c.trackId !== id), isDirty: true }));
     },
 
-    addPlugin: (trackId, pluginType) => {
+    addPlugin: (trackId, pluginType, params, name) => {
         // Store the canonical id so old and new spellings converge; existing
         // projects keep whatever they were saved with and are resolved on load.
         const pluginId = resolvePluginId(pluginType);
         const newPlugin: PluginSetting = {
             id: `plugin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             pluginId,
-            name: BUILTIN_PLUGIN_NAMES[pluginId] ?? pluginType,
+            // The rack's name wins when given: a "Plate" is a reverb, but
+            // calling it "Space Designer" in the slot hides which one it is.
+            name: name ?? BUILTIN_PLUGIN_NAMES[pluginId] ?? pluginType,
             enabled: true,
-            params: {},
+            params: params ? { ...params } : {},
             format: 'builtin',
             insertPoint: 'pre',
         };
