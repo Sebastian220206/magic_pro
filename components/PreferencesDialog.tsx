@@ -7,6 +7,7 @@ import {
     outputLatencyMs, roundTripLatencyMs, effectiveBufferSize, formatMs,
 } from '@/lib/audioLatency';
 import { withAudioDefaults, virtualMemoryBytes, formatMegabytes } from '@/lib/audioSettingsDefaults';
+import { subTabsFor, resolveSubTab } from '@/lib/settingsTabs';
 import {
     SURROUND_FORMATS, SURROUND_CHANNEL_LABELS, DEFAULT_BOUNCE_EXTENSIONS,
     defaultAssignments, defaultExtensions, portOptions,
@@ -551,18 +552,17 @@ export function PreferencesDialog() {
     // which matches no panel and renders "Settings for '' not available".
     const settingsTab = settingsActiveTab || 'General';
 
-    const subTabs = settingsTab === 'General'
-        ? ['Project Handling', 'Editing', 'Cycle', 'Catch', 'Notifications', 'Accessibility']
-        : settingsTab === 'Audio'
-            // 'MP3' had a fully built panel and no tab, so nothing could open it.
-            ? ['Devices', 'General', 'Sampler', 'Editing', 'I/O Assignments', 'File Editor', 'MP3']
-            : settingsTab === 'Control Surfaces'
-                ? ['General', 'Help Tags', 'MIDI Controllers']
-                : settingsTab === 'View'
-                    ? ['General', 'Tracks', 'Mixer', 'Editors']
-                    : settingsTab === 'MIDI'
-                    ? ['General', 'Reset Messages', 'Sync', 'Inputs']
-                    : ['General'];
+    const subTabs = subTabsFor(settingsTab);
+
+    /*
+     * What to render, rather than what is stored.
+     *
+     * Projects persist `''`, and a page switch can leave behind a sub-tab that
+     * belongs to the page you came from — "Devices" is not a General page. Both
+     * match no panel, and the body came out blank. Falling back to the page's
+     * first sub-tab means Settings always shows something.
+     */
+    const activeSubTab = resolveSubTab(settingsTab, settingsActiveSubTab);
 
     const handleApply = () => {
         setIsApplying(true);
@@ -599,6 +599,7 @@ export function PreferencesDialog() {
                     {mainTabs.map((tab) => (
                         <button
                             key={tab.name}
+                            data-settings-tab={tab.name}
                             onClick={() => setShowSettingsDialog(true, tab.name)}
                             className={`flex flex-col items-center gap-1.5 min-w-[64px] py-1 transition-all rounded-lg ${settingsTab === tab.name ? 'bg-white/5' : 'hover:bg-white/5'}`}
                         >
@@ -615,8 +616,9 @@ export function PreferencesDialog() {
                     {subTabs.map((tab) => (
                         <button
                             key={tab}
+                            data-settings-subtab={tab}
                             onClick={() => setShowSettingsDialog(true, undefined, tab)}
-                            className={`px-3 py-1 rounded-[4px] text-[11px] font-semibold transition-all ${settingsActiveSubTab === tab ? 'bg-accent-cyan/20 text-accent-cyan ring-1 ring-accent-cyan/30' : 'text-studio-text-dim hover:text-studio-text'}`}
+                            className={`px-3 py-1 rounded-[4px] text-[11px] font-semibold transition-all ${activeSubTab === tab ? 'bg-accent-cyan/20 text-accent-cyan ring-1 ring-accent-cyan/30' : 'text-studio-text-dim hover:text-studio-text'}`}
                         >
                             {tab}
                         </button>
@@ -625,7 +627,7 @@ export function PreferencesDialog() {
 
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto p-12 bg-studio-raised relative min-h-[480px]">
-                    {settingsTab === 'General' && settingsActiveSubTab === 'Project Handling' && (
+                    {settingsTab === 'General' && activeSubTab === 'Project Handling' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <Dropdown
                                 label="Startup Action"
@@ -678,7 +680,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'General' && settingsActiveSubTab === 'Editing' && (
+                    {settingsTab === 'General' && activeSubTab === 'Editing' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="flex items-center justify-between">
                                 <span className="text-[12px] font-medium text-studio-text w-1/3 text-right pr-6">Number of Undo Steps:</span>
@@ -814,7 +816,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'General' && settingsActiveSubTab === 'Cycle' && (
+                    {settingsTab === 'General' && activeSubTab === 'Cycle' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <Dropdown
                                 label="Cycle Pre-Processing"
@@ -837,7 +839,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'General' && settingsActiveSubTab === 'Notifications' && (
+                    {settingsTab === 'General' && activeSubTab === 'Notifications' && (
                         <div className="max-w-3xl mx-auto space-y-6">
                             <p className="text-[12px] text-studio-text-mid font-medium pb-2 border-b border-white/5">
                                 Warnings and alerts set previously to "Do not show again."
@@ -875,13 +877,13 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'General' && (settingsActiveSubTab === 'Catch' || settingsActiveSubTab === 'Accessibility') && (
+                    {settingsTab === 'General' && (activeSubTab === 'Catch' || activeSubTab === 'Accessibility') && (
                         <div className="max-w-2xl mx-auto flex flex-col items-center justify-center h-64 text-studio-text-dim">
                            <Settings className="w-12 h-12 opacity-10 mb-4" />
                            <p className="text-[13px] font-medium">This configuration section is not available in this version.</p>
                         </div>
                     )}
-                    {settingsTab === 'Audio' && settingsActiveSubTab === 'Devices' && (
+                    {settingsTab === 'Audio' && activeSubTab === 'Devices' && (
                         <div className="max-w-2xl mx-auto space-y-6">
                             <div className="space-y-4 pb-4 border-b border-white/5">
                                 <Toggle
@@ -1031,7 +1033,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'Audio' && settingsActiveSubTab === 'General' && (
+                    {settingsTab === 'Audio' && activeSubTab === 'General' && (
                         <div className="max-w-2xl mx-auto space-y-6">
                             <div className="space-y-4 pb-6 border-b border-white/5">
                                 <Toggle
@@ -1133,7 +1135,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'Audio' && settingsActiveSubTab === 'Sampler' && (
+                    {settingsTab === 'Audio' && activeSubTab === 'Sampler' && (
                         <div className="max-w-2xl mx-auto flex flex-col items-center">
                             {/* Sub-Sub Tabs: Misc / Virtual Memory */}
                             <div className="flex bg-studio-panel rounded-md p-0.5 mb-8 border border-black/20 shadow-inner">
@@ -1264,7 +1266,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'Audio' && settingsActiveSubTab === 'Editing' && (
+                    {settingsTab === 'Audio' && activeSubTab === 'Editing' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-6 pb-6 border-b border-white/5">
                                 <h3 className="text-[11px] font-bold text-studio-text-dim uppercase tracking-widest pl-[33.33%] mb-4">Crossfades for Merge and Take Comping</h3>
@@ -1316,7 +1318,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'Audio' && settingsActiveSubTab === 'I/O Assignments' && (
+                    {settingsTab === 'Audio' && activeSubTab === 'I/O Assignments' && (
                         <div className="max-w-3xl mx-auto flex flex-col items-center">
                             {/* Sub-Sub Tabs */}
                             <div className="flex bg-studio-panel rounded-md p-0.5 mb-8 border border-black/20 shadow-inner">
@@ -1464,7 +1466,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'Audio' && settingsActiveSubTab === 'File Editor' && (
+                    {settingsTab === 'Audio' && activeSubTab === 'File Editor' && (
                         <div className="max-w-2xl mx-auto space-y-6">
                             <div className="space-y-3 pb-6 border-b border-white/5">
                                 {/*
@@ -1542,7 +1544,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'Audio' && settingsActiveSubTab === 'MP3' && (
+                    {settingsTab === 'Audio' && activeSubTab === 'MP3' && (
                         <div className="max-w-xl mx-auto space-y-6">
                             {/*
                                 These reach the encoder. `bounceEngine` used to
@@ -2389,7 +2391,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'Control Surfaces' && settingsActiveSubTab === 'General' && (
+                    {settingsTab === 'Control Surfaces' && activeSubTab === 'General' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-4 pb-6 border-b border-white/5">
                                 <Toggle
@@ -2508,7 +2510,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'Control Surfaces' && settingsActiveSubTab === 'Help Tags' && (
+                    {settingsTab === 'Control Surfaces' && activeSubTab === 'Help Tags' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-4 pb-6 border-b border-white/5">
                                 <h4 className="text-[10px] font-bold text-studio-text-dim uppercase tracking-widest pl-[33.33%]">While Editing Show Long Names For</h4>
@@ -2586,7 +2588,7 @@ export function PreferencesDialog() {
                             </div>
                         </div>
                     )}
-                    {settingsTab === 'Control Surfaces' && settingsActiveSubTab === 'MIDI Controllers' && (
+                    {settingsTab === 'Control Surfaces' && activeSubTab === 'MIDI Controllers' && (
                         <div className="max-w-3xl mx-auto space-y-6">
                             <p className="text-[12px] text-studio-text-mid leading-relaxed bg-white/5 p-4 rounded-lg border border-white/5">
                                 The buttons, knobs and other controls on the following USB MIDI Controllers can be automatically assigned to Smart Controls and other functions. Select Auto to enable automatic assignment for a device.
@@ -2645,7 +2647,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'View' && settingsActiveSubTab === 'General' && (
+                    {settingsTab === 'View' && activeSubTab === 'General' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <Dropdown
                                 label="Appearance"
@@ -2741,7 +2743,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'View' && settingsActiveSubTab === 'Tracks' && (
+                    {settingsTab === 'View' && activeSubTab === 'Tracks' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-4 pb-6 border-b border-white/5">
                                 <div 
@@ -2822,7 +2824,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'View' && settingsActiveSubTab === 'Mixer' && (
+                    {settingsTab === 'View' && activeSubTab === 'Mixer' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-4 pb-6 border-b border-white/5">
                                 <div 
@@ -2886,7 +2888,7 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab === 'View' && settingsActiveSubTab === 'Editors' && (
+                    {settingsTab === 'View' && activeSubTab === 'Editors' && (
                         <div className="max-w-2xl mx-auto space-y-8">
                             <div className="space-y-4">
                                 <h4 className="text-[10px] font-bold text-studio-text-dim uppercase tracking-widest pl-[33.33%]">Piano Roll</h4>
@@ -2973,7 +2975,16 @@ export function PreferencesDialog() {
                         </div>
                     )}
 
-                    {settingsTab !== 'Audio' && settingsTab !== 'Recording' && settingsTab !== 'MIDI' && settingsTab !== 'Score' && settingsTab !== 'Movie' && settingsTab !== 'Automation' && settingsTab !== 'Control Surfaces' && settingsTab !== 'View' && settingsTab !== 'My Info' && settingsTab !== 'Advanced' && (
+                    {/*
+                        The safety net for a page with no panel at all.
+
+                        This was a list of every page except General, so the
+                        General page rendered "Settings for General not
+                        available in this version" underneath its real panels —
+                        a hand-maintained negation that had drifted. Asking
+                        whether the page is one we know cannot drift.
+                    */}
+                    {!mainTabs.some(t => t.name === settingsTab) && (
                         <div className="flex flex-col items-center justify-center h-full gap-5 text-studio-text-dim opacity-50">
                             <div className="w-20 h-20 rounded-full border-2 border-dashed border-studio-line flex items-center justify-center">
                                 <Settings className="w-10 h-10" />

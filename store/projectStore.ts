@@ -29,6 +29,7 @@ import { getGridSize } from '@/engine/midi/quantization';
 import type { GridDivision } from '@/engine/midi/types';
 import { NEON_TRACK_PALETTE } from '@/lib/trackColor'
 import { MuteSoloGroupManager, type MuteSoloGroup } from '@/engine/mixer/muteSoloGroups'
+import { firstSubTab, resolveSubTab } from '@/lib/settingsTabs';
 
 interface GlobalTrackPoint {
     time: number; // beats
@@ -4313,13 +4314,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }),
 
     toggleExportDialog: (type) => set({ showExportDialog: type }),
-    setShowSettingsDialog: (show, tab, subTab) => set({
-        showSettingsDialog: show,
-        // Default to a real tab. Opening Settings without naming one used to
-        // leave this empty, and every panel renders on an exact match — so the
-        // dialog showed "Settings for '' not available in this version".
-        settingsActiveTab: tab ?? 'General',
-        settingsActiveSubTab: subTab ?? '',
+    /**
+     * Open or close Settings, optionally at a page and sub-tab.
+     *
+     * Each argument used to be written unconditionally, so omitting one wiped
+     * it. Choosing "Audio" from the menu bar passed no sub-tab and blanked it
+     * to `''`, which matches no panel — a row of sub-tabs above an empty body.
+     * Clicking a sub-tab passed no page, which reset the page to General, so
+     * pressing "Devices" appeared to jump to the General settings.
+     */
+    setShowSettingsDialog: (show, tab, subTab) => set(state => {
+        if (!show) return { showSettingsDialog: false };
+
+        const nextTab = tab ?? state.settingsActiveTab ?? 'General';
+        return {
+            showSettingsDialog: true,
+            settingsActiveTab: nextTab,
+            // Naming a page without a sub-tab opens its first one; naming a
+            // sub-tab alone keeps the page you are on.
+            settingsActiveSubTab: subTab ?? (
+                tab ? firstSubTab(nextTab) : resolveSubTab(nextTab, state.settingsActiveSubTab)
+            ),
+        };
     }),
     updatePluginParams: (trackId, pluginId, params) => {
         // This used to only call the engine — which was itself a no-op — so
