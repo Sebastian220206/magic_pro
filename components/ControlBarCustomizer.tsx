@@ -3,6 +3,7 @@
 import React from 'react'
 import { useProjectStore, ControlBarSettings } from '@/store/projectStore'
 import { X } from 'lucide-react'
+import { LCD_DISPLAY_MODES, isLcdDisplayMode } from '@/lib/lcdDisplayModes'
 
 interface CustomizerProps {
     onClose: () => void
@@ -116,18 +117,15 @@ export function ControlBarCustomizer({ onClose }: CustomizerProps) {
                             <div className="relative">
                                 <select
                                     value={controlBarSettings.displayMode}
-                                    onChange={(e) => setDisplayMode(e.target.value as any)}
+                                    onChange={(e) => { if (isLcdDisplayMode(e.target.value)) setDisplayMode(e.target.value) }}
                                     className="w-full bg-studio-control border border-white/10 rounded-md px-3 py-1.5 text-[13px] text-white/90 focus:outline-none focus:ring-1 focus:ring-accent-cyan appearance-none"
                                 >
-                                    {[
-                                        'Beats & Project',
-                                        'Beats & Project (Large)',
-                                        'Beats & Time',
-                                        'Beats & Time (Large)',
-                                        'Beats',
-                                        'Time',
-                                        'Custom'
-                                    ].map(m => <option key={m} value={m}>{m}</option>)}
+                                    {/* The shared list. This one used to be
+                                        hand-written and had drifted: it offered
+                                        "(Large)" variants the display has no
+                                        case for, so choosing one fell through
+                                        to the default mode. */}
+                                    {LCD_DISPLAY_MODES.map(m => <option key={m} value={m}>{m}</option>)}
                                 </select>
                                 <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
                                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>

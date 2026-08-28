@@ -14,6 +14,7 @@ import { storeAudioFile } from '@/engine/persistence/audioFileStore';
 import { syncInputMonitoring } from '@/engine/audioRecording/inputMonitoring';
 import { describeRecordingError } from '@/lib/recordingErrors';
 import { mergeProjectGlobalSettings } from '@/lib/deviceSettings';
+import type { LcdDisplayMode } from '@/lib/lcdDisplayModes';
 import { extractPeaksAsync } from '@/engine/waveform';
 import { bufferCacheManager } from '@/engine/audioEngine/bufferCache';
 import { getAudioContext } from '@/engine/audioEngine/audioContext';
@@ -151,7 +152,7 @@ export interface ControlBarSettings {
         rewind: boolean; forward: boolean; stop: boolean; play: boolean; pause: boolean; record: boolean;
         freeTempo: boolean; flashback: boolean; skipCycle: boolean; cycle: boolean;
     };
-    displayMode: 'Beats & Project' | 'Beats & Time' | 'Beats' | 'Time' | 'Custom';
+    displayMode: LcdDisplayMode;
     displayOptions: {
         position: boolean; locators: boolean; sampleRate: boolean; varispeed: boolean;
         tempo: boolean; timeSignature: boolean; keySignature: boolean; midiActivity: boolean; performanceMeter: boolean;

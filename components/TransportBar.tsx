@@ -3,6 +3,17 @@ import React, { useState, useRef, useEffect, useLayoutEffect } from "react"
 import { createPortal } from "react-dom"
 import { useProjectStore } from "@/store/projectStore"
 import {
+    beatsPerBar,
+    beatsToSecondsWithTempoMap,
+    clampTempo,
+    formatClock,
+    formatPosition,
+    formatTimecode,
+    frameRateLabel,
+    scrubBeats,
+    DIVISIONS_PER_BEAT,
+} from "@/lib/transportPosition"
+import {
     Play, Square, RotateCcw,
     SkipBack, SkipForward, Circle,
     Repeat, Volume2, Search,
@@ -16,6 +27,8 @@ import { ControlBarCustomizer } from "./ControlBarCustomizer"
 import { MasterVolume, OutputMeter } from "./MasterOutput"
 import { GiantDisplay } from "./GiantDisplay"
 import { MIDIActivity } from "./MIDIActivity"
+import { LcdActivity } from "./LcdActivity"
+import { LCD_DISPLAY_MODES } from "@/lib/lcdDisplayModes"
 import { MagicMenu } from "./MagicMenu"
 
 /** Time signatures the display offers. Matches what `setTimeSignature` accepts. */
@@ -82,13 +95,16 @@ function LcdField({ label, value, options, onSelect }: {
     return (
         <div
             ref={ref}
-            className="flex flex-col items-center min-w-[32px]"
+            data-lcd-cell={label.toLowerCase()}
+            className="flex min-w-0 flex-col items-center text-center"
             onClick={(e) => { e.stopPropagation(); setOpen(v => !v) }}
         >
-            <span className="text-[8px] font-black text-studio-text-dim uppercase tracking-widest leading-none mb-1">{label}</span>
+            {/* `tracking-widest` on 8px text was half the collision. */}
+            <span data-lcd-label className="text-[8px] font-black text-studio-text-dim uppercase tracking-[0.06em] leading-none mb-1">{label}</span>
             <button
+                data-lcd-value={label.toLowerCase()}
                 title={`Change ${label.toLowerCase()}`}
-                className={`text-[13px] font-black tabular-nums px-1 rounded transition-colors ${open ? 'text-accent-cyan' : 'text-studio-text hover:text-accent-cyan'}`}
+                className={`text-[13px] font-black tabular-nums px-1 rounded transition-colors whitespace-nowrap ${open ? 'text-accent-cyan' : 'text-studio-text hover:text-accent-cyan'}`}
             >
                 {value}
             </button>
@@ -129,6 +145,9 @@ export function TransportBar() {
         showInspector, toggleInspector,
         showToolbar, toggleToolbar,
         showGlobalTracks, toggleGlobalTracks,
+        // The clock integrates the tempo track rather than dividing by the
+        // single top-level tempo, so a project with a tempo change reads right.
+        globalTracks,
         metronomeEnabled, toggleMetronome,
         countInEnabled, toggleCountIn, countInBars,
         showMixer, toggleMixer,
@@ -203,6 +222,7 @@ export function TransportBar() {
             document.removeEventListener('keydown', onKey)
         }
     }, [showLCDMenu])
+    const [scrubbing, setScrubbing] = useState(false)
     const [showCycleMenu, setShowCycleMenu] = useState(false)
     const [showMetronomeMenu, setShowMetronomeMenu] = useState(false)
     const [showCountInMenu, setShowCountInMenu] = useState(false)
@@ -210,33 +230,29 @@ export function TransportBar() {
     const setMetronomeSetting = useProjectStore(s => s.setMetronomeSetting);
     const setCountInBars = useProjectStore(s => s.setCountInBars);
 
-    const formatTime = (beats: number) => {
-        const bar = Math.floor(beats / 4) + 1;
-        const beat = Math.floor(beats % 4) + 1;
-        const div = Math.floor((beats % 1) * 4) + 1;
-        const tick = Math.floor((((beats % 1) * 4) % 1) * 240);
+    /*
+     * Position, from the shared module.
+     *
+     * This used to be a local `formatTime` that computed the bar as
+     * `Math.floor(beats / 4) + 1` — four beats to the bar, whatever the
+     * project's time signature. The signature is chosen *in this very
+     * display*, so setting 3/4 left the number beside that control
+     * disagreeing with the ruler, the piano roll and the metronome.
+     *
+     * The clock was equally hopeful: it divided by the single top-level
+     * `tempo` while playback reads `globalTracks.tempo`, so a project with a
+     * tempo change showed a time that drifted from what you heard.
+     */
+    const barsPerSig = beatsPerBar(timeSignature);
+    const playheadSeconds = beatsToSecondsWithTempoMap(playhead, globalTracks?.tempo);
 
-        // Absolute time calculation
-        const totalSeconds = (beats / tempo) * 60;
-        const mins = Math.floor(totalSeconds / 60);
-        const secs = Math.floor(totalSeconds % 60);
-        const ms = Math.floor((totalSeconds % 1) * 1000);
+    const { bar, beat, div, tick } = formatPosition(playhead, { beatsPerBar: barsPerSig });
+    const { mins, secs, ms } = formatClock(playheadSeconds);
+    const timecode = formatTimecode(playheadSeconds, settings?.frameRate ?? 25);
 
-        return {
-            bar: bar.toString(),
-            beat: beat.toString(),
-            div: div.toString(),
-            tick: tick.toString().padStart(3, '0'),
-            mins: mins.toString().padStart(2, '0'),
-            secs: secs.toString().padStart(2, '0'),
-            ms: ms.toString().padStart(3, '0')
-        };
-    };
-
-    const { bar, beat, div, tick, mins, secs, ms } = formatTime(playhead);
-    const posLeft = formatTime(locatorLeft);
-    const posRight = formatTime(locatorRight);
-    const posEnd = formatTime(settings.projectEnd);
+    const posLeft = formatPosition(locatorLeft, { beatsPerBar: barsPerSig });
+    const posRight = formatPosition(locatorRight, { beatsPerBar: barsPerSig });
+    const posEnd = formatPosition(settings.projectEnd, { beatsPerBar: barsPerSig });
 
     const renderFormattedPos = (f: any) => `${f.bar} ${f.beat} ${f.div} ${f.tick}`;
 
@@ -283,28 +299,142 @@ export function TransportBar() {
         );
     };
 
+    /*
+     * Dragging inside the LCD.
+     *
+     * Both of these live inside the div whose onClick opens the display-mode
+     * menu, so both must stop propagation — `LcdField` already guards against
+     * exactly this and says so in a comment; the tempo was missed, which is
+     * why clicking it opened the editor *and* the menu at the same time.
+     *
+     * Listeners go on the window, not the element: the LCD is 36px tall and
+     * the pointer leaves it almost immediately during a drag.
+     */
+    const DRAG_THRESHOLD_PX = 3;
+
+    const beginScrub = (e: React.MouseEvent) => {
+        // `preventDefault` only — stopping propagation here would keep the
+        // mousedown from reaching the document listener that dismisses the
+        // display menu, leaving it stuck open.
+        e.preventDefault();
+        const startX = e.clientX;
+        const startBeats = playhead;
+        let moved = false;
+
+        const onMove = (me: MouseEvent) => {
+            const dx = me.clientX - startX;
+            if (!moved && Math.abs(dx) < DRAG_THRESHOLD_PX) return;
+            moved = true;
+            setScrubbing(true);
+            // `movePlayhead` stops the transport when playing, the same as
+            // dragging the ruler does. Consistent, and deliberate.
+            movePlayhead(scrubBeats(startBeats, dx, {
+                fine: me.shiftKey,
+                snapBars: me.altKey,
+                beatsPerBar: barsPerSig,
+            }));
+        };
+        const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            setScrubbing(false);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    };
+
+    const beginTempoDrag = (e: React.MouseEvent) => {
+        const startY = e.clientY;
+        const startTempo = tempo;
+        let moved = false;
+
+        const onMove = (me: MouseEvent) => {
+            const dy = startY - me.clientY;
+            if (!moved && Math.abs(dy) < DRAG_THRESHOLD_PX) return;
+            moved = true;
+            setScrubbing(true);
+            setTempo(clampTempo(startTempo + dy / (me.shiftKey ? 12 : 3), startTempo));
+        };
+        const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            setScrubbing(false);
+            // No movement means it was a click: open the editor, as before.
+            if (!moved) { setTempoInput(String(useProjectStore.getState().tempo)); setEditingTempo(true); }
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    };
+
+    /** Position readouts are draggable; wraps whichever one is showing. */
+    const scrubbable = (node: React.ReactNode) => (
+        <div
+            data-lcd-scrub
+            role="slider"
+            aria-label="Playhead position"
+            aria-valuenow={Math.round(playhead * 100) / 100}
+            tabIndex={0}
+            title="Drag to scrub. Shift for fine, Alt to snap to bars."
+            onMouseDown={beginScrub}
+            // The readout is a control in its own right now, so a click on it
+            // must not also fall through to the display-mode menu.
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+                const step = e.shiftKey ? barsPerSig : 1;
+                if (e.key === 'ArrowRight') { e.preventDefault(); movePlayhead(playhead + step); }
+                if (e.key === 'ArrowLeft') { e.preventDefault(); movePlayhead(Math.max(0, playhead - step)); }
+            }}
+            className={`cursor-ew-resize select-none rounded outline-none transition-colors ${scrubbing ? 'bg-accent-cyan/10' : 'hover:bg-white/[0.04]'} focus-visible:ring-1 focus-visible:ring-accent-cyan`}
+        >
+            {node}
+        </div>
+    );
+
     // LCD Renderers
     const renderBeatsPos = (small = false) => (
-        <div className={`flex flex-col items-center ${small ? 'min-w-[50px]' : 'min-w-[80px]'}`}>
+        <div data-lcd-field="position" className={`flex flex-col items-center ${small ? 'min-w-[50px]' : 'min-w-[80px]'}`}>
             {!small && <span className="text-[8px] font-black text-accent-cyan/40 uppercase tracking-widest leading-none mb-1">Position</span>}
             <div className={`flex gap-2 items-baseline text-accent-cyan/90 font-mono tracking-tighter tabular-nums drop-shadow-[0_0_3px_rgba(14,165,233,0.3)] ${small ? 'gap-1 scale-90' : ''}`}>
-                <span className={`${small ? 'text-[14px]' : 'text-[18px]'} font-black`}>{bar}</span>
-                <span className={`${small ? 'text-[12px]' : 'text-[15px]'} font-black`}>{beat}</span>
-                <span className={`${small ? 'text-[10px]' : 'text-[13px]'} font-black`}>{div}</span>
-                <span className={`${small ? 'text-[9px]' : 'text-[11px]'} font-black opacity-60`}>{tick}</span>
+                <span data-lcd-value="bar" className={`${small ? 'text-[14px]' : 'text-[18px]'} font-black`}>{bar}</span>
+                <span data-lcd-value="beat" className={`${small ? 'text-[12px]' : 'text-[15px]'} font-black`}>{beat}</span>
+                <span data-lcd-value="div" className={`${small ? 'text-[10px]' : 'text-[13px]'} font-black`}>{div}</span>
+                <span data-lcd-value="tick" className={`${small ? 'text-[9px]' : 'text-[11px]'} font-black opacity-60`}>{tick}</span>
             </div>
         </div>
     );
 
     const renderTimePos = (small = false) => (
-        <div className={`flex flex-col items-center ${small ? 'min-w-[60px]' : 'min-w-[100px]'}`}>
+        <div data-lcd-field="time" className={`flex flex-col items-center ${small ? 'min-w-[60px]' : 'min-w-[100px]'}`}>
             {!small && <span className="text-[8px] font-black text-accent-cyan/40 uppercase tracking-widest leading-none mb-1">Time</span>}
             <div className={`flex gap-1 items-baseline text-accent-cyan/90 font-mono tracking-tighter tabular-nums drop-shadow-[0_0_3px_rgba(14,165,233,0.3)] ${small ? 'scale-90' : ''}`}>
-                <span className={`${small ? 'text-[14px]' : 'text-[20px]'} font-black`}>{mins}</span>
+                <span data-lcd-value="mins" className={`${small ? 'text-[14px]' : 'text-[20px]'} font-black`}>{mins}</span>
                 <span className="text-[12px] opacity-40">:</span>
-                <span className={`${small ? 'text-[14px]' : 'text-[20px]'} font-black`}>{secs}</span>
+                <span data-lcd-value="secs" className={`${small ? 'text-[14px]' : 'text-[20px]'} font-black`}>{secs}</span>
                 <span className="text-[12px] opacity-40">.</span>
                 <span className={`${small ? 'text-[11px]' : 'text-[13px]'} font-black opacity-60`}>{ms}</span>
+            </div>
+        </div>
+    );
+
+    /**
+     * Timecode.
+     *
+     * `settings.frameRate` has been stored and set in Project Settings for a
+     * long time and no display read it. The rate is snapped to one the MTC
+     * machinery supports before use — the field is a free numeric input, so a
+     * project can hold 60, and `MTC_FRAME_RATES[60]` is undefined.
+     */
+    const renderTimecode = () => (
+        <div data-lcd-field="timecode" className="flex flex-col items-center min-w-[130px]">
+            <span
+                data-lcd-label
+                title={`Frame rate from Project Settings: ${frameRateLabel(settings?.frameRate ?? 25)}`}
+                className="text-[8px] font-black text-accent-cyan/40 uppercase tracking-[0.06em] leading-none mb-1"
+            >
+                {frameRateLabel(settings?.frameRate ?? 25)}
+            </span>
+            <div className="flex items-baseline text-accent-cyan/90 font-mono tracking-tighter tabular-nums drop-shadow-[0_0_3px_rgba(14,165,233,0.3)]">
+                <span data-lcd-value="timecode" className="text-[18px] font-black whitespace-nowrap">{timecode}</span>
             </div>
         </div>
     );
@@ -339,8 +469,11 @@ export function TransportBar() {
         }
         return (
             <span
-                className={className + ' cursor-pointer hover:text-accent-cyan'}
-                onClick={() => { setTempoInput(String(tempo)); setEditingTempo(true); }}
+                data-lcd-tempo
+                title="Click to type, drag to set the tempo at the playhead"
+                className={className + ' cursor-ns-resize select-none hover:text-accent-cyan'}
+                onMouseDown={beginTempoDrag}
+                onClick={(e) => e.stopPropagation()}
             >
                 {tempo}
             </span>
@@ -348,9 +481,16 @@ export function TransportBar() {
     };
 
     const renderProjectInfo = () => (
-        <div className="flex-1 flex justify-around px-2 border-l border-white/5 ml-2">
-            <div className="flex flex-col items-center min-w-[32px]">
-                <span className="text-[8px] font-black text-studio-text-dim uppercase tracking-widest leading-none mb-1">Tempo</span>
+        /*
+            A grid, not `justify-around`.
+            The LCD is `flex-1` between three `shrink-0` groups, so at 1600px it
+            gets far less than its 580px ceiling — and `justify-around`
+            distributes slack it does not have. The labels ran together
+            ("TEMPOSIGNATURE KEY") and the key wrapped onto a second line.
+        */
+        <div data-lcd-project className="flex-1 grid grid-cols-3 gap-x-3 px-2 border-l border-white/5 ml-2">
+            <div data-lcd-cell="tempo" className="flex min-w-0 flex-col items-center text-center">
+                <span data-lcd-label className="text-[8px] font-black text-studio-text-dim uppercase tracking-[0.06em] leading-none mb-1">Tempo</span>
                 {renderTempoValue('text-[13px] font-black text-studio-text tabular-nums')}
             </div>
             {/*
@@ -360,7 +500,7 @@ export function TransportBar() {
               * the ruler.
               */}
             <LcdField
-                label="Signature"
+                label="Sig"
                 value={timeSignature}
                 options={TIME_SIGNATURES}
                 onSelect={setTimeSignature}
@@ -377,18 +517,19 @@ export function TransportBar() {
     const renderLCDContent = () => {
         const mode = controlBarSettings.displayMode;
         switch (mode) {
-            case 'Beats': return renderBeatsPos();
-            case 'Time': return renderTimePos();
+            case 'Beats': return scrubbable(renderBeatsPos());
+            case 'Time': return scrubbable(renderTimePos());
+            case 'Timecode': return scrubbable(renderTimecode());
             case 'Beats & Time': return (
                 <div className="flex-1 flex items-center justify-center gap-10">
-                    {renderBeatsPos()}
+                    {scrubbable(renderBeatsPos())}
                     <div className="w-px h-5 bg-white/5"></div>
-                    {renderTimePos()}
+                    {scrubbable(renderTimePos())}
                 </div>
             );
             case 'Beats & Project': return (
                 <div className="flex-1 flex items-center justify-between">
-                    {renderBeatsPos()}
+                    {scrubbable(renderBeatsPos())}
                     {renderProjectInfo()}
                 </div>
             );
@@ -427,17 +568,21 @@ export function TransportBar() {
                             </div>
                             <div className="flex items-center gap-2">
                                 <span className="text-[7px] text-studio-text-dim font-bold uppercase">Key</span>
-                                <span className="text-[10px] text-studio-text-mid truncate w-10 uppercase">C Major</span>
+                                {/* Was the literal "C Major", contradicting the
+                                    Key field two modes over. */}
+                                <span className="text-[10px] text-studio-text-mid truncate w-14 uppercase whitespace-nowrap">{keySignature}</span>
                             </div>
                         </div>
                         <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                                 <span className="text-[7px] text-studio-text-dim font-bold uppercase">Sgn</span>
-                                <span className="text-[11px] text-studio-text font-black">4/4</span>
+                                {/* Was the literal "4/4". */}
+                                <span className="text-[11px] text-studio-text font-black whitespace-nowrap">{timeSignature}</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <span className="text-[7px] text-studio-text-dim font-bold uppercase">Div</span>
-                                <span className="text-[10px] text-studio-text-mid">/16</span>
+                                {/* Derived from the module's constant rather than asserted. */}
+                                <span className="text-[10px] text-studio-text-mid">/{DIVISIONS_PER_BEAT * 4}</span>
                             </div>
                         </div>
                     </div>
@@ -683,7 +828,19 @@ export function TransportBar() {
             {/* 3. Logic Pro High-Fidelity LCD Display (The Brain) */}
             {controlBarSettings.showDisplay && (
                 <div
-                    className={`flex-1 ${controlBarSettings.displayMode === 'Custom' ? 'max-w-[720px]' : 'max-w-[580px]'} h-9 bg-black rounded shadow-[inset_0_2px_10px_rgba(0,0,0,1)] border border-white/5 flex items-center px-4 gap-6 relative overflow-visible group transition-all duration-300`}
+                    /*
+                        A floor as well as a ceiling.
+
+                        The LCD is `flex-1` between three `shrink-0` groups, so
+                        it never reaches its 580px ceiling — measured at a 1600px
+                        window it was getting about 200px, leaving the
+                        tempo/signature/key grid 86px wide with 15px cells. That
+                        is the collision. The row is already `overflow-x-auto`
+                        with a comment saying scrolling is the designed response
+                        to a narrow window, so a minimum here is consistent with
+                        the intent rather than a new behaviour.
+                    */
+                    className={`flex-1 ${controlBarSettings.displayMode === 'Custom' ? 'min-w-[600px] max-w-[720px]' : 'min-w-[430px] max-w-[580px]'} h-9 bg-black rounded shadow-[inset_0_2px_10px_rgba(0,0,0,1)] border border-white/5 flex items-center px-4 gap-6 relative overflow-visible group transition-all duration-300`}
                 >
                     <div className="absolute inset-x-0 h-[1.5px] bg-accent-cyan/20 top-0 opacity-40"></div>
 
@@ -698,18 +855,41 @@ export function TransportBar() {
                       * vanished before it could be clicked. It was visible and
                       * unusable.
                       */}
+                    {/*
+                        The menu opens from the triangle, not from anywhere on
+                        the LCD. A click handler over the whole panel fought
+                        every control inside it: the tempo opened the editor and
+                        the menu together, and once the position readout became
+                        draggable it had to swallow clicks to stay usable —
+                        which then blocked the document-level handler that
+                        closes the menu, so it could not be dismissed either.
+                    */}
                     <div
                         ref={lcdRef}
-                        className="flex-1 flex items-center justify-between cursor-pointer"
-                        onClick={() => setShowLCDMenu(v => !v)}
+                        className="flex-1 flex items-center justify-between"
                     >
 
                         {renderLCDContent()}
 
-                        {/* Dropdown Indicator */}
-                        <div className="absolute right-2 top-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="w-0 h-0 border-l-[3.5px] border-l-transparent border-r-[3.5px] border-r-transparent border-t-[4px] border-t-white/40 group-hover:border-t-sky-500"></div>
-                        </div>
+                        {/*
+                            The triangle is the control now.
+
+                            It was a decorative div that appeared on hover with
+                            no handler, while the menu opened from a click
+                            anywhere on the LCD — which stopped working the
+                            moment the position readout became draggable. A
+                            hover-revealed arrow that opens a menu is what it
+                            already looked like.
+                        */}
+                        <button
+                            data-lcd-menu-button
+                            title="Change what this display shows"
+                            aria-label="Display options"
+                            onClick={(e) => { e.stopPropagation(); setShowLCDMenu(v => !v); }}
+                            className="absolute right-1 top-0 h-full px-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                        >
+                            <div className="w-0 h-0 border-l-[3.5px] border-l-transparent border-r-[3.5px] border-r-transparent border-t-[4px] border-t-white/40 hover:border-t-sky-500"></div>
+                        </button>
 
                         {/* LCD Context Menu */}
                         {showLCDMenu && lcdMenuPos && typeof document !== 'undefined' && createPortal(
@@ -718,20 +898,29 @@ export function TransportBar() {
                                 onClick={(e) => e.stopPropagation()}
                                 style={{ position: 'fixed', top: lcdMenuPos.top, left: lcdMenuPos.left }}
                                 className="w-[220px] bg-studio-panel border border-black shadow-2xl rounded p-1 flex flex-col z-[9000] animate-in fade-in slide-in-from-top-1 duration-100">
-                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Beats & Project' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Beats & Project' }); setShowLCDMenu(false) }}>Beats & Project</button>
-                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Beats & Time' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Beats & Time' }); setShowLCDMenu(false) }}>Beats & Time</button>
-                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Beats' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Beats' }); setShowLCDMenu(false) }}>Beats</button>
-                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Time' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Time' }); setShowLCDMenu(false) }}>Time</button>
-                                <button className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === 'Custom' ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`} onClick={() => { updateControlBar({ displayMode: 'Custom' }); setShowLCDMenu(false) }}>Custom</button>
+                                {/* One list, shared with the store's type and
+                                    the customiser — see lib/lcdDisplayModes. */}
+                                {LCD_DISPLAY_MODES.map(mode => (
+                                    <button
+                                        key={mode}
+                                        data-lcd-mode={mode}
+                                        className={`px-3 py-1.5 text-left text-[11px] font-bold ${controlBarSettings.displayMode === mode ? 'bg-accent-cyan text-white' : 'text-studio-text hover:bg-white/5'}`}
+                                        onClick={() => { updateControlBar({ displayMode: mode }); setShowLCDMenu(false) }}
+                                    >{mode}</button>
+                                ))}
                                 <div className="h-px bg-white/5 my-1 mx-2"></div>
                                 <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded transition-colors" onClick={() => toggleFloatingWindow('giantBeats')}>Open Giant Beats Display</button>
                                 <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded transition-colors" onClick={() => toggleFloatingWindow('giantTime')}>Open Giant Time Display</button>
                                 <div className="h-px bg-white/5 my-1 mx-2"></div>
                                 <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded transition-colors" onClick={() => { setShowCustomizer(true); setShowLCDMenu(false) }}>Customize Control Bar and Display...</button>
-                                <div className="h-px bg-white/5 my-1 mx-2"></div>
-                                <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text-dim hover:text-white transition-opacity uppercase tracking-widest text-[8px]">Project Management</button>
-                                <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded transition-colors">Clean Up Project...</button>
-                                <button className="px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded transition-colors">Consolidate Assets...</button>
+                                {/*
+                                    "Project Management", "Clean Up Project..."
+                                    and "Consolidate Assets..." were here as
+                                    buttons with no onClick and no
+                                    implementation anywhere in the store —
+                                    three entries that highlighted under the
+                                    cursor and did nothing when pressed.
+                                */}
                             </div>,
                             document.body
                         )}
@@ -739,14 +928,16 @@ export function TransportBar() {
 
                     <div className="w-px h-5 bg-white/5"></div>
 
-                    {/* CPU/Drive (Professional Tech Detail) */}
-                    <div className="flex items-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity pr-2">
-                        <div className="flex flex-col gap-0.5">
-                            <div className="w-6 h-[1.5px] bg-studio-sunken rounded-full overflow-hidden"><div className="h-full bg-accent-cyan w-[20%] animate-pulse"></div></div>
-                            <div className="w-6 h-[1.5px] bg-studio-sunken rounded-full overflow-hidden"><div className="h-full bg-green-500 w-[45%]"></div></div>
-                        </div>
-                        <Activity className="w-3.5 h-3.5 text-accent-cyan" />
-                    </div>
+                    {/*
+                        Was "CPU/Drive (Professional Tech Detail)": two bars
+                        pinned at 20% and 45%, one of them animated so it looked
+                        alive, and an icon with no handler — all of it
+                        brightening on hover as though it could be pressed.
+                        It now reads the scheduler's real voice and clip counts.
+                    */}
+                    {controlBarSettings.displayOptions?.performanceMeter !== false && (
+                        <LcdActivity playing={playing} />
+                    )}
                 </div>
             )}
 

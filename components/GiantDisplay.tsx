@@ -3,6 +3,12 @@
 import React from 'react'
 import { useProjectStore } from '@/store/projectStore'
 import { X } from 'lucide-react'
+import {
+    beatsPerBar,
+    beatsToSecondsWithTempoMap,
+    formatClock,
+    formatPosition,
+} from '@/lib/transportPosition'
 
 interface GiantDisplayProps {
     type: 'giantBeats' | 'giantTime'
@@ -10,32 +16,29 @@ interface GiantDisplayProps {
 }
 
 export function GiantDisplay({ type, onClose }: GiantDisplayProps) {
-    const { playhead } = useProjectStore()
+    const playhead = useProjectStore(s => s.playhead)
+    const timeSignature = useProjectStore(s => s.timeSignature)
+    const globalTracks = useProjectStore(s => s.globalTracks)
 
-    const formatTime = (beats: number) => {
-        const bar = Math.floor(beats / 4) + 1;
-        const beat = Math.floor(beats % 4) + 1;
-        const div = Math.floor((beats % 1) * 4) + 1;
-        const tick = Math.floor((((beats % 1) * 4) % 1) * 240);
-
-        // Mocking time for display
-        const totalSeconds = (beats / 120) * 60;
-        const mins = Math.floor(totalSeconds / 60);
-        const secs = Math.floor(totalSeconds % 60);
-        const ms = Math.floor((totalSeconds % 1) * 1000);
-
-        return {
-            bar: bar.toString().padStart(4, '0'),
-            beat: beat.toString().padStart(1, '0'),
-            div: div.toString().padStart(1, '0'),
-            tick: tick.toString().padStart(3, '0'),
-            mins: mins.toString().padStart(2, '0'),
-            secs: secs.toString().padStart(2, '0'),
-            ms: ms.toString().padStart(3, '0')
-        };
-    };
-
-    const { bar, beat, div, tick, mins, secs, ms } = formatTime(playhead);
+    /*
+     * This had its own copy of the transport bar's formatter, and that copy
+     * hard-coded the tempo:
+     *
+     *     // Mocking time for display
+     *     const totalSeconds = (beats / 120) * 60;
+     *
+     * So the Giant Time window was wrong for every project not at 120 BPM,
+     * while the small readout six pixels away was right. It also counted four
+     * beats to the bar regardless of the time signature. Both displays read
+     * one shared module now.
+     */
+    const { bar, beat, div, tick } = formatPosition(playhead, {
+        beatsPerBar: beatsPerBar(timeSignature),
+        barDigits: 4,
+    })
+    const { mins, secs, ms } = formatClock(
+        beatsToSecondsWithTempoMap(playhead, globalTracks?.tempo),
+    )
 
     return (
         <div className="fixed top-20 left-20 z-[2500] bg-studio-panel rounded-lg border border-black shadow-[0_20px_60px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300 min-w-[320px]">

@@ -269,7 +269,12 @@ export function createTimecode(
     hours: Math.max(0, Math.min(23, hours)),
     minutes: Math.max(0, Math.min(59, minutes)),
     seconds: Math.max(0, Math.min(59, seconds)),
-    frames: Math.max(0, Math.min(Math.floor(framesPerSecond) - 1, frames)),
+    // `Math.round`, not `Math.floor`. 29.97 is a nominal rate that counts
+    // thirty frames per second, 0-29; flooring it clamped the frame number to
+    // 28 and made the count skip. This is not only cosmetic — the same value
+    // is packed into outgoing quarter-frame MTC by `mtcSync`, so the floor was
+    // transmitting a frame that does not exist.
+    frames: Math.max(0, Math.min(Math.round(framesPerSecond) - 1, frames)),
     frameRate,
     totalFrames,
   };
@@ -289,7 +294,8 @@ export function secondsToTimecode(seconds: number, frameRate: MTCFrameRate): MTC
   const fps = MTC_FRAME_RATES[frameRate].framesPerSecond;
   const totalFrames = Math.floor(seconds * fps);
 
-  const frames = totalFrames % Math.floor(fps);
+  // See the note in `createTimecode`: 29.97 rolls over at 30 frames, not 29.
+  const frames = totalFrames % Math.round(fps);
   const totalSeconds = Math.floor(totalFrames / fps);
   const secs = totalSeconds % 60;
   const totalMinutes = Math.floor(totalSeconds / 60);
