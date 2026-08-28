@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useProjectStore } from '@/store/projectStore';
 import { useProjectFileActions } from './useProjectFileActions';
+import { useFullscreen } from './useFullscreen';
 
 /**
  * Every menu the app has, and what each entry does.
@@ -44,6 +45,35 @@ export function useAppMenus(): AppMenu[] {
     const currentAlternativeId = useProjectStore(s => s.currentAlternativeId);
     const addAlternative = useProjectStore(s => s.addAlternative);
     const switchToAlternative = useProjectStore(s => s.switchToAlternative);
+
+    /*
+     * The panel toggles.
+     *
+     * These were a 52px bar across the bottom of the studio. Removing it would
+     * have taken Editors, Smart Controls and Full Screen with it — the bar was
+     * the only thing that called `toggleEditors`, the only thing that called
+     * `toggleSmartControls` (SmartControls destructures it and never uses it),
+     * and the only caller of `useFullscreen` anywhere. This menu already had
+     * "Show Editor", "Show Mixer", "Show Toolbar" and "Full Screen" as labels
+     * with no actions behind them, which is where they belong.
+     */
+    const showLibrary = useProjectStore(s => s.showLibrary);
+    const toggleLibrary = useProjectStore(s => s.toggleLibrary);
+    const showInspector = useProjectStore(s => s.showInspector);
+    const toggleInspector = useProjectStore(s => s.toggleInspector);
+    const showAutomation = useProjectStore(s => s.showAutomation);
+    const toggleAutomation = useProjectStore(s => s.toggleAutomation);
+    const showEditors = useProjectStore(s => s.showEditors);
+    const toggleEditors = useProjectStore(s => s.toggleEditors);
+    const showSmartControls = useProjectStore(s => s.showSmartControls);
+    const toggleSmartControls = useProjectStore(s => s.toggleSmartControls);
+    const showMixer = useProjectStore(s => s.showMixer);
+    const toggleMixer = useProjectStore(s => s.toggleMixer);
+    const showToolbar = useProjectStore(s => s.showToolbar);
+    const toggleToolbar = useProjectStore(s => s.toggleToolbar);
+    const showVirtualKeyboard = useProjectStore(s => s.showVirtualKeyboard);
+    const toggleVirtualKeyboard = useProjectStore(s => s.toggleVirtualKeyboard);
+    const fullscreen = useFullscreen();
 
     const menuDefs: Record<string, AppMenuEntry[]> = {
         logic: [
@@ -122,11 +152,23 @@ export function useAppMenus(): AppMenu[] {
             { label: "Show Dynamics" },
         ],
         View: [
-            { label: "Show Editor" },
-            { label: "Show Mixer" },
-            { label: "Show Toolbar" },
+            { label: "Library", checked: showLibrary, action: toggleLibrary },
+            { label: "Inspector", checked: showInspector, action: toggleInspector },
+            { label: "Automation", checked: showAutomation, action: toggleAutomation },
             { separator: true },
-            { label: "Full Screen", shortcut: "Ctrl+Cmd+F" },
+            { label: "Editors", checked: showEditors, action: toggleEditors },
+            { label: "Smart Controls", checked: showSmartControls, action: toggleSmartControls },
+            { label: "Mixer", checked: showMixer, action: toggleMixer },
+            { label: "Play Surfaces", checked: showVirtualKeyboard, action: () => toggleVirtualKeyboard() },
+            { separator: true },
+            { label: "Toolbar", checked: showToolbar, action: toggleToolbar },
+            {
+                label: "Full Screen",
+                shortcut: "F11",
+                checked: fullscreen.isFullscreen,
+                // Dimmed rather than missing where the browser will not allow it.
+                action: fullscreen.isSupported ? () => { void fullscreen.toggle(); } : undefined,
+            },
         ],
         Window: [
             { label: "Minimize", shortcut: "Cmd+M" },

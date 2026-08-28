@@ -39,7 +39,6 @@ import { NoteRepeatDialog } from "@/components/NoteRepeatDialog"
 import { SpotEraseDialog } from "@/components/SpotEraseDialog"
 import { StepInputKeyboard } from "@/components/StepInputKeyboard"
 import { AudioTrackEditor } from "@/components/AudioTrackEditor"
-import { ViewControlBar } from "@/components/ViewControlBar"
 import { PluginEditorWindow } from "@/components/PluginEditorWindow"
 import { PluginBrowser } from "@/components/plugins/PluginBrowser"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
@@ -353,10 +352,16 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
                 </div>
             )}
 
-            {/* 5. View Control Bar (Bottom) */}
-            <ErrorBoundary zone="transport" name="ViewControlBar">
-                <ViewControlBar bottomPanel={bottomPanel} />
-            </ErrorBoundary>
+            {/*
+              * The view control bar is gone.
+              *
+              * 52px across the bottom for eight panel toggles, five of which
+              * the transport bar and the tracks-area bar already carried. The
+              * three it held alone — Editors, Smart Controls and Full Screen —
+              * are in the View menu now, which had been listing them as labels
+              * with nothing behind them.
+              */
+            }
 
             <ErrorBoundary name="GlobalKeyHandler">
                 <GlobalKeyHandler />
