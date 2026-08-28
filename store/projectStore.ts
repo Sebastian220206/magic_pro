@@ -1363,6 +1363,16 @@ async function beginAudioCapture(state: { tracks: Track[]; focusedTrackId: strin
 }
 
 
+/** Throw the take away and leave the input open for the next one. */
+async function discardAudioCapture(): Promise<void> {
+    try {
+        getAudioRecorder().cancel();
+    } catch (error) {
+        console.error('[Recording] Could not discard the take:', error);
+    }
+    await syncInputMonitoring(useProjectStore.getState());
+}
+
 /** Finish the take. The recorder adds the clip and registers its buffer. */
 async function endAudioCapture(): Promise<void> {
     try {
@@ -2132,8 +2142,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }
         automationRuntime.invalidate();
         if (s.recording) {
-            // Finalize recordings
-            set({ recording: false });
+            /*
+             * Finish the take, which is what this comment used to claim.
+             *
+             * It cleared the flag and nothing else. The recorder builds the
+             * clip, its waveform and its buffer inside `stop()`, and nothing
+             * called it — so pressing Stop on the transport left the recorder
+             * running forever with the take in a buffer that was never read.
+             * `audioDebug.whyNoTake()` on a real machine after a 72-second
+             * take: state "recording", 3,483,648 samples captured, peak 0.21,
+             * zero clips. Record then Stop is the ordinary way to end a take,
+             * and it was the one path that threw it away.
+             */
+            set({ recording: false, recordingStartTime: null, liveRecordingClips: {} });
+            void endAudioCapture();
         }
         if (s.playing) {
             set({ playing: false, recording: false, recordingStartTime: null, liveRecordingClips: {} });
@@ -6277,6 +6299,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             acc.push(c);
             return acc;
         }, []);
+
+        // Stop the recorder as well, without building a clip from what it
+        // holds — otherwise the take being discarded stays in its buffer and
+        // the next one is appended to it.
+        void discardAudioCapture();
 
         set({
             clips: updatedClips,

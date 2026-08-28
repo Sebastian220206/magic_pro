@@ -28,6 +28,9 @@ const recorder = {
     // monitoring was silent.
     setMonitoring: jest.fn(),
     disarm: jest.fn(),
+    // Ending a take without keeping it. Discarding used to clear the
+    // transport's flag and leave the recorder running.
+    cancel: jest.fn(),
 };
 jest.mock('@/engine/audioRecording/recorder', () => ({
     getAudioRecorder: () => recorder,
@@ -78,6 +81,7 @@ describe('audio recording', () => {
         recorder.stop.mockClear().mockResolvedValue(null);
         recorder.setMonitoring.mockClear();
         recorder.disarm.mockClear();
+        recorder.cancel.mockClear();
         project();
     });
 
@@ -277,6 +281,53 @@ describe('audio recording', () => {
         await settle();
 
         expect(recorder.disarm).not.toHaveBeenCalled();
+    });
+
+    /*
+     * Every way out of a take has to finish it.
+     *
+     * The recorder builds the clip, its waveform and its buffer inside
+     * `stop()`. The transport's Stop button carried the comment "Finalize
+     * recordings" over `set({ recording: false })` and called nothing — so
+     * Record then Stop, the ordinary way to end a take, left the recorder
+     * running and threw the audio away. Measured on a real machine:
+     * 3,483,648 samples captured, peak 0.21, zero clips.
+     */
+    it('the transport Stop button finishes the take', async () => {
+        useProjectStore.getState().toggleRecording();
+        await settle();
+        recorder.stop.mockClear();
+
+        useProjectStore.getState().stop();
+        await settle();
+
+        expect(recorder.stop).toHaveBeenCalled();
+        expect(useProjectStore.getState().recording).toBe(false);
+    });
+
+    it('Stop clears the take bookkeeping too', async () => {
+        useProjectStore.getState().toggleRecording();
+        await settle();
+
+        useProjectStore.getState().stop();
+        await settle();
+
+        expect(useProjectStore.getState().recordingStartTime).toBeNull();
+        expect(useProjectStore.getState().liveRecordingClips).toEqual({});
+    });
+
+    it('discarding a take cancels it rather than keeping it', async () => {
+        useProjectStore.getState().toggleRecording();
+        await settle();
+        recorder.stop.mockClear();
+        recorder.cancel.mockClear();
+
+        useProjectStore.getState().discardAndReturn();
+        await settle();
+
+        // `stop()` would build a clip from audio the person just discarded.
+        expect(recorder.cancel).toHaveBeenCalled();
+        expect(recorder.stop).not.toHaveBeenCalled();
     });
 
     it('gives a device that has gone missing a sentence, not an empty string', () => {

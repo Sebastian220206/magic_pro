@@ -361,6 +361,30 @@ export class AudioRecorder {
     return clip;
   }
 
+  /**
+   * End a take without keeping it.
+   *
+   * `stop()` is the only thing that builds a clip, so discarding a take by
+   * clearing the transport's flag left the recorder running: nodes connected,
+   * samples still arriving into a buffer nobody would ever read, and the next
+   * take appended to the last one.
+   */
+  cancel(): void {
+    if (this.state !== 'recording' && this.state !== 'paused') return;
+    if (this.recorderNode instanceof AudioWorkletNode) {
+      this.recorderNode.port.postMessage({ type: 'stop' });
+    }
+    this.recorderNode?.disconnect();
+    this.silentGain?.disconnect();
+    this.recorderNode = null;
+    this.silentGain = null;
+    this.bufferManager.clear();
+    this.totalSamplesRecorded = 0;
+    this.maxAmplitude = 0;
+    this.hasClipped = false;
+    this.state = 'stopped';
+  }
+
   disarm() {
     this.cleanup();
     this.isArmed = false;

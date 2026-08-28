@@ -127,6 +127,40 @@ check('the take carries a sample id', !!playable.sampleId, JSON.stringify(playab
 await page.screenshot({ path: 'record-e2e.png', clip: { x: 0, y: 100, width: 1400, height: 420 } });
 
 /*
+ * Ending the take with the transport's Stop button.
+ *
+ * `stop()` carried the comment "Finalize recordings" over `set({ recording:
+ * false })` and nothing else. The clip is built inside the recorder's `stop()`,
+ * which nothing called — so pressing Stop left the recorder running with the
+ * take in a buffer that was never read, and no clip ever appeared. Record then
+ * Stop is the ordinary way to end a take and it was the one route that lost it.
+ */
+{
+    const before = await page.evaluate(() => window.__projectStore.getState().clips.length);
+    await page.click('button[title="Record (R)"]');
+    await page.waitForTimeout(2500);
+    // The square, not the record button again.
+    await page.click('button[aria-label="Stop"]');
+    await page.waitForTimeout(3000);
+
+    const stopped = await page.evaluate(() => {
+        const st = window.__projectStore.getState();
+        const c = st.clips[st.clips.length - 1];
+        return {
+            count: st.clips.length,
+            recorderState: window.__audioRecorder?.state,
+            transportRecording: st.recording,
+            peaks: c?.waveformPeaks?.channels?.[0]?.min?.length ?? 0,
+        };
+    });
+    check('Stop ends the take and keeps it', stopped.count > before && stopped.peaks > 0,
+        `${before} -> ${stopped.count}, ${stopped.peaks} peaks`);
+    check('and the recorder is no longer running',
+        stopped.recorderState !== 'recording',
+        `recorder=${stopped.recorderState} transport.recording=${stopped.transportRecording}`);
+}
+
+/*
  * A take on a track whose alternative is not the string 'alt-1'.
  *
  * The timeline compares `clip.alternativeId === track.activeAlternativeId`
