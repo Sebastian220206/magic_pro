@@ -133,7 +133,7 @@ export default function Dashboard() {
    * it is imported at the moment of the click rather than at module scope —
    * the same reason the old dashboard loaded `NewProjectScreen` dynamically.
    */
-  const createBlank = useCallback(async (openLiveLoops: boolean) => {
+  const createBlank = useCallback(async (kind: "empty" | "liveLoops") => {
     setCreating(true);
     try {
       const [{ audioEngine }, { useProjectStore }] = await Promise.all([
@@ -141,15 +141,32 @@ export default function Dashboard() {
         import("@/store/projectStore"),
       ]);
       await audioEngine.waitForReady();
-      const store = useProjectStore.getState();
-      store.initializeProject({ tempo: 90, keySignature: "C Major", timeSignature: "4/4" });
-      // One update, not two: autosave persists between separate `addTrack`
-      // calls and the studio then restores the trackless snapshot over it.
-      useProjectStore.getState().addTracks([
-        { name: "Drums", type: "drummer", color: "#f59e0b" },
-        { name: "Piano", type: "software-instrument", color: "#34d399", instrument: "piano" },
-      ] as never);
-      if (openLiveLoops) useProjectStore.getState().toggleLiveLoops();
+      useProjectStore.getState().initializeProject({
+        tempo: 90, keySignature: "C Major", timeSignature: "4/4",
+      });
+
+      /*
+       * Empty means empty.
+       *
+       * This used to add a Drums and a Piano track to a project labelled
+       * "Empty Project", which is a different thing and left anyone who wanted
+       * a blank canvas deleting two tracks first. `initializeProject` already
+       * produces none; nothing more is needed. The + in the track list header
+       * is always there to add the first one.
+       *
+       * Live Loops keeps a couple, because the grid is rows of cells and an
+       * empty grid has nowhere to put anything.
+       */
+      if (kind === "liveLoops") {
+        // One update, not two: autosave persists between separate `addTrack`
+        // calls and the studio then restores the trackless snapshot over it.
+        useProjectStore.getState().addTracks([
+          { name: "Drums", type: "drummer", color: "#f59e0b" },
+          { name: "Piano", type: "software-instrument", color: "#34d399", instrument: "piano" },
+        ] as never);
+        useProjectStore.getState().toggleLiveLoops();
+      }
+
       router.push(`/project/${useProjectStore.getState().id}`);
     } catch (e) {
       console.error("[Dashboard] Could not create the project:", e);
@@ -195,13 +212,13 @@ export default function Dashboard() {
       return [
         {
           id: "empty", label: "Empty Project",
-          description: "Create an empty project, with a drum track and a piano to start on.",
-          art: <EmptyProjectArt />, onOpen: () => void createBlank(false),
+          description: "Create an empty project, with no tracks. Add the first one from the + above the track list.",
+          art: <EmptyProjectArt />, onOpen: () => void createBlank("empty"),
         },
         {
           id: "liveloops", label: "Live Loops",
-          description: "Create a project with the Live Loops grid open, for triggering cells rather than a timeline.",
-          art: <LiveLoopsArt />, onOpen: () => void createBlank(true),
+          description: "Create a project with the Live Loops grid open, for triggering cells rather than a timeline. Starts with a drum track and a piano, so the grid has rows.",
+          art: <LiveLoopsArt />, onOpen: () => void createBlank("liveLoops"),
         },
       ];
     }

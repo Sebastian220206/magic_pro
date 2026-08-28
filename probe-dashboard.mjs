@@ -176,7 +176,10 @@ await page.click('[data-section="recent"]');
 await page.waitForTimeout(1200);
 const recentChoose = await page.evaluate(() => {
     const b = document.querySelector('[data-choose]');
-    return { present: !!b, label: b?.textContent?.trim(), disabled: b?.disabled };
+    return { present: !!b, label: b?.textContent?.trim(), disabled: b?.disabled,
+             rows: document.querySelectorAll('[data-project]').length,
+             highlighted: [...document.querySelectorAll('[data-project]')]
+                 .filter(r => r.className.includes('accent-cyan')).length };
 });
 check('Recent offers Open on the most recent project',
     recentChoose.present && recentChoose.label === 'Open',
@@ -191,6 +194,24 @@ await page.click('[data-choose]');
 await page.waitForURL('**/project/**', { timeout: 90000 }).catch(() => {});
 check('Choose creates the project and opens the studio',
     page.url().includes('/project/'), page.url().replace(BASE, ''));
+
+// ── Empty means empty ─────────────────────────────────────────────────────
+// It used to add a Drums and a Piano track to a project called "Empty
+// Project", leaving anyone who wanted a blank canvas deleting two tracks.
+await page.waitForFunction(() => !!window.__projectStore, null, { timeout: 60000 });
+await page.waitForTimeout(3000);
+const emptied = await page.evaluate(() => {
+    const st = window.__projectStore.getState();
+    return { tracks: st.tracks.length, clips: st.clips.length,
+             names: st.tracks.map(t => t.name) };
+});
+check('Empty Project creates no tracks at all',
+    emptied.tracks === 0 && emptied.clips === 0,
+    `${emptied.tracks} tracks${emptied.names.length ? ` (${emptied.names.join(', ')})` : ''}, ${emptied.clips} clips`);
+
+// And there is still a way to add the first one.
+check('the track list still offers a way to add one',
+    await page.evaluate(() => !!document.querySelector('button[title="New Track..."]')));
 
 const failed = results.filter(r => !r).length;
 console.log(`\n${results.length - failed}/${results.length} checks passed`);

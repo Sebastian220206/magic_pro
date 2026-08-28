@@ -34,10 +34,25 @@ await page.fill('input[type="password"]', 'devpassword123');
 await page.click('button[type="submit"]');
 await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 60000 });
 await page.waitForTimeout(2000);
-await page.getByRole('button', { name: 'New Project' }).first().click();
-await page.waitForTimeout(2200);
-await page.getByRole('button', { name: /Blank Project/i }).first().click();
+// The dashboard is the project chooser now: a New Project category with an
+// Empty Project tile, and Choose to create it.
+await page.click('[data-section="new"]', { timeout: 90000 });
+await page.waitForTimeout(500);
+await page.click('[data-tile="empty"]');
+await page.click('[data-choose]');
 await page.waitForURL('**/project/**', { timeout: 60000 });
+// Empty Project means empty — it creates no tracks. Seed the two these
+// probes assume, rather than waiting forever for tracks nothing adds.
+await page.waitForFunction(() => !!window.__projectStore, null, { timeout: 60000 });
+await page.evaluate(() => {
+    const st = window.__projectStore.getState();
+    if (st.tracks.length === 0) {
+        st.addTracks([
+            { name: 'Drums', type: 'drummer', color: '#f59e0b' },
+            { name: 'Piano', type: 'software-instrument', color: '#34d399', instrument: 'piano' },
+        ]);
+    }
+});
 await page.waitForFunction(() => (window.__projectStore?.getState()?.tracks?.length ?? 0) > 0, null, { timeout: 60000 });
 await page.waitForTimeout(3500);
 
