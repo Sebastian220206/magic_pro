@@ -11,6 +11,8 @@ import { serializeStoreState, deserializeState, saveToIndexedDB, loadFromIndexed
 import { getAudioRecorder } from '@/engine/audioRecording/recorder';
 import { rebuildEngine } from '@/engine/persistence/engineRebuilder';
 import { storeAudioFile } from '@/engine/persistence/audioFileStore';
+import { syncInputMonitoring } from '@/engine/audioRecording/inputMonitoring';
+import { describeRecordingError } from '@/lib/recordingErrors';
 import { extractPeaksAsync } from '@/engine/waveform';
 import { bufferCacheManager } from '@/engine/audioEngine/bufferCache';
 import { getAudioContext } from '@/engine/audioEngine/audioContext';
@@ -1344,12 +1346,21 @@ async function beginAudioCapture(state: { tracks: Track[]; focusedTrackId: strin
         await recorder.arm();
         await recorder.start({ trackId: target.id, startTime: state.playhead });
     } catch (error) {
-        // A dismissed microphone prompt is the usual cause. Say so rather than
-        // leaving the transport rolling over a take that records nothing.
+        /*
+         * Say what went wrong, in words.
+         *
+         * This read `error.message`, and the most common failure here —
+         * OverconstrainedError, thrown when the stored input device no longer
+         * exists — carries an empty message. So the store's error was the
+         * empty string, which is indistinguishable from no error at all: the
+         * transport rolled with the record light on and nothing anywhere said
+         * why the take was silent.
+         */
         console.error('[Recording] Could not start audio capture:', error);
-        useProjectStore.setState({ recordingError: String((error as Error)?.message ?? error) });
+        useProjectStore.setState({ recordingError: describeRecordingError(error) });
     }
 }
+
 
 /** Finish the take. The recorder adds the clip and registers its buffer. */
 async function endAudioCapture(): Promise<void> {
@@ -1358,6 +1369,8 @@ async function endAudioCapture(): Promise<void> {
     } catch (error) {
         console.error('[Recording] Could not finish audio capture:', error);
     }
+    // The take is over, but an armed track still wants to hear its input.
+    await syncInputMonitoring(useProjectStore.getState());
 }
 
 /** Pending count-in, so cancelling record does not start the transport late. */
@@ -6148,20 +6161,35 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     setReplaceModeType: (type: ProjectState['replaceModeType']) => set({ replaceModeType: type }),
     setRecordingOverlappingMode: (mode: ProjectState['recordingOverlappingMode']) => set({ recordingOverlappingMode: mode }),
     
-    toggleRecordEnable: (trackId) => set(s => ({
-        tracks: s.tracks.map(t => {
-            if (t.id === trackId) {
-                return { ...t, recordEnabled: !t.recordEnabled };
-            }
-            // Logic Pro behavior: Usually only one software instrument/audio track is automatically R-enabled 
-            // when selected, but manual toggle is additive.
-            return t;
-        })
-    })),
+    /*
+     * Arming and input monitoring both open the input.
+     *
+     * They used to write a flag and stop there: the recorder was armed inside
+     * `beginAudioCapture`, so nothing opened until record was pressed, and
+     * `inputMonitoring` was read by no part of the audio engine at all. You
+     * could arm a track, switch monitoring on, watch both buttons light, and
+     * hear nothing — there was no signal path to hear.
+     */
+    toggleRecordEnable: (trackId) => {
+        set(s => ({
+            tracks: s.tracks.map(t => {
+                if (t.id === trackId) {
+                    return { ...t, recordEnabled: !t.recordEnabled };
+                }
+                // Logic Pro behavior: Usually only one software instrument/audio track is automatically R-enabled 
+                // when selected, but manual toggle is additive.
+                return t;
+            })
+        }));
+        void syncInputMonitoring(get());
+    },
 
-    toggleInputMonitoring: (trackId) => set(s => ({
-        tracks: s.tracks.map(t => t.id === trackId ? { ...t, inputMonitoring: !t.inputMonitoring } : t)
-    })),
+    toggleInputMonitoring: (trackId) => {
+        set(s => ({
+            tracks: s.tracks.map(t => t.id === trackId ? { ...t, inputMonitoring: !t.inputMonitoring } : t)
+        }));
+        void syncInputMonitoring(get());
+    },
 
     setAutoInputMonitoring: (enabled) => set({ autoInputMonitoring: enabled }),
     

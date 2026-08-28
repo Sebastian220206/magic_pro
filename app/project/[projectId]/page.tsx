@@ -43,6 +43,7 @@ import { PluginEditorWindow } from "@/components/PluginEditorWindow"
 import { PluginBrowser } from "@/components/plugins/PluginBrowser"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { ProjectFileDialogs } from "@/components/ProjectFileDialogs"
+import { RecordingStatus } from "@/components/RecordingStatus"
 
 import RotateToLandscape from "@/components/studio/RotateToLandscape"
 import { useViewport } from "@/hooks/useViewport"
@@ -215,6 +216,18 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
                 it.
             */}
             <ProjectFileDialogs />
+
+            {/*
+                What the input is doing.
+
+                `recordingError` was store state nothing rendered, and there
+                was no input meter mounted anywhere — so a failed take and a
+                silent one looked identical: transport rolling, record lit,
+                nothing recorded.
+            */}
+            <ErrorBoundary name="RecordingStatus">
+                <RecordingStatus />
+            </ErrorBoundary>
 
             {/* Top: Control Bar (Transport) */}
             <ErrorBoundary name="TransportBar">

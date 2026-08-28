@@ -23,6 +23,11 @@ const recorder = {
     arm: jest.fn().mockResolvedValue(undefined),
     start: jest.fn().mockResolvedValue(undefined),
     stop: jest.fn().mockResolvedValue(null),
+    // Arming and monitoring open the input now, so the mock has to answer for
+    // them: `setMonitoring` had no callers at all before, which is exactly why
+    // monitoring was silent.
+    setMonitoring: jest.fn(),
+    disarm: jest.fn(),
 };
 jest.mock('@/engine/audioRecording/recorder', () => ({
     getAudioRecorder: () => recorder,
@@ -71,6 +76,8 @@ describe('audio recording', () => {
         recorder.arm.mockClear().mockResolvedValue(undefined);
         recorder.start.mockClear().mockResolvedValue(undefined);
         recorder.stop.mockClear().mockResolvedValue(null);
+        recorder.setMonitoring.mockClear();
+        recorder.disarm.mockClear();
         project();
     });
 
@@ -164,5 +171,89 @@ describe('audio recording', () => {
         useProjectStore.getState().toggleRecording();
 
         expect(useProjectStore.getState().recordingError).toBeNull();
+    });
+
+    /*
+     * Input monitoring.
+     *
+     * Arming used to happen inside `beginAudioCapture`, so the input did not
+     * open until record was pressed — there was nothing to monitor and nothing
+     * to meter while setting a level. And `setMonitoring` had no callers in the
+     * app at all, so the recorder's monitor gain was built at zero and left
+     * there: two lit buttons and no signal path.
+     */
+    /** The fixture arms the audio track, so start from a disarmed one. */
+    function disarmed() {
+        useProjectStore.setState({
+            tracks: useProjectStore.getState().tracks.map(t => ({
+                ...t, recordEnabled: false, inputMonitoring: false,
+            })) as never,
+        });
+        recorder.arm.mockClear();
+        recorder.disarm.mockClear();
+        recorder.setMonitoring.mockClear();
+    }
+
+    const settle = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
+
+    it('opens the input when a track is record-enabled', async () => {
+        disarmed();
+        useProjectStore.getState().toggleRecordEnable(AUDIO);
+        await settle();
+
+        expect(recorder.arm).toHaveBeenCalled();
+    });
+
+    it('does not open the monitor path for arming alone', async () => {
+        disarmed();
+        useProjectStore.getState().toggleRecordEnable(AUDIO);
+        await settle();
+
+        expect(recorder.setMonitoring).toHaveBeenCalledWith(false);
+    });
+
+    it('opens the monitor path when input monitoring is switched on', async () => {
+        disarmed();
+        useProjectStore.getState().toggleInputMonitoring(AUDIO);
+        await settle();
+
+        expect(recorder.setMonitoring).toHaveBeenCalledWith(true);
+    });
+
+    it('closes the input when nothing is armed or monitoring', async () => {
+        disarmed();
+        useProjectStore.getState().toggleRecordEnable(AUDIO);
+        await settle();
+        recorder.disarm.mockClear();
+
+        useProjectStore.getState().toggleRecordEnable(AUDIO);
+        await settle();
+
+        expect(recorder.disarm).toHaveBeenCalled();
+    });
+
+    it('leaves the input open while a take is running', async () => {
+        disarmed();
+        useProjectStore.setState({ recording: true } as never);
+        useProjectStore.getState().toggleRecordEnable(AUDIO);
+        await settle();
+        recorder.disarm.mockClear();
+
+        // Disarming mid-take would pull the stream out from under the recorder.
+        useProjectStore.getState().toggleRecordEnable(AUDIO);
+        await settle();
+
+        expect(recorder.disarm).not.toHaveBeenCalled();
+    });
+
+    it('gives a device that has gone missing a sentence, not an empty string', () => {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { describeRecordingError } = require('@/lib/recordingErrors');
+        // OverconstrainedError carries no `.message`, so reading it produced ''
+        // — indistinguishable from no error, which is how a failed take looked.
+        const err = new DOMException('', 'OverconstrainedError');
+        expect(describeRecordingError(err)).toMatch(/not available/i);
+        expect(describeRecordingError(new DOMException('', 'NotAllowedError'))).toMatch(/blocked/i);
+        expect(describeRecordingError(new DOMException('', 'NotReadableError'))).toMatch(/in use/i);
     });
 });

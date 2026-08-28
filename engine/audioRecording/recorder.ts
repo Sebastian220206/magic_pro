@@ -54,6 +54,8 @@ export class AudioRecorder {
   private isMonitoring = false;
   private isArmed = false;
   private isWorkletLoaded = false;
+  /** Set when the chosen input was missing and the default was used instead. */
+  private activeInputNote: string | null = null;
 
   constructor() {
     this.bufferManager = new RecordingBufferManager();
@@ -93,6 +95,64 @@ export class AudioRecorder {
   }
 
   /**
+   * Open the input, falling back when the chosen device is gone.
+   *
+   * `deviceId: { exact }` is a cliff. Device ids are origin-scoped and rotate —
+   * clearing site data, replugging a USB interface, or opening a project saved
+   * on another machine all leave a stored id that no longer resolves, and
+   * getUserMedia answers with OverconstrainedError. That threw all the way out
+   * of `arm()`, so the transport rolled with the record light on while the
+   * recorder sat idle: no monitoring, no samples, no clip, and an
+   * OverconstrainedError whose `.message` is the empty string.
+   *
+   * A device that has gone missing is a reason to say so and use the default,
+   * not a reason to record nothing.
+   */
+  private async openInput(): Promise<MediaStream> {
+    const { globalSettings } = useProjectStore.getState();
+    const selected = globalSettings?.audio?.inputDevice;
+    const wanted = selected && selected !== 'None' && selected !== 'default' ? selected : null;
+
+    const base: MediaTrackConstraints = {
+      channelCount: 1,
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    };
+
+    if (wanted) {
+      try {
+        const stream = await audioContextManager.requestMicrophoneAccess({
+          audio: { ...base, deviceId: { exact: wanted } },
+        });
+        this.activeInputNote = null;
+        // The chosen device answered. Clear any warning left from when it did not.
+        if (useProjectStore.getState().recordingError) {
+          useProjectStore.setState({ recordingError: null });
+        }
+        return stream;
+      } catch (error) {
+        const name = (error as DOMException)?.name;
+        if (name !== 'OverconstrainedError' && name !== 'NotFoundError') throw error;
+        console.warn(`[AudioRecorder] Chosen input ${wanted} is not available; falling back to the default.`);
+      }
+    }
+
+    const stream = await audioContextManager.requestMicrophoneAccess({ audio: base });
+    const label = stream.getAudioTracks()[0]?.label || 'the system default';
+    this.activeInputNote = wanted
+      ? `The input chosen in Settings is not available. Recording from ${label}.`
+      : null;
+    if (this.activeInputNote) {
+      useProjectStore.setState({ recordingError: this.activeInputNote });
+    }
+    return stream;
+  }
+
+  /** What the input fell back to, if it did. */
+  getInputNote(): string | null { return this.activeInputNote; }
+
+  /**
    * Arm the recorder - Enables live mic input and metering without recording yet.
    */
   async arm(): Promise<void> {
@@ -102,22 +162,7 @@ export class AudioRecorder {
       const context = this.ctx!;
 
       if (!this.stream) {
-        // Get selected device from project store
-        const { globalSettings } = useProjectStore.getState();
-        const selectedDevice = globalSettings.audio.inputDevice;
-        
-        console.log('[AudioRecorder] Accessing microphone for device:', selectedDevice);
-        
-        const constraints: MediaStreamConstraints = {
-          audio: { 
-            channelCount: 1, 
-            echoCancellation: false,
-            // If it looks like a deviceId (not 'None' or 'default'), use it
-            ...(selectedDevice && selectedDevice !== 'None' && selectedDevice !== 'default' ? { deviceId: { exact: selectedDevice } } : {})
-          }
-        };
-
-        this.stream = await audioContextManager.requestMicrophoneAccess(constraints);
+        this.stream = await this.openInput();
       }
 
       // Create Nodes if they don't exist
@@ -359,7 +404,20 @@ export class AudioRecorder {
 
 let instance: AudioRecorder | null = null;
 export function getAudioRecorder(): AudioRecorder {
-  if (!instance) instance = new AudioRecorder();
+  if (!instance) {
+    instance = new AudioRecorder();
+    /*
+     * The same handle the store exposes.
+     *
+     * Every way this pipeline fails looks identical from outside the app:
+     * a monitor gain stuck at zero, a stream from the wrong device, and a
+     * capture of pure silence all present as "I pressed record and nothing
+     * happened". The internals have to be readable to tell them apart.
+     */
+    if (typeof window !== 'undefined') {
+      (window as unknown as Record<string, unknown>).__audioRecorder = instance;
+    }
+  }
   return instance;
 }
 
