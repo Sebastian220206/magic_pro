@@ -16,10 +16,17 @@ await page.goto(`${BASE}/login`);
 // A cold dev build serves the page before React attaches its handlers; a
 // click landing first submits the form natively and never logs in.
 await page.waitForTimeout(6000);
-await page.fill('input[type="email"]', 'dev@example.com');
-await page.fill('input[type="password"]', 'devpassword123');
-await page.click('button[type="submit"]');
-await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 60000 });
+// Clicking before hydration submits the form natively and lands back on
+// /login?, which looks exactly like a rejected password.
+for (let attempt = 0; attempt < 4; attempt++) {
+    await page.fill('input[type="email"]', 'dev@example.com');
+    await page.fill('input[type="password"]', 'devpassword123');
+    await page.click('button[type="submit"]');
+    try {
+        await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 20000 });
+        break;
+    } catch { await page.waitForTimeout(4000); }
+}
 await page.waitForTimeout(2000);
 // The dashboard is the project chooser now: a New Project category with an
 // Empty Project tile, and Choose to create it.

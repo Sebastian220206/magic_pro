@@ -23,10 +23,17 @@ const check = (name, pass, detail = '') => {
 
 await page.goto(`${BASE}/login`);
 await page.waitForTimeout(8000);
-await page.fill('input[type="email"]', 'dev@example.com');
-await page.fill('input[type="password"]', 'devpassword123');
-await page.click('button[type="submit"]');
-await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 60000 });
+// Clicking before hydration submits the form natively and lands back on
+// /login?, which looks exactly like a rejected password.
+for (let attempt = 0; attempt < 4; attempt++) {
+    await page.fill('input[type="email"]', 'dev@example.com');
+    await page.fill('input[type="password"]', 'devpassword123');
+    await page.click('button[type="submit"]');
+    try {
+        await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 20000 });
+        break;
+    } catch { await page.waitForTimeout(4000); }
+}
 await page.waitForTimeout(2000);
 // The dashboard is the project chooser now: a New Project category with an
 // Empty Project tile, and Choose to create it.
@@ -61,7 +68,9 @@ check('and the project-name popover with it', !bar.projectChip);
 
 // The transport bar should now be the topmost chrome in the frame.
 const topmost = await page.evaluate(() => {
-    const t = document.querySelector('[data-view-toggles-shell]')?.closest('div[class*="h-[52px]"]');
+    // Found by role rather than by height: the bar's height is a design
+    // choice that changes, and a selector spelling it out breaks with it.
+    const t = document.querySelector('[data-view-toggles-shell]')?.closest('div[class*="justify-start"]');
     if (!t) return null;
     const r = t.getBoundingClientRect();
     const shell = document.querySelector('.daw-shell')?.getBoundingClientRect();

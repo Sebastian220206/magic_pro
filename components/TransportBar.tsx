@@ -464,7 +464,7 @@ export function TransportBar() {
              * `daw-scrollbar-thin` keeps the scrollbar from stealing height
              * from a 52px row.
              */
-            className="h-[52px] bg-gradient-to-b from-studio-control to-studio-raised border-b border-black flex items-center px-4 gap-4 justify-start xl:justify-between overflow-x-auto overflow-y-hidden daw-scrollbar-thin shrink-0 z-[100] shadow-[0_4px_10px_rgba(0,0,0,0.5)] select-none"
+            className="h-[62px] bg-gradient-to-b from-studio-control to-studio-raised border-b border-black flex items-center px-4 gap-4 justify-start xl:justify-between overflow-x-auto overflow-y-hidden daw-scrollbar-thin shrink-0 z-[100] shadow-[0_4px_10px_rgba(0,0,0,0.5)] select-none"
             onContextMenu={onContextMenu}
         >
 
