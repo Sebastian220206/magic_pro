@@ -8,7 +8,7 @@ import {
     Repeat, Volume2, Search,
     Layout, Sidebar, Settings,
     List, Music, FileText,
-    MonitorPlay, Activity,
+    Activity,
     ChevronDown, Power, Grid,
     Type, Flag, Clock, LucideIcon, Keyboard
 } from "lucide-react"
@@ -464,15 +464,19 @@ export function TransportBar() {
 
             {/* 1. View Toggles (Logic Left Control) */}
             {controlBarSettings.showViews && (
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div data-view-toggles className="flex items-center gap-1.5 shrink-0">
                     {renderViewButton('library', Sidebar, toggleLibrary, showLibrary)}
                     {renderViewButton('inspector', Layout, toggleInspector, showInspector)}
                     {renderViewButton('quickHelp', Search, () => { }, false)}
                     {renderViewButton('toolbar', Settings, toggleToolbar, showToolbar)}
                     <div className="w-px h-6 bg-black/40 mx-1"></div>
-                    {renderViewButton('smartControls', Activity, () => { }, false)}
+                    {/*
+                        Smart Controls and Editors used to sit either side of
+                        the mixer button. Both were `() => { }` with `active`
+                        hard-coded false — they could not be pressed into doing
+                        anything or into looking pressed.
+                    */}
                     {renderViewButton('mixer', List, toggleMixer, showMixer)}
-                    {renderViewButton('editors', MonitorPlay, () => { }, false)}
                     {renderViewButton('musicalTyping', Keyboard, toggleVirtualKeyboard, showVirtualKeyboard)}
                 </div>
             )}

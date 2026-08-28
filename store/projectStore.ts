@@ -138,7 +138,7 @@ export interface ControlBarSettings {
     showModes: boolean;
     viewButtons: {
         library: boolean; inspector: boolean; quickHelp: boolean; toolbar: boolean;
-        smartControls: boolean; mixer: boolean; editors: boolean; listEditors: boolean;
+        mixer: boolean; listEditors: boolean;
         notePad: boolean; appleLoops: boolean; browsers: boolean;
         musicalTyping: boolean;
     };
@@ -1595,7 +1595,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         showViews: true, showTransport: true, showDisplay: true, showModes: true,
         viewButtons: {
             library: true, inspector: true, quickHelp: false, toolbar: true,
-            smartControls: true, mixer: true, editors: true, listEditors: false,
+            mixer: true, listEditors: false,
             notePad: false, appleLoops: true, browsers: true,
             musicalTyping: true
         },
