@@ -531,7 +531,7 @@ export function Timeline() {
         >
             {/* 1. Logic Pro Time Ruler — Two-Row Design */}
             <div
-                className="sticky top-0 z-50 shrink-0 cursor-pointer"
+                className="sticky top-0 z-50 shrink-0 cursor-ew-resize"
                 style={{ height: '48px', width: `${totalWidth}px` }}
                 onMouseDown={handleRulerMouseDown}
             >
@@ -620,27 +620,38 @@ export function Timeline() {
                     </div>
                 )}
 
-                {/* Playhead — Teardrop / Pick Shape */}
+                {/*
+                    The playhead's head.
+
+                    It was a teardrop floating in the middle of the ruler,
+                    carrying `pointer-events: auto` and no handler — so it read
+                    as a grab handle, could not be dragged, and swallowed the
+                    press in a 16x24 box sitting exactly where the hand goes to
+                    scrub. `pointer-events-none` hands that press down to the
+                    ruler, which already scrubs, and the head becomes draggable
+                    by being transparent to the mouse rather than by growing a
+                    second copy of the ruler's drag logic.
+
+                    Flat top, tip on the ruler's lower edge, so it points at
+                    the beat it is on and clears the bar numbers in the row
+                    above rather than sitting across them.
+                */}
                 <div
                     ref={playheadHandleRef}
                     className="absolute top-0 bottom-0 w-px studio-playhead z-50 pointer-events-none"
                     style={{ transform: `translateX(${playheadX}px)` }}
                 >
-                    {/* Teardrop SVG */}
                     <svg
-                        className="absolute pointer-events-auto"
-                        width="16" height="24"
-                        viewBox="0 0 16 24"
-                        style={{ left: '-8px', top: '24px' }}
+                        className="absolute pointer-events-none"
+                        width="13" height="11"
+                        viewBox="0 0 13 11"
+                        style={{ left: '-6px', top: '37px' }}
                     >
                         <path
-                            d="M8 0 C8 0, 15 6, 15 12 C15 16.5 12 20 8 24 C4 20 1 16.5 1 12 C1 6 8 0 8 0Z"
+                            d="M0 0 H13 L6.5 11 Z"
                             fill="#e8fbff"
-                            stroke="#22d3ee"
-                            strokeWidth="0.5"
-                            style={{ filter: 'drop-shadow(0 0 4px #22d3ee)' }}
+                            style={{ filter: 'drop-shadow(0 0 5px rgba(34,211,238,0.9))' }}
                         />
-                        <line x1="8" y1="6" x2="8" y2="18" stroke="#0d141d" strokeWidth="1" />
                     </svg>
                 </div>
 

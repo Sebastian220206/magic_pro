@@ -307,12 +307,20 @@
  * The ruler and the grid share this class so the two halves of the same line
  * cannot drift apart.
  */
+/*
+ * The playhead's line.
+ *
+ * The 1px ring that used to sit on this was not glow — it was a second and
+ * third solid pixel, so a `w-px` element painted three pixels wide of full
+ * brightness straight down the middle of every waveform it crossed. What is
+ * left is one pixel of line and two layers of actual glow, which reads as a
+ * position rather than as a bar drawn over the audio.
+ */
 .studio-playhead {
     background: #e8fbff;
     box-shadow:
-        0 0 0 1px rgba(34, 211, 238, 0.75),
-        0 0 10px rgba(34, 211, 238, 0.9),
-        0 0 22px rgba(34, 211, 238, 0.35);
+        0 0 6px rgba(34, 211, 238, 0.85),
+        0 0 18px rgba(34, 211, 238, 0.32);
 }
 
 /* Scroll without a visible bar — used by toolbars that overflow on a phone. */
