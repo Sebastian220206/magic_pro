@@ -52,6 +52,7 @@ export function ProjectFileDialogs() {
             {(projectFileDialog === 'saveAs' || projectFileDialog === 'saveCopy') && (
                 <SaveDialog
                     projectName={name}
+                    mode={projectFileDialog}
                     onClose={() => setProjectFileDialog('none')}
                     onSave={onSaveDialogSubmit}
                 />
