@@ -304,6 +304,17 @@ interface ProjectState {
     trackHeight: number;
     snap: 'bar' | 'half' | 'quarter' | 'eighth' | 'sixteenth';
     controlBarSettings: ControlBarSettings;
+    /**
+     * Which project-file dialog is open.
+     *
+     * Held here rather than inside `ProjectManager` because the File menu in
+     * the menu bar opens the same dialogs, and `ProjectManager` is the one
+     * that renders them. Two copies of the flag would mean two copies of the
+     * dialog.
+     */
+    projectFileDialog: 'none' | 'saveAs' | 'saveCopy' | 'import' | 'info' | 'bounce';
+    /** Progress line for the export overlay, or null when nothing is running. */
+    projectExportStatus: string | null;
     isDirty: boolean;
     loadError: string | null;
     history: Partial<ProjectState>[];
@@ -534,6 +545,8 @@ interface ProjectState {
     flattenStack: (stackId: string) => void;
     addMarker: (time: number, text: string, duration?: number) => void;
     updateTempoPoint: (index: number, updates: Partial<GlobalTrackPoint>) => void;
+    setProjectFileDialog: (dialog: ProjectState['projectFileDialog']) => void;
+    setProjectExportStatus: (status: string | null) => void;
     updateControlBar: (updates: Partial<ControlBarSettings>) => void;
     toggleFloatingWindow: (type: 'giantBeats' | 'giantTime') => void;
     toggleNewTrackDialog: (show?: boolean) => void;
@@ -1591,6 +1604,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     muteSoloGroups: [],
     vcaFaders: [],
     loadError: null,
+    projectFileDialog: 'none',
+    projectExportStatus: null,
     controlBarSettings: {
         showViews: true, showTransport: true, showDisplay: true, showModes: true,
         viewButtons: {
@@ -2255,6 +2270,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         newTempo[index] = { ...newTempo[index], ...updates };
         return { globalTracks: { ...s.globalTracks, tempo: newTempo } };
     }),
+
+    setProjectFileDialog: (dialog) => set({ projectFileDialog: dialog }),
+    setProjectExportStatus: (status) => set({ projectExportStatus: status }),
 
     updateControlBar: (updates) => set(s => ({ controlBarSettings: { ...s.controlBarSettings, ...updates } })),
 

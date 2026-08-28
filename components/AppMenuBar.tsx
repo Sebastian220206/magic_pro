@@ -1,6 +1,8 @@
 "use client"
 import React, { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { useProjectStore } from "@/store/projectStore"
+import { useProjectFileActions } from "@/hooks/useProjectFileActions"
 import { ProjectManager } from "./ProjectManager"
 
 export function AppMenuBar() {
@@ -53,6 +55,10 @@ export function AppMenuBar() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    const router = useRouter();
+    // The same list the Alternatives popover renders.
+    const { commands: fileCommands } = useProjectFileActions();
+
     const menuDefs: Record<string, { label: string; shortcut?: string; action?: () => void }[]> = {
         logic: [
             { label: "About Magic Pro" },
@@ -65,14 +71,27 @@ export function AppMenuBar() {
             { separator: true } as any,
             { label: "Quit Magic Pro" },
         ],
+        /*
+         * File.
+         *
+         * Was New, Open, Save, Save As and Export Audio — five labels, none of
+         * which carried an action. The commands that do the work were written
+         * out inside `ProjectManager`, the Alternatives popover, which made a
+         * menu about project alternatives the only route to Export as WAV,
+         * Bounce and Close Project. Both render from the same list now.
+         */
         File: [
-            { label: "New", shortcut: "Cmd+N" },
-            { label: "Open...", shortcut: "Cmd+O" },
+            { label: "New", shortcut: "Cmd+N", action: () => router.push('/dashboard') },
+            { label: "Open...", shortcut: "Cmd+O", action: () => router.push('/dashboard') },
             { separator: true } as any,
-            { label: "Save", shortcut: "Cmd+S" },
-            { label: "Save As...", shortcut: "Cmd+Shift+S" },
-            { separator: true } as any,
-            { label: "Export Audio..." },
+            ...fileCommands.map(cmd => ({
+                label: cmd.label,
+                shortcut: cmd.shortcut,
+                separator: cmd.separatorBefore,
+                action: cmd.run,
+            })).flatMap(entry => entry.separator
+                ? [{ separator: true } as any, { ...entry, separator: undefined }]
+                : [entry]),
         ],
         Edit: [
             { label: "Undo", shortcut: "Cmd+Z" },
@@ -145,7 +164,7 @@ export function AppMenuBar() {
         const items = menuDefs[menuName];
         if (!items) return null;
         return (
-            <div className="absolute top-[24px] left-0 min-w-[220px] bg-studio-raised/95 backdrop-blur-md border border-studio-line-strong shadow-2xl rounded-b-md py-1 z-[120]">
+            <div data-menu-dropdown={menuName} className="absolute top-[24px] left-0 min-w-[220px] bg-studio-raised/95 backdrop-blur-md border border-studio-line-strong shadow-2xl rounded-b-md py-1 z-[120]">
                 {items.map((item: any, idx: number) =>
                     item.label === "separator" || item.separator ? (
                         <div key={idx} className="h-[1px] bg-black/15 my-1 mx-2" />
@@ -160,6 +179,7 @@ export function AppMenuBar() {
                                     setActiveMenu(null);
                                 }
                             }}
+                            data-menu-item={item.label}
                             className={`px-4 py-0.5 flex items-center justify-between text-[13px] cursor-default ${
                                 hoveredMenuItem === item.label
                                     ? "bg-cyan-300 text-white"
@@ -181,6 +201,7 @@ export function AppMenuBar() {
         const isActive = activeMenu === menu;
         return (
             <div
+                data-menu={menu}
                 onClick={(e) => {
                     e.stopPropagation();
                     setActiveMenu(isActive ? null : menu);
@@ -238,6 +259,7 @@ export function AppMenuBar() {
 
                 {/* Magic Pro toggle button */}
                 <div
+                    data-menu-expand
                     onClick={() => {
                         if (menuExpanded) {
                             setMenuExpanded(false);

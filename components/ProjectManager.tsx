@@ -1,39 +1,33 @@
 "use client"
 import { useRouter } from "next/navigation"
-import { useToast } from "./Toast"
 import { useProjectStore } from "@/store/projectStore"
 import {
     ChevronDown, Save, Share,
     Copy, Trash, Check,
-    Download, Settings,
-    FileText, Music,
-    Layers, Plus, RotateCcw, X
+    Settings, Music, Plus,
 } from "lucide-react"
 import { useState } from "react"
+import { useProjectFileActions } from "@/hooks/useProjectFileActions"
 import { BounceDialog } from "./BounceDialog"
 import { ProjectInfoDialog } from "./ProjectInfoDialog"
 import { ImportProjectDialog } from "./ImportProjectDialog"
 import { SaveDialog, SaveData } from "./SaveDialog"
-import { renderSongOffline } from "@/engine/export/OfflineRenderer"
-import { encodeWav } from "@/engine/export/wavEncoder"
 
 export function ProjectManager({ compact = false }: { compact?: boolean } = {}) {
-    const { toast } = useToast()
+    // The file commands moved to `useProjectFileActions`; what is left here is
+    // what this popover is actually about — the project's alternatives.
     const {
         name, alternatives, currentAlternativeId,
-        addAlternative, switchToAlternative,
-        saveProject, saveAs, saveCopyAs, saveAsTemplate, revertTo,
-        isDirty, closeProject
+        addAlternative, switchToAlternative, saveAs, saveCopyAs,
+        // Still used here: the dot beside the project name.
+        isDirty,
     } = useProjectStore()
 
     const [showMenu, setShowMenu] = useState(false)
-    const [showBounce, setShowBounce] = useState(false)
-    const [showSaveAs, setShowSaveAs] = useState(false)
-    const [showProjectInfo, setShowProjectInfo] = useState(false)
-    const [showImport, setShowImport] = useState(false)
-    const [exporting, setExporting] = useState(false)
-    const [exportProgress, setExportProgress] = useState('')
-    const [saveMode, setSaveMode] = useState<'SaveAs' | 'SaveCopy'>('SaveAs')
+    const { commands } = useProjectFileActions()
+    const projectFileDialog = useProjectStore(s => s.projectFileDialog)
+    const setProjectFileDialog = useProjectStore(s => s.setProjectFileDialog)
+    const projectExportStatus = useProjectStore(s => s.projectExportStatus)
     const router = useRouter()
 
     const handleCreateAlternative = () => {
@@ -43,130 +37,19 @@ export function ProjectManager({ compact = false }: { compact?: boolean } = {}) 
 
     const onSaveDialogSubmit = async (data: SaveData) => {
         try {
-            if (saveMode === 'SaveAs') {
+            if (projectFileDialog === 'saveAs') {
                 await saveAs(data);
-                setShowSaveAs(false);
+                setProjectFileDialog('none');
                 const newId = useProjectStore.getState().id;
                 if (newId) router.push(`/project/${newId}`);
             } else {
                 await saveCopyAs(data);
-                setShowSaveAs(false);
+                setProjectFileDialog('none');
             }
         } catch (e) {
             console.error('Save failed:', e);
             alert('Failed to save project. Check console for details.');
         }
-    }
-
-    const handleSaveAsTemplate = () => {
-        const templateName = prompt("Enter template name:", name);
-        if (templateName) saveAsTemplate(templateName);
-    }
-
-    const handleExportWav = async () => {
-        setExporting(true);
-        setExportProgress('Preparing export...');
-        setShowMenu(false);
-
-        // Yield to event loop so the loading UI renders before heavy work
-        await new Promise(r => setTimeout(r, 50));
-
-        try {
-            const state = useProjectStore.getState();
-            const { tempo, tracks, clips, name } = state;
-
-            if (!tempo || tempo <= 0) {
-                throw new Error('Invalid project tempo');
-            }
-
-            setExportProgress('Mapping tracks and clips...');
-            await new Promise(r => setTimeout(r, 10));
-
-            const exportClips = clips.map(c => ({
-                id: c.id,
-                trackId: c.trackId,
-                startBeat: c.startBeat ?? c.start,
-                duration: c.duration,
-                type: c.type as 'audio' | 'midi',
-                offset: c.offset || 0,
-                muted: c.muted || false,
-                sampleId: c.sampleId,
-                fileUrl: c.fileUrl,
-                storageKey: (c as any).storageKey,
-                playbackRate: c.playbackRate || 1,
-                fadeIn: c.fadeIn ? { duration: c.fadeIn.duration } : undefined,
-                fadeOut: c.fadeOut ? { duration: c.fadeOut.duration } : undefined,
-                notes: c.notes,
-            }));
-            const exportTracks = tracks.map(t => ({
-                id: t.id,
-                name: t.name,
-                volume: t.volume,
-                pan: t.pan,
-                muted: t.muted,
-                soloed: t.soloed,
-                instrument: t.instrument,
-                // Without this the bounce is dry and silently differs from playback.
-                plugins: t.plugins,
-            }));
-
-            setExportProgress('Rendering audio (this may take a moment)...');
-            // Yield again so the progress message renders
-            await new Promise(r => setTimeout(r, 10));
-
-            console.time('[Export] Total render');
-            const rendered = await renderSongOffline(exportClips, exportTracks, tempo, {
-                onPluginFailure: (failed) => {
-                    // Never let a plugin silently drop out of an export.
-                    toast(
-                        `Some plugins could not be rendered and were bypassed: ${failed.join(', ')}`,
-                        'error',
-                    );
-                },
-            });
-            console.timeEnd('[Export] Total render');
-
-            setExportProgress(`Rendered ${rendered.duration.toFixed(1)}s audio, encoding WAV...`);
-            await new Promise(r => setTimeout(r, 10));
-
-            console.log('[Export] Encoding WAV:', {
-              channels: rendered.numberOfChannels,
-              sampleRate: rendered.sampleRate,
-              frames: rendered.length.toLocaleString(),
-              duration: rendered.duration.toFixed(2),
-            });
-            console.time('[Export] WAV encode');
-            const wavBlob = await encodeWav(rendered);
-            console.timeEnd('[Export] WAV encode');
-            const safeName = (name || 'export').replace(/[^a-zA-Z0-9]/g, '_');
-            const url = URL.createObjectURL(wavBlob);
-
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${safeName}.wav`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            console.log('[EXPORT DOWNLOAD]', `${safeName}.wav`);
-        } catch (e) {
-            console.error('[Export] Failed:', e);
-            alert('Export failed. Check console for details.');
-        } finally {
-            setExporting(false);
-            setExportProgress('');
-        }
-    };
-
-    const handleCloseProject = () => {
-        if (isDirty) {
-            if (confirm("You have unsaved changes. Save before closing?")) {
-                saveProject();
-            }
-        }
-        closeProject();
-        setShowMenu(false);
     }
 
     const alternativeName = alternatives.find(a => a.id === currentAlternativeId)?.name || 'Main';
@@ -184,6 +67,7 @@ export function ProjectManager({ compact = false }: { compact?: boolean } = {}) 
               */}
             {compact ? (
                 <button
+                    data-project-menu
                     onClick={() => setShowMenu(!showMenu)}
                     title={`${name}${isDirty ? ' (unsaved changes)' : ''} — project menu`}
                     className="flex items-center gap-1.5 px-2 h-full text-[11px] font-bold text-studio-text hover:bg-white/10 transition-colors"
@@ -195,6 +79,7 @@ export function ProjectManager({ compact = false }: { compact?: boolean } = {}) 
             ) : (
                 <div
                     className="flex flex-col justify-center px-3 h-full border-r border-white/10 cursor-pointer hover:bg-white/[0.03] transition-colors"
+                    data-project-menu
                     onClick={() => setShowMenu(!showMenu)}
                 >
                     <div className="flex flex-col -gap-0.5">
@@ -242,64 +127,28 @@ export function ProjectManager({ compact = false }: { compact?: boolean } = {}) 
                     </div>
 
                     {/* Project Management Section */}
+                    {/*
+                        One list, shared with the File menu in the menu bar.
+                        These commands used to be written out here and nowhere
+                        else, which made this popover — a menu about project
+                        alternatives — the only route to Export as WAV, Bounce
+                        and Close Project.
+                    */}
                     <div className="p-1">
-                        <button onClick={() => { saveProject(); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-studio-text-mid hover:text-white hover:bg-white/5 rounded transition-all group">
-                            <Save className="w-3.5 h-3.5 text-studio-text-dim group-hover:text-green-500" />
-                            <span>Save Project</span>
-                        </button>
-
-                        <button onClick={() => { setSaveMode('SaveAs'); setShowSaveAs(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-studio-text-mid hover:text-white hover:bg-white/5 rounded transition-all group">
-                            <FileText className="w-3.5 h-3.5 text-studio-text-dim group-hover:text-accent-cyan" />
-                            <span>Save As...</span>
-                        </button>
-
-                        <button onClick={() => { setSaveMode('SaveCopy'); setShowSaveAs(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-studio-text-mid hover:text-white hover:bg-white/5 rounded transition-all group">
-                            <Copy className="w-3.5 h-3.5 text-studio-text-dim group-hover:text-accent-cyan" />
-                            <span>Save a Copy As...</span>
-                        </button>
-
-                        <button onClick={handleExportWav} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-studio-text-mid hover:text-white hover:bg-white/5 rounded transition-all group">
-                            <Download className="w-3.5 h-3.5 text-studio-text-dim group-hover:text-amber-500" />
-                            <span>Export as WAV...</span>
-                        </button>
-
-                        <button onClick={() => { handleSaveAsTemplate(); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-studio-text-mid hover:text-white hover:bg-white/5 rounded transition-all group">
-                            <Layers className="w-3.5 h-3.5 text-studio-text-dim group-hover:text-purple-500" />
-                            <span>Save as Template...</span>
-                        </button>
-
-                        <div className="h-[1px] bg-black/40 my-1 mx-2"></div>
-
-                        <button onClick={() => { setShowImport(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-studio-text-mid hover:text-white hover:bg-white/5 rounded transition-all group">
-                            <Download className="w-3.5 h-3.5 text-studio-text-dim group-hover:text-accent-cyan" />
-                            <span>Import Project Settings...</span>
-                        </button>
-
-                        <button onClick={() => { setShowProjectInfo(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-studio-text-mid hover:text-white hover:bg-white/5 rounded transition-all group">
-                            <FileText className="w-3.5 h-3.5 text-studio-text-dim group-hover:text-accent-cyan" />
-                            <span>Project Information...</span>
-                        </button>
-
-                        <div className="h-[1px] bg-black/40 my-1 mx-2"></div>
-
-                        <button onClick={() => { revertTo(); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-studio-text-mid hover:text-white hover:bg-white/5 rounded transition-all group">
-                            <RotateCcw className="w-3.5 h-3.5 text-studio-text-dim group-hover:text-orange-500" />
-                            <span>Revert to Last Saved</span>
-                        </button>
-
-                        <div className="h-[1px] bg-black/40 my-1 mx-2"></div>
-
-                        <button onClick={() => { setShowBounce(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-studio-text-mid hover:text-white hover:bg-white/5 rounded transition-all group">
-                            <Download className="w-3.5 h-3.5 text-studio-text-dim group-hover:text-accent-cyan" />
-                            <span>Bounce Project (PCM)...</span>
-                        </button>
-
-                        <div className="h-[1px] bg-black/40 my-1 mx-2"></div>
-
-                        <button onClick={handleCloseProject} className="w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black text-studio-text-mid hover:text-red-400 hover:bg-red-500/5 rounded transition-all group">
-                            <X className="w-3.5 h-3.5 text-studio-text-dim group-hover:text-red-500" />
-                            <span>Close Project</span>
-                        </button>
+                        {commands.map(cmd => (
+                            <div key={cmd.id}>
+                                {cmd.separatorBefore && <div className="h-[1px] bg-black/30 my-1 mx-2" />}
+                                <button
+                                    onClick={() => { cmd.run(); setShowMenu(false); }}
+                                    className={`w-full flex items-center gap-3 px-3 py-1.5 text-[11px] font-black rounded transition-all group ${cmd.destructive
+                                        ? 'text-studio-text-mid hover:text-red-400 hover:bg-red-500/5'
+                                        : 'text-studio-text-mid hover:text-white hover:bg-white/5'}`}
+                                >
+                                    <cmd.icon className={`w-3.5 h-3.5 text-studio-text-dim ${cmd.destructive ? 'group-hover:text-red-500' : 'group-hover:text-accent-cyan'}`} />
+                                    <span>{cmd.label}</span>
+                                </button>
+                            </div>
+                        ))}
                     </div>
 
                     {/* Footer Info */}
@@ -313,24 +162,29 @@ export function ProjectManager({ compact = false }: { compact?: boolean } = {}) 
                 </div>
             )}
 
-            {/* Modals */}
-            {showBounce && <BounceDialog onClose={() => setShowBounce(false)} />}
-            {showSaveAs && (
+            {/*
+                Modals.
+                Which one is open lives in the store, because the File menu in
+                the menu bar opens the same dialogs and this component is the
+                one that renders them.
+            */}
+            {projectFileDialog === 'bounce' && <BounceDialog onClose={() => setProjectFileDialog('none')} />}
+            {(projectFileDialog === 'saveAs' || projectFileDialog === 'saveCopy') && (
                 <SaveDialog
                     projectName={name}
-                    onClose={() => setShowSaveAs(false)}
+                    onClose={() => setProjectFileDialog('none')}
                     onSave={onSaveDialogSubmit}
                 />
             )}
-            {showProjectInfo && <ProjectInfoDialog onClose={() => setShowProjectInfo(false)} />}
-            {showImport && <ImportProjectDialog onClose={() => setShowImport(false)} />}
+            {projectFileDialog === 'info' && <ProjectInfoDialog onClose={() => setProjectFileDialog('none')} />}
+            {projectFileDialog === 'import' && <ImportProjectDialog onClose={() => setProjectFileDialog('none')} />}
 
             {/* Export progress overlay */}
-            {exporting && (
+            {projectExportStatus !== null && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70">
                     <div className="bg-studio-panel border border-black rounded-lg p-8 flex flex-col items-center gap-4 shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
                         <div className="w-8 h-8 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin" />
-                        <span className="text-sm font-bold text-studio-text">{exportProgress || 'Exporting...'}</span>
+                        <span className="text-sm font-bold text-studio-text">{projectExportStatus || 'Exporting...'}</span>
                         <span className="text-[10px] text-studio-text-dim">Please wait, this may take a moment</span>
                     </div>
                 </div>
