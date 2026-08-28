@@ -530,8 +530,15 @@ interface ProjectState {
     showArticulationEditor: boolean;
     editingArticulationSetId: string | null;
 
-    recentProjects: { id: string; name: string; lastOpened: number; previewColor: string; tempo: number }[];
-    demoProjects: { id: string; name: string; description: string; previewColor: string }[];
+    /*
+     * `recentProjects` and `demoProjects` are gone.
+     *
+     * They held invented content — two recents called "Neon Sunset" and
+     * "Acoustic Idea" that were nobody's projects, and three demos including
+     * "Beck - Morning" and "Billie Eilish - Ocean Eyes" under ids that resolved
+     * to nothing. The only thing that read them was `ProjectChooser`, which was
+     * rendered nowhere. The dashboard lists real projects from /api/projects.
+     */
 
     // Actions
     play: () => void;
@@ -1148,8 +1155,6 @@ function createHistorySnapshot(state: ProjectState): Partial<ProjectState> {
         articulationSets: state.articulationSets ? state.articulationSets.map(a => ({ ...a })) : undefined,
         showArticulationEditor: state.showArticulationEditor,
         editingArticulationSetId: state.editingArticulationSetId,
-        recentProjects: state.recentProjects ? state.recentProjects.map(r => ({ ...r })) : undefined,
-        demoProjects: state.demoProjects ? state.demoProjects.map(d => ({ ...d })) : undefined,
     };
 }
 
@@ -1817,16 +1822,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     articulationSets: [],
     showArticulationEditor: false,
     editingArticulationSetId: null,
-
-    recentProjects: [
-        { id: 'demo-1', name: 'Neon Sunset', lastOpened: Date.now() - 3600000 * 2, previewColor: 'from-indigo-900/40 to-purple-900/40', tempo: 120 },
-        { id: 'demo-2', name: 'Acoustic Idea', lastOpened: Date.now() - 3600000 * 24, previewColor: 'from-emerald-900/40 to-teal-900/40', tempo: 95 },
-    ],
-    demoProjects: [
-        { id: 'demo-1', name: 'Neon Sunset', description: 'Synthwave production demo', previewColor: 'from-indigo-900/40 to-purple-900/40' },
-        { id: 'beck-morning', name: 'Beck - Morning', description: 'Multi-track vocal and acoustic demo', previewColor: 'from-orange-900/40 to-yellow-900/40' },
-        { id: 'ocean-eyes', name: 'Billie Eilish - Ocean Eyes', description: 'Minimalist pop production', previewColor: 'from-blue-900/40 to-cyan-900/40' }
-    ],
 
     showSelectionBasedProcessing: false,
     marqueeSelection: null,
@@ -5859,7 +5854,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     openProject: async (id) => {
         await get().loadProject(id);
-        set(s => ({ recentProjects: s.recentProjects.map(p => p.id === id ? { ...p, lastOpened: Date.now() } : p) }));
         // Ensure engine state is synced after open
         const state = get();
         state.tracks.forEach(t => {
