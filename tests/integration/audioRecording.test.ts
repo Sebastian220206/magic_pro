@@ -204,6 +204,39 @@ describe('audio recording', () => {
         expect(recorder.arm).toHaveBeenCalled();
     });
 
+    /*
+     * The route the buttons actually take.
+     *
+     * `toggleRecordEnable` and `toggleInputMonitoring` have no callers in the
+     * UI at all — the R and I buttons in the track list and the mixer both
+     * write through `updateTrack`. Wiring only the toggles left every real
+     * click doing nothing, and a test that called the toggles could not see it.
+     */
+    it('opens the input when the R button writes through updateTrack', async () => {
+        disarmed();
+        useProjectStore.getState().updateTrack(AUDIO, { recordEnabled: true } as never);
+        await settle();
+
+        expect(recorder.arm).toHaveBeenCalled();
+    });
+
+    it('opens the monitor path when the I button writes through updateTrack', async () => {
+        disarmed();
+        useProjectStore.getState().updateTrack(AUDIO, { inputMonitoring: true } as never);
+        await settle();
+
+        expect(recorder.setMonitoring).toHaveBeenCalledWith(true);
+    });
+
+    it('leaves the input alone for updates that are not about arming', async () => {
+        disarmed();
+        useProjectStore.getState().updateTrack(AUDIO, { volume: 0.5 } as never);
+        await settle();
+
+        expect(recorder.arm).not.toHaveBeenCalled();
+        expect(recorder.disarm).not.toHaveBeenCalled();
+    });
+
     it('does not open the monitor path for arming alone', async () => {
         disarmed();
         useProjectStore.getState().toggleRecordEnable(AUDIO);

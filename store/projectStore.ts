@@ -2855,6 +2855,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         set(s => ({ tracks: s.tracks.map(t => t.id === id ? { ...t, ...updates } : t), isDirty: true }));
         const t = get().tracks.find(t => t.id === id);
         if (t) audioEngine.updateTrackParams(id, t.volume, t.pan);
+
+        /*
+         * Arming and input monitoring open the input, whichever control did it.
+         *
+         * This is the choke point, not `toggleRecordEnable` /
+         * `toggleInputMonitoring` — those two store actions have no callers in
+         * the UI at all. Every R and I button in the track list and the mixer
+         * writes through `updateTrack`, so wiring the toggles alone meant the
+         * input still never opened when a person clicked anything.
+         */
+        if ('recordEnabled' in updates || 'inputMonitoring' in updates) {
+            void syncInputMonitoring(get());
+        }
     },
 
     deleteTrack: (id) => {

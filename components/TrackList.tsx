@@ -707,6 +707,13 @@ export function TrackList() {
                                             {trackHeaderConfig.showRecord && (
                                                 <button
                                                     onMouseDown={(e) => handleTrackAction('recordEnabled', !track.recordEnabled, e)}
+                                                    data-track-action="recordEnabled"
+                                                    data-track-id={track.id}
+                                                    aria-pressed={!!track.recordEnabled}
+                                                    // "R" is not a name. Arming opens the audio input now, which
+                                                    // is worth being able to say out loud and to address.
+                                                    aria-label={`Record enable ${track.name}`}
+                                                    title="Record Enable — opens this track's input"
                                                     className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all flex items-center justify-center 
                                                         ${track.recordEnabled ? (recording ? 'bg-red-500 animate-pulse text-white' : 'bg-red-500 text-white shadow-lg shadow-red-500/20') : 
                                                           (isFocused && !tracks.some(t => t.recordEnabled)) ? 'text-red-500' : 
@@ -716,6 +723,11 @@ export function TrackList() {
                                             {trackHeaderConfig.showInput && (
                                                 <button
                                                     onMouseDown={(e) => handleTrackAction('inputMonitoring', !track.inputMonitoring, e)}
+                                                    data-track-action="inputMonitoring"
+                                                    data-track-id={track.id}
+                                                    aria-pressed={!!track.inputMonitoring}
+                                                    aria-label={`Input monitoring ${track.name}`}
+                                                    title="Input Monitoring — hear this track's input"
                                                     className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all flex items-center justify-center ${track.inputMonitoring ? 'bg-orange-500 text-black shadow-lg shadow-orange-500/20' : 'text-studio-text-dim hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
                                                 >I</button>
                                             )}
