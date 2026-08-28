@@ -465,6 +465,97 @@ export async function testFxRack(): Promise<void> {
     })));
 }
 
+/**
+ * Why a take produced nothing.
+ *
+ * Every way audio recording fails looks the same from the outside — the
+ * transport rolls, the record button lights, and there is no clip and no
+ * sound. This walks the chain and names the first link that is broken, in the
+ * order the take actually goes through it.
+ *
+ * Run it in the console straight after a failed take: `audioDebug.whyNoTake()`.
+ */
+export function whyNoTake(): void {
+    const store = (window as any).__projectStore?.getState?.();
+    const rec = (window as any).__audioRecorder;
+    const mgr = (window as any).__audioContextManager;
+
+    const line = (ok: boolean | null, text: string) =>
+        console.log(`${ok === null ? '·' : ok ? '✓' : '✗'} ${text}`);
+
+    console.group('%caudioDebug.whyNoTake()', 'font-weight:bold');
+
+    if (!store) { console.log('No project store on the page.'); console.groupEnd(); return; }
+
+    // 1. Is anything armed, and is it the kind of track that records audio?
+    const audioArmed = store.tracks.filter((t: any) => t.type === 'audio' && t.recordEnabled);
+    const anyArmed = store.tracks.filter((t: any) => t.recordEnabled);
+    line(audioArmed.length > 0,
+        `armed audio tracks: ${audioArmed.length}` +
+        (audioArmed.length === 0 && anyArmed.length > 0
+            ? ` — ${anyArmed.length} armed, but of type ${anyArmed.map((t: any) => t.type).join('/')}. ` +
+              'Audio is only captured from tracks of type "audio".'
+            : ''));
+
+    // 2. Did the input actually open?
+    line(!!rec, `recorder built: ${!!rec}`);
+    if (rec) {
+        line(rec.isArmed === true, `input open (isArmed): ${rec.isArmed}`);
+        line(rec.state !== 'idle' || true, `recorder state: ${rec.state}`);
+        const g = rec.monitorGain?.gain?.value;
+        line(g === undefined ? null : g > 0, `monitor gain: ${g ?? 'no monitor node'}`);
+        line(rec.totalSamplesRecorded > 0,
+            `samples captured in the last take: ${rec.totalSamplesRecorded}`);
+        line(rec.maxAmplitude > 0.001,
+            `peak of the last take: ${rec.maxAmplitude?.toFixed?.(4) ?? rec.maxAmplitude}` +
+            (rec.maxAmplitude === 0 ? ' — the input was open but silent' : ''));
+        const track = rec.stream?.getAudioTracks?.()[0];
+        line(!!track, `input device in use: ${track?.label ?? 'none'}`);
+    }
+
+    // 3. Was an error recorded?
+    line(!store.recordingError, `recordingError: ${store.recordingError || 'none'}`);
+
+    // 4. Did a clip land, and can the timeline see it?
+    const clips = store.clips ?? [];
+    const recorded = clips.filter((c: any) => String(c.id).startsWith('rec-'));
+    const last = recorded[recorded.length - 1];
+    line(recorded.length > 0, `recorded clips in the store: ${recorded.length}`);
+
+    if (last) {
+        const track = store.tracks.find((t: any) => t.id === last.trackId);
+        const visible = track && last.alternativeId === track.activeAlternativeId;
+        line(!!visible,
+            `the newest take is on the alternative the timeline draws: ` +
+            `clip=${JSON.stringify(last.alternativeId)} track=${JSON.stringify(track?.activeAlternativeId)}` +
+            (visible ? '' : ' — MISMATCH, so it is in the project but never rendered'));
+        line((last.waveformPeaks?.channels?.[0]?.min?.length ?? 0) > 0,
+            `waveform points: ${last.waveformPeaks?.channels?.[0]?.min?.length ?? 0}`);
+        line(last.duration > 0, `length in beats: ${last.duration}`);
+        line(true, `position: start=${last.start} startBeat=${last.startBeat}`);
+        line(!!track, `its track: ${track?.name ?? 'NOT FOUND'} (${track?.type})`);
+        line(!track?.muted, `track muted: ${!!track?.muted}`);
+    }
+
+    // 5. Where is the sound going?
+    const ctx = mgr?.getContext?.();
+    line(!!ctx, `audio context: ${ctx ? ctx.state : 'not started'}`);
+    if (ctx) {
+        line(true, `output sink: ${ctx.sinkId === '' ? 'system default' : ctx.sinkId}`);
+        const note = mgr?.getOutputNote?.();
+        if (note) line(false, `output note: ${note}`);
+    }
+    line(!store.settings?.masterMuted, `master muted: ${!!store.settings?.masterMuted}`);
+    line((store.settings?.masterVolume ?? 1) > 0,
+        `master volume: ${store.settings?.masterVolume}`);
+    const soloed = store.tracks.filter((t: any) => t.soloed);
+    line(soloed.length === 0, `tracks soloed: ${soloed.length}` +
+        (soloed.length ? ` — everything else is silenced` : ''));
+
+    console.groupEnd();
+}
+
+
 // Make these available in the global scope for console debugging
 if (typeof window !== 'undefined') {
     (window as any).audioDebug = {
@@ -474,6 +565,7 @@ if (typeof window !== 'undefined') {
         testUrl: testAudioUrl,
         measureLatency,
         whySilent,
+        whyNoTake,
         testPlayback,
         testEffects,
         testMixer,

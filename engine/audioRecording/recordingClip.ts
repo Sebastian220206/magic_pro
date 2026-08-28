@@ -157,7 +157,18 @@ export function addClipToTimeline(clip: RecordingClip): void {
     type: 'audio',
     name: clip.name || 'Audio Recording',
     color: track.color || '#3b82f6',
-    alternativeId: track.activeAlternativeId || 'default',
+    /*
+     * Exactly what the track is showing, not a default.
+     *
+     * The timeline renders `clips.filter(c => c.alternativeId === track.activeAlternativeId)`
+     * — a strict comparison. Writing `track.activeAlternativeId || 'default'`
+     * turns an empty or absent value into the string 'default', which then
+     * never equals the '' or undefined it is compared against, and the take
+     * lands in the store and is never drawn. Three spellings are already in
+     * circulation: `buildNewTrack` writes 'alt-1', the project serializer
+     * writes 'default', and the bounce-in-place path writes ''.
+     */
+    alternativeId: track.activeAlternativeId,
     start: clip.startTime,
     startTime: clip.startTime,
     // Written explicitly: the scheduler's window test reads `startBeat`, and a
