@@ -142,7 +142,9 @@ export function TransportBar() {
         autopunchEnabled, toggleAutopunch,
         showVirtualKeyboard, toggleVirtualKeyboard,
         timeSignature, setTimeSignature,
-        keySignature, setKeySignature
+        keySignature, setKeySignature,
+        // The M button opens Settings.
+        setShowSettingsDialog,
     } = useProjectStore()
 
     /**
@@ -465,11 +467,12 @@ export function TransportBar() {
             {/*
                 1. View Toggles, behind the wordmark.
 
-                At rest the corner reads MAGIC PRO; the toggles fade in under
-                the cursor and fade back out when it leaves. Both layers sit in
-                the same box — the toggles hold the width in normal flow and the
-                wordmark is laid over them — so nothing beside this shifts when
-                the swap happens.
+                At rest the corner reads MAGIC PRO. The M is a button in its
+                own right and stays put; the letters beside it fade under the
+                cursor and the toggles fade in. Those two layers sit in the same
+                box — the toggles hold the width in normal flow and the letters
+                are laid over them — so nothing beside this shifts when the swap
+                happens.
 
                 The keyboard clause matters as much as the hover one: the
                 buttons stay in the tab order while transparent, and without it
@@ -479,7 +482,30 @@ export function TransportBar() {
                 after every press, with the cursor nowhere near it.
             */}
             {controlBarSettings.showViews && (
-                <div data-view-toggles-shell className="group relative flex items-center shrink-0">
+                <div data-view-toggles-shell className="group relative flex items-center gap-1.5 shrink-0">
+                {/*
+                    The M is a button, not part of the wordmark.
+
+                    It never fades and is always clickable — the cursor arriving
+                    swaps the letters beside it for the toggles, and leaves this
+                    one where it is. Same chrome as the toggles, so it reads as
+                    the first of them rather than as a letter that happens to be
+                    pressable.
+                */}
+                <button
+                    data-magic-button
+                    onClick={() => setShowSettingsDialog(true, 'General')}
+                    title="Magic Pro — settings"
+                    aria-label="Magic Pro settings"
+                    className="px-2 py-1 rounded-sm border border-black/40 shadow-[inset_0_1px_rgba(255,255,255,0.05)] bg-gradient-to-b from-white/10 to-transparent text-studio-text transition-all transform active:scale-95 hover:text-white hover:border-accent-cyan/50"
+                >
+                    <span className="text-[17px] leading-none font-extralight tracking-[0.10em] drop-shadow-[0_0_10px_rgba(34,211,238,0.30)]">
+                        M
+                    </span>
+                </button>
+
+                {/* Everything that swaps: the rest of the wordmark, or the toggles. */}
+                <div className="relative flex items-center">
                 <div
                     data-view-toggles
                     className="flex items-center gap-1.5 shrink-0 opacity-0 pointer-events-none transition-opacity duration-200 group-hover:opacity-100 group-hover:pointer-events-auto group-has-[:focus-visible]:opacity-100 group-has-[:focus-visible]:pointer-events-auto"
@@ -510,11 +536,12 @@ export function TransportBar() {
                     className="absolute inset-0 flex items-center gap-2 pointer-events-none select-none transition-opacity duration-200 opacity-100 group-hover:opacity-0 group-has-[:focus-visible]:opacity-0"
                 >
                     <span className="text-[19px] leading-none font-extralight tracking-[0.16em] text-studio-text drop-shadow-[0_0_10px_rgba(34,211,238,0.30)]">
-                        MAGIC
+                        AGIC
                     </span>
                     <span className="text-[19px] leading-none font-extralight tracking-[0.16em] text-accent-cyan drop-shadow-[0_0_14px_var(--accent-cyan-glow)]">
                         PRO
                     </span>
+                </div>
                 </div>
                 </div>
             )}
