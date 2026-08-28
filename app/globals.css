@@ -84,13 +84,21 @@
 
 @layer components {
     /* Cyan futuristic border/glow utilities */
+    /*
+     * The studio's neon frame.
+     *
+     * Sits flush against the viewport, so the bloom is thrown inward rather
+     * than out. An outward glow is drawn outside the border box and would be
+     * clipped by the screen edge, leaving a flat 5px line where the neon was —
+     * the frame used to be inset 16px, which is the only reason it read as lit.
+     */
     .daw-shell {
         border: 5px solid var(--accent-cyan);
         border-radius: 16px;
-        box-shadow: 
+        box-shadow:
             0 0 0 2px var(--accent-cyan) inset,
-            0 0 12px var(--accent-cyan-glow),
-            0 0 24px var(--accent-cyan-glow);
+            inset 0 0 12px var(--accent-cyan-glow),
+            inset 0 0 28px var(--accent-cyan-glow);
     }
 
     .daw-panel {

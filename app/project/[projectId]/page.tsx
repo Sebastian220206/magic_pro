@@ -168,12 +168,16 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
 
     return (
         /*
-         * The framing — 16px of padding and the cyan glow border — is a desktop
-         * flourish that costs 32px of height and 32px of width. On a landscape
-         * phone that is roughly a tenth of the screen spent on decoration, while
-         * the tracks area gets under half. Both go on small screens.
+         * The neon frame sits on the viewport edge.
+         *
+         * It used to be inset by 16px of padding, which spent 32px of width and
+         * height on a margin around the app for no reason other than to give
+         * the border's outward glow somewhere to fall. The glow points inward
+         * now (see `.daw-shell`), so the padding is gone and the frame is the
+         * edge of the screen. The border itself still goes on small screens,
+         * where 5px and a bloom are a tenth of a landscape phone.
          */
-        <div className={`h-screen w-full bg-studio-void flex flex-col box-border ${compact ? "daw-safe-area" : "p-4"
+        <div className={`h-screen w-full bg-studio-void flex flex-col box-border ${compact ? "daw-safe-area" : ""
             }`}>
             {compact && portrait && ready && <RotateToLandscape />}
 
