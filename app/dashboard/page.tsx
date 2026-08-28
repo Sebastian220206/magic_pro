@@ -10,6 +10,8 @@ import {
 import { starterTemplates, templateCatalog } from "@/templates/catalog";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { onboardingStore } from "@/store/onboardingStore";
+import BackgroundVideo from "@/components/marketing/BackgroundVideo";
+import { mediaConfig } from "@/lib/mediaConfig";
 import {
   DASHBOARD_SECTIONS, defaultSection, sectionById,
   type DashboardSectionId,
@@ -321,15 +323,57 @@ export default function Dashboard() {
         </nav>
 
         {/* ── Content ────────────────────────────────────────────────── */}
-        <main className="flex min-w-0 flex-1 flex-col">
-          <div className="flex-1 overflow-y-auto p-8">
+        <main className="relative flex min-w-0 flex-1 flex-col">
+          {/*
+            The loop from the old dashboard, kept.
+
+            It used to sit behind a greeting strip that this layout does not
+            have, so it backs the chooser itself. Laid in as a sibling rather
+            than wrapped around the content: `BackgroundVideo` puts its children
+            in a `relative z-10 w-full` box, which would take over the sizing of
+            a pane that has to be `flex-1` and scroll on its own.
+
+            One scrim, not two. `overlay="heavy"` is black/60 under a gradient
+            that reaches full opacity at the bottom — stacked with a scrim of
+            our own it left the footage effectively invisible, which is not
+            keeping it. `none` plus a single tuned layer keeps the motion
+            readable underneath while tile labels and the dimmed categories'
+            explanations stay legible over any frame.
+          */}
+          {/*
+            Positioned by a wrapper, not by a class on the component.
+
+            `BackgroundVideo`'s root is `relative isolate overflow-hidden
+            ${className}`, and passing `absolute` there does not win: Tailwind
+            emits `.absolute` before `.relative` in the stylesheet, so with
+            equal specificity `relative` takes it whatever order the class
+            attribute is in. The element then laid out as a relative block with
+            no children — full width, **zero height** — and the loop played at
+            opacity 1, readyState 4, in a box nobody could see.
+          */}
+          <div className="pointer-events-none absolute inset-0 z-0">
+            <BackgroundVideo
+              src={mediaConfig.dashboardLoopUrl}
+              overlay="none"
+              className="h-full w-full"
+            />
+          </div>
+          <div
+            data-backdrop-scrim
+            className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-studio-void/80 via-studio-void/70 to-studio-void/85"
+            aria-hidden="true"
+          />
+
+          <div className="relative z-10 flex-1 overflow-y-auto p-8">
             {current?.unavailable ? (
+              /* On its own surface: a paragraph of dim text directly over
+                 moving footage is legible on some frames and not others. */
               <div
                 data-unavailable
-                className="mx-auto flex max-w-md flex-col items-center gap-3 pt-16 text-center"
+                className="mx-auto mt-16 flex max-w-md flex-col items-center gap-3 rounded-lg border border-studio-line bg-studio-panel/90 px-6 py-8 text-center backdrop-blur-sm"
               >
-                <AlertCircle className="h-8 w-8 text-studio-text-dim/50" />
-                <p className="text-[13px] leading-relaxed text-studio-text-dim">{current.unavailable}</p>
+                <AlertCircle className="h-8 w-8 text-studio-text-dim/60" />
+                <p className="text-[13px] leading-relaxed text-studio-text">{current.unavailable}</p>
               </div>
             ) : section === "recent" ? (
               <RecentList
@@ -387,7 +431,7 @@ export default function Dashboard() {
 
           {/* ── Details ────────────────────────────────────────────────── */}
           {tiles.length > 0 && (
-            <div className="shrink-0 border-t border-studio-line bg-studio-raised">
+            <div className="relative z-10 shrink-0 border-t border-studio-line bg-studio-raised/95 backdrop-blur-sm">
               <button
                 onClick={() => setDetailsOpen(v => !v)}
                 className="flex h-9 w-full items-center gap-2 px-4 transition-colors hover:bg-white/[0.03]"
@@ -410,7 +454,7 @@ export default function Dashboard() {
           )}
 
           {/* ── Actions ────────────────────────────────────────────────── */}
-          <footer className="flex h-14 shrink-0 items-center justify-between gap-3 border-t border-studio-line bg-studio-panel px-4">
+          <footer className="relative z-10 flex h-14 shrink-0 items-center justify-between gap-3 border-t border-studio-line bg-studio-panel/95 px-4 backdrop-blur-sm">
             <button
               onClick={() => chooseSection("recent")}
               className="rounded-md border border-studio-line bg-studio-control px-4 py-1.5 text-[13px] transition-colors hover:bg-white/[0.05]"
@@ -549,7 +593,7 @@ function Tutorials({ onRun }: { onRun: () => void }) {
   ];
   return (
     <div className="mx-auto max-w-lg">
-      <p className="text-[13px] text-studio-text-dim">
+      <p className="rounded-md bg-studio-panel/85 px-3 py-2 text-[13px] text-studio-text backdrop-blur-sm">
         A four-step tour that runs inside the studio and points at the controls as it goes.
       </p>
       <ol className="mt-5 space-y-2">

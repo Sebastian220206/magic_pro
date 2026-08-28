@@ -15,7 +15,11 @@ import { chromium } from 'playwright';
 
 const BASE = 'http://localhost:3000';
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
-const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+// Headless Chrome reports `prefers-reduced-motion: reduce` by default, and
+// BackgroundVideo correctly refuses to mount the loop under it — so without
+// this the backdrop check would be measuring the fallback and calling it a
+// pass.
+const page = await browser.newPage({ viewport: { width: 1280, height: 860 }, reducedMotion: 'no-preference' });
 page.on('pageerror', e => console.log('  [pageerror]', String(e).slice(0, 200)));
 
 const results = [];
@@ -115,9 +119,56 @@ check('and offers Sign out', account.signOut === true);
 check('Account offers no dead Choose button',
     await page.evaluate(() => !document.querySelector('[data-choose]')));
 
+// ── The loop from the old dashboard is still there ───────────────────────
+// It backed a greeting strip that this layout does not have; it backs the
+// chooser now. The fallback renders when no URL is configured or when the
+// visitor asked for reduced motion, so the check is that the backdrop layer
+// exists and sits behind the content rather than that a <video> is playing.
+const backdrop = await page.evaluate(() => {
+    const main = document.querySelector('main');
+    const layer = main?.querySelector(':scope > .isolate, :scope > [class*="absolute inset-0"]');
+    const video = main?.querySelector('video');
+    const tiles = document.querySelector('[data-tile]');
+    return {
+        layer: !!layer,
+        video: !!video,
+        videoSrc: video?.getAttribute('src')?.slice(0, 48) ?? null,
+        // The scrolling content pane must sit above the footage, not behind it.
+        // Read from the pane itself: Account has no tiles to measure.
+        paneZ: (() => {
+            const pane = main?.querySelector(':scope > div[class*="overflow-y-auto"]');
+            return pane ? getComputedStyle(pane).zIndex : null;
+        })(),
+        // The z-0 layer is the wrapper that positions the loop, not the
+        // component's own root.
+        videoZ: video ? getComputedStyle(video.closest('main > div')).zIndex : null,
+        readyState: video?.readyState ?? null,
+        // Height, because the loop once played at opacity 1 and readyState 4
+        // inside a box zero pixels tall — every other signal said it was fine.
+        box: video ? { w: Math.round(video.getBoundingClientRect().width),
+                       h: Math.round(video.getBoundingClientRect().height) } : null,
+        opacity: video ? getComputedStyle(video).opacity : null,
+        reduced: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    };
+});
+check('the dashboard keeps its background loop',
+    backdrop.layer && backdrop.video && (backdrop.box?.h ?? 0) > 200,
+    backdrop.video
+        ? `${backdrop.box?.w}x${backdrop.box?.h}, readyState ${backdrop.readyState}, opacity ${backdrop.opacity}`
+        : `no video element (reduced-motion ${backdrop.reduced})`);
+check('and the chooser sits above it',
+    backdrop.paneZ === '10' && backdrop.videoZ === '0',
+    `content z=${backdrop.paneZ}, footage z=${backdrop.videoZ}`);
+
 await page.screenshot({ path: 'dashboard-account.png' });
 await page.click('[data-section="new"]');
-await page.waitForTimeout(800);
+// Give the loop time to buffer: BackgroundVideo holds it at opacity 0 until
+// `canplay`, so a shot taken too early shows an empty pane and proves nothing.
+await page.waitForFunction(() => {
+    const v = document.querySelector('main video');
+    return !v || v.readyState >= 3;
+}, null, { timeout: 30000 }).catch(() => {});
+await page.waitForTimeout(2500);
 await page.screenshot({ path: 'dashboard-new.png' });
 
 // ── On Recent it opens rather than creates ───────────────────────────────
