@@ -11,11 +11,22 @@
  */
 
 import { AudioEngineConfig, InputDevice, PerformanceMetrics, AudioEngineEvent, EventListener } from './types';
+import { resolveDevice } from '@/lib/resolveDevice';
 
 // ─── Audio Context Manager ────────────────────────────────────────────────────────────
 
 class AudioContextManager {
     private ctx: AudioContext | null = null;
+    /**
+     * The output the user chose, whether or not a context existed at the time.
+     * Re-applied every time a context is created.
+     */
+    private desiredSinkId: string | null = null;
+    /**
+     * What that output was called. Device ids rotate; labels do not, so this is
+     * what finds the same headphones again after the id stops resolving.
+     */
+    private desiredSinkLabel: string | null = null;
     private config: AudioEngineConfig;
     private eventListeners: EventListener[] = [];
     private performanceMetrics: PerformanceMetrics;
@@ -67,6 +78,11 @@ class AudioContextManager {
             if (this.ctx?.state === 'suspended') {
                 await this.resumeContext();
             }
+
+            // Whatever output was chosen in Settings, including on a previous
+            // visit — the context is new, so its sink is the system default
+            // until this runs.
+            await this.applyDesiredSink();
 
             // Start performance monitoring
             this.startPerformanceMonitoring();
@@ -163,20 +179,106 @@ class AudioContextManager {
      * recent enough that a browser without it has to be reported rather than
      * silently ignored.
      */
-    async setOutputDevice(deviceId: string): Promise<{ ok: boolean; reason?: string }> {
+    async setOutputDevice(deviceId: string, label?: string): Promise<{ ok: boolean; reason?: string }> {
+        /*
+         * Remember it first, apply it second.
+         *
+         * This used to give up when the context did not exist yet — and the
+         * context is created lazily, on the first user gesture that makes
+         * sound. Opening Settings before pressing play is the ordinary way to
+         * choose an output, and in that order the choice was refused with "the
+         * audio engine has not started yet" and never applied afterwards. The
+         * setting was stored, the dropdown showed the right device, and the
+         * audio went to the system default.
+         *
+         * It was also never re-applied on load, so even a choice that did take
+         * effect was lost on the next reload.
+         */
+        this.desiredSinkId = deviceId;
+        if (label !== undefined) this.desiredSinkLabel = label;
+
         const ctx = this.ctx as (AudioContext & { setSinkId?: (id: string) => Promise<void> }) | null;
-        if (!ctx) return { ok: false, reason: 'The audio engine has not started yet' };
+        if (!ctx) return { ok: true, reason: 'Will apply when the audio engine starts' };
         if (typeof ctx.setSinkId !== 'function') {
             return { ok: false, reason: 'This browser cannot choose an audio output' };
         }
+
+        /*
+         * One path, so both get the recovery.
+         *
+         * This used to call `setSinkId` inline, which meant a device whose id
+         * had rotated failed here with "device not found" and was never looked
+         * up by name — the recovery existed only on the startup path, and the
+         * context is usually already built by the time settings load.
+         */
+        this.lastSinkNote = null;
+        await this.applyDesiredSink();
+        return this.lastSinkNote ? { ok: false, reason: this.lastSinkNote } : { ok: true };
+    }
+
+    /** Send the mix to whichever output was last asked for. */
+    private async applyDesiredSink(): Promise<void> {
+        if (!this.desiredSinkId || this.desiredSinkId === 'None') return;
+        const ctx = this.ctx as (AudioContext & { setSinkId?: (id: string) => Promise<void> }) | null;
+        if (!ctx || typeof ctx.setSinkId !== 'function') return;
+
+        if (this.desiredSinkId === 'default') {
+            try { await ctx.setSinkId(''); } catch { /* the default is already the default */ }
+            return;
+        }
+
         try {
-            // The empty string is what the spec uses for the system default.
-            await ctx.setSinkId(deviceId === 'default' ? '' : deviceId);
-            return { ok: true };
+            await ctx.setSinkId(this.desiredSinkId);
+            console.log('[AudioContext] Output routed to', this.desiredSinkId);
+            return;
+        } catch {
+            // Falls through to the label lookup below. `setSinkId` answers
+            // "the device … is not found" for an id whose salt has rotated,
+            // which is routine rather than exceptional.
+        }
+
+        const recovered = await this.findSinkByLabel();
+        if (!recovered) {
+            console.warn('[AudioContext] The chosen output is gone; using the system default.');
+            this.lastSinkNote = 'The audio output chosen in Settings is not available. Using the system default.';
+            return;
+        }
+
+        try {
+            await ctx.setSinkId(recovered.deviceId);
+            // Write the new id back so the next load resolves first time.
+            this.desiredSinkId = recovered.deviceId;
+            this.lastSinkNote = null;
+            console.log('[AudioContext] Output re-found by name:', recovered.label);
         } catch (error) {
-            return { ok: false, reason: String((error as Error)?.message ?? error) };
+            console.warn('[AudioContext] Could not route to the chosen output; using the default.', error);
+            this.lastSinkNote = 'The audio output chosen in Settings is not available. Using the system default.';
         }
     }
+
+    /** The same output, under whatever id it has now. */
+    private async findSinkByLabel(): Promise<{ deviceId: string; label: string } | null> {
+        if (!this.desiredSinkLabel) return null;
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const match = resolveDevice(devices, 'audiooutput', {
+                deviceId: this.desiredSinkId,
+                label: this.desiredSinkLabel,
+            });
+            return match && match.recovered ? { deviceId: match.deviceId, label: match.label } : null;
+        } catch {
+            return null;
+        }
+    }
+
+    /** Set when the chosen output could not be used and the default was. */
+    private lastSinkNote: string | null = null;
+
+    /** Why the output is not what was asked for, if it is not. */
+    getOutputNote(): string | null { return this.lastSinkNote; }
+
+    /** The id the mix is actually going to, after any recovery by name. */
+    getResolvedSinkId(): string | null { return this.desiredSinkId; }
 
     /** Whether this browser can route audio to a chosen output at all. */
     canChooseOutput(): boolean {
@@ -374,6 +476,17 @@ class AudioContextManager {
 // ─── Singleton Export ─────────────────────────────────────────────────────────────
 
 export const audioContextManager = new AudioContextManager();
+
+/*
+ * The same handle the store and the recorder expose.
+ *
+ * Where the mix is actually going is invisible from the outside — a sink set
+ * to the wrong device and a muted graph sound identical — so `sinkId` needs to
+ * be readable from the console and from a probe.
+ */
+if (typeof window !== 'undefined') {
+    (window as unknown as Record<string, unknown>).__audioContextManager = audioContextManager;
+}
 
 // ─── Convenience Exports ─────────────────────────────────────────────────────────
 

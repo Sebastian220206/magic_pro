@@ -52,6 +52,17 @@ export function audioSettingsDefaults() {
         coreAudioEnabled: true,
         outputDevice: 'default',
         inputDevice: 'default',
+        /*
+         * What those devices are called.
+         *
+         * A `deviceId` is an opaque handle salted per origin, and the salt
+         * rotates — replugging an interface is enough. Stored alone it stops
+         * resolving, and then `setSinkId` reports "device not found" while
+         * `getUserMedia` throws OverconstrainedError. The label survives, so
+         * the same hardware can be found again and the fresh id written back.
+         */
+        outputDeviceLabel: null as string | null,
+        inputDeviceLabel: null as string | null,
         ioBufferSize: 256,
         sampleRate: 48000,
         recordingDelay: 0,

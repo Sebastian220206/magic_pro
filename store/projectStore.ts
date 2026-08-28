@@ -13,6 +13,7 @@ import { rebuildEngine } from '@/engine/persistence/engineRebuilder';
 import { storeAudioFile } from '@/engine/persistence/audioFileStore';
 import { syncInputMonitoring } from '@/engine/audioRecording/inputMonitoring';
 import { describeRecordingError } from '@/lib/recordingErrors';
+import { mergeProjectGlobalSettings } from '@/lib/deviceSettings';
 import { extractPeaksAsync } from '@/engine/waveform';
 import { bufferCacheManager } from '@/engine/audioEngine/bufferCache';
 import { getAudioContext } from '@/engine/audioEngine/audioContext';
@@ -2583,7 +2584,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 const persisted = await loadFromIndexedDB(projectId);
                 if (persisted && persisted.state) {
                     const restored = deserializeState(persisted.state);
-                    set({ globalSettings: { ...get().globalSettings, ...restored.globalSettings } });
+                    /*
+                     * Device ids belong to this machine, not to the project —
+                     * see lib/deviceSettings.
+                     *
+                     * Folded into `restored` rather than written first: the
+                     * `set(restored)` below carries `globalSettings` of its
+                     * own, so a separate merge on the line above was overwritten
+                     * by the next statement every time.
+                     */
+                    restored.globalSettings = mergeProjectGlobalSettings(
+                        get().globalSettings, restored.globalSettings);
                     set(restored);
 
                     const result = await rebuildEngine({
@@ -2617,7 +2628,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                     const clips = tracks.flatMap((t: any) => (t.clips || []).map((c: any) => ({ ...c, trackId: t.id })));
 
                     if (data.globalSettings) {
-                        set({ globalSettings: { ...get().globalSettings, ...data.globalSettings } });
+                        set({ globalSettings: mergeProjectGlobalSettings(get().globalSettings, data.globalSettings) });
                     }
 
                     set({

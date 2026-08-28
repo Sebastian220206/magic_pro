@@ -5,6 +5,7 @@ import { generateWaveformData } from './waveformAnalyzer';
 import { encodeWav, downloadWav } from './wavEncoder';
 import { useProjectStore } from '@/store/projectStore';
 import { recordingDelaySeconds } from '@/lib/audioLatency';
+import { resolveDevice } from '@/lib/resolveDevice';
 
 export interface RecordingConfig {
   trackId: string;
@@ -120,21 +121,51 @@ export class AudioRecorder {
       autoGainControl: false,
     };
 
+    const openExact = async (id: string) => {
+      const stream = await audioContextManager.requestMicrophoneAccess({
+        audio: { ...base, deviceId: { exact: id } },
+      });
+      this.activeInputNote = null;
+      // The chosen device answered. Clear any warning left from when it did not.
+      if (useProjectStore.getState().recordingError) {
+        useProjectStore.setState({ recordingError: null });
+      }
+      return stream;
+    };
+
     if (wanted) {
       try {
-        const stream = await audioContextManager.requestMicrophoneAccess({
-          audio: { ...base, deviceId: { exact: wanted } },
-        });
-        this.activeInputNote = null;
-        // The chosen device answered. Clear any warning left from when it did not.
-        if (useProjectStore.getState().recordingError) {
-          useProjectStore.setState({ recordingError: null });
-        }
-        return stream;
+        return await openExact(wanted);
       } catch (error) {
         const name = (error as DOMException)?.name;
         if (name !== 'OverconstrainedError' && name !== 'NotFoundError') throw error;
-        console.warn(`[AudioRecorder] Chosen input ${wanted} is not available; falling back to the default.`);
+        console.warn(`[AudioRecorder] Chosen input ${wanted} is not available; looking for it by name.`);
+      }
+
+      /*
+       * The id rotated, not the hardware.
+       *
+       * Device ids are salted per origin and the salt changes — replugging the
+       * interface is enough. The label does not, so the same interface can be
+       * found again and the fresh id written back, instead of the choice
+       * evaporating into an OverconstrainedError.
+       */
+      const savedLabel = globalSettings?.audio?.inputDeviceLabel;
+      if (savedLabel) {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const match = resolveDevice(devices, 'audioinput', { deviceId: wanted, label: savedLabel });
+          if (match?.recovered) {
+            const stream = await openExact(match.deviceId);
+            useProjectStore.getState().updateGlobalSettings({
+              audio: { ...globalSettings.audio, inputDevice: match.deviceId },
+            } as never);
+            console.log('[AudioRecorder] Input re-found by name:', match.label);
+            return stream;
+          }
+        } catch (error) {
+          console.warn('[AudioRecorder] Could not re-find the input by name.', error);
+        }
       }
     }
 

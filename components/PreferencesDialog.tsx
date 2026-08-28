@@ -329,8 +329,8 @@ export function PreferencesDialog() {
     const canChooseOutput = audioContextManager.canChooseOutput();
 
     /** Route the mix at a chosen output, and report it when that is refused. */
-    const applyOutputDevice = useCallback(async (deviceId: string) => {
-        const result = await audioContextManager.setOutputDevice(deviceId);
+    const applyOutputDevice = useCallback(async (deviceId: string, label?: string | null) => {
+        const result = await audioContextManager.setOutputDevice(deviceId, label ?? undefined);
         setOutputDeviceError(result.ok ? null : (result.reason ?? 'Could not switch output'));
     }, []);
 
@@ -900,7 +900,11 @@ export function PreferencesDialog() {
                                             { label: 'System Setting', value: 'default' },
                                             ...outputDevices.map(d => ({ label: d.label || 'Unknown Device', value: d.deviceId }))
                                         ]}
-                                        onChange={(val) => { updateAudio({ outputDevice: val }); void applyOutputDevice(val); }}
+                                        onChange={(val) => {
+                                            const label = outputDevices.find(d => d.deviceId === val)?.label ?? null;
+                                            updateAudio({ outputDevice: val, outputDeviceLabel: label });
+                                            void applyOutputDevice(val, label);
+                                        }}
                                         disabled={!audio.coreAudioEnabled || !canChooseOutput}
                                     />
                                     {!canChooseOutput && (
@@ -926,7 +930,12 @@ export function PreferencesDialog() {
                                                 { label: 'System Setting', value: 'default' },
                                                 ...inputDevices.map(d => ({ label: d.label || 'Unknown Device', value: d.deviceId }))
                                             ]}
-                                            onChange={(val) => updateAudio({ inputDevice: val })}
+                                            onChange={(val) => updateAudio({
+                                                inputDevice: val,
+                                                // Ids rotate; the label is how the
+                                                // same interface is found again.
+                                                inputDeviceLabel: inputDevices.find(d => d.deviceId === val)?.label ?? null,
+                                            })}
                                             disabled={!audio.coreAudioEnabled}
                                         />
                                     </div>

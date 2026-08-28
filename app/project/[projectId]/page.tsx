@@ -47,6 +47,7 @@ import { RecordingStatus } from "@/components/RecordingStatus"
 
 import RotateToLandscape from "@/components/studio/RotateToLandscape"
 import { useViewport } from "@/hooks/useViewport"
+import { useOutputDevice } from "@/hooks/useOutputDevice"
 import { PreferencesDialog } from "@/components/PreferencesDialog"
 import { OnboardingOverlay } from "@/components/OnboardingOverlay"
 import { tutorialStore } from "@/store/tutorialStore"
@@ -165,6 +166,11 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
     // it cannot flash on a desktop during the first paint, when media queries
     // have not been read yet.
     const { compact, portrait, ready } = useViewport();
+
+    // The output chosen in Settings > Audio. It was applied only at the moment
+    // the dropdown changed — never on load, and not at all if the audio engine
+    // had not started yet, which is the usual state when someone picks one.
+    useOutputDevice();
 
     return (
         /*
