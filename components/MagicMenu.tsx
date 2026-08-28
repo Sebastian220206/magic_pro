@@ -1,7 +1,7 @@
 "use client"
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppMenus } from '@/hooks/useAppMenus';
-import { ChevronRight } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 
 /**
  * Every menu, behind the M button.
@@ -81,6 +81,12 @@ export function MagicMenu({ anchor, onClose }: {
                 {current?.entries.map((entry, idx) => (
                     entry.separator ? (
                         <div key={idx} className="h-px bg-black/30 my-1 mx-2" />
+                    ) : entry.heading ? (
+                        /* A readout, not a command — no hover, no "Not built yet". */
+                        <div key={idx} data-magic-menu-heading={entry.label}
+                            className="px-4 py-1 text-[11px] font-bold uppercase tracking-wider text-studio-text-dim truncate">
+                            {entry.label}
+                        </div>
                     ) : (
                         <button
                             key={idx}
@@ -96,7 +102,12 @@ export function MagicMenu({ anchor, onClose }: {
                                 ? 'text-studio-text hover:bg-accent-cyan hover:text-[#04070b]'
                                 : 'text-studio-text-dim/40 cursor-default'}`}
                         >
-                            <span>{entry.label}</span>
+                            <span className="flex items-center gap-2 min-w-0">
+                                {entry.checked !== undefined && (
+                                    <Check className={`w-3 h-3 shrink-0 ${entry.checked ? 'opacity-100' : 'opacity-0'}`} />
+                                )}
+                                <span className="truncate">{entry.label}</span>
+                            </span>
                             {entry.shortcut && (
                                 <span className="text-[10px] opacity-60 ml-8">{entry.shortcut}</span>
                             )}

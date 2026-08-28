@@ -14,10 +14,18 @@ import { useProjectFileActions } from './useProjectFileActions';
  */
 
 export interface AppMenuEntry {
-    label: string;
+    /** Absent on a separator, which is a rule rather than an entry. */
+    label?: string;
     shortcut?: string;
     separator?: boolean;
     action?: () => void;
+    /** Ticked in the menu — for entries that name a state, not a command. */
+    checked?: boolean;
+    /**
+     * A readout rather than a control. Rendered as plain text, so it is not
+     * dimmed and labelled "Not built yet" the way an actionless command is.
+     */
+    heading?: boolean;
 }
 
 export interface AppMenu {
@@ -30,17 +38,23 @@ export function useAppMenus(): AppMenu[] {
     const router = useRouter();
     const setShowSettingsDialog = useProjectStore(s => s.setShowSettingsDialog);
     const { commands: fileCommands } = useProjectFileActions();
+    const projectName = useProjectStore(s => s.name);
+    const isDirty = useProjectStore(s => s.isDirty);
+    const alternatives = useProjectStore(s => s.alternatives);
+    const currentAlternativeId = useProjectStore(s => s.currentAlternativeId);
+    const addAlternative = useProjectStore(s => s.addAlternative);
+    const switchToAlternative = useProjectStore(s => s.switchToAlternative);
 
     const menuDefs: Record<string, AppMenuEntry[]> = {
         logic: [
             { label: "About Magic Pro" },
-            { separator: true } as any,
+            { separator: true },
             { label: "Preferences - General...", action: () => setShowSettingsDialog(true, "General") },
             { label: "Preferences - Audio...", action: () => setShowSettingsDialog(true, "Audio") },
             { label: "Preferences - Recording...", action: () => setShowSettingsDialog(true, "Recording") },
             { label: "Preferences - MIDI...", action: () => setShowSettingsDialog(true, "MIDI") },
             { label: "Preferences - Display...", action: () => setShowSettingsDialog(true, "View") },
-            { separator: true } as any,
+            { separator: true },
             { label: "Quit Magic Pro" },
         ],
         /*
@@ -55,32 +69,32 @@ export function useAppMenus(): AppMenu[] {
         File: [
             { label: "New", shortcut: "Cmd+N", action: () => router.push('/dashboard') },
             { label: "Open...", shortcut: "Cmd+O", action: () => router.push('/dashboard') },
-            { separator: true } as any,
+            { separator: true },
             ...fileCommands.map(cmd => ({
                 label: cmd.label,
                 shortcut: cmd.shortcut,
                 separator: cmd.separatorBefore,
                 action: cmd.run,
             })).flatMap(entry => entry.separator
-                ? [{ separator: true } as any, { ...entry, separator: undefined }]
+                ? [{ separator: true }, { ...entry, separator: undefined }]
                 : [entry]),
         ],
         Edit: [
             { label: "Undo", shortcut: "Cmd+Z" },
             { label: "Redo", shortcut: "Cmd+Shift+Z" },
-            { separator: true } as any,
+            { separator: true },
             { label: "Cut", shortcut: "Cmd+X" },
             { label: "Copy", shortcut: "Cmd+C" },
             { label: "Paste", shortcut: "Cmd+V" },
             { label: "Delete", shortcut: "Delete" },
-            { separator: true } as any,
+            { separator: true },
             { label: "Select All", shortcut: "Cmd+A" },
         ],
         Track: [
             { label: "New Track...", shortcut: "Cmd+Opt+N" },
             { label: "Duplicate Track", shortcut: "Cmd+D" },
             { label: "Delete Track" },
-            { separator: true } as any,
+            { separator: true },
             { label: "Create Track Stack" },
         ],
         Navigate: [
@@ -111,20 +125,20 @@ export function useAppMenus(): AppMenu[] {
             { label: "Show Editor" },
             { label: "Show Mixer" },
             { label: "Show Toolbar" },
-            { separator: true } as any,
+            { separator: true },
             { label: "Full Screen", shortcut: "Ctrl+Cmd+F" },
         ],
         Window: [
             { label: "Minimize", shortcut: "Cmd+M" },
             { label: "Zoom" },
-            { separator: true } as any,
+            { separator: true },
             { label: "Cycle Through Windows" },
         ],
         Help: [
             { label: "Logic Pro Help", shortcut: "Cmd+?" },
-            { separator: true } as any,
+            { separator: true },
             { label: "Keyboard Shortcuts..." },
-            { separator: true } as any,
+            { separator: true },
             { label: "About Magic Pro" },
         ],
     };
@@ -135,8 +149,40 @@ export function useAppMenus(): AppMenu[] {
      * "Magic Pro" title, which is the control this dropdown replaces — without
      * it here, About and the Preferences shortcuts would have no home.
      */
+    /*
+     * Alternatives.
+     *
+     * These were reachable only through a popover hanging off the project name
+     * in the simulated menu bar. That bar is gone, and with it the only way to
+     * see which alternative was loaded or to switch between them — so they are
+     * a menu of their own now rather than a feature that quietly left.
+     */
+    const alternativesMenu: AppMenuEntry[] = [
+        { label: `${projectName}${isDirty ? ' • unsaved' : ''}`, heading: true },
+        { separator: true },
+        {
+            label: '(Main Project)',
+            checked: !currentAlternativeId,
+            action: () => switchToAlternative('main'),
+        },
+        ...alternatives.map(alt => ({
+            label: alt.name || 'Untitled Alternative',
+            checked: currentAlternativeId === alt.id,
+            action: () => switchToAlternative(alt.id),
+        })),
+        { separator: true },
+        {
+            label: 'New Alternative...',
+            action: () => {
+                const name = prompt('Alternative Name:', `Alt ${alternatives.length + 1}`);
+                if (name) addAlternative(name);
+            },
+        },
+    ];
+
     const ORDER = [
         ['Magic Pro', 'logic'],
+        ['Alternatives', 'alternatives'],
         ['File', 'File'],
         ['Edit', 'Edit'],
         ['Track', 'Track'],
@@ -149,7 +195,9 @@ export function useAppMenus(): AppMenu[] {
         ['Help', 'Help'],
     ] as const;
 
+    const all: Record<string, AppMenuEntry[]> = { ...menuDefs, alternatives: alternativesMenu };
+
     return ORDER
-        .filter(([, key]) => menuDefs[key]?.length)
-        .map(([name, key]) => ({ name, entries: menuDefs[key] }));
+        .filter(([, key]) => all[key]?.length)
+        .map(([name, key]) => ({ name, entries: all[key] }));
 }

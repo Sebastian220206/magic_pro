@@ -486,7 +486,7 @@ export function TransportBar() {
                 after every press, with the cursor nowhere near it.
             */}
             {controlBarSettings.showViews && (
-                <div data-view-toggles-shell className="group relative flex items-center gap-1.5 shrink-0">
+                <div data-view-toggles-shell className="group relative flex items-center shrink-0">
                 {/*
                     The M is a button, not part of the wordmark.
 
@@ -496,7 +496,7 @@ export function TransportBar() {
                     the first of them rather than as a letter that happens to be
                     pressable.
                 */}
-                <div className="relative">
+                <div className="relative shrink-0">
                     <button
                         data-magic-button
                         ref={magicButtonRef}
@@ -509,22 +509,34 @@ export function TransportBar() {
                         title="Magic Pro — every menu"
                         aria-label="Magic Pro menu"
                         aria-expanded={magicMenuOpen}
-                        className={`px-2 py-1 rounded-sm border shadow-[inset_0_1px_rgba(255,255,255,0.05)] transition-all transform active:scale-95 ${magicMenuOpen
+                        /*
+                            Boxless at rest, so it is the M of MAGIC PRO rather
+                            than a button sitting next to one. The chrome fades
+                            in with the toggles, where it belongs to that row.
+                            Padding and border width never change — only their
+                            colour — so the letters beside it do not move when
+                            the box appears.
+                        */
+                        className={`px-1.5 py-1 rounded-sm border transition-all transform active:scale-95 ${magicMenuOpen
                             ? 'bg-accent-cyan/30 border-accent-cyan/50 text-accent-cyan'
-                            : 'border-black/40 bg-gradient-to-b from-white/10 to-transparent text-studio-text hover:text-white hover:border-accent-cyan/50'}`}
+                            : 'border-transparent bg-transparent text-studio-text group-hover:border-black/40 group-hover:bg-gradient-to-b group-hover:from-white/10 group-hover:to-transparent hover:!border-accent-cyan/50 hover:text-white'}`}
                     >
-                        <span className="text-[17px] leading-none font-extralight tracking-[0.10em] drop-shadow-[0_0_10px_rgba(34,211,238,0.30)]">
+                        <span className="text-[19px] leading-none font-extralight tracking-[0.16em] drop-shadow-[0_0_10px_rgba(34,211,238,0.30)]">
                             M
                         </span>
                     </button>
                     {magicMenuOpen && <MagicMenu anchor={magicAnchor} onClose={() => setMagicMenuOpen(false)} />}
                 </div>
 
-                {/* Everything that swaps: the rest of the wordmark, or the toggles. */}
-                <div className="relative flex items-center">
+                {/*
+                    Everything that swaps: the rest of the wordmark, or the
+                    toggles. Nudged left so "AGIC" meets the M at its own letter
+                    spacing rather than across the button's padding.
+                */}
+                <div className="relative flex items-center -ml-1.5">
                 <div
                     data-view-toggles
-                    className="flex items-center gap-1.5 shrink-0 opacity-0 pointer-events-none transition-opacity duration-200 group-hover:opacity-100 group-hover:pointer-events-auto group-has-[:focus-visible]:opacity-100 group-has-[:focus-visible]:pointer-events-auto"
+                    className="flex items-center gap-1.5 shrink-0 pl-2 opacity-0 pointer-events-none transition-opacity duration-200 group-hover:opacity-100 group-hover:pointer-events-auto group-has-[:focus-visible]:opacity-100 group-has-[:focus-visible]:pointer-events-auto"
                 >
                     {renderViewButton('library', Sidebar, toggleLibrary, showLibrary)}
                     {renderViewButton('inspector', Layout, toggleInspector, showInspector)}

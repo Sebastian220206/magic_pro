@@ -43,8 +43,8 @@ import { ViewControlBar } from "@/components/ViewControlBar"
 import { PluginEditorWindow } from "@/components/PluginEditorWindow"
 import { PluginBrowser } from "@/components/plugins/PluginBrowser"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
+import { ProjectFileDialogs } from "@/components/ProjectFileDialogs"
 
-import { AppMenuBar } from "@/components/AppMenuBar"
 import RotateToLandscape from "@/components/studio/RotateToLandscape"
 import { useViewport } from "@/hooks/useViewport"
 import { PreferencesDialog } from "@/components/PreferencesDialog"
@@ -195,12 +195,27 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
                 </div>
             )}
             {/*
-              * A simulated macOS menu bar, complete with a clock, a battery
-              * gauge and a wifi indicator. On a phone the device already draws
-              * all three for real, so this is 24px of screen spent restating
-              * them — hidden when there is no room to spare.
-              */}
-            {!compact && <AppMenuBar />}
+              * The simulated macOS menu bar is gone.
+              *
+              * It was 24px spent on an apple icon, a clock, a battery gauge and
+              * a wifi indicator — three of which the real desktop already draws
+              * above it. Its menus had already moved to the M button; the
+              * project name and the alternatives list went with them, and the
+              * dialogs it was quietly keeping mounted are below.
+              */
+            }
+
+            {/*
+                The project-file dialogs.
+
+                They hung off the project-name popover inside that bar, so
+                removing it left Save As, Save a Copy As, Import Project
+                Settings, Project Information and Bounce setting a store flag
+                that nothing rendered. They are mounted here, with no trigger,
+                because which one is open is store state and any menu may set
+                it.
+            */}
+            <ProjectFileDialogs />
 
             {/* Top: Control Bar (Transport) */}
             <ErrorBoundary name="TransportBar">
