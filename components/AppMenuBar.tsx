@@ -1,15 +1,10 @@
 "use client"
 import React, { useState, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
 import { useProjectStore } from "@/store/projectStore"
-import { useProjectFileActions } from "@/hooks/useProjectFileActions"
 import { ProjectManager } from "./ProjectManager"
 
 export function AppMenuBar() {
     const { setShowSettingsDialog } = useProjectStore();
-    const [activeMenu, setActiveMenu] = useState<string | null>(null);
-    const [hoveredMenuItem, setHoveredMenuItem] = useState<string | null>(null);
-    const [menuExpanded, setMenuExpanded] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [batteryLevel, setBatteryLevel] = useState(0.85);
     const [batteryCharging, setBatteryCharging] = useState(false);
@@ -44,178 +39,9 @@ export function AppMenuBar() {
         }
     }, []);
 
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                setActiveMenu(null);
-                setHoveredMenuItem(null);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
 
-    const router = useRouter();
-    // The same list the Alternatives popover renders.
-    const { commands: fileCommands } = useProjectFileActions();
 
-    const menuDefs: Record<string, { label: string; shortcut?: string; action?: () => void }[]> = {
-        logic: [
-            { label: "About Magic Pro" },
-            { separator: true } as any,
-            { label: "Preferences - General...", action: () => setShowSettingsDialog(true, "General") },
-            { label: "Preferences - Audio...", action: () => setShowSettingsDialog(true, "Audio") },
-            { label: "Preferences - Recording...", action: () => setShowSettingsDialog(true, "Recording") },
-            { label: "Preferences - MIDI...", action: () => setShowSettingsDialog(true, "MIDI") },
-            { label: "Preferences - Display...", action: () => setShowSettingsDialog(true, "View") },
-            { separator: true } as any,
-            { label: "Quit Magic Pro" },
-        ],
-        /*
-         * File.
-         *
-         * Was New, Open, Save, Save As and Export Audio — five labels, none of
-         * which carried an action. The commands that do the work were written
-         * out inside `ProjectManager`, the Alternatives popover, which made a
-         * menu about project alternatives the only route to Export as WAV,
-         * Bounce and Close Project. Both render from the same list now.
-         */
-        File: [
-            { label: "New", shortcut: "Cmd+N", action: () => router.push('/dashboard') },
-            { label: "Open...", shortcut: "Cmd+O", action: () => router.push('/dashboard') },
-            { separator: true } as any,
-            ...fileCommands.map(cmd => ({
-                label: cmd.label,
-                shortcut: cmd.shortcut,
-                separator: cmd.separatorBefore,
-                action: cmd.run,
-            })).flatMap(entry => entry.separator
-                ? [{ separator: true } as any, { ...entry, separator: undefined }]
-                : [entry]),
-        ],
-        Edit: [
-            { label: "Undo", shortcut: "Cmd+Z" },
-            { label: "Redo", shortcut: "Cmd+Shift+Z" },
-            { separator: true } as any,
-            { label: "Cut", shortcut: "Cmd+X" },
-            { label: "Copy", shortcut: "Cmd+C" },
-            { label: "Paste", shortcut: "Cmd+V" },
-            { label: "Delete", shortcut: "Delete" },
-            { separator: true } as any,
-            { label: "Select All", shortcut: "Cmd+A" },
-        ],
-        Track: [
-            { label: "New Track...", shortcut: "Cmd+Opt+N" },
-            { label: "Duplicate Track", shortcut: "Cmd+D" },
-            { label: "Delete Track" },
-            { separator: true } as any,
-            { label: "Create Track Stack" },
-        ],
-        Navigate: [
-            { label: "Go to Beginning", shortcut: "Return" },
-            { label: "Go to End" },
-            { label: "Go to Selection", shortcut: "Shift+Return" },
-            { label: "Go to Locator" },
-        ],
-        Record: [
-            { label: "Record", shortcut: "R" },
-            { label: "Record with Count-In" },
-            { label: "Autopunch Record" },
-            { label: "Record Replace" },
-        ],
-        Setting: [
-            { label: "General...", action: () => setShowSettingsDialog(true, "General") },
-            { label: "Audio...", action: () => setShowSettingsDialog(true, "Audio") },
-            { label: "Recording...", action: () => setShowSettingsDialog(true, "Recording") },
-            { label: "MIDI...", action: () => setShowSettingsDialog(true, "MIDI") },
-            { label: "Display...", action: () => setShowSettingsDialog(true, "View") },
-        ],
-        Mix: [
-            { label: "Show Mixer", shortcut: "Cmd+M" },
-            { label: "Show Channel EQ" },
-            { label: "Show Dynamics" },
-        ],
-        View: [
-            { label: "Show Editor" },
-            { label: "Show Mixer" },
-            { label: "Show Toolbar" },
-            { separator: true } as any,
-            { label: "Full Screen", shortcut: "Ctrl+Cmd+F" },
-        ],
-        Window: [
-            { label: "Minimize", shortcut: "Cmd+M" },
-            { label: "Zoom" },
-            { separator: true } as any,
-            { label: "Cycle Through Windows" },
-        ],
-        Help: [
-            { label: "Logic Pro Help", shortcut: "Cmd+?" },
-            { separator: true } as any,
-            { label: "Keyboard Shortcuts..." },
-            { separator: true } as any,
-            { label: "About Magic Pro" },
-        ],
-    };
 
-    const leftMenus = ["File", "Edit", "Track", "Navigate", "Record"];
-    const rightMenus = ["Setting", "Mix", "View", "Window", "Help"];
-
-    const renderDropdown = (menuName: string) => {
-        const items = menuDefs[menuName];
-        if (!items) return null;
-        return (
-            <div data-menu-dropdown={menuName} className="absolute top-[24px] left-0 min-w-[220px] bg-studio-raised/95 backdrop-blur-md border border-studio-line-strong shadow-2xl rounded-b-md py-1 z-[120]">
-                {items.map((item: any, idx: number) =>
-                    item.label === "separator" || item.separator ? (
-                        <div key={idx} className="h-[1px] bg-black/15 my-1 mx-2" />
-                    ) : (
-                        <div
-                            key={idx}
-                            onMouseEnter={() => setHoveredMenuItem(item.label)}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (item.action) {
-                                    item.action();
-                                    setActiveMenu(null);
-                                }
-                            }}
-                            data-menu-item={item.label}
-                            className={`px-4 py-0.5 flex items-center justify-between text-[13px] cursor-default ${
-                                hoveredMenuItem === item.label
-                                    ? "bg-cyan-300 text-white"
-                                    : "text-studio-text hover:bg-accent-cyan hover:text-[#04070b]"
-                            }`}
-                        >
-                            <span>{item.label}</span>
-                            {item.shortcut && (
-                                <span className="text-[11px] font-medium opacity-60 ml-8">{item.shortcut}</span>
-                            )}
-                        </div>
-                    )
-                )}
-            </div>
-        );
-    };
-
-    const renderMenuItem = (menu: string) => {
-        const isActive = activeMenu === menu;
-        return (
-            <div
-                data-menu={menu}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveMenu(isActive ? null : menu);
-                    setHoveredMenuItem(null);
-                }}
-                onMouseEnter={() => activeMenu && setActiveMenu(menu)}
-                className={`px-3 h-full flex items-center cursor-default transition-colors whitespace-nowrap ${
-                    isActive ? "bg-cyan-300 text-white" : "hover:bg-black/10"
-                }`}
-            >
-                {menu}
-            </div>
-        );
-    };
 
     return (
         <div ref={menuRef} className="h-[24px] bg-gradient-to-b from-studio-raised to-studio-control border-b border-studio-line-strong flex items-center px-2 shrink-0 z-[110] select-none text-[12px] font-sans text-studio-text shadow-sm relative">
@@ -236,69 +62,15 @@ export function AppMenuBar() {
               */}
             <ProjectManager compact />
 
-            <div className="flex-1 flex items-center justify-center h-full">
-                {/* Left menus — slide in from left */}
-                <div className="flex items-center h-full">
-                    {leftMenus.map((menu, i) => (
-                        <div
-                            key={menu}
-                            className={`transition-all duration-200 ${
-                                menuExpanded
-                                    ? "opacity-100 max-w-[80px] translate-x-0"
-                                    : "opacity-0 max-w-0 translate-x-4 overflow-hidden"
-                            }`}
-                            style={{ transitionDelay: `${i * 30}ms` }}
-                        >
-                            <div className="h-full flex items-center relative">
-                                {renderMenuItem(menu)}
-                                {activeMenu === menu && renderDropdown(menu)}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Magic Pro toggle button */}
-                <div
-                    data-menu-expand
-                    onClick={() => {
-                        if (menuExpanded) {
-                            setMenuExpanded(false);
-                            setActiveMenu(null);
-                        } else {
-                            setMenuExpanded(true);
-                            setActiveMenu(null);
-                        }
-                    }}
-                    onMouseEnter={() => !menuExpanded && activeMenu && setActiveMenu("logic")}
-                    className={`px-3 h-full flex items-center cursor-default transition-colors tracking-tight font-bold shrink-0 relative ${
-                        menuExpanded || activeMenu === "logic" ? "bg-cyan-300 text-white" : "hover:bg-black/10"
-                    }`}
-                >
-                    Magic Pro
-
-                    {!menuExpanded && activeMenu === "logic" && renderDropdown("logic")}
-                </div>
-
-                {/* Right menus — slide in from right */}
-                <div className="flex items-center h-full">
-                    {rightMenus.map((menu, i) => (
-                        <div
-                            key={menu}
-                            className={`transition-all duration-200 ${
-                                menuExpanded
-                                    ? "opacity-100 max-w-[80px] translate-x-0"
-                                    : "opacity-0 max-w-0 -translate-x-4 overflow-hidden"
-                            }`}
-                            style={{ transitionDelay: `${i * 30}ms` }}
-                        >
-                            <div className="h-full flex items-center relative">
-                                {renderMenuItem(menu)}
-                                {activeMenu === menu && renderDropdown(menu)}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+            {/*
+                The menus used to be a row of names across here — File, Edit,
+                Track … Help — collapsed to zero width until the "Magic Pro"
+                title was clicked. On load the bar looked empty, and the only
+                way in was pressing a word that did not read as a control.
+                They are one dropdown off the M button in the transport bar
+                now; this bar keeps what belongs to the window itself.
+            */}
+            <div className="flex-1" />
 
             <div className="flex items-center h-full gap-3 px-4 overflow-hidden">
                 {/* WiFi icon */}

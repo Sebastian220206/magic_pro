@@ -16,6 +16,7 @@ import { ControlBarCustomizer } from "./ControlBarCustomizer"
 import { MasterVolume, OutputMeter } from "./MasterOutput"
 import { GiantDisplay } from "./GiantDisplay"
 import { MIDIActivity } from "./MIDIActivity"
+import { MagicMenu } from "./MagicMenu"
 
 /** Time signatures the display offers. Matches what `setTimeSignature` accepts. */
 const TIME_SIGNATURES = [
@@ -143,9 +144,12 @@ export function TransportBar() {
         showVirtualKeyboard, toggleVirtualKeyboard,
         timeSignature, setTimeSignature,
         keySignature, setKeySignature,
-        // The M button opens Settings.
-        setShowSettingsDialog,
     } = useProjectStore()
+
+    /** The M button's dropdown, which carries every menu the app has. */
+    const [magicMenuOpen, setMagicMenuOpen] = useState(false)
+    const [magicAnchor, setMagicAnchor] = useState<{ left: number; bottom: number } | null>(null)
+    const magicButtonRef = useRef<HTMLButtonElement>(null)
 
     /**
      * Return the playhead to bar 1, stopping first if the transport is rolling.
@@ -492,17 +496,29 @@ export function TransportBar() {
                     the first of them rather than as a letter that happens to be
                     pressable.
                 */}
-                <button
-                    data-magic-button
-                    onClick={() => setShowSettingsDialog(true, 'General')}
-                    title="Magic Pro — settings"
-                    aria-label="Magic Pro settings"
-                    className="px-2 py-1 rounded-sm border border-black/40 shadow-[inset_0_1px_rgba(255,255,255,0.05)] bg-gradient-to-b from-white/10 to-transparent text-studio-text transition-all transform active:scale-95 hover:text-white hover:border-accent-cyan/50"
-                >
-                    <span className="text-[17px] leading-none font-extralight tracking-[0.10em] drop-shadow-[0_0_10px_rgba(34,211,238,0.30)]">
-                        M
-                    </span>
-                </button>
+                <div className="relative">
+                    <button
+                        data-magic-button
+                        ref={magicButtonRef}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const rect = magicButtonRef.current?.getBoundingClientRect();
+                            if (rect) setMagicAnchor({ left: rect.left, bottom: rect.bottom });
+                            setMagicMenuOpen(v => !v);
+                        }}
+                        title="Magic Pro — every menu"
+                        aria-label="Magic Pro menu"
+                        aria-expanded={magicMenuOpen}
+                        className={`px-2 py-1 rounded-sm border shadow-[inset_0_1px_rgba(255,255,255,0.05)] transition-all transform active:scale-95 ${magicMenuOpen
+                            ? 'bg-accent-cyan/30 border-accent-cyan/50 text-accent-cyan'
+                            : 'border-black/40 bg-gradient-to-b from-white/10 to-transparent text-studio-text hover:text-white hover:border-accent-cyan/50'}`}
+                    >
+                        <span className="text-[17px] leading-none font-extralight tracking-[0.10em] drop-shadow-[0_0_10px_rgba(34,211,238,0.30)]">
+                            M
+                        </span>
+                    </button>
+                    {magicMenuOpen && <MagicMenu anchor={magicAnchor} onClose={() => setMagicMenuOpen(false)} />}
+                </div>
 
                 {/* Everything that swaps: the rest of the wordmark, or the toggles. */}
                 <div className="relative flex items-center">
