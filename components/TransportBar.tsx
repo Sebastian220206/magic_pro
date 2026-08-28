@@ -462,9 +462,28 @@ export function TransportBar() {
             onContextMenu={onContextMenu}
         >
 
-            {/* 1. View Toggles (Logic Left Control) */}
+            {/*
+                1. View Toggles, behind the wordmark.
+
+                At rest the corner reads MAGIC PRO; the toggles fade in under
+                the cursor and fade back out when it leaves. Both layers sit in
+                the same box — the toggles hold the width in normal flow and the
+                wordmark is laid over them — so nothing beside this shifts when
+                the swap happens.
+
+                The keyboard clause matters as much as the hover one: the
+                buttons stay in the tab order while transparent, and without it
+                a keyboard user would be focusing controls they cannot see. It
+                is `:focus-visible`, not `:focus-within` — a click leaves the
+                button focused, and with `focus-within` the row stayed revealed
+                after every press, with the cursor nowhere near it.
+            */}
             {controlBarSettings.showViews && (
-                <div data-view-toggles className="flex items-center gap-1.5 shrink-0">
+                <div data-view-toggles-shell className="group relative flex items-center shrink-0">
+                <div
+                    data-view-toggles
+                    className="flex items-center gap-1.5 shrink-0 opacity-0 pointer-events-none transition-opacity duration-200 group-hover:opacity-100 group-hover:pointer-events-auto group-has-[:focus-visible]:opacity-100 group-has-[:focus-visible]:pointer-events-auto"
+                >
                     {renderViewButton('library', Sidebar, toggleLibrary, showLibrary)}
                     {renderViewButton('inspector', Layout, toggleInspector, showInspector)}
                     {renderViewButton('quickHelp', Search, () => { }, false)}
@@ -478,6 +497,25 @@ export function TransportBar() {
                     */}
                     {renderViewButton('mixer', List, toggleMixer, showMixer)}
                     {renderViewButton('musicalTyping', Keyboard, toggleVirtualKeyboard, showVirtualKeyboard)}
+                </div>
+
+                {/*
+                    The resting state. `pointer-events-none` so it never eats a
+                    click meant for the button underneath it — the wordmark is
+                    still painted at the moment the cursor arrives.
+                */}
+                <div
+                    data-wordmark
+                    aria-hidden="true"
+                    className="absolute inset-0 flex items-center gap-2 pointer-events-none select-none transition-opacity duration-200 opacity-100 group-hover:opacity-0 group-has-[:focus-visible]:opacity-0"
+                >
+                    <span className="text-[19px] leading-none font-extralight tracking-[0.16em] text-studio-text drop-shadow-[0_0_10px_rgba(34,211,238,0.30)]">
+                        MAGIC
+                    </span>
+                    <span className="text-[19px] leading-none font-extralight tracking-[0.16em] text-accent-cyan drop-shadow-[0_0_14px_var(--accent-cyan-glow)]">
+                        PRO
+                    </span>
+                </div>
                 </div>
             )}
 
