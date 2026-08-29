@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react"
 import { useProjectStore } from "@/store/projectStore"
-import { WaveformSVG } from "./WaveformSVG"
 import { neonTrackColor, neonTrackAlpha, neonTrackTextColor } from "@/lib/trackColor"
 import { X, ChevronLeft, ChevronRight, Scissors, Link2, Minus, Plus } from "lucide-react"
 

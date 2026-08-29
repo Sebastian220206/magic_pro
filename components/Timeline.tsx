@@ -853,7 +853,7 @@ export function Timeline() {
                                                         }
                                                         setContextMenu({ x: e.clientX, y: e.clientY, clipIds: selectedClipIds.includes(clip.id) ? selectedClipIds : [clip.id] });
                                                     }}
-                                                    className={`absolute ${clip.isTakeFolderOpen ? 'z-40 shadow-xl border-white/60' : ''} top-0.5 rounded-[4px] border shadow-2xl group cursor-move overflow-hidden transition-all transform active:scale-[0.99] ${selectedClipIds.includes(clip.id) ? 'ring-2 ring-white/70 ring-inset brightness-125 z-30' : ''} ${clip.muted ? 'opacity-40 grayscale-[0.6]' : 'opacity-100'}`}
+                                                    className={`absolute ${clip.isTakeFolderOpen ? 'z-40 shadow-xl border-white/60' : ''} top-0.5 rounded-md border group cursor-move overflow-hidden transition-all transform active:scale-[0.99] ${selectedClipIds.includes(clip.id) ? 'ring-2 ring-white/70 ring-inset brightness-125 z-30' : ''} ${clip.muted ? 'opacity-40 grayscale-[0.6]' : 'opacity-100'}`}
                                                     onDoubleClick={(e) => {
                                                         if (clip.type === 'audio') {
                                                             e.stopPropagation();
@@ -867,10 +867,23 @@ export function Timeline() {
 
                                                         width: `${clip.duration * pixelsPerBeat}px`,
                                                         color: neonTrackTextColor(clip.color),
-                                                        backgroundColor: neonTrackAlpha(clip.color, 0.16),
-                                                        borderColor: neonTrackAlpha(clip.color, 0.55),
-                                                        boxShadow: `inset 0 0 20px ${neonTrackAlpha(clip.color, 0.14)}`,
-                                                        backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 45%, rgba(0,0,0,0.35) 100%)'
+                                                        /*
+                                                          An opaque base with the
+                                                          tint laid over it, rather
+                                                          than a wash: the grid used
+                                                          to show through the region.
+                                                          `shadow-2xl` and a
+                                                          hard-coded white-to-black
+                                                          sheen went with it — a
+                                                          heavy black drop shadow
+                                                          bleeding under a
+                                                          translucent card is why
+                                                          regions read muddy.
+                                                        */
+                                                        backgroundColor: 'rgb(var(--studio-void-rgb, 4 7 11))',
+                                                        backgroundImage: `linear-gradient(${neonTrackAlpha(clip.color, 0.15)}, ${neonTrackAlpha(clip.color, 0.15)})`,
+                                                        borderColor: neonTrackAlpha(clip.color, 0.85),
+                                                        boxShadow: `inset 0 0 0 1px ${neonTrackAlpha(clip.color, 0.18)}`
                                                     }}
                                                 >
                                                     <div
@@ -882,7 +895,17 @@ export function Timeline() {
                                                         onMouseDown={(e) => handleClipResize(clip, 'right', e)}
                                                     />
                                                     {/* Professional Region Label */}
-                                                    <div className="absolute top-0 left-0 right-0 h-4.5 px-2.5 flex items-center justify-between z-20 bg-black/35 backdrop-blur-[2px] border-b border-white/10">
+                                                    {/*
+                                                      The name floats over the
+                                                      waveform now. It sat on a
+                                                      `bg-black/35` bar whose
+                                                      height was `h-4.5` — not a
+                                                      Tailwind class, so the bar
+                                                      collapsed to its content
+                                                      while the media area below
+                                                      reserved 18px for it.
+                                                    */}
+                                                    <div className="absolute top-[3px] left-0 right-0 h-[16px] px-2 flex items-center justify-between z-20">
                                                         <div className="flex items-center gap-1.5 overflow-hidden w-full">
                                                             {clip.isTakeFolder && (
                                                                 <div 
@@ -989,19 +1012,32 @@ export function Timeline() {
                                                             {!clip.isTakeFolder && (
                                                                 clip.type === 'audio' ? <Volume2 className="w-2.5 h-2.5 text-white/60 pointer-events-none" /> : <Music className="w-2.5 h-2.5 text-white/60 pointer-events-none" />
                                                             )}
-                                                            <span className={`text-[9px] font-black tracking-tight truncate leading-none uppercase pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${clip.aliasOf ? 'italic' : ''}`}>{clip.aliasOf ? (clip.aliasName || clips.find(c => c.id === clip.aliasOf)?.name || clip.name) : clip.name}</span>
+                                                            <span className={`text-[10px] font-semibold tracking-tight truncate leading-none pointer-events-none drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] ${clip.aliasOf ? 'italic' : ''}`}>{clip.aliasOf ? (clip.aliasName || clips.find(c => c.id === clip.aliasOf)?.name || clip.name) : clip.name}</span>
                                                             {clip.aliasOf && clips.find(c => c.id === clip.aliasOf) && zoom >= 60 && (
                                                                 <span className="text-[7px] text-white/45 block truncate pointer-events-none">{clips.find(c => c.id === clip.aliasOf)?.name || 'Missing original'}</span>
                                                             )}
                                                         </div>
                                                     </div>
 
-                                                    {/* Media Content Visualization */}
-                                                    <div className="absolute inset-x-0 bottom-0 top-[18px] pointer-events-none">
+                                                    {/*
+                                                        The full box, not below
+                                                        the label. The waveform is
+                                                        centred on the clip's own
+                                                        centre line, which is what
+                                                        a DAW means by centred; the
+                                                        name floats over its
+                                                        top-left.
+                                                    */}
+                                                    <div className="absolute inset-[3px] pointer-events-none">
                                                         {clip.type === 'audio' ? (
-                                                            <div className="absolute inset-x-0 inset-y-1"><WaveformSVG color={neonTrackColor(clip.color)} peaks={clip.waveformPeaks} /></div>
+                                                            <WaveformSVG
+                                                                color={neonTrackColor(clip.color)}
+                                                                peaks={clip.waveformPeaks}
+                                                                width={Math.max(1, clip.duration * pixelsPerBeat - 6)}
+                                                                height={Math.max(1, currentHeight - 8)}
+                                                            />
                                                         ) : (
-                                                            <div className="absolute inset-0 px-2 py-1"><MIDIPoints clip={clip} /></div>
+                                                            <div className="absolute inset-0"><MIDIPoints clip={clip} pixelsPerBeat={pixelsPerBeat} /></div>
                                                         )}
                                                     </div>
                                                 </div>
@@ -1020,11 +1056,11 @@ export function Timeline() {
                                                                             updateClip(clip.id, { activeTakeIndex: tIdx });
                                                                         }
                                                                     }}>
-                                                                    <div className="absolute top-0 left-0 right-0 h-4.5 px-2 flex items-center z-10 bg-black/35 text-[9px] font-black text-white/80">
+                                                                    <div className="absolute top-0 left-0 right-0 h-[18px] px-2 flex items-center z-10 bg-black/35 text-[9px] font-black text-white/80">
                                                                         Take {tIdx + 1}
                                                                     </div>
                                                                     <div className="absolute inset-x-0 bottom-0 top-[18px] pointer-events-none">
-                                                                        <WaveformSVG color={neonTrackColor(take.color)} peaks={take.waveformPeaks} />
+                                                                        <WaveformSVG color={neonTrackColor(take.color)} peaks={take.waveformPeaks} width={Math.max(1, take.duration * pixelsPerBeat - 2)} height={Math.max(1, currentHeight - 22)} />
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1037,7 +1073,7 @@ export function Timeline() {
 
                                     {/* Annotations */}
                                     {annotations.filter(a => a.laneY === tracks.indexOf(track)).map(a => (
-                                        <div key={a.id} className="absolute z-25 pointer-events-auto group/annot" style={{ left: `${a.startBeat * pixelsPerBeat}px`, top: '0px', height: `${currentHeight}px` }}>
+                                        <div key={a.id} className="absolute z-[25] pointer-events-auto group/annot" style={{ left: `${a.startBeat * pixelsPerBeat}px`, top: '0px', height: `${currentHeight}px` }}>
                                             <div className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-500/20 border-l-2 border-yellow-400 text-yellow-300 text-[9px] font-bold uppercase tracking-wider whitespace-nowrap">
                                                 <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0" />
                                                 {a.text}
@@ -1216,8 +1252,14 @@ export function Timeline() {
     )
 }
 
-function MIDIPoints({ clip }: { clip: Clip }) {
-    const zoom = useProjectStore(s => s.zoom);
+/*
+ * Takes the scale rather than re-deriving it.
+ *
+ * This read `zoom || 80` from the store itself while its wrapper carried a
+ * `px-2`, so MIDI content sat eight pixels right of where an audio waveform in
+ * the same clip started. Both now share the region's inset and its scale.
+ */
+function MIDIPoints({ clip, pixelsPerBeat }: { clip: Clip; pixelsPerBeat: number }) {
     if (!clip.notes) return null;
     // Notes glow in the clip's own colour, the MIDI counterpart of a tinted
     // waveform. Computed once per clip rather than once per note.
@@ -1230,8 +1272,8 @@ function MIDIPoints({ clip }: { clip: Clip }) {
                     key={n.id}
                     className="absolute rounded-full"
                     style={{
-                        left: `${(n.start || 0) * (zoom || 80)}px`,
-                        width: `${Math.max(3, (n.duration * (zoom || 80)) - 1)}px`,
+                        left: `${(n.start || 0) * pixelsPerBeat}px`,
+                        width: `${Math.max(3, (n.duration * pixelsPerBeat) - 1)}px`,
                         top: `${(1 - (n.pitch - 36) / 48) * 100}%`,
                         height: '2px',
                         backgroundColor: tint,

@@ -1,59 +1,93 @@
 "use client"
 
-function peaksToPath(peaks: { channels: Array<{ min: number[] | Float32Array; max: number[] | Float32Array }>; resolution: number }, numPoints: number): string {
-    const ch = peaks.channels[0];
-    if (!ch) return '';
-    const step = Math.max(1, Math.floor(ch.min.length / numPoints));
-    const mid = 20;
-    const scale = 18;
-    let d = '';
-    for (let i = 0; i < numPoints; i++) {
-        const idx = Math.min(Math.floor(i * step), ch.min.length - 1);
-        const minVal = Number(ch.min[idx]) || 0;
-        const maxVal = Number(ch.max[idx]) || 0;
-        const x = (i / numPoints) * 100;
-        const top = mid - maxVal * scale;
-        const bot = mid - minVal * scale;
-        d += `M${x} ${top} L${x} ${bot} `;
-    }
-    return d;
+import React from 'react'
+import { envelopePath, hasPeaks, type PeakSource } from '@/lib/waveformGeometry'
+
+interface WaveformSVGProps {
+    color?: string
+    peaks?: PeakSource
+    /** Rendered width in CSS pixels — the caller already knows it. */
+    width: number
+    /** Rendered height in CSS pixels. */
+    height: number
 }
 
-export function WaveformSVG({ color = "#22d3ee", peaks }: { color?: string; peaks?: { channels: Array<{ min: number[] | Float32Array; max: number[] | Float32Array }>; resolution: number } }) {
-    const pathD = peaks ? peaksToPath(peaks, 100) : null;
+/**
+ * A clip's waveform.
+ *
+ * Three things changed from what this was.
+ *
+ * It drew 100 hairline strokes with `fill="none"`, so it never had a body —
+ * and under `preserveAspectRatio="none"` a 1.2px stroke was scaled
+ * anisotropically, which made bar weight depend on the clip's width: wide
+ * regions merged into a slab, narrow ones turned to mush. A filled shape has
+ * no stroke to distort, so the `viewBox` can simply match the pixel box.
+ *
+ * The size comes in as numbers rather than being measured. The caller has it
+ * already — `clip.duration * pixelsPerBeat` by the lane height — so there is
+ * no ResizeObserver and no layout read.
+ *
+ * And when there were no peaks it drew a hard-coded zig-zag: a convincing
+ * picture of audio that does not exist, shown for a file that failed to
+ * decode. See `MissingWaveform`.
+ */
+export const WaveformSVG = React.memo(function WaveformSVG({
+    color = '#22d3ee',
+    peaks,
+    width,
+    height,
+}: WaveformSVGProps) {
+    const w = Math.max(1, Math.round(width))
+    const h = Math.max(1, Math.round(height))
+
+    if (!hasPeaks(peaks)) return <MissingWaveform color={color} width={w} height={h} />
+
+    const d = envelopePath(peaks!, { width: w, height: h })
+    if (!d) return <MissingWaveform color={color} width={w} height={h} />
 
     return (
-        // `color` is set so the drop-shadow can glow in the waveform's own
-        // colour via currentColor rather than needing a second prop.
         <svg
-            viewBox="0 0 100 40"
-            preserveAspectRatio="none"
-            style={{ color }}
-            className="w-full h-full opacity-90 drop-shadow-[0_0_3px_currentColor]"
+            data-waveform
+            width={w}
+            height={h}
+            viewBox={`0 0 ${w} ${h}`}
+            className="block w-full h-full"
+            aria-hidden="true"
         >
-            {pathD ? (
-                <path d={pathD} fill="none" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            ) : (
-                <>
-                    <path
-                        d="M0 20 L2 15 L5 25 L8 10 L12 30 L15 15 L20 22 L25 5 L30 35 L35 18 L40 22 L45 8 L50 32 L55 15 L60 25 L65 10 L70 30 L75 15 L80 22 L85 5 L90 35 L95 18 L100 20"
-                        fill="none"
-                        stroke={color}
-                        strokeWidth="1.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                    <path
-                        d="M0 20 L3 18 L6 22 L10 15 L14 25 L18 18 L22 21 L27 10 L32 30 L37 20 L42 21 L47 12 L52 28 L57 18 L62 22 L67 15 L72 25 L77 18 L82 21 L87 10 L92 30 L97 20 L100 20"
-                        fill="none"
-                        stroke={color}
-                        strokeWidth="0.6"
-                        strokeOpacity="0.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </>
-            )}
+            {/*
+                No `drop-shadow` filter. On a filled shape it smears the edge
+                into mush, and it costs a filter pass per clip on a timeline
+                that can hold hundreds.
+            */}
+            <path d={d} fill={color} fillOpacity={0.85} />
+        </svg>
+    )
+})
+
+/**
+ * What a clip with no waveform data shows.
+ *
+ * Dashed on purpose. Under the minimum-thickness rule a *solid* hairline is
+ * exactly what true digital silence draws, and "there is no data" is a
+ * different fact from "this is silent" — the dash separates them without
+ * needing a label. The title says which.
+ */
+function MissingWaveform({ color, width, height }: {
+    color: string; width: number; height: number
+}) {
+    return (
+        <svg
+            data-waveform-missing
+            width={width}
+            height={height}
+            viewBox={`0 0 ${width} ${height}`}
+            className="block w-full h-full"
+        >
+            <title>Waveform unavailable — this audio could not be decoded</title>
+            <line
+                x1={0} y1={height / 2} x2={width} y2={height / 2}
+                stroke={color} strokeOpacity={0.4} strokeWidth={1} strokeDasharray="3 3"
+            />
         </svg>
     )
 }
