@@ -13,12 +13,13 @@ import {
     Layers, CornerLeftDown
 } from "lucide-react"
 import { advancedScheduler } from "@/engine/audioEngine/scheduler"
+import { visibleTracks } from '@/lib/trackVisibility'
 
 export function Timeline() {
     const {
         playing, playhead, movePlayhead, tracks, clips, updateClip,
         zoom, snap, selectClip, selectedClipId,
-        trackHeight, showAutomation, globalTracks,
+        trackHeight, showAutomation, globalTracks, hideViewActive,
         locatorLeft, locatorRight, cycleEnabled, skipCycleEnabled, setLocators,
         settings, updateProjectSettings,
         marqueeSelection, setMarqueeSelection,
@@ -39,6 +40,16 @@ export function Timeline() {
     const playheadLineRef = useRef<HTMLDivElement>(null)
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, clipIds: string[] } | null>(null)
     const [takeFolderMenuClipId, setTakeFolderMenuClipId] = useState<string | null>(null)
+
+    /*
+     * The rows that exist, shared with the header column.
+     *
+     * Every piece of vertical arithmetic here — the scroll height, the marquee
+     * hit test, the lane offsets — has to walk the same list the headers do, or
+     * a hidden track pushes them out of step with each other. Declared up here
+     * because a mouse handler further down closes over it.
+     */
+    const laneTracks = visibleTracks(tracks, hideViewActive);
 
     const pixelsPerBeat = zoom || 80;
     const beatsPerBar = Number(timeSignature?.split('/')[0]) || 4;
@@ -354,7 +365,7 @@ export function Timeline() {
 
                 const selectedTrackIds: string[] = [];
                 let currentOffset = 48; // Timeline ruler height
-                tracks.forEach(track => {
+                laneTracks.forEach(track => {
                     const currentHeight = trackHeight * (track.zoom || 1);
                     const activeClips = clips.filter(c => c.trackId === track.id && c.alternativeId === track.activeAlternativeId);
                     const openTakeFolders = activeClips.filter(c => c.isTakeFolder && c.isTakeFolderOpen);
@@ -511,7 +522,7 @@ export function Timeline() {
     };
     const timelineCursor = TOOL_CURSORS[currentTool] || 'default';
 
-    const totalTracksHeight = tracks.reduce((total, track) => {
+    const totalTracksHeight = laneTracks.reduce((total, track) => {
         const currentHeight = trackHeight * (track.zoom || 1);
         const activeClips = clips.filter(c => c.trackId === track.id && c.alternativeId === track.activeAlternativeId);
         const openTakeFolders = activeClips.filter(c => c.isTakeFolder && c.isTakeFolderOpen);
@@ -757,7 +768,14 @@ export function Timeline() {
 
                 {/* Professional Clip & Automation Container Stack */}
                 <div className="flex flex-col relative z-20 w-full overflow-hidden">
-                    {tracks.map((track) => {
+                    {/*
+                        The same visible list the header column renders. These
+                        two disagreed: the headers filtered on visibility and
+                        the lanes did not, so a hidden track or a collapsed
+                        stack put every row below it out of register with its
+                        own clips.
+                    */}
+                    {laneTracks.map((track) => {
                         const currentHeight = trackHeight * (track.zoom || 1);
                         const activeClips = clips.filter(c => c.trackId === track.id && c.alternativeId === track.activeAlternativeId);
                         const openTakeFolders = activeClips.filter(c => c.isTakeFolder && c.isTakeFolderOpen);

@@ -19,6 +19,7 @@ import { TrackLevelMeter } from "./TrackLevelMeter"
 import { HorizontalMeter } from "./HorizontalMeter"
 import { audioEngine } from "@/engine/AudioEngineAdapter"
 import { neonTrackColor, neonTrackAlpha, neonTrackTextColor } from "@/lib/trackColor"
+import { visibleTracks } from '@/lib/trackVisibility'
 
 export function TrackList() {
     const store = useProjectStore(useShallow(s => ({
@@ -197,17 +198,14 @@ export function TrackList() {
     const [swipingTargetValue, setSwipingTargetValue] = useState<boolean>(false)
     const [openAltMenuId, setOpenAltMenuId] = useState<string | null>(null)
 
-    const getIsTrackVisible = (track: Track) => {
-        if (hideViewActive && track.hidden) return false;
-        
-        let currentParentId = track.parentId;
-        while (currentParentId) {
-            const parent = tracks.find(t => t.id === currentParentId);
-            if (parent?.isCollapsed) return false;
-            currentParentId = parent?.parentId;
-        }
-        return true;
-    };
+    /*
+     * Shared with the Timeline.
+     *
+     * This test lived only here, and the lanes rendered `tracks.map` with no
+     * test at all — so hiding a track, or collapsing a stack, left every header
+     * below it pointing at the wrong track's clips.
+     */
+    const rows = visibleTracks(tracks, hideViewActive);
 
     const hasGrooveTrack = tracks.some(t => t.isGrooveTrack);
 
@@ -235,9 +233,18 @@ export function TrackList() {
                 setTrackHeaderWidth(Math.max(180, Math.min(600, e.clientX)));
             }
             if (zoomDraggingTrackId) {
-                const trackIdx = tracks.findIndex(t => t.id === zoomDraggingTrackId);
-                const trackElems = document.querySelectorAll('.track-row');
-                const trackElem = trackElems[trackIdx];
+                /*
+                 * By id, not by index.
+                 *
+                 * This took an unfiltered `findIndex` into a *filtered* list of
+                 * `.track-row` nodes, so with anything hidden or collapsed it
+                 * measured against a different track's row and resized the
+                 * wrong one.
+                 */
+                // A distinct attribute: the M/S/R/I pills already carry
+                // `data-track-id`, and querySelector takes the first match.
+                const trackElem = document.querySelector(
+                    `[data-track-row="${zoomDraggingTrackId}"]`);
                 if (trackElem) {
                     const rect = trackElem.getBoundingClientRect();
                     const newHeight = Math.max(trackHeight, e.clientY - rect.top);
@@ -421,7 +428,7 @@ export function TrackList() {
                     setDropTargetTrackId(null);
                 }}
             >
-                {tracks.filter(getIsTrackVisible).map((track, trackIdx) => {
+                {rows.map((track, trackIdx) => {
                     const isSelected = selectedTrackIds.includes(track.id);
                     const isFocused = focusedTrackId === track.id;
                     const isFolder = track.isStack;
@@ -532,6 +539,7 @@ export function TrackList() {
                                     setTrackContextMenu({ id: track.id, x: e.clientX, y: e.clientY });
                                     selectTrack(track.id);
                                 }}
+                                data-track-row={track.id}
                                 className={`track-row group relative border-b border-black/50 transition-all cursor-default flex ${isSelected ? 'bg-gradient-to-r from-accent-cyan/20/40 via-accent-cyan/30/40 to-black z-10 shadow-[inset_0_0_20px_rgba(14,165,233,0.1)] border-r-2 border-[var(--accent-cyan)]' : 'bg-studio-sunken hover:bg-studio-panel'} ${dropTargetTrackId === track.id ? 'ring-2 ring-inset ring-[var(--accent-cyan)] bg-accent-cyan/20/20' : ''} ${isFocused ? 'brightness-110 outline-none ring-1 ring-inset ring-[var(--accent-cyan)] shadow-[inset_0_0_10px_var(--accent-cyan-glow)]' : ''} ${draggedTrackIndex === trackIdx ? 'opacity-50 grayscale scale-[0.98]' : ''} ${recording && track.recordEnabled ? 'ring-inset ring-1 ring-red-500/60 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]' : ''}`}
                                 style={{ height: `${currentHeight}px` }}
                             >
