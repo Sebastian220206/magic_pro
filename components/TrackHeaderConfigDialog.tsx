@@ -23,7 +23,10 @@ export function TrackHeaderConfigDialog() {
                 { id: 'showRecord', label: 'Record Enable' },
                 { id: 'showInput', label: 'Input Monitoring' },
                 { id: 'showProtect', label: 'Protect' },
-                { id: 'showFreeze', label: 'Freeze' }
+                { id: 'showFreeze', label: 'Freeze' },
+                // `showHide` was read by the header and listed nowhere here, so
+                // the H button was the one pill that could not be switched off.
+                { id: 'showHide', label: 'Hide' }
             ]
         },
         {
@@ -37,7 +40,7 @@ export function TrackHeaderConfigDialog() {
             title: "Other View Options",
             items: [
                 { id: 'showTrackNumbers', label: 'Track Numbers' },
-                { id: 'showColorBars', label: 'Color Bars' },
+                { id: 'showColorBars', label: 'Track Colours' },
                 { id: 'showTrackIcons', label: 'Track Icons' },
                 { id: 'showAlternatives', label: 'Track Alternatives' }
             ]

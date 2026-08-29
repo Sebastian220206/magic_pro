@@ -906,7 +906,7 @@ export function Timeline() {
                                                       reserved 18px for it.
                                                     */}
                                                     <div className="absolute top-[3px] left-0 right-0 h-[16px] px-2 flex items-center justify-between z-20">
-                                                        <div className="flex items-center gap-1.5 overflow-hidden w-full">
+                                                        <div className="flex h-full items-center gap-1.5 overflow-hidden w-full">
                                                             {clip.isTakeFolder && (
                                                                 <div 
                                                                     className="flex items-center justify-center p-0.5 hover:bg-black/20 rounded-sm cursor-pointer mr-1 pointer-events-auto"

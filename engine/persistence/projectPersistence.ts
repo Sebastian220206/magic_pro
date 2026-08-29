@@ -258,7 +258,10 @@ export function deserializeState(serialized: SerializedState): Partial<any> {
     surroundFormat: serialized.surroundFormat,
     spatialAudioMode: serialized.spatialAudioMode,
     zoom: serialized.zoom,
-    trackHeight: serialized.trackHeight,
+    // A project written before this field existed yields `undefined`, and
+    // `trackHeight * (track.zoom || 1)` is then NaN — every row height is NaN
+    // and the arrangement renders blank.
+    trackHeight: serialized.trackHeight ?? 88,
     snap: serialized.snap as any,
     metronomeEnabled: serialized.metronomeEnabled,
     countInEnabled: serialized.countInEnabled,

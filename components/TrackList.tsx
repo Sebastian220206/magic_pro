@@ -1,6 +1,5 @@
 "use client"
-
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { useProjectStore } from "@/store/projectStore"
 import { useShallow } from 'zustand/react/shallow'
 import { CreateNewTrackUsingDialog } from "./CreateNewTrackUsingDialog"
@@ -20,22 +19,19 @@ import { HorizontalMeter } from "./HorizontalMeter"
 import { audioEngine } from "@/engine/AudioEngineAdapter"
 import { neonTrackColor, neonTrackAlpha, neonTrackTextColor } from "@/lib/trackColor"
 import { visibleTracks } from '@/lib/trackVisibility'
-
 export function TrackList() {
     const store = useProjectStore(useShallow(s => ({
         tracks: s.tracks, updateTrack: s.updateTrack, trackHeight: s.trackHeight,
         selectedTrackIds: s.selectedTrackIds, focusedTrackId: s.focusedTrackId,
-        selectTrack: s.selectTrack, addTrack: s.addTrack, showAutomation: s.showAutomation,
+        selectTrack: s.selectTrack, addTrack: s.addTrack,
         clips: s.clips, recording: s.recording,
         toggleNewTrackDialog: s.toggleNewTrackDialog,
         toggleCreateTrackUsing: s.toggleCreateTrackUsing,
         showCreateTrackUsing: s.showCreateTrackUsing,
-        addClip: s.addClip,
         setDragPosition: s.setDragPosition,
         setDropTargetTrackId: s.setDropTargetTrackId,
         dropTargetTrackId: s.dropTargetTrackId,
         duplicateTracks: s.duplicateTracks,
-        createTrackForOverlappedRegions: s.createTrackForOverlappedRegions,
         createTrackForSelectedRegions: s.createTrackForSelectedRegions,
         reorderTracks: s.reorderTracks,
         updateTrackZoom: s.updateTrackZoom,
@@ -47,7 +43,6 @@ export function TrackList() {
         setTrackHeaderWidth: s.setTrackHeaderWidth,
         toggleTrackHeaderConfig: s.toggleTrackHeaderConfig,
         updateTrackParameter: s.updateTrackParameter,
-        renameAlternative: s.renameAlternative,
         swapWithActiveAlternative: s.swapWithActiveAlternative,
         setActiveAlternative: s.setActiveAlternative,
         toggleInactiveAlternatives: s.toggleInactiveAlternatives,
@@ -56,7 +51,6 @@ export function TrackList() {
         hideViewActive: s.hideViewActive,
         toggleHideView: s.toggleHideView,
         setTrackHidden: s.setTrackHidden,
-        unhideAllTracks: s.unhideAllTracks,
         createTrackStack: s.createTrackStack, flattenStack: s.flattenStack,
         toggleStackCollapse: s.toggleStackCollapse, convertStackType: s.convertStackType,
         setGrooveTrack: s.setGrooveTrack, toggleMatchGroove: s.toggleMatchGroove,
@@ -69,16 +63,14 @@ export function TrackList() {
     })));
     const {
         tracks, updateTrack, trackHeight, selectedTrackIds, focusedTrackId,
-        selectTrack, addTrack, showAutomation, clips, recording,
+        selectTrack, addTrack, clips, recording,
         toggleNewTrackDialog,
         toggleCreateTrackUsing,
         showCreateTrackUsing,
-        addClip,
         setDragPosition,
         setDropTargetTrackId,
         dropTargetTrackId,
         duplicateTracks,
-        createTrackForOverlappedRegions,
         createTrackForSelectedRegions,
         reorderTracks,
         updateTrackZoom,
@@ -89,12 +81,10 @@ export function TrackList() {
         setTrackHeaderWidth,
         toggleTrackHeaderConfig,
         updateTrackParameter,
-        renameAlternative,
         swapWithActiveAlternative, setActiveAlternative, toggleInactiveAlternatives, deleteInactiveAlternatives, addTrackAlternative,
         hideViewActive,
         toggleHideView,
         setTrackHidden,
-        unhideAllTracks,
         createTrackStack, flattenStack, toggleStackCollapse, convertStackType,
         setGrooveTrack, toggleMatchGroove,
         toggleArticulationEditor, addArticulationSet, articulationSets,
@@ -206,6 +196,18 @@ export function TrackList() {
      * below it pointing at the wrong track's clips.
      */
     const rows = visibleTracks(tracks, hideViewActive);
+
+    /*
+     * Track number by id, built once.
+     *
+     * The badge used `tracks.findIndex(...)` inside the row map — O(n) per row,
+     * O(n²) down the column. The absolute index is deliberate: hiding a track
+     * should not renumber the ones below it.
+     */
+    const trackIndexById = useMemo(
+        () => new Map(tracks.map((t, i) => [t.id, i])),
+        [tracks],
+    );
 
     const hasGrooveTrack = tracks.some(t => t.isGrooveTrack);
 
@@ -433,6 +435,16 @@ export function TrackList() {
                     const isFocused = focusedTrackId === track.id;
                     const isFolder = track.isStack;
                     const currentHeight = trackHeight * (track.zoom || 1);
+                    /*
+                     * `showColorBars` now means something.
+                     *
+                     * A 4px stripe beside a card already in the track's colour
+                     * would be redundant, so the flag governs whether the card,
+                     * the badge and the pills carry the hue at all. Off gives a
+                     * neutral panel — the flag keeps a visible consequence
+                     * rather than being deleted for having nothing to gate.
+                     */
+                    const tinted = trackHeaderConfig.showColorBars;
 
                     const handleTrackAction = (field: any, value: any, e: React.MouseEvent) => {
                         e.stopPropagation();
@@ -540,63 +552,83 @@ export function TrackList() {
                                     selectTrack(track.id);
                                 }}
                                 data-track-row={track.id}
-                                className={`track-row group relative border-b border-black/50 transition-all cursor-default flex ${isSelected ? 'bg-gradient-to-r from-accent-cyan/20/40 via-accent-cyan/30/40 to-black z-10 shadow-[inset_0_0_20px_rgba(14,165,233,0.1)] border-r-2 border-[var(--accent-cyan)]' : 'bg-studio-sunken hover:bg-studio-panel'} ${dropTargetTrackId === track.id ? 'ring-2 ring-inset ring-[var(--accent-cyan)] bg-accent-cyan/20/20' : ''} ${isFocused ? 'brightness-110 outline-none ring-1 ring-inset ring-[var(--accent-cyan)] shadow-[inset_0_0_10px_var(--accent-cyan-glow)]' : ''} ${draggedTrackIndex === trackIdx ? 'opacity-50 grayscale scale-[0.98]' : ''} ${recording && track.recordEnabled ? 'ring-inset ring-1 ring-red-500/60 shadow-[inset_0_0_15px_rgba(239,68,68,0.1)]' : ''}`}
+                                /*
+                                    The row keeps the height; the card inside it
+                                    carries the look.
+
+                                    The 6px gutter between two cards is 3px of
+                                    padding from each row's own box, so
+                                    `trackHeight * (track.zoom || 1)` is
+                                    untouched and the lanes still line up
+                                    exactly. `onMouseEnter` stays on this
+                                    element, not the card, so the swipe-paint
+                                    gesture keeps firing while the pointer
+                                    crosses the gap.
+
+                                    Three of the old classes here were
+                                    `from-accent-cyan/20/40`-style double
+                                    opacity modifiers, which Tailwind cannot
+                                    compile — so a selected row rendered
+                                    transparent-to-black and selection made it
+                                    *darker*.
+                                */
+                                className={`track-row group relative cursor-default flex p-[3px] ${draggedTrackIndex === trackIdx ? 'opacity-50 grayscale scale-[0.98]' : ''}`}
                                 style={{ height: `${currentHeight}px` }}
                             >
-                                <div className="flex shrink-0 h-full overflow-hidden">
-                                    {/* Groove Column */}
-                                    <div className="w-8 h-full flex items-center justify-center bg-black/10 border-r border-white/5 relative group/groove">
-                                        {!track.isGrooveTrack && (
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); setGrooveTrack(track.id); }}
-                                                className={`p-1.5 rounded transition-all ${hasGrooveTrack ? 'opacity-0 group-hover/groove:opacity-100' : 'opacity-0 group-hover/groove:opacity-100'}`}
-                                            >
-                                                <Star className="w-3.5 h-3.5 text-studio-text-dim hover:text-yellow-500" />
-                                            </button>
-                                        )}
-                                        {track.isGrooveTrack && (
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); setGrooveTrack(null); }}
-                                                className="p-1.5 rounded"
-                                            >
-                                                <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]" />
-                                            </button>
-                                        )}
-                                        {hasGrooveTrack && !track.isGrooveTrack && (
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); toggleMatchGroove(track.id); }}
-                                                className={`absolute inset-0 flex items-center justify-center transition-opacity ${track.matchGrooveTrack ? 'opacity-100' : 'opacity-0 group-hover/groove:opacity-100'}`}
-                                            >
-                                                <div className={`w-3.5 h-3.5 rounded-sm border border-white/20 flex items-center justify-center transition-colors ${track.matchGrooveTrack ? 'bg-accent-cyan border-accent-cyan' : 'bg-white/5 hover:bg-white/10'}`}>
-                                                    {track.matchGrooveTrack && <div className="w-1.5 h-1.5 bg-white rounded-full bg-check" />}
-                                                </div>
-                                            </button>
-                                        )}
+                                <div
+                                    data-track-card
+                                    className="relative flex h-full w-full overflow-hidden rounded-lg border transition-colors"
+                                    style={{
+                                        backgroundColor: tinted
+                                            ? neonTrackAlpha(track.color, isSelected ? 0.26 : 0.13)
+                                            : 'rgba(255,255,255,0.04)',
+                                        borderColor: recording && track.recordEnabled
+                                            ? 'rgba(239,68,68,0.7)'
+                                            : tinted
+                                                ? neonTrackAlpha(track.color, isSelected ? 0.9 : 0.38)
+                                                : 'rgba(255,255,255,0.10)',
+                                        boxShadow: isSelected
+                                            ? `inset 0 0 0 1px ${tinted ? neonTrackAlpha(track.color, 0.85) : 'rgba(255,255,255,0.5)'}, 0 0 16px ${tinted ? neonTrackAlpha(track.color, 0.3) : 'rgba(255,255,255,0.08)'}`
+                                            : isFocused
+                                                ? 'inset 0 0 0 1px var(--accent-cyan)'
+                                                : undefined,
+                                    }}
+                                >
+                                {/*
+                                    The number badge, in its own panel.
+
+                                    A permanent 32px groove column and an
+                                    ungated 3px "Control Surface Bar" — the
+                                    latter with no state, no flag and no
+                                    handler — used to sit in front of this. The
+                                    star moved into the card as a hover control;
+                                    the decorative bar is gone.
+                                */}
+                                {trackHeaderConfig.showTrackNumbers && (
+                                    <div
+                                        className="w-9 shrink-0 h-full flex items-center justify-center bg-black/45 border-r"
+                                        style={{ borderColor: tinted ? neonTrackAlpha(track.color, 0.25) : 'rgba(255,255,255,0.08)' }}
+                                    >
+                                        <span
+                                            data-track-number
+                                            className="text-[17px] font-black leading-none tabular-nums tracking-tighter"
+                                            style={{ color: tinted ? neonTrackTextColor(track.color) : 'rgba(255,255,255,0.55)' }}
+                                        >
+                                            {String((trackIndexById.get(track.id) ?? 0) + 1).padStart(2, '0')}
+                                        </span>
                                     </div>
+                                )}
 
-                                    {trackHeaderConfig.showColorBars && (
-                                        <div
-                                            className="w-[4px] h-full"
-                                            style={{
-                                                backgroundColor: neonTrackColor(track.color),
-                                                boxShadow: `0 0 10px ${neonTrackAlpha(track.color, 0.85)}`,
-                                            }}
-                                        />
-                                    )}
-                                    <div className="w-[3px] h-full bg-accent-cyan/20 shadow-[0_0_10px_rgba(14,165,233,0.3)]" /> {/* Control Surface Bar */}
-                                    {trackHeaderConfig.showTrackNumbers && (
-                                        <div className="w-7 h-full flex flex-col items-center justify-start pt-3 bg-black/20 border-r border-white/5">
-                                            <span
-                                                className="text-[9px] font-black tracking-tighter tabular-nums"
-                                                style={{ color: neonTrackTextColor(track.color) }}
-                                            >
-                                                {String(tracks.findIndex(t => t.id === track.id) + 1).padStart(2, '0')}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
+                                {/*
+                                    Two rows, not three.
 
-                                <div className="flex-1 flex flex-col min-w-0 px-2 py-2 gap-1.5 relative overflow-hidden" 
+                                    The controls row used to be `flex-wrap`, so
+                                    the volume bar and pan knob wrapped onto a
+                                    third line and were clipped by the card. The
+                                    budget inside an 82px card is the name row,
+                                    one gap and one controls row.
+                                */}
+                                <div className="flex-1 flex flex-col min-w-0 justify-center px-2 py-1.5 gap-1.5 relative overflow-hidden" 
                                      style={{ paddingLeft: track.parentId ? '36px' : '8px' }}>
                                     
                                     {/* Stack Bracket */}
@@ -604,7 +636,7 @@ export function TrackList() {
                                         <div className="absolute left-[12px] top-0 bottom-0 w-[12px] border-l border-b border-[var(--accent-cyan)]/30 rounded-bl-lg pointer-events-none" />
                                     )}
                                     {/* Row 1: Icon and Name */}
-                                    <div className="flex items-center gap-3 h-8">
+                                    <div className="flex items-center gap-2.5 h-7 shrink-0">
                                         {track.isStack && (
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); toggleStackCollapse(track.id, e.altKey); }}
@@ -615,7 +647,7 @@ export function TrackList() {
                                         )}
 {trackHeaderConfig.showTrackIcons && (
                                             <div
-                                                className="w-8 h-8 rounded bg-black/40 border border-[var(--accent-cyan)]/30 flex items-center justify-center shrink-0 hover:border-[var(--accent-cyan)] hover:shadow-[0_0_10px_var(--accent-cyan-glow)] transition-all cursor-pointer"
+                                                className="w-7 h-7 rounded bg-black/40 border border-[var(--accent-cyan)]/30 flex items-center justify-center shrink-0 hover:border-[var(--accent-cyan)] hover:shadow-[0_0_10px_var(--accent-cyan-glow)] transition-all cursor-pointer"
                                                 onClick={(e) => { e.stopPropagation(); toggleIconBrowser(track.id); }}
                                             >
                                                 <div className="flex items-center justify-center text-white/40 group-hover:text-white transition-colors">
@@ -630,7 +662,7 @@ export function TrackList() {
                                         )}
                                         <div className="flex flex-col min-w-0 pr-2 flex-1">
                                             <div className="flex items-center justify-between gap-2 overflow-hidden">
-                                                <span className={`text-[12px] font-black tracking-tighter truncate uppercase leading-tight ${isSelected ? 'text-white' : 'text-studio-text-mid'}`}>
+                                                <span data-track-name className={`text-[15px] font-semibold tracking-tight truncate leading-tight ${isSelected ? 'text-white' : 'text-studio-text'}`}>
                                                     {track.name}{track.alternatives?.length > 1 ? ` | ${track.alternatives.find(a => a.id === track.activeAlternativeId)?.name || ''}` : ''}
                                                 </span>
                                                 {trackHeaderConfig.showAlternatives && (
@@ -698,18 +730,34 @@ export function TrackList() {
                                     </div>
 
                                     {/* Row 2: MSRI Buttons and Controls */}
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <div className="flex bg-black/40 rounded border border-white/10 p-0.5 shadow-inner">
+                                    <div className="flex items-center gap-2 flex-nowrap min-w-0 shrink-0">
+                                        <div className="flex items-center gap-1">
                                             {trackHeaderConfig.showMute && (
                                                 <button
                                                     onMouseDown={(e) => handleTrackAction('muted', !track.muted, e)}
-                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all ${track.muted ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-studio-text-dim hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
+                                                    data-track-action="muted"
+                                                    data-track-id={track.id}
+                                                    aria-pressed={!!track.muted}
+                                                    aria-label={`Mute ${track.name}`}
+                                                    title="Alt-click isolates, Cmd/Ctrl-click applies to every track"
+                                                    className="h-[19px] min-w-[26px] px-2 rounded-full text-[10px] font-bold leading-none flex items-center justify-center border transition-colors"
+                                                    style={track.muted
+                                                        ? { backgroundColor: '#f59e0b', color: '#05080c', borderColor: 'transparent' }
+                                                        : { backgroundColor: tinted ? neonTrackAlpha(track.color, 0.16) : 'rgba(255,255,255,0.06)', color: tinted ? neonTrackTextColor(track.color) : 'rgba(255,255,255,0.55)', borderColor: tinted ? neonTrackAlpha(track.color, 0.35) : 'rgba(255,255,255,0.12)' }}
                                                 >M</button>
                                             )}
                                             {trackHeaderConfig.showSolo && (
                                                 <button
                                                     onMouseDown={(e) => handleTrackAction('soloed', !track.soloed, e)}
-                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all ${track.soloed ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20' : 'text-studio-text-dim hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
+                                                    data-track-action="soloed"
+                                                    data-track-id={track.id}
+                                                    aria-pressed={!!track.soloed}
+                                                    aria-label={`Solo ${track.name}`}
+                                                    title="Alt-click isolates, Cmd/Ctrl-click applies to every track"
+                                                    className="h-[19px] min-w-[26px] px-2 rounded-full text-[10px] font-bold leading-none flex items-center justify-center border transition-colors"
+                                                    style={track.soloed
+                                                        ? { backgroundColor: '#facc15', color: '#05080c', borderColor: 'transparent' }
+                                                        : { backgroundColor: tinted ? neonTrackAlpha(track.color, 0.16) : 'rgba(255,255,255,0.06)', color: tinted ? neonTrackTextColor(track.color) : 'rgba(255,255,255,0.55)', borderColor: tinted ? neonTrackAlpha(track.color, 0.35) : 'rgba(255,255,255,0.12)' }}
                                                 >S</button>
                                             )}
                                             {trackHeaderConfig.showRecord && (
@@ -722,10 +770,13 @@ export function TrackList() {
                                                     // is worth being able to say out loud and to address.
                                                     aria-label={`Record enable ${track.name}`}
                                                     title="Record Enable — opens this track's input"
-                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all flex items-center justify-center 
-                                                        ${track.recordEnabled ? (recording ? 'bg-red-500 animate-pulse text-white' : 'bg-red-500 text-white shadow-lg shadow-red-500/20') : 
-                                                          (isFocused && !tracks.some(t => t.recordEnabled)) ? 'text-red-500' : 
-                                                          'text-studio-text-dim hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
+                                                    className={`h-[19px] min-w-[26px] px-2 rounded-full text-[10px] font-bold leading-none flex items-center justify-center border transition-colors ${track.recordEnabled && recording ? 'animate-pulse' : ''}`}
+                                                    style={track.recordEnabled
+                                                        ? { backgroundColor: '#ef4444', color: '#ffffff', borderColor: 'transparent' }
+                                                        // The implicit-arm hint: focused, with nothing else armed.
+                                                        : (isFocused && !tracks.some(t => t.recordEnabled))
+                                                            ? { backgroundColor: 'rgba(239,68,68,0.12)', color: '#f87171', borderColor: 'rgba(239,68,68,0.45)' }
+                                                            : { backgroundColor: tinted ? neonTrackAlpha(track.color, 0.16) : 'rgba(255,255,255,0.06)', color: tinted ? neonTrackTextColor(track.color) : 'rgba(255,255,255,0.55)', borderColor: tinted ? neonTrackAlpha(track.color, 0.35) : 'rgba(255,255,255,0.12)' }}
                                                 >R</button>
                                             )}
                                             {trackHeaderConfig.showInput && (
@@ -735,8 +786,11 @@ export function TrackList() {
                                                     data-track-id={track.id}
                                                     aria-pressed={!!track.inputMonitoring}
                                                     aria-label={`Input monitoring ${track.name}`}
-                                                    title="Input Monitoring — hear this track's input"
-                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all flex items-center justify-center ${track.inputMonitoring ? 'bg-orange-500 text-black shadow-lg shadow-orange-500/20' : 'text-studio-text-dim hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
+                                                    title="Alt-click isolates, Cmd/Ctrl-click applies to every track"
+                                                    className="h-[19px] min-w-[26px] px-2 rounded-full text-[10px] font-bold leading-none flex items-center justify-center border transition-colors"
+                                                    style={track.inputMonitoring
+                                                        ? { backgroundColor: '#fb923c', color: '#05080c', borderColor: 'transparent' }
+                                                        : { backgroundColor: tinted ? neonTrackAlpha(track.color, 0.16) : 'rgba(255,255,255,0.06)', color: tinted ? neonTrackTextColor(track.color) : 'rgba(255,255,255,0.55)', borderColor: tinted ? neonTrackAlpha(track.color, 0.35) : 'rgba(255,255,255,0.12)' }}
                                                 >I</button>
                                             )}
                                             {trackHeaderConfig.showProtect && (
@@ -754,7 +808,15 @@ export function TrackList() {
                                             {trackHeaderConfig.showHide && (
                                                 <button
                                                     onMouseDown={(e) => handleTrackAction('hidden', !track.hidden, e)}
-                                                    className={`w-5 h-4 text-[9px] font-black rounded-[1px] transition-all ${track.hidden ? 'bg-[#ff9500] text-black shadow-lg shadow-orange-500/20' : 'text-studio-text-dim hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
+                                                    data-track-action="hidden"
+                                                    data-track-id={track.id}
+                                                    aria-pressed={!!track.hidden}
+                                                    aria-label={`Hide ${track.name}`}
+                                                    title="Alt-click isolates, Cmd/Ctrl-click applies to every track"
+                                                    className="h-[19px] min-w-[26px] px-2 rounded-full text-[10px] font-bold leading-none flex items-center justify-center border transition-colors"
+                                                    style={track.hidden
+                                                        ? { backgroundColor: '#ff9500', color: '#05080c', borderColor: 'transparent' }
+                                                        : { backgroundColor: tinted ? neonTrackAlpha(track.color, 0.16) : 'rgba(255,255,255,0.06)', color: tinted ? neonTrackTextColor(track.color) : 'rgba(255,255,255,0.55)', borderColor: tinted ? neonTrackAlpha(track.color, 0.35) : 'rgba(255,255,255,0.12)' }}
                                                 >H</button>
                                             )}
                                         </div>
@@ -762,7 +824,7 @@ export function TrackList() {
                                         {(trackHeaderConfig.showVolume || trackHeaderConfig.showPan) && (
                                             <div className="flex items-center gap-2 min-w-0">
                                                 {trackHeaderConfig.showVolume && (
-                                                    <div className="flex items-center gap-1 min-w-[80px]">
+                                                    <div className="flex items-center gap-1 flex-1 min-w-[40px]">
                                                         <div
                                                             className="h-4 flex-1 bg-black/60 rounded-full border border-[var(--accent-cyan)]/30 relative overflow-hidden group/vol cursor-pointer shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                                                             onClick={(e) => e.stopPropagation()}
@@ -830,7 +892,9 @@ export function TrackList() {
                                                         }}
                                                     >
                                                         <div
-                                                            className="absolute top-0.5 left-1/2 -translate-x-1/2 w-[1.5px] h-2 bg-studio-control rounded-full origin-bottom"
+                                                            /* Was `bg-studio-control` on a knob whose gradient ends in
+                                               `to-studio-control` — invisible against its own body. */
+                                            className="absolute top-0.5 left-1/2 -translate-x-1/2 w-[1.5px] h-2 bg-white/90 rounded-full origin-bottom"
                                                             style={{ transform: `translateX(-50%) rotate(${(track.pan || 0) * 135}deg)` }}
                                                         />
                                                     </div>
@@ -845,8 +909,47 @@ export function TrackList() {
                                     <div className="absolute inset-x-0 -top-px h-[2px] bg-[var(--accent-cyan)] z-50 shadow-[0_0_10px_var(--accent-cyan-glow-strong)]"></div>
                                 )}
 
-                                {/* Track Selection Halo */}
-                                {isSelected && <div className={`absolute inset-y-0 left-0 w-[3px] shadow-[0_0_12px_var(--accent-cyan-glow)] z-50 ${isFocused ? 'bg-[var(--accent-cyan)]' : 'bg-[var(--accent-cyan)]/70'}`}></div>}
+                                {/*
+                                    The 3px selection halo is gone. It sat at
+                                    `left-0` over the groove column, so
+                                    focus-versus-selection was a 30% opacity
+                                    difference on a bar behind a star button.
+                                    The card's own border and glow carry it now.
+                                */}
+
+                                {/*
+                                    The groove star.
+
+                                    It had a permanent 32px column of its own,
+                                    which cost a ninth of a 280px header for a
+                                    control that was already hover-only. Its
+                                    match-groove checkbox was `absolute inset-0`
+                                    — inside a card that would have swallowed
+                                    every click, so it is bounded now.
+                                */}
+                                <div className="absolute top-1 right-1 z-40 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                    {hasGrooveTrack && !track.isGrooveTrack && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); toggleMatchGroove(track.id); }}
+                                            title="Match this track to the groove track"
+                                            aria-label={`Match groove for ${track.name}`}
+                                            className="w-3.5 h-3.5 rounded-sm border border-white/20 flex items-center justify-center transition-colors"
+                                            style={track.matchGrooveTrack
+                                                ? { backgroundColor: 'var(--accent-cyan)', borderColor: 'var(--accent-cyan)' }
+                                                : { backgroundColor: 'rgba(255,255,255,0.06)' }}
+                                        >
+                                            {track.matchGrooveTrack && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setGrooveTrack(track.isGrooveTrack ? null : track.id); }}
+                                        title={track.isGrooveTrack ? 'Stop using this as the groove track' : 'Use as the groove track'}
+                                        aria-label={`Groove track: ${track.name}`}
+                                        className="p-0.5 rounded"
+                                    >
+                                        <Star className={`w-3.5 h-3.5 ${track.isGrooveTrack ? 'text-yellow-500 fill-yellow-500' : 'text-studio-text-dim hover:text-yellow-500'}`} />
+                                    </button>
+                                </div>
 
                                 {/* Vertical Zoom Handle */}
                                 <div
@@ -857,6 +960,7 @@ export function TrackList() {
                                     }}
                                 >
                                     <GripVertical className="w-3 h-3 text-studio-text-dim" />
+                                </div>
                                 </div>
                             </div>
                             {/* Inactive Alternative Headers */}
@@ -881,9 +985,10 @@ export function TrackList() {
                                     >
                                         <ArrowUp className="w-3 h-3" />
                                     </button>
-                                    <button className="text-studio-text-dim hover:text-[var(--accent-cyan)] transition-all p-1">
-                                        <Power className="w-3 h-3" />
-                                    </button>
+                                    {/*
+                                        A <Power> button with no onClick used to
+                                        sit here — it hovered and did nothing.
+                                    */}
                                 </div>
                             ))}
                         </div>

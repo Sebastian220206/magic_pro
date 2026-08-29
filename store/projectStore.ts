@@ -1628,7 +1628,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         showGlobalObjects: true
     },
     zoom: 80,
-    trackHeight: 70,
+    // 88, not 70: the header is a card with a number badge, a 15px name and a
+    // row of pills, and the lane it names has to be tall enough for a waveform
+    // to read. Timeline and TrackList both derive their geometry from this, so
+    // they grow together. Projects that saved a height keep theirs.
+    trackHeight: 88,
     snap: 'quarter',
     isDirty: false,
     muteSoloGroups: [],
