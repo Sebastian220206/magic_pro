@@ -14,6 +14,11 @@ import {
 } from "lucide-react"
 import { advancedScheduler } from "@/engine/audioEngine/scheduler"
 import { visibleTracks } from '@/lib/trackVisibility'
+import { isMidiTrackType } from '@/lib/trackKinds'
+import {
+    generateDrummerPattern,
+    DEFAULT_DRUMMER_SETTINGS,
+} from '@/lib/drummerPattern'
 
 export function Timeline() {
     const {
@@ -412,7 +417,10 @@ export function Timeline() {
             let clickedTrackId: string | null = null;
             let clickedTrack: any = null;
 
-            for (const track of tracks) {
+            // The rows that exist, not every track: this walked the
+            // unfiltered list, so with anything hidden or a stack collapsed it
+            // drew onto a different track than the one under the pointer.
+            for (const track of laneTracks) {
                 const currentHeight = trackHeight * (track.zoom || 1);
                 const activeClips = clips.filter(c => c.trackId === track.id && c.alternativeId === track.activeAlternativeId);
                 const openTakeFolders = activeClips.filter(c => c.isTakeFolder && c.isTakeFolderOpen);
@@ -428,18 +436,35 @@ export function Timeline() {
             }
 
             if (clickedTrackId && clickedTrack) {
-                const isMidi = clickedTrack.type === 'midi' || clickedTrack.type === 'software-instrument';
-                if (isMidi) {
+                /*
+                 * Four track types carry notes, not two.
+                 *
+                 * This asked `type === 'midi' || type === 'software-instrument'`
+                 * and silently did nothing otherwise — so the pencil drew no
+                 * region on a drummer or an external-MIDI track, with no cursor
+                 * change and no message to say why. `lib/trackKinds` exists
+                 * because the same two-type shorthand had already been found
+                 * elsewhere; this was another copy of it.
+                 */
+                if (isMidiTrackType(clickedTrack.type)) {
                     const snappedStart = getSnapValue(startTime);
+                    const isDrummer = clickedTrack.type === 'drummer';
+                    const bars = Math.max(1, Math.round(4 / beatsPerBar)) * beatsPerBar;
                     useProjectStore.getState().addClip({
                         id: `clip-${Date.now()}`,
                         trackId: clickedTrackId,
-                        name: 'MIDI Region',
+                        name: isDrummer ? 'Drummer' : 'MIDI Region',
                         start: snappedStart,
-                        duration: 4,
+                        duration: isDrummer ? beatsPerBar * 4 : bars,
                         type: 'midi',
                         color: clickedTrack.color || '#63ed63',
-                        alternativeId: clickedTrack.activeAlternativeId
+                        alternativeId: clickedTrack.activeAlternativeId,
+                        /*
+                         * A drummer region arrives playing. Drawing one and
+                         * finding it silent until you open the Session Player
+                         * and move a control is not what the pencil promises.
+                         */
+                        ...(isDrummer ? drummerRegionSeed(beatsPerBar) : {}),
                     } as any);
                 }
             }
@@ -1259,6 +1284,26 @@ export function Timeline() {
  * `px-2`, so MIDI content sat eight pixels right of where an audio waveform in
  * the same clip started. Both now share the region's inset and its scale.
  */
+/**
+ * What a freshly drawn drummer region contains.
+ *
+ * The Session Player's settings are the score and the notes are the render, so
+ * a new region carries both — otherwise drawing one gives you a silent block
+ * until you happen to open the panel and nudge something.
+ */
+function drummerRegionSeed(beatsPerBar: number) {
+    const bars = 4;
+    const notes = generateDrummerPattern(DEFAULT_DRUMMER_SETTINGS, { bars, beatsPerBar })
+        .map((n, i) => ({
+            id: `drum-new-${i}`,
+            pitch: n.pitch,
+            start: n.start,
+            duration: n.duration,
+            velocity: Math.round(n.velocity * 127),
+        }));
+    return { drummerSettings: DEFAULT_DRUMMER_SETTINGS, notes };
+}
+
 function MIDIPoints({ clip, pixelsPerBeat }: { clip: Clip; pixelsPerBeat: number }) {
     if (!clip.notes) return null;
     // Notes glow in the clip's own colour, the MIDI counterpart of a tinted
