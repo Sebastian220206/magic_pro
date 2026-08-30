@@ -228,6 +228,35 @@ const broken = await page.evaluate(() => {
 check('no Tailwind classes that compile to nothing', broken.length === 0,
     broken.join(', ') || 'clean');
 
+// ── The column and the ruler read as one band ────────────────────────────
+const band = await page.evaluate(() => {
+    const column = document.querySelector('.track-row')?.closest('div[style*="width"]');
+    const toolbar = column?.querySelector('div[class*="h-[48px]"]');
+    // The ruler is the 48px strip at the top of the lanes.
+    const ruler = [...document.querySelectorAll('div')].find(d => {
+        const cs = getComputedStyle(d);
+        return cs.height === '48px' && cs.position === 'sticky'
+            && d.getBoundingClientRect().left > (toolbar?.getBoundingClientRect().right ?? 1e9) - 4;
+    });
+    const cs = column ? getComputedStyle(column) : null;
+    return {
+        columnBorder: cs?.borderRightWidth + ' ' + cs?.borderRightColor,
+        columnShadow: cs?.boxShadow ?? '',
+        toolbarBg: toolbar ? getComputedStyle(toolbar).backgroundColor : null,
+        rulerBg: ruler ? getComputedStyle(ruler.firstElementChild ?? ruler).backgroundColor : null,
+        toolbarTop: toolbar ? Math.round(toolbar.getBoundingClientRect().top) : null,
+        rulerTop: ruler ? Math.round(ruler.getBoundingClientRect().top) : null,
+    };
+});
+check('the column has no cyan edge', !/rgb\(34, 211, 238\)/.test(band.columnBorder),
+    band.columnBorder);
+check('and no cyan glow around it', !/34, 211, 238/.test(band.columnShadow),
+    band.columnShadow.slice(0, 60));
+check('the toolbar and the ruler share a surface',
+    band.toolbarBg === band.rulerBg, `${band.toolbarBg} vs ${band.rulerBg}`);
+check('and sit on the same line', band.toolbarTop === band.rulerTop,
+    `${band.toolbarTop} vs ${band.rulerTop}`);
+
 // Nothing may be clipped by the card: the volume bar and pan knob used to
 // wrap onto a third row and be cut off by `overflow-hidden`.
 const clipped = await page.evaluate(() => {

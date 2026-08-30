@@ -273,7 +273,17 @@ export function TrackList() {
 
     return (
         <div
-            className="border-r border-[var(--accent-cyan)] bg-studio-sunken flex flex-col z-20 shrink-0 select-none shadow-[20px_0_40px_rgba(0,0,0,0.5),0_0_20px_var(--accent-cyan-glow)] relative group"
+            /*
+                No cyan edge.
+
+                A full-height accent border plus a cyan glow drew a neon line
+                down the middle of the arrangement, cutting the header column
+                off from the lanes it names. The black depth shadow already
+                separates them, and each track's card carries its own border —
+                the line was doing the job twice, in the loudest colour
+                available.
+            */
+            className="bg-studio-sunken flex flex-col z-20 shrink-0 select-none shadow-[20px_0_40px_rgba(0,0,0,0.5)] relative group"
             style={{ width: trackHeaderWidth }}
             onContextMenu={(e) => {
                 e.preventDefault();
@@ -286,7 +296,15 @@ export function TrackList() {
                 onMouseDown={() => setResizingHeader(true)}
             />
             {/* Magic Pro Signature Tracks Header */}
-            <div className="h-[48px] border-b border-[var(--accent-cyan)]/50 bg-studio-panel flex items-center px-4 justify-between shrink-0 sticky top-0 z-30 shadow-sm">
+            {/*
+                The same surface as the ruler beside it.
+
+                Both are 48px, but this was `bg-studio-panel` under a cyan
+                bottom border while the ruler is `bg-studio-control` under
+                `border-studio-line`, so the two halves of one band read as two
+                different bars with a seam down the middle.
+            */}
+            <div className="h-[48px] border-b border-studio-line bg-studio-control flex items-center px-4 justify-between shrink-0 sticky top-0 z-30">
                 <div className="flex items-center gap-2">
                     <div className="flex bg-studio-void rounded-sm border border-[var(--accent-cyan)]/50 p-0.5 h-6">
                         <button onClick={(e) => handleAddTrack(e)} className="w-7 h-full flex items-center justify-center text-studio-text-mid hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10 transition-all outline-none" title="New Track..."><Plus className="w-4 h-4" /></button>
