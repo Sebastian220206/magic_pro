@@ -21,7 +21,7 @@ import {
     List, Music, FileText,
     Activity,
     ChevronDown, Power, Grid,
-    Type, Flag, Clock, LucideIcon, Keyboard
+    Type, Flag, Clock, LucideIcon, Keyboard, Sun, Pencil
 } from "lucide-react"
 import { ControlBarCustomizer } from "./ControlBarCustomizer"
 import { MasterVolume, OutputMeter } from "./MasterOutput"
@@ -151,6 +151,12 @@ export function TransportBar() {
         metronomeEnabled, toggleMetronome,
         countInEnabled, toggleCountIn, countInBars,
         showMixer, toggleMixer,
+        showSmartControls, toggleSmartControls,
+        showEditors, toggleEditors,
+        // Which of the three the bottom panel is actually showing. All three
+        // toggles set it, so without it every one of them can look active
+        // while only one is on screen.
+        bottomPanel,
         showNotePad, toggleNotePad,
         showLoopBrowser, toggleLoopBrowser,
         showBrowsers, toggleBrowsers,
@@ -261,13 +267,38 @@ export function TransportBar() {
         setShowCustomizer(true);
     };
 
+    /*
+     * Quick Help has no implementation anywhere — its handler is `() => { }`
+     * and its `active` is the literal `false`. It sits in the same cluster as
+     * three buttons that do work, so it is dimmed and says why rather than
+     * being the one that silently does nothing.
+     */
+    const UNAVAILABLE_VIEW_BUTTONS: Record<string, string | undefined> = {
+        quickHelp: 'Quick Help is not built yet',
+    };
+
+    const VIEW_BUTTON_LABELS: Record<string, string> = {
+        library: 'Library', inspector: 'Inspector', quickHelp: 'Quick Help',
+        toolbar: 'Toolbar', smartControls: 'Smart Controls', mixer: 'Mixer',
+        editors: 'Editors', musicalTyping: 'Musical Typing',
+    };
+
     const renderViewButton = (id: keyof typeof controlBarSettings.viewButtons, icon: LucideIcon, action: () => void, active: boolean) => {
         if (!controlBarSettings.viewButtons[id]) return null;
+        const label = VIEW_BUTTON_LABELS[id] ?? id;
+        // A button with no action is dimmed and says why, rather than looking
+        // pressable and doing nothing when pressed.
+        const unavailable = UNAVAILABLE_VIEW_BUTTONS[id];
         return (
             <button
                 key={id}
+                data-view-button={id}
+                disabled={!!unavailable}
+                title={unavailable ?? label}
+                aria-label={label}
+                aria-pressed={active}
                 onClick={action}
-                className={`p-1.5 rounded-sm border border-black/40 shadow-[inset_0_1px_rgba(255,255,255,0.05)] transition-all transform active:scale-95 ${active ? 'bg-accent-cyan/30 text-accent-cyan border-accent-cyan/40 shadow-inner' : 'bg-gradient-to-b from-white/10 to-transparent text-studio-text-mid hover:text-white'}`}
+                className={`p-1.5 rounded-sm border border-black/40 shadow-[inset_0_1px_rgba(255,255,255,0.05)] transition-all transform ${unavailable ? 'opacity-35 cursor-default text-studio-text-dim' : 'active:scale-95'} ${active ? 'bg-accent-cyan/30 text-accent-cyan border-accent-cyan/40 shadow-inner' : 'bg-gradient-to-b from-white/10 to-transparent text-studio-text-mid' } ${unavailable || active ? '' : 'hover:text-white'}`}
             >
                 {React.createElement(icon, { className: "w-[18px] h-[18px]" })}
             </button>
@@ -689,12 +720,26 @@ export function TransportBar() {
                     {renderViewButton('toolbar', Settings, toggleToolbar, showToolbar)}
                     <div className="w-px h-6 bg-black/40 mx-1"></div>
                     {/*
-                        Smart Controls and Editors used to sit either side of
-                        the mixer button. Both were `() => { }` with `active`
-                        hard-coded false — they could not be pressed into doing
-                        anything or into looking pressed.
+                        Smart Controls, Mixer, Editors — the three that share
+                        the bottom panel, in that order.
+
+                        The two on the outside were here once and were removed:
+                        both were `() => { }` with `active` hard-coded false, so
+                        neither could be pressed into doing anything or into
+                        looking pressed. They have real store actions now, and
+                        the panel each one opens is the panel it reports.
+
+                        Active means "this is the panel you are looking at" —
+                        `showMixer` alone was not enough, because pressing
+                        Editors sets `bottomPanel` without clearing `showMixer`,
+                        so the mixer button stayed lit over a piano roll.
                     */}
-                    {renderViewButton('mixer', List, toggleMixer, showMixer)}
+                    {renderViewButton('smartControls', Sun, toggleSmartControls,
+                        showSmartControls && bottomPanel === 'smartcontrols')}
+                    {renderViewButton('mixer', List, toggleMixer,
+                        showMixer && bottomPanel === 'mixer')}
+                    {renderViewButton('editors', Pencil, toggleEditors,
+                        showEditors && bottomPanel === 'pianoroll')}
                     {renderViewButton('musicalTyping', Keyboard, toggleVirtualKeyboard, showVirtualKeyboard)}
                 </div>
 

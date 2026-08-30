@@ -142,7 +142,10 @@ export interface ControlBarSettings {
     showModes: boolean;
     viewButtons: {
         library: boolean; inspector: boolean; quickHelp: boolean; toolbar: boolean;
-        mixer: boolean; listEditors: boolean;
+        // The three that share the bottom panel, in the order they sit in:
+        // Smart Controls, Mixer, Editors.
+        smartControls: boolean; mixer: boolean; editors: boolean;
+        listEditors: boolean;
         notePad: boolean; appleLoops: boolean; browsers: boolean;
         musicalTyping: boolean;
     };
@@ -1644,7 +1647,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         showViews: true, showTransport: true, showDisplay: true, showModes: true,
         viewButtons: {
             library: true, inspector: true, quickHelp: false, toolbar: true,
-            mixer: true, listEditors: false,
+            smartControls: true, mixer: true, editors: true,
+            listEditors: false,
             notePad: false, appleLoops: true, browsers: true,
             musicalTyping: true
         },
