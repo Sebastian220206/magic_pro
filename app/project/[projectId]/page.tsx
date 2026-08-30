@@ -41,6 +41,7 @@ import { StepInputKeyboard } from "@/components/StepInputKeyboard"
 import { AudioTrackEditor } from "@/components/AudioTrackEditor"
 import { PluginEditorWindow } from "@/components/PluginEditorWindow"
 import { PluginBrowser } from "@/components/plugins/PluginBrowser"
+import { SessionPlayer } from "@/components/SessionPlayer"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { ProjectFileDialogs } from "@/components/ProjectFileDialogs"
 import { RecordingStatus } from "@/components/RecordingStatus"
@@ -171,6 +172,10 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
     // the dropdown changed — never on load, and not at all if the audio engine
     // had not started yet, which is the usual state when someone picks one.
     useOutputDevice();
+
+    /** Which editor the Editors button opens, from the track you are on. */
+    const focusedTrackIsDrummer = useProjectStore(
+        s => s.tracks.some(t => t.id === s.focusedTrackId && t.type === 'drummer'));
 
     return (
         /*
@@ -362,10 +367,23 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
                                 <Mixer />
                             </ErrorBoundary>
                         )}
+                        {/*
+                            The Editors button opens the editor for the kind of
+                            track you are on: the piano roll for a software
+                            instrument, the Session Player for a drummer. It
+                            used to open the piano roll for everything, so a
+                            drummer track had no editor of its own at all.
+                        */}
                         {bottomPanel === 'pianoroll' && (
-                            <ErrorBoundary zone="panel" name="PianoRoll">
-                                <PianoRoll />
-                            </ErrorBoundary>
+                            focusedTrackIsDrummer ? (
+                                <ErrorBoundary zone="panel" name="SessionPlayer">
+                                    <SessionPlayer />
+                                </ErrorBoundary>
+                            ) : (
+                                <ErrorBoundary zone="panel" name="PianoRoll">
+                                    <PianoRoll />
+                                </ErrorBoundary>
+                            )
                         )}
                     </div>
                 </div>

@@ -68,6 +68,15 @@ export interface Clip {
     originalName?: string; // Original filename
     notes?: Note[]; // For MIDI
 
+    /**
+     * The Session Player's settings, on a drummer region.
+     *
+     * The notes are generated from these, so they are what is saved — the
+     * region's `notes` are the render, and this is the score. Absent on every
+     * other kind of region.
+     */
+    drummerSettings?: import('@/lib/drummerPattern').DrummerSettings;
+
     // --- Waveform Visualisation ---
     waveformPeaks?: {
         channels: Array<{ min: Float32Array; max: Float32Array }>;
