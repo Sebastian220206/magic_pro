@@ -15,6 +15,8 @@ import { MidiFxMenu } from "./mixer/MidiFxMenu"
 import { MixerMenus, type MixerViewOptions } from "./mixer/MixerMenus"
 import type { MidiFxId } from "@/lib/midiFxCatalog"
 import { isMidiTrackType } from "@/lib/trackKinds"
+import { eqBandsFromParams, eqThumbnailPath } from "@/lib/eqCurve"
+import { resolvePluginId } from "@/engine/plugins/pluginIds"
 import { MAX_GAIN } from "@/lib/mixerLevel"
 import { BUILTIN_PLUGIN_IDS } from "@/engine/plugins/pluginIds"
 import {
@@ -465,7 +467,42 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
     const addMasterPlugin = useProjectStore(s => s.addMasterPlugin);
     const toggleMasterPlugin = useProjectStore(s => s.toggleMasterPlugin);
     const fxChain = isMaster ? (masterPlugins ?? []) : (track?.plugins ?? []);
+
     const addToChain = isMaster ? addMasterPlugin : onAddPlugin;
+    /*
+     * Open the EQ, or the compressor, from the slot that shows it.
+     *
+     * Both slots were read-only pictures — one a fixed squiggle, the other an
+     * empty box — with no way to reach the plug-in they stand for. In a console
+     * the display *is* the way in, so clicking one opens its editor, inserting
+     * the plug-in first if the strip does not have it yet. That is what the
+     * `+` in an empty slot has always meant everywhere else in this mixer.
+     */
+    const openOrInsert = useCallback((kind: 'eq' | 'compressor') => {
+        if (!track && !isMaster) return;
+        const wanted = resolvePluginId(kind);
+        const existing = fxChain.find((p: any) => resolvePluginId(p.pluginId ?? p.type) === wanted);
+        if (existing) {
+            setOpenPluginEditor({ trackId: isMaster ? 'master' : track!.id, pluginId: existing.id });
+            return;
+        }
+        addToChain(kind);
+        /*
+         * The plug-in does not exist until the store update lands, so its id
+         * has to be read back rather than guessed. One frame is enough — the
+         * same pattern the FX rack uses when it inserts and opens in one go.
+         */
+        requestAnimationFrame(() => {
+            const st = useProjectStore.getState();
+            const chain = isMaster ? st.masterPlugins : st.tracks.find(t => t.id === track?.id)?.plugins;
+            const added = (chain ?? []).filter((p: any) => resolvePluginId(p.pluginId ?? p.type) === wanted).at(-1);
+            if (added) setOpenPluginEditor({ trackId: isMaster ? 'master' : track!.id, pluginId: added.id });
+        });
+    }, [track, isMaster, fxChain, addToChain, setOpenPluginEditor]);
+
+    /** The EQ on this strip, if there is one — the thumbnail draws its bands. */
+    const eqPlugin = fxChain.find((p: any) => resolvePluginId(p.pluginId ?? p.type) === resolvePluginId('eq'));
+    const compressorPlugin = fxChain.find((p: any) => resolvePluginId(p.pluginId ?? p.type) === resolvePluginId('compressor'));
     const toggleInChain = isMaster ? toggleMasterPlugin : onTogglePlugin;
 
     useEffect(() => {
@@ -579,17 +616,49 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
         // Reads the gain reduction of the first compressor. Nothing exposes
         // that yet, so the slot is drawn empty and says why rather than
         // animating something invented.
+        /*
+         * The meter itself still has nothing to show — no plug-in reports its
+         * gain reduction — but the slot is the way to the compressor, which is
+         * what a console's gain-reduction display is for.
+         */
         gainReduction: (
-            <div className="h-full rounded-[2px] bg-black/40 border border-white/5"
-                title="Gain reduction is not reported by the plug-ins yet" />
+            <button
+                data-strip-slot="gainReduction"
+                onClick={(e) => { e.stopPropagation(); openOrInsert('compressor'); }}
+                title={compressorPlugin
+                    ? 'Open the compressor. Gain reduction is not reported by the plug-ins yet, so the meter stays empty.'
+                    : 'Add a compressor and open it'}
+                aria-label={compressorPlugin ? 'Open compressor' : 'Add compressor'}
+                className={`h-full w-full rounded-[2px] border transition-colors ${compressorPlugin
+                    ? 'bg-black/40 border-white/10 hover:border-accent-cyan/60'
+                    : 'bg-black/25 border-dashed border-white/10 hover:border-accent-cyan/60'}`}
+            />
         ),
 
         eq: (
-            <div className="h-full rounded-[2px] bg-black/60 border border-white/5 overflow-hidden group/eq">
-                <svg viewBox="0 0 100 34" className="w-full h-full opacity-40 group-hover/eq:opacity-70 transition-opacity">
-                    <path d="M0,22 Q30,4 60,26 T100,17" fill="none" stroke={tint} strokeWidth="1.5" />
+            <button
+                data-strip-slot="eq"
+                onClick={(e) => { e.stopPropagation(); openOrInsert('eq'); }}
+                title={eqPlugin ? 'Open the channel EQ' : 'Add a channel EQ and open it'}
+                aria-label={eqPlugin ? 'Open channel EQ' : 'Add channel EQ'}
+                className={`h-full w-full rounded-[2px] bg-black/60 border overflow-hidden group/eq transition-colors ${eqPlugin ? 'border-white/10' : 'border-dashed border-white/10'} hover:border-accent-cyan/60`}
+            >
+                {/*
+                    The strip's own bands, not a fixed squiggle. This drew
+                    `M0,22 Q30,4 60,26 T100,17` on every strip whatever the EQ
+                    was set to — the same picture for a flat channel and a
+                    heavily shaped one.
+                */}
+                <svg viewBox="0 0 100 34" preserveAspectRatio="none"
+                    className={`w-full h-full transition-opacity ${eqPlugin ? 'opacity-70 group-hover/eq:opacity-100' : 'opacity-25 group-hover/eq:opacity-50'}`}>
+                    <path
+                        d={eqPlugin
+                            ? eqThumbnailPath(eqBandsFromParams(eqPlugin.params as Record<string, number>), 100, 34)
+                            : 'M0 17 L100 17'}
+                        fill="none" stroke={tint} strokeWidth="1.5" vectorEffect="non-scaling-stroke"
+                    />
                 </svg>
-            </div>
+            </button>
         ),
 
         // Was a dead label. `engine/midi/fx` holds working processors that

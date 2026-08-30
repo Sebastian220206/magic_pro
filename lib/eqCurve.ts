@@ -109,3 +109,98 @@ export function spectrumColor(hz: number): string {
     const index = Math.min(BAND_COLORS.length - 1, Math.floor(fraction * BAND_COLORS.length));
     return BAND_COLORS[index];
 }
+
+
+/* ── The bands, as the store holds them ─────────────────────────────────── */
+
+export type EqBandTypeId = 'lowcut' | 'lowshelf' | 'bell' | 'notch' | 'highshelf' | 'highcut';
+
+export interface EqBand {
+    type: EqBandTypeId;
+    freq: number;
+    gain: number;
+    q: number;
+    enabled: boolean;
+}
+
+/** Cut and notch shapes have no gain — they remove, they do not boost. */
+export const EQ_GAIN_APPLIES: Record<EqBandTypeId, boolean> = {
+    lowcut: false, lowshelf: true, bell: true,
+    notch: false, highshelf: true, highcut: false,
+};
+
+export const DEFAULT_EQ_BANDS: readonly EqBand[] = [
+    { type: 'lowcut', freq: 30, gain: 0, q: 0.7, enabled: false },
+    { type: 'lowshelf', freq: 80, gain: 0, q: 0.7, enabled: true },
+    { type: 'bell', freq: 200, gain: 0, q: 1.0, enabled: true },
+    { type: 'bell', freq: 500, gain: 0, q: 1.0, enabled: true },
+    { type: 'bell', freq: 1200, gain: 0, q: 1.0, enabled: true },
+    { type: 'bell', freq: 3500, gain: 0, q: 1.0, enabled: true },
+    { type: 'highshelf', freq: 8000, gain: 0, q: 0.7, enabled: true },
+    { type: 'highcut', freq: 18000, gain: 0, q: 0.7, enabled: false },
+];
+
+const BAND_TYPE_ORDER: EqBandTypeId[] =
+    ['lowcut', 'lowshelf', 'bell', 'notch', 'highshelf', 'highcut'];
+
+/**
+ * Read the bands out of the flat parameter record the store holds.
+ *
+ * Lived inside `ChannelEQ` and was not exported, so the mixer's EQ thumbnail
+ * could not read the track's actual settings — it drew a fixed squiggle,
+ * `M0,22 Q30,4 60,26 T100,17`, the same on every strip whatever the EQ was
+ * doing. It belongs here with the rest of the EQ arithmetic.
+ */
+export function eqBandsFromParams(params: Record<string, number> | undefined): EqBand[] {
+    return DEFAULT_EQ_BANDS.map((fallback, i) => {
+        const p = `band${i + 1}`;
+        const typeIndex = params?.[`${p}_type`];
+        const type = typeof typeIndex === 'number'
+            ? (BAND_TYPE_ORDER[Math.round(typeIndex)] ?? fallback.type)
+            : fallback.type;
+        return {
+            type,
+            freq: params?.[`${p}_freq`] ?? fallback.freq,
+            gain: params?.[`${p}_gain`] ?? fallback.gain,
+            q: params?.[`${p}_q`] ?? fallback.q,
+            enabled: (params?.[`${p}_enabled`] ?? (fallback.enabled ? 1 : 0)) !== 0,
+        };
+    });
+}
+
+/**
+ * A thumbnail of what the EQ is doing, as an SVG path.
+ *
+ * A line through the gain of each enabled band at its own frequency — not a
+ * summed biquad magnitude response, which is more than a 34px-tall sketch can
+ * show. Flat means flat, a boost bulges upward, and a cut dips: enough to tell
+ * one strip from another at a glance, which the fixed squiggle could not.
+ */
+export function eqThumbnailPath(
+    bands: readonly EqBand[],
+    width: number,
+    height: number,
+): string {
+    const mid = height / 2;
+    const points: Array<{ x: number; y: number }> = [{ x: 0, y: mid }];
+
+    for (const band of bands) {
+        if (!band.enabled) continue;
+        const shaping = EQ_GAIN_APPLIES[band.type] ? band.gain : 0;
+        const x = freqToX(band.freq, width);
+        const y = mid - (shaping / EQ_DB_RANGE) * (height / 2);
+        points.push({ x, y: Math.max(1, Math.min(height - 1, y)) });
+    }
+    points.push({ x: width, y: mid });
+    points.sort((a, b) => a.x - b.x);
+
+    const r = (v: number) => Math.round(v * 100) / 100;
+    let d = `M${r(points[0].x)} ${r(points[0].y)}`;
+    for (let i = 1; i < points.length; i++) {
+        const prev = points[i - 1];
+        const cur = points[i];
+        const cx = (prev.x + cur.x) / 2;
+        d += ` C${r(cx)} ${r(prev.y)} ${r(cx)} ${r(cur.y)} ${r(cur.x)} ${r(cur.y)}`;
+    }
+    return d;
+}

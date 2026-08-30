@@ -5,6 +5,7 @@ import { audioEngine } from '@/engine/AudioEngineAdapter'
 import { EqKnob } from './eq/EqKnob'
 import {
     freqToX, xToFreq, dbToY, yToDb, bandAtPoint, spectrumColor,
+    eqBandsFromParams,
     FREQ_GRID, DB_GRID, BAND_COLORS, EQ_MIN_HZ, EQ_MAX_HZ, EQ_DB_RANGE,
     formatHz, formatDb,
 } from '@/lib/eqCurve'
@@ -56,23 +57,13 @@ const DEFAULT_BANDS: Band[] = [
     { type: 'highcut', freq: 18000, gain: 0, q: 0.7, enabled: false },
 ];
 
-/** Read the bands out of the flat parameter record the store holds. */
-function bandsFromParams(params: Record<string, number> | undefined): Band[] {
-    return DEFAULT_BANDS.map((fallback, i) => {
-        const p = `band${i + 1}`;
-        const typeIndex = params?.[`${p}_type`];
-        const type = typeof typeIndex === 'number'
-            ? (BAND_TYPES[Math.round(typeIndex)]?.id ?? fallback.type)
-            : fallback.type;
-        return {
-            type,
-            freq: params?.[`${p}_freq`] ?? fallback.freq,
-            gain: params?.[`${p}_gain`] ?? fallback.gain,
-            q: params?.[`${p}_q`] ?? fallback.q,
-            enabled: (params?.[`${p}_enabled`] ?? (fallback.enabled ? 1 : 0)) !== 0,
-        };
-    });
-}
+/*
+ * `bandsFromParams` moved to `lib/eqCurve`, beside the rest of the EQ
+ * arithmetic. It was private here, so the mixer's EQ thumbnail could not read
+ * a strip's actual settings and drew a fixed squiggle instead — the same
+ * picture on a flat channel and a heavily shaped one.
+ */
+const bandsFromParams = eqBandsFromParams;
 
 export function ChannelEQ({ trackId, pluginId }: { trackId: string, pluginId: string }) {
     const updatePluginParams = useProjectStore(s => s.updatePluginParams);
