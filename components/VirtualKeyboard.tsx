@@ -59,59 +59,57 @@ export function VirtualKeyboard() {
         }
     }, [releaseNote])
 
+    /*
+     * What pressing a key does, wherever the press came from.
+     *
+     * The Musical Typing view drew this whole keyboard as `<div>`s with
+     * `active:scale-95` and no handlers — a picture of a keyboard that
+     * depresses under the cursor and plays nothing. Typing worked; clicking
+     * the keys on screen did not, and that is the first thing anyone tries.
+     * Both routes call these now, so they cannot drift apart.
+     */
+    const pressKey = useCallback((key: string) => {
+        if (key === 'z') updateVirtualKeyboardParams({ octave: Math.max(0, octaveRef.current - 1) })
+        if (key === 'x') updateVirtualKeyboardParams({ octave: Math.min(8, octaveRef.current + 1) })
+        if (key === 'c') updateVirtualKeyboardParams({ velocity: Math.max(0, velocityRef.current - 10) })
+        if (key === 'v') updateVirtualKeyboardParams({ velocity: Math.min(127, velocityRef.current + 10) })
+        if (key === 'tab') updateVirtualKeyboardParams({ sustain: !sustainRef.current })
+        if (key === '1') updateVirtualKeyboardParams({ pitchBend: -1 })
+        if (key === '2') updateVirtualKeyboardParams({ pitchBend: 1 })
+        if (['3', '4', '5', '6', '7', '8'].includes(key)) {
+            updateVirtualKeyboardParams({ modulation: Math.round((parseInt(key) - 3) * (127 / 5)) })
+        }
+        if (KEY_MAP[key] !== undefined) {
+            triggerNote((octaveRef.current + 1) * 12 + KEY_MAP[key], velocityRef.current)
+            setActiveKeys(prev => new Set(prev).add(key))
+        }
+    }, [triggerNote, updateVirtualKeyboardParams])
+
+    const releaseKey = useCallback((key: string) => {
+        if (key === '1' || key === '2') updateVirtualKeyboardParams({ pitchBend: 0 })
+        if (KEY_MAP[key] !== undefined) {
+            handleNoteRelease((octaveRef.current + 1) * 12 + KEY_MAP[key])
+            setActiveKeys(prev => {
+                const next = new Set(prev)
+                next.delete(key)
+                return next
+            })
+        }
+    }, [handleNoteRelease, updateVirtualKeyboardParams])
+
     useEffect(() => {
         if (!showVirtualKeyboard || virtualKeyboardMode !== 'musical-typing') return
 
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.repeat) return
             const key = e.key.toLowerCase()
-
-            // Octave
-            if (key === 'z') updateVirtualKeyboardParams({ octave: Math.max(0, octaveRef.current - 1) })
-            if (key === 'x') updateVirtualKeyboardParams({ octave: Math.min(8, octaveRef.current + 1) })
-            
-            // Velocity
-            if (key === 'c') updateVirtualKeyboardParams({ velocity: Math.max(0, velocityRef.current - 10) })
-            if (key === 'v') updateVirtualKeyboardParams({ velocity: Math.min(127, velocityRef.current + 10) })
-
-            // Sustain
-            if (key === 'tab') {
-                e.preventDefault()
-                updateVirtualKeyboardParams({ sustain: !sustainRef.current })
-            }
-
-            // Pitch Bend
-            if (key === '1') updateVirtualKeyboardParams({ pitchBend: -1 })
-            if (key === '2') updateVirtualKeyboardParams({ pitchBend: 1 })
-
-            // Modulation
-            if (['3', '4', '5', '6', '7', '8'].includes(key)) {
-                const mod = (parseInt(key) - 3) * (127 / 5)
-                updateVirtualKeyboardParams({ modulation: Math.round(mod) })
-            }
-
-            // Musical Keys
-            if (KEY_MAP[key] !== undefined) {
-                const pitch = (octaveRef.current + 1) * 12 + KEY_MAP[key]
-                triggerNote(pitch, velocityRef.current)
-                setActiveKeys(prev => new Set(prev).add(key))
-            }
+            if (key === 'tab') e.preventDefault()
+            pressKey(key)
+            return
         }
 
         const handleKeyUp = (e: KeyboardEvent) => {
-            const key = e.key.toLowerCase()
-            
-            if (key === '1' || key === '2') updateVirtualKeyboardParams({ pitchBend: 0 })
-
-            if (KEY_MAP[key] !== undefined) {
-                const pitch = (octaveRef.current + 1) * 12 + KEY_MAP[key]
-                handleNoteRelease(pitch)
-                setActiveKeys(prev => {
-                    const next = new Set(prev)
-                    next.delete(key)
-                    return next
-                })
-            }
+            releaseKey(e.key.toLowerCase())
         }
 
         window.addEventListener('keydown', handleKeyDown)
@@ -120,10 +118,13 @@ export function VirtualKeyboard() {
             window.removeEventListener('keydown', handleKeyDown)
             window.removeEventListener('keyup', handleKeyUp)
         }
-    }, [showVirtualKeyboard, virtualKeyboardMode, triggerNote, releaseNote, updateVirtualKeyboardParams])
-    // NOTE: velocityRef/octaveRef/sustainRef deliberately excluded from deps —
-    //       they're up-to-date via .current assignment above, and including them
-    //       would re-attach listeners on every slider movement, causing missed keys.
+    }, [showVirtualKeyboard, virtualKeyboardMode, pressKey, releaseKey])
+
+    /*
+     * velocityRef/octaveRef/sustainRef are deliberately absent from the deps
+     * above: they are current via `.current`, and including them would
+     * re-attach the listeners on every slider movement and drop keys.
+     */
 
     if (!showVirtualKeyboard) return null
 
@@ -172,6 +173,8 @@ export function VirtualKeyboard() {
                             octave={virtualKeyboardOctave}
                             velocity={virtualKeyboardVelocity}
                             sustain={virtualKeyboardSustain}
+                            pressKey={pressKey}
+                            releaseKey={releaseKey}
                         />
                     ) : (
                         <PianoView 
@@ -255,12 +258,34 @@ function StatusPill({ label, value, active, color = "bg-accent-cyan", onClick }:
     )
 }
 
-function MusicalTypingView({ activeKeys, octave, velocity, sustain }: { activeKeys: Set<string>, octave: number, velocity: number, sustain: boolean }) {
+function MusicalTypingView({ activeKeys, octave, velocity, sustain, pressKey, releaseKey }: {
+    activeKeys: Set<string>, octave: number, velocity: number, sustain: boolean,
+    pressKey: (key: string) => void, releaseKey: (key: string) => void,
+}) {
+    /*
+     * A key you can press.
+     *
+     * These were `<div>`s carrying `active:scale-95` and nothing else — the
+     * whole keyboard depressed under the cursor and played nothing, which is
+     * the first thing anyone tries when a picture of a keyboard appears. The
+     * label is the computer key, so pressing one here does exactly what typing
+     * it does.
+     */
     const renderKey = (label: string, symbol: string, color: string, isActive: boolean) => (
-        <div className={`w-12 h-12 rounded-xl border flex flex-col items-center justify-center transition-all ${isActive ? 'scale-90 brightness-125 shadow-inner' : 'shadow-lg active:scale-95'} ${color}`}>
+        <button
+            type="button"
+            data-vk-typing-key={label}
+            aria-label={`${symbol} (${label})`}
+            aria-pressed={isActive}
+            title={`${symbol} — or press ${label.toUpperCase()}`}
+            onMouseDown={(e) => { e.preventDefault(); pressKey(label) }}
+            onMouseUp={() => releaseKey(label)}
+            onMouseLeave={() => releaseKey(label)}
+            className={`w-12 h-12 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer ${isActive ? 'scale-90 brightness-125 shadow-inner' : 'shadow-lg active:scale-95'} ${color}`}
+        >
             <span className="text-[9px] font-bold opacity-60 uppercase">{label}</span>
             <span className="text-sm font-black uppercase">{symbol}</span>
-        </div>
+        </button>
     )
 
     return (
@@ -274,7 +299,16 @@ function MusicalTypingView({ activeKeys, octave, velocity, sustain }: { activeKe
                 <div className="w-px h-8 bg-white/10 mx-2"></div>
                 <div className="flex gap-1.5">
                     {['3', '4', '5', '6', '7', '8'].map(k => (
-                        <div key={k} className={`w-9 h-12 rounded-lg border flex items-center justify-center transition-all bg-purple-600 border-purple-400/30 font-black text-xs ${activeKeys.has(k) ? 'brightness-150 scale-90' : 'opacity-80'}`}>{k}</div>
+                        <button
+                            key={k}
+                            type="button"
+                            data-vk-typing-key={k}
+                            aria-label={`Modulation ${k}`}
+                            title={`Modulation — or press ${k}`}
+                            onMouseDown={(e) => { e.preventDefault(); pressKey(k) }}
+                            onMouseUp={() => releaseKey(k)}
+                            className={`w-9 h-12 rounded-lg border flex items-center justify-center transition-all cursor-pointer bg-purple-600 border-purple-400/30 font-black text-xs ${activeKeys.has(k) ? 'brightness-150 scale-90' : 'opacity-80'}`}
+                        >{k}</button>
                     ))}
                     <div className="text-[9px] font-bold text-studio-text-dim uppercase ml-2 self-center">Modulation</div>
                 </div>
@@ -353,6 +387,7 @@ function PianoView({ octave, triggerNote, releaseNote, velocity }: { octave: num
                     return (
                         <div 
                             key={pitch}
+                            data-vk-key={pitch}
                             onMouseDown={() => triggerNote(pitch, velocity)}
                             onMouseUp={() => releaseNote(pitch)}
                             onMouseLeave={() => releaseNote(pitch)}
