@@ -31,9 +31,54 @@ export const DRUM = {
     highTom: 50,
     tambourine: 54,
     shaker: 70,
+    cowbell: 56,
+    splash: 55,
+    china: 52,
 } as const;
 
 export type DrumPiece = 'kick' | 'snare' | 'hat' | 'ride' | 'toms' | 'percussion';
+
+/**
+ * How fast the rhythm is played against the project tempo.
+ *
+ * `automatic` is the manual's behaviour: the player drops to half-time when
+ * the project runs far above the style's own tempo and doubles up when it runs
+ * far below, which is what a drummer does rather than playing sixteenths at
+ * 180bpm.
+ */
+export type TempoMode = 'automatic' | 'standard' | 'half-time' | 'double-time';
+
+/** The tempo this drummer's patterns are written around. */
+export const DRUMMER_NATIVE_TEMPO = 110;
+
+/**
+ * A pattern typed in by hand, step by step, in Manual view.
+ *
+ * When present it replaces the generated rows for the pieces it names. Its own
+ * mute flags are separate from the Main view's kit-piece toggles: the manual
+ * describes muting a row of the custom pattern, which is not the same act as
+ * taking the piece out of the kit.
+ */
+export interface ManualPattern {
+    /** Length in steps; 16 is one bar. */
+    length: number;
+    /** Which steps each piece plays. */
+    rows: Partial<Record<DrumPiece, boolean[]>>;
+    /** Rows silenced without clearing them. */
+    muted: Partial<Record<DrumPiece, boolean>>;
+}
+
+export const MANUAL_PAGE_STEPS = 16;
+
+/** An empty grid of the given length, for every piece that has a row. */
+export function emptyManualPattern(length = MANUAL_PAGE_STEPS): ManualPattern {
+    const row = () => Array.from({ length }, () => false);
+    return {
+        length,
+        rows: { kick: row(), snare: row(), hat: row(), ride: row(), toms: row(), percussion: row() },
+        muted: {},
+    };
+}
 
 export interface DrummerNote {
     pitch: number;
@@ -74,6 +119,36 @@ export interface DrummerSettings {
     snare: 'center' | 'rim';
     hiHat: 'automatic' | 'closed' | 'open';
     percussion: 'off' | 'tambourine' | 'shaker';
+    /** Which cymbals a fill lands on. */
+    cymbals: 'crash' | 'splash' | 'china';
+    /** Which toms the fills run across. */
+    toms: 'full' | 'low' | 'high';
+    /** How fast the rhythm plays against the project tempo. */
+    tempoMode: TempoMode;
+    /**
+     * The pattern the cymbal row plays.
+     *
+     * The manual is explicit that the Drummer has *several* Patterns buttons —
+     * one per group of kit pieces — and the reference UI draws two rows each
+     * with its own numbered button. A single `variation` for the whole kit made
+     * the second row a copy of the first.
+     */
+    cymbalVariation: number;
+    /** 0..1 — how much the pattern changes from bar to bar across the region. */
+    phraseVariation: number;
+    /** A hand-typed pattern that replaces the generated one, if there is one. */
+    manual: ManualPattern | null;
+    /**
+     * The track whose rhythm this player follows, if any.
+     *
+     * The manual's "Follow Rhythm Of / Track": the kick and snare place their
+     * accents where that track's notes fall, so a drummer can lock to a guitar
+     * part through a chorus.
+     */
+    followTrackId: string | null;
+    /** Fills and swing can be pinned so a change of preset leaves them alone. */
+    lockFills: boolean;
+    lockSwing: boolean;
     /** Anything that makes the same settings produce a different take. */
     seed: number;
 }
@@ -94,6 +169,15 @@ export const DEFAULT_DRUMMER_SETTINGS: DrummerSettings = {
     snare: 'center',
     hiHat: 'automatic',
     percussion: 'off',
+    cymbals: 'crash',
+    toms: 'full',
+    tempoMode: 'automatic',
+    cymbalVariation: 4,
+    phraseVariation: 0.2,
+    manual: null,
+    followTrackId: null,
+    lockFills: false,
+    lockSwing: false,
     seed: 1,
 };
 
@@ -194,6 +278,11 @@ const PATTERNS: BasePattern[] = [
 
 export const PATTERN_COUNT = PATTERNS.length;
 
+/** A pattern number as the UI shows it (1-based), clamped to what exists. */
+function patternIndex(variation: number): number {
+    return Math.min(PATTERNS.length, Math.max(1, Math.round(variation || 1))) - 1;
+}
+
 /**
  * A small deterministic generator.
  *
@@ -263,6 +352,61 @@ function hatPitch(step: number, settings: DrummerSettings): number {
     return step === 14 ? DRUM.openHat : DRUM.closedHat;
 }
 
+
+/**
+ * What `automatic` resolves to at this tempo.
+ *
+ * The patterns are written around `DRUMMER_NATIVE_TEMPO`. Run the project far
+ * above that and a drummer stops playing sixteenths and drops to half-time;
+ * far below and they double up. Anything but `automatic` is taken literally.
+ */
+export function resolveTempoMode(mode: TempoMode, tempo: number): Exclude<TempoMode, 'automatic'> {
+    if (mode !== 'automatic') return mode;
+    if (!Number.isFinite(tempo) || tempo <= 0) return 'standard';
+    if (tempo > DRUMMER_NATIVE_TEMPO * 1.5) return 'half-time';
+    if (tempo < DRUMMER_NATIVE_TEMPO * 0.68) return 'double-time';
+    return 'standard';
+}
+
+/** How many pattern bars fit in one project bar. */
+function tempoRate(mode: Exclude<TempoMode, 'automatic'>): number {
+    return mode === 'half-time' ? 0.5 : mode === 'double-time' ? 2 : 1;
+}
+
+/**
+ * The steps another track's notes fall on.
+ *
+ * "Follow Rhythm Of / Track": the onsets are quantised to sixteenths and become
+ * accents the kick and snare place themselves on, which is how a drummer locks
+ * to a guitar part rather than playing over it.
+ */
+export function onsetsToSteps(
+    onsets: readonly number[],
+    { beatsPerBar, bars }: { beatsPerBar: number; bars: number },
+): Set<number> {
+    const steps = new Set<number>();
+    const total = Math.max(1, Math.round(bars * beatsPerBar * 4));
+    for (const beat of onsets) {
+        if (!Number.isFinite(beat) || beat < 0) continue;
+        const step = Math.round(beat * 4);
+        if (step >= total) continue;
+        steps.add(step);
+    }
+    return steps;
+}
+
+/** The tom pitches a fill runs across, for the current Toms setting. */
+function tomRun(setting: DrummerSettings['toms']): number[] {
+    if (setting === 'low') return [DRUM.midTom, DRUM.lowTom, DRUM.lowTom];
+    if (setting === 'high') return [DRUM.highTom, DRUM.highTom, DRUM.midTom];
+    return [DRUM.highTom, DRUM.midTom, DRUM.lowTom];
+}
+
+/** The cymbal a fill lands on. */
+function crashPitch(setting: DrummerSettings['cymbals']): number {
+    return setting === 'splash' ? DRUM.splash : setting === 'china' ? DRUM.china : DRUM.crash;
+}
+
 /** The tom run that ends a bar when a fill lands there. */
 function fillNotes(
     settings: DrummerSettings,
@@ -275,7 +419,7 @@ function fillNotes(
     const hits = Math.max(2, Math.round(2 + complexity * 6));
     const spanBeats = 1 + complexity;
     const start = beatsPerBar - spanBeats;
-    const toms = [DRUM.highTom, DRUM.midTom, DRUM.lowTom];
+    const toms = tomRun(settings.toms);
 
     const notes: DrummerNote[] = [];
     for (let i = 0; i < hits; i++) {
@@ -292,7 +436,7 @@ function fillNotes(
     }
     // Fills land on a crash, if there is a bar after this one to land into.
     notes.push({
-        pitch: DRUM.crash,
+        pitch: crashPitch(settings.cymbals),
         start: (bar + 1) * beatsPerBar,
         duration: 1,
         velocity: shapeVelocity(1, settings, bar * 100 + 99),
@@ -312,6 +456,69 @@ export function barHasFill(bar: number, settings: DrummerSettings, bars: number)
     return (bar + 1) % every === 0;
 }
 
+/** Options the generator needs from the project around it. */
+export interface DrummerContext {
+    bars: number;
+    beatsPerBar?: number;
+    /** The project tempo, for `tempoMode: 'automatic'`. */
+    tempo?: number;
+    /** Beat positions of the followed track's notes, relative to the region. */
+    followOnsets?: readonly number[];
+}
+
+/**
+ * The notes a hand-typed pattern produces.
+ *
+ * The grid repeats across the region: a 32-step pattern is two bars long and
+ * plays twice in a four-bar region, which is what the manual's page overview
+ * shows. Manual view replaces the generated rows entirely - it is a pattern
+ * typed in rather than one asked for.
+ */
+function manualNotes(
+    manual: ManualPattern,
+    settings: DrummerSettings,
+    { bars, beatsPerBar, rate }: { bars: number; beatsPerBar: number; rate: number },
+): DrummerNote[] {
+    const notes: DrummerNote[] = [];
+    const length = Math.max(1, Math.round(manual.length));
+    const totalSteps = Math.max(1, Math.round(bars * beatsPerBar * 4 * rate));
+    const regionBeats = bars * beatsPerBar;
+    const ORDER: DrumPiece[] = ['kick', 'snare', 'hat', 'ride', 'toms', 'percussion'];
+
+    for (let i = 0; i < totalSteps; i++) {
+        const at = i % length;
+        for (const piece of ORDER) {
+            if (!settings.pieces[piece]) continue;
+            if (manual.muted[piece]) continue;
+            if (!manual.rows[piece]?.[at]) continue;
+            if (piece === 'percussion' && settings.percussion === 'off') continue;
+
+            const pitch = piece === 'kick' ? DRUM.kick
+                : piece === 'snare' ? (settings.snare === 'rim' ? DRUM.sideStick : DRUM.snare)
+                    : piece === 'hat' ? hatPitch(at % 16, settings)
+                        : piece === 'ride' ? (at % 8 === 0 ? DRUM.rideBell : DRUM.ride)
+                            : piece === 'toms' ? tomRun(settings.toms)[at % 3]
+                                : settings.percussion === 'tambourine' ? DRUM.tambourine : DRUM.shaker;
+
+            // Downbeats of the grid carry the accent, as the brighter dots do.
+            const accent = at % 4 === 0 ? 0.95 : at % 2 === 0 ? 0.7 : 0.5;
+            const salt = i * 16 + at;
+            const swung = stepToBeats(at % 16, settings) - (at % 16) / 4;
+            const beat = (i / 4 + swung) / rate
+                + jitter(settings.seed, salt + 7.77) * clamp01(settings.humanize) * 0.02;
+            if (beat >= regionBeats) continue;
+
+            notes.push({
+                pitch,
+                start: Math.max(0, beat),
+                duration: piece === 'kick' || piece === 'snare' ? 0.25 : 0.15,
+                velocity: shapeVelocity(accent, settings, salt),
+            });
+        }
+    }
+    return notes.sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+}
+
 /**
  * The notes for a drummer region.
  *
@@ -319,39 +526,100 @@ export function barHasFill(bar: number, settings: DrummerSettings, bars: number)
  */
 export function generateDrummerPattern(
     settings: DrummerSettings,
-    { bars, beatsPerBar = 4 }: { bars: number; beatsPerBar?: number },
+    { bars, beatsPerBar = 4, tempo = DRUMMER_NATIVE_TEMPO, followOnsets }: DrummerContext,
 ): DrummerNote[] {
     const notes: DrummerNote[] = [];
     if (!(bars > 0)) return notes;
 
-    const index = Math.min(PATTERNS.length, Math.max(1, Math.round(settings.variation))) - 1;
-    const pattern = PATTERNS[index];
-    const stepsPerBar = Math.max(1, Math.round(beatsPerBar * 4));
+    const rate = tempoRate(resolveTempoMode(settings.tempoMode, tempo));
 
-    for (let bar = 0; bar < bars; bar++) {
-        const filling = barHasFill(bar, settings, bars);
+    // A hand-typed pattern replaces the generated one outright.
+    if (settings.manual) return manualNotes(settings.manual, settings, { bars, beatsPerBar, rate });
+
+    const pattern = PATTERNS[patternIndex(settings.variation)];
+    const cymbalPattern = PATTERNS[patternIndex(settings.cymbalVariation)];
+    const stepsPerBar = Math.max(1, Math.round(beatsPerBar * 4));
+    const regionBeats = bars * beatsPerBar;
+
+    /*
+     * How far the pattern is allowed to drift from bar to bar.
+     *
+     * Phrase Variation moves the Complexity threshold a little each bar, so a
+     * long region does not repeat one bar verbatim - the manual's "amount of
+     * rhythmic change over the course of several bars".
+     */
+    const drift = (bar: number) =>
+        jitter(settings.seed, bar * 3.14 + 1.5) * clamp01(settings.phraseVariation) * 0.35;
+
+    const follow = followOnsets && settings.followTrackId
+        ? onsetsToSteps(followOnsets, { beatsPerBar, bars })
+        : null;
+
+    // Pattern bars, not project bars: at double-time two fit in each project
+    // bar, at half-time one spans two.
+    const patternBars = Math.max(1, Math.ceil(bars * rate));
+
+    /** Where a step of pattern bar `pb` lands in project beats. */
+    const place = (pb: number, step: number, salt: number) => {
+        const within = stepToBeats(step, settings);
+        const wander = jitter(settings.seed, salt + 7.77) * clamp01(settings.humanize) * 0.02;
+        return Math.max(0, (pb * beatsPerBar + within) / rate + wander);
+    };
+    const push = (n: DrummerNote) => { if (n.start < regionBeats) notes.push(n); };
+
+    for (let pb = 0; pb < patternBars; pb++) {
+        const complexity = clamp01(settings.complexity + drift(pb));
+        const projectBar = Math.floor(pb / rate);
+        const filling = barHasFill(projectBar, settings, bars) && (pb * rate) % Math.max(1, rate) === 0;
+
+        /** Whether the followed track puts a note on this step of this bar. */
+        const followedHere = (step: number) =>
+            !!follow && follow.has(Math.round(((pb * beatsPerBar + step / 4) / rate) * 4));
 
         if (settings.pieces.kick) {
-            for (const step of survivingSteps(pattern.kick, settings.complexity)) {
+            const played = survivingSteps(pattern.kick, complexity);
+            for (const step of played) {
                 if (step.at >= stepsPerBar) continue;
-                notes.push({
+                push({
                     pitch: DRUM.kick,
-                    start: timeOf(step.at, settings, bar, beatsPerBar, bar * 16 + step.at),
+                    start: place(pb, step.at, pb * 16 + step.at),
                     duration: 0.25,
-                    velocity: shapeVelocity(step.accent, settings, bar * 16 + step.at),
+                    velocity: shapeVelocity(
+                        followedHere(step.at) ? Math.min(1, step.accent + 0.15) : step.accent,
+                        settings, pb * 16 + step.at),
                 });
+            }
+            /*
+             * Where the followed track lands and the pattern does not, the kick
+             * goes with it. Eighths only: matching every sixteenth of a busy
+             * part turns the kick into a machine gun rather than a drummer
+             * locking to it.
+             */
+            if (follow) {
+                for (let at = 0; at < stepsPerBar; at += 2) {
+                    if (!followedHere(at)) continue;
+                    if (played.some(x => x.at === at)) continue;
+                    push({
+                        pitch: DRUM.kick,
+                        start: place(pb, at, pb * 16 + at + 0.05),
+                        duration: 0.25,
+                        velocity: shapeVelocity(0.8, settings, pb * 16 + at + 0.05),
+                    });
+                }
             }
         }
 
         if (settings.pieces.snare) {
             const pitch = settings.snare === 'rim' ? DRUM.sideStick : DRUM.snare;
-            for (const step of survivingSteps(pattern.snare, settings.complexity)) {
+            for (const step of survivingSteps(pattern.snare, complexity)) {
                 if (step.at >= stepsPerBar) continue;
-                notes.push({
+                push({
                     pitch,
-                    start: timeOf(step.at, settings, bar, beatsPerBar, bar * 16 + step.at + 0.5),
+                    start: place(pb, step.at, pb * 16 + step.at + 0.5),
                     duration: 0.25,
-                    velocity: shapeVelocity(step.accent, settings, bar * 16 + step.at + 0.5),
+                    velocity: shapeVelocity(
+                        followedHere(step.at) ? Math.min(1, step.accent + 0.15) : step.accent,
+                        settings, pb * 16 + step.at + 0.5),
                 });
             }
 
@@ -365,32 +633,32 @@ export function generateDrummerPattern(
                 for (const at of [2, 6, 10, 14]) {
                     if (at >= stepsPerBar) continue;
                     if (pattern.snare.some(x => x.at === at)) continue;
-                    const roll = (jitter(settings.seed, bar * 31 + at) + 1) / 2;
+                    const roll = (jitter(settings.seed, pb * 31 + at) + 1) / 2;
                     if (roll > ghost) continue;
-                    notes.push({
+                    push({
                         pitch,
-                        start: timeOf(at, settings, bar, beatsPerBar, bar * 16 + at + 0.25),
+                        start: place(pb, at, pb * 16 + at + 0.25),
                         duration: 0.12,
-                        velocity: clamp01(shapeVelocity(0.25, settings, bar * 16 + at + 0.25) * 0.45),
+                        velocity: clamp01(shapeVelocity(0.25, settings, pb * 16 + at + 0.25) * 0.45),
                     });
                 }
             }
         }
 
-        // The ride takes the hat's part when it is switched on — a drummer
+        // The ride takes the hat's part when it is switched on - a drummer
         // plays one or the other, not both.
         const cymbal: DrumPiece | null = settings.pieces.ride ? 'ride'
             : settings.pieces.hat ? 'hat' : null;
         if (cymbal) {
-            for (const step of survivingSteps(pattern.hat, settings.complexity)) {
+            for (const step of survivingSteps(cymbalPattern.hat, complexity)) {
                 if (step.at >= stepsPerBar) continue;
-                notes.push({
+                push({
                     pitch: cymbal === 'ride'
                         ? (step.at % 8 === 0 ? DRUM.rideBell : DRUM.ride)
                         : hatPitch(step.at, settings),
-                    start: timeOf(step.at, settings, bar, beatsPerBar, bar * 16 + step.at + 0.75),
+                    start: place(pb, step.at, pb * 16 + step.at + 0.75),
                     duration: 0.15,
-                    velocity: shapeVelocity(step.accent, settings, bar * 16 + step.at + 0.75),
+                    velocity: shapeVelocity(step.accent, settings, pb * 16 + step.at + 0.75),
                 });
             }
         }
@@ -398,16 +666,18 @@ export function generateDrummerPattern(
         if (settings.pieces.percussion && settings.percussion !== 'off') {
             const pitch = settings.percussion === 'tambourine' ? DRUM.tambourine : DRUM.shaker;
             for (let at = 2; at < stepsPerBar; at += 4) {
-                notes.push({
+                push({
                     pitch,
-                    start: timeOf(at, settings, bar, beatsPerBar, bar * 16 + at + 0.9),
+                    start: place(pb, at, pb * 16 + at + 0.9),
                     duration: 0.12,
-                    velocity: shapeVelocity(0.5, settings, bar * 16 + at + 0.9),
+                    velocity: shapeVelocity(0.5, settings, pb * 16 + at + 0.9),
                 });
             }
         }
 
-        if (filling) notes.push(...fillNotes(settings, bar, beatsPerBar));
+        if (filling) {
+            for (const n of fillNotes(settings, projectBar, beatsPerBar)) push(n);
+        }
     }
 
     return notes.sort((a, b) => a.start - b.start || a.pitch - b.pitch);
@@ -415,8 +685,7 @@ export function generateDrummerPattern(
 
 /** The rows the variation popover draws: one 16-step outline per pattern. */
 export function patternPreview(variation: number, complexity: number): boolean[] {
-    const index = Math.min(PATTERNS.length, Math.max(1, Math.round(variation))) - 1;
-    const p = PATTERNS[index];
+    const p = PATTERNS[patternIndex(variation)];
     const on = new Set<number>();
     for (const row of [p.kick, p.snare, p.hat]) {
         for (const step of survivingSteps(row, complexity)) on.add(step.at);

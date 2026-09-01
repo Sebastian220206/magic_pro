@@ -2,6 +2,10 @@ import {
     generateDrummerPattern,
     patternPreview,
     barHasFill,
+    resolveTempoMode,
+    onsetsToSteps,
+    emptyManualPattern,
+    DRUMMER_NATIVE_TEMPO,
     DEFAULT_DRUMMER_SETTINGS,
     DRUM,
     PATTERN_COUNT,
@@ -304,5 +308,238 @@ describe('it survives nonsense settings', () => {
         const notes = generateDrummerPattern(settings({ fillAmount: 0 }), { bars: 2, beatsPerBar: 3 });
         expect(notes.length).toBeGreaterThan(0);
         for (const n of notes) expect(n.start).toBeLessThan(6);
+    });
+});
+
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The rest of what the Session Player Editor offers.
+ *
+ * Everything below was a control the manual describes and this generator had
+ * no answer for, so the panel could not have offered it without the knob being
+ * decorative.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+describe('tempo mode', () => {
+    it('takes an explicit choice literally', () => {
+        expect(resolveTempoMode('half-time', 60)).toBe('half-time');
+        expect(resolveTempoMode('double-time', 200)).toBe('double-time');
+        expect(resolveTempoMode('standard', 200)).toBe('standard');
+    });
+
+    it('drops to half-time when the project runs far above the style tempo', () => {
+        expect(resolveTempoMode('automatic', DRUMMER_NATIVE_TEMPO * 2)).toBe('half-time');
+    });
+
+    it('doubles up when it runs far below', () => {
+        expect(resolveTempoMode('automatic', 60)).toBe('double-time');
+    });
+
+    it('leaves it alone at the tempo the patterns are written for', () => {
+        expect(resolveTempoMode('automatic', DRUMMER_NATIVE_TEMPO)).toBe('standard');
+    });
+
+    it('survives a nonsense tempo rather than dividing by it', () => {
+        expect(resolveTempoMode('automatic', 0)).toBe('standard');
+        expect(resolveTempoMode('automatic', NaN)).toBe('standard');
+    });
+
+    it('half-time spreads the same bar over twice the ground', () => {
+        const straight = generateDrummerPattern(settings({ tempoMode: 'standard' }), { bars: 4 });
+        const half = generateDrummerPattern(settings({ tempoMode: 'half-time' }), { bars: 4 });
+        expect(half.length).toBeLessThan(straight.length);
+        // Falsify by ignoring tempoMode: the two become identical.
+        expect(half.length).toBeGreaterThan(0);
+    });
+
+    it('double-time fits twice as much into the same region', () => {
+        const straight = generateDrummerPattern(settings({ tempoMode: 'standard' }), { bars: 4 });
+        const double = generateDrummerPattern(settings({ tempoMode: 'double-time' }), { bars: 4 });
+        expect(double.length).toBeGreaterThan(straight.length);
+    });
+
+    it('never writes a note past the end of the region', () => {
+        for (const mode of ['standard', 'half-time', 'double-time'] as const) {
+            const notes = generateDrummerPattern(settings({ tempoMode: mode }), { bars: 3 });
+            for (const n of notes) expect(n.start).toBeLessThan(12);
+        }
+    });
+});
+
+describe('the cymbal row has its own pattern', () => {
+    /*
+     * One `variation` for the whole kit made the second row of the panel a copy
+     * of the first, and the manual is explicit that the Drummer has several
+     * Patterns buttons for the various kit pieces.
+     */
+    const hats = (over: Partial<DrummerSettings>) =>
+        generateDrummerPattern(settings(over), { bars: 1 })
+            .filter(n => n.pitch === DRUM.closedHat || n.pitch === DRUM.openHat)
+            .map(n => Math.round(n.start * 1000));
+    const kicks = (over: Partial<DrummerSettings>) =>
+        generateDrummerPattern(settings(over), { bars: 1 })
+            .filter(n => n.pitch === DRUM.kick)
+            .map(n => Math.round(n.start * 1000));
+
+    it('changing the cymbal pattern changes the hats', () => {
+        expect(hats({ cymbalVariation: 1 })).not.toEqual(hats({ cymbalVariation: 8 }));
+    });
+
+    it('and leaves the kick where it was', () => {
+        expect(kicks({ cymbalVariation: 1 })).toEqual(kicks({ cymbalVariation: 8 }));
+    });
+
+    it('changing the kick pattern leaves the hats where they were', () => {
+        expect(hats({ variation: 1, cymbalVariation: 4 }))
+            .toEqual(hats({ variation: 8, cymbalVariation: 4 }));
+    });
+});
+
+describe('phrase variation', () => {
+    const barOf = (notes: ReturnType<typeof generateDrummerPattern>, bar: number) =>
+        notes.filter(n => n.start >= bar * 4 && n.start < (bar + 1) * 4)
+            .map(n => `${n.pitch}@${Math.round((n.start - bar * 4) * 100)}`);
+
+    it('at zero, every bar plays the same', () => {
+        const notes = generateDrummerPattern(
+            settings({ phraseVariation: 0, humanize: 0, fillAmount: 0, ghostNotes: 0 }), { bars: 4 });
+        expect(barOf(notes, 1)).toEqual(barOf(notes, 2));
+    });
+
+    it('turned up, the bars stop being identical', () => {
+        const notes = generateDrummerPattern(
+            settings({ phraseVariation: 1, humanize: 0, fillAmount: 0, ghostNotes: 0, complexity: 0.5 }),
+            { bars: 8 });
+        const bars = [0, 1, 2, 3, 4, 5, 6, 7].map(b => barOf(notes, b).join('|'));
+        expect(new Set(bars).size).toBeGreaterThan(1);
+    });
+
+    it('is deterministic — the same seed gives the same variation', () => {
+        const a = generateDrummerPattern(settings({ phraseVariation: 1 }), { bars: 4 });
+        const b = generateDrummerPattern(settings({ phraseVariation: 1 }), { bars: 4 });
+        expect(a).toEqual(b);
+    });
+});
+
+describe('a hand-typed pattern', () => {
+    const manual = () => {
+        const m = emptyManualPattern(16);
+        m.rows.kick![0] = true;
+        m.rows.kick![8] = true;
+        m.rows.snare![4] = true;
+        return m;
+    };
+
+    it('plays only the steps that were typed in', () => {
+        const notes = generateDrummerPattern(
+            settings({ manual: manual(), humanize: 0, swing: 0 }), { bars: 1 });
+        const kicks = notes.filter(n => n.pitch === DRUM.kick).map(n => n.start);
+        expect(kicks).toEqual([0, 2]);
+    });
+
+    it('ignores the generated pattern entirely', () => {
+        const withManual = generateDrummerPattern(
+            settings({ manual: manual(), variation: 8, complexity: 1, humanize: 0 }), { bars: 1 });
+        // Variation 8 is the densest of the eight; three typed steps is not it.
+        expect(withManual.length).toBe(3);
+    });
+
+    it('a muted row is silent without being cleared', () => {
+        const m = manual();
+        m.muted.kick = true;
+        const notes = generateDrummerPattern(settings({ manual: m, humanize: 0 }), { bars: 1 });
+        expect(notes.some(n => n.pitch === DRUM.kick)).toBe(false);
+        expect(m.rows.kick![0]).toBe(true);
+    });
+
+    it('a piece switched off in the kit stays off in Manual view', () => {
+        const notes = generateDrummerPattern(settings({
+            manual: manual(), humanize: 0,
+            pieces: { ...DEFAULT_DRUMMER_SETTINGS.pieces, kick: false },
+        }), { bars: 1 });
+        expect(notes.some(n => n.pitch === DRUM.kick)).toBe(false);
+    });
+
+    it('repeats across the region, so a one-bar grid fills four bars', () => {
+        const one = generateDrummerPattern(settings({ manual: manual(), humanize: 0 }), { bars: 1 });
+        const four = generateDrummerPattern(settings({ manual: manual(), humanize: 0 }), { bars: 4 });
+        expect(four.length).toBe(one.length * 4);
+    });
+
+    it('a two-bar grid is not simply the first bar twice', () => {
+        const m = emptyManualPattern(32);
+        m.rows.kick![0] = true;
+        m.rows.kick![20] = true;
+        const notes = generateDrummerPattern(settings({ manual: m, humanize: 0, swing: 0 }), { bars: 2 });
+        expect(notes.map(n => n.start)).toEqual([0, 5]);
+    });
+
+    it('writes nothing past the end of the region', () => {
+        const notes = generateDrummerPattern(settings({ manual: manual() }), { bars: 2 });
+        for (const n of notes) expect(n.start).toBeLessThan(8);
+    });
+
+    it('an empty grid is silence, not a fallback to the generated pattern', () => {
+        const notes = generateDrummerPattern(
+            settings({ manual: emptyManualPattern(16) }), { bars: 4 });
+        expect(notes).toEqual([]);
+    });
+});
+
+describe('following the rhythm of another track', () => {
+    it('quantises onsets to sixteenths', () => {
+        const steps = onsetsToSteps([0, 0.26, 1.0], { beatsPerBar: 4, bars: 1 });
+        expect([...steps].sort((a, b) => a - b)).toEqual([0, 1, 4]);
+    });
+
+    it('drops anything past the end of the region', () => {
+        const steps = onsetsToSteps([0, 99], { beatsPerBar: 4, bars: 1 });
+        expect([...steps]).toEqual([0]);
+    });
+
+    it('ignores nonsense rather than emitting NaN steps', () => {
+        const steps = onsetsToSteps([NaN, -1, Infinity, 0.5], { beatsPerBar: 4, bars: 1 });
+        expect([...steps]).toEqual([2]);
+    });
+
+    it('puts a kick where the followed track lands and the pattern does not', () => {
+        const base = settings({ variation: 1, complexity: 0, humanize: 0, swing: 0, ghostNotes: 0, phraseVariation: 0 });
+        const without = generateDrummerPattern(base, { bars: 1 })
+            .filter(n => n.pitch === DRUM.kick).map(n => n.start);
+        const with_ = generateDrummerPattern(
+            { ...base, followTrackId: 'guitar' },
+            { bars: 1, followOnsets: [1.5] },
+        ).filter(n => n.pitch === DRUM.kick).map(n => n.start);
+
+        expect(without).not.toContain(1.5);
+        expect(with_).toContain(1.5);
+    });
+
+    it('does nothing unless a track is actually chosen', () => {
+        const base = settings({ humanize: 0, phraseVariation: 0 });
+        const a = generateDrummerPattern(base, { bars: 1, followOnsets: [1.5, 2.5] });
+        const b = generateDrummerPattern(base, { bars: 1 });
+        expect(a).toEqual(b);
+    });
+});
+
+describe('kit piece choices reach the notes', () => {
+    const fillPitches = (over: Partial<DrummerSettings>) =>
+        new Set(generateDrummerPattern(
+            settings({ fillAmount: 1, fillComplexity: 1, ...over }), { bars: 2 })
+            .map(n => n.pitch));
+
+    it('the Cymbals choice decides what a fill lands on', () => {
+        expect(fillPitches({ cymbals: 'crash' }).has(DRUM.crash)).toBe(true);
+        expect(fillPitches({ cymbals: 'china' }).has(DRUM.china)).toBe(true);
+        expect(fillPitches({ cymbals: 'china' }).has(DRUM.crash)).toBe(false);
+    });
+
+    it('the Toms choice decides which toms the fill runs across', () => {
+        const high = fillPitches({ toms: 'high' });
+        const low = fillPitches({ toms: 'low' });
+        expect(high.has(DRUM.highTom)).toBe(true);
+        expect(low.has(DRUM.highTom)).toBe(false);
+        expect(low.has(DRUM.lowTom)).toBe(true);
     });
 });

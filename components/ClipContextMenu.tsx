@@ -32,6 +32,8 @@ import {
   Palette,
 } from 'lucide-react';
 import { Clip, ContextMenuItem } from '../engine/timeline/types';
+import { useProjectStore } from '@/store/projectStore';
+import { generateDrummerPattern, DEFAULT_DRUMMER_SETTINGS } from '@/lib/drummerPattern';
 
 // =============================================================================
 // Props
@@ -139,10 +141,64 @@ export function ClipContextMenu({
     : false;
 
   // Handle menu item click
+  /*
+   * Which of the two Convert rows applies here.
+   *
+   * A Session Player region is one carrying `drummerSettings` — the settings
+   * are what make it regenerate, so dropping them is the whole conversion. A
+   * plain MIDI region on a drummer track is the one that can be handed back.
+   */
+  const drummerTrack = useProjectStore(s =>
+    s.tracks.some(t => t.id === clip?.trackId && t.type === 'drummer'));
+  const isSessionPlayerRegion = !!(clip as any)?.drummerSettings;
+  const isDrummerMidiRegion = drummerTrack && !isSessionPlayerRegion
+    && (clip as any)?.type === 'midi';
+
   const handleItemClick = useCallback((action: string) => {
     if (!clipId) return;
 
     switch (action) {
+      /*
+       * The manual: a Session Player region cannot have its individual notes
+       * edited in the editor, so converting it to a plain MIDI region is how
+       * you get at them. All this does is drop `drummerSettings` — the notes
+       * are already there — which is precisely what makes it a MIDI region:
+       * nothing regenerates over the top of your edits any more.
+       */
+      case 'convertToMidi':
+        useProjectStore.getState().updateClip(clipId, {
+          drummerSettings: undefined,
+          name: (clip?.name ?? 'Drummer').replace(/^Drummer\b/, 'MIDI Region'),
+        } as never);
+        onClose();
+        return;
+
+      /*
+       * And back again. The manual is explicit that this does not preserve
+       * MIDI edits, and it cannot: the settings are the score and the notes
+       * are the render, so handing the region back to the player means the
+       * player writes the notes.
+       */
+      case 'replaceWithSessionPlayer': {
+        const st = useProjectStore.getState();
+        const beatsPerBar = Number(st.timeSignature?.split('/')[0]) || 4;
+        const bars = Math.max(1, Math.round((clip?.duration || beatsPerBar) / beatsPerBar));
+        const notes = generateDrummerPattern(DEFAULT_DRUMMER_SETTINGS, {
+          bars, beatsPerBar, tempo: st.tempo,
+        }).map((n, i) => ({
+          id: `drum-${clipId}-${i}`,
+          pitch: n.pitch,
+          start: n.start,
+          duration: n.duration,
+          velocity: Math.round(n.velocity * 127),
+        }));
+        st.updateClip(clipId, {
+          drummerSettings: DEFAULT_DRUMMER_SETTINGS, notes, name: 'Drummer',
+        } as never);
+        onClose();
+        return;
+      }
+
       case 'split':
         if (canSplit && clip) {
           onSplit(clipId, playheadBeat);
@@ -220,6 +276,30 @@ export function ClipContextMenu({
           <span>Split at Playhead</span>
           <span className="ml-auto text-xs text-gray-500">⌘+E</span>
         </button>
+
+        {/* Convert — only offered on the kind of region it applies to. */}
+        {isSessionPlayerRegion && (
+          <button
+            data-clip-convert-midi
+            className="w-full px-3 py-2 flex items-center gap-2 text-left text-sm text-white hover:bg-blue-600 transition-colors"
+            title="Drop the Session Player and keep the notes, so you can edit them in the piano roll"
+            onClick={() => handleItemClick('convertToMidi')}
+          >
+            <Music className="w-4 h-4" />
+            <span>Convert to MIDI Region</span>
+          </button>
+        )}
+        {isDrummerMidiRegion && (
+          <button
+            data-clip-replace-session
+            className="w-full px-3 py-2 flex items-center gap-2 text-left text-sm text-white hover:bg-blue-600 transition-colors"
+            title="Hand the region back to the Session Player. Any note edits are lost — the player writes the notes."
+            onClick={() => handleItemClick('replaceWithSessionPlayer')}
+          >
+            <Music className="w-4 h-4" />
+            <span>Replace with Session Player Region</span>
+          </button>
+        )}
 
         {/* Duplicate */}
         <button
