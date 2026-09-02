@@ -24,7 +24,7 @@ type SubOption =
     | 'Mic or Line' | 'Guitar or Bass';
 
 interface TrackPreset {
-    type: 'midi' | 'audio' | 'drummer' | 'external-midi';
+    type: 'midi' | 'audio' | 'drummer' | 'bass-player' | 'keyboard-player' | 'external-midi';
     color: string;
     icon: string;
     name: string;
@@ -49,10 +49,21 @@ function trackPreset(category: MainCategory, option: SubOption): TrackPreset {
         };
     }
     if (category === 'Session Player') {
+        /*
+         * All three made a `drummer` track.
+         *
+         * The dialog has offered Bass Player and Keyboard Player for as long as
+         * it has existed, and picking either produced a drummer with a bass's
+         * name on it - a Session Player editor full of kit pieces, and a track
+         * the scheduler played through a drum machine. There are three types
+         * now, and this returns the one that was asked for.
+         */
+        const bass = option === 'Bass Player';
+        const keys = option === 'Keyboard Player';
         return {
-            type: 'drummer',
-            color: '#fb923c',
-            icon: option === 'Drummer' ? 'drum' : option === 'Bass Player' ? 'guitar' : 'keyboard',
+            type: bass ? 'bass-player' : keys ? 'keyboard-player' : 'drummer',
+            color: bass ? '#f472b6' : keys ? '#a78bfa' : '#fb923c',
+            icon: bass ? 'guitar' : keys ? 'keyboard' : 'drum',
             name: option,
         };
     }
@@ -113,7 +124,7 @@ export function NewTrackDialog({ onClose }: NewTrackDialogProps) {
                 // Only playable types carry an instrument. `'software-instrument'`
                 // was also tested here, but this dialog never produced that type —
                 // typing the preset made the dead branch visible.
-                ...(trackType === 'midi' || trackType === 'drummer'
+                ...(['midi', 'drummer', 'bass-player', 'keyboard-player'].includes(trackType)
                     ? trackFieldsFor(instrument)
                     : {}),
             });

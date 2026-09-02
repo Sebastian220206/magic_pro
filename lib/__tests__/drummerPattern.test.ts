@@ -156,8 +156,8 @@ describe('swing and feel move the notes in time', () => {
         // downbeat is clamped at zero and pulling cannot move it.
         const i = straight.findIndex(n => n.start > 0.5);
         expect(i).toBeGreaterThan(-1);
-        expect(behind[i].start).toBeLessThan(straight[i].start);
-        expect(ahead[i].start).toBeGreaterThan(straight[i].start);
+        expect(behind[i].start).toBeGreaterThan(straight[i].start);
+        expect(ahead[i].start).toBeLessThan(straight[i].start);
     });
 
     it('never pulls a note out of the front of the region', () => {

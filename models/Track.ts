@@ -1,6 +1,7 @@
 import type { Clip } from './Clip';
+import type { MidiFxSettingsMap } from '@/lib/midiFxSettings';
 
-export type TrackType = 'audio' | 'midi' | 'software-instrument' | 'drummer' | 'external-midi' | 'folder' | 'bus' | 'output' | 'video';
+export type TrackType = 'audio' | 'midi' | 'software-instrument' | 'drummer' | 'bass-player' | 'keyboard-player' | 'external-midi' | 'folder' | 'bus' | 'output' | 'video';
 
 export interface AutomationPoint {
     time: number;
@@ -87,6 +88,17 @@ export interface Track {
     automationMode?: 'off' | 'read' | 'touch' | 'latch' | 'write';
     /** MIDI effect inserted in the strip's MIDI FX slot, by catalogue id. */
     midiFx?: string | null;
+    /**
+     * Settings for each MIDI effect this track has used, keyed by catalogue id.
+     *
+     * Keyed rather than flat so switching the slot to another effect and back
+     * returns to the settings that effect had. Every processor was previously
+     * built with its defaults and there was nowhere to put a change, so a Chord
+     * Trigger sounded a major triad and always would.
+     */
+    midiFxSettings?: MidiFxSettingsMap;
+    /** MIDI FX slot bypassed — notes pass through untouched. */
+    midiFxBypass?: boolean;
     /**
      * Record what the MIDI effect produced rather than what was played.
      *

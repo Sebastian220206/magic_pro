@@ -76,6 +76,24 @@ export interface Clip {
      * other kind of region.
      */
     drummerSettings?: import('@/lib/drummerPattern').DrummerSettings;
+    bassSettings?: import('@/lib/bassPlayer').BassSettings;
+    keyboardSettings?: import('@/lib/keyboardPlayer').KeyboardSettings;
+    /**
+     * Chords written on the region itself.
+     *
+     * The manual's region chords: when a Session Player region has its own,
+     * that player follows them instead of the global Chord track, which is how
+     * one section gets a different harmony from the rest of the song.
+     */
+    chords?: import('@/lib/chords').Chord[];
+    /**
+     * Which player this region is performed by.
+     *
+     * Normally the track's type, but the Session Player dialog can change it
+     * per region — the manual's Type pop-up — so a track can carry a bass
+     * verse and a keyboard chorus.
+     */
+    sessionPlayer?: 'drummer' | 'bass' | 'keyboard';
 
     // --- Waveform Visualisation ---
     waveformPeaks?: {

@@ -46,13 +46,20 @@ const files = walk(COMPONENTS).map(path => ({
 }));
 
 /**
- * Fixed pixel widths this file declares, e.g. `w-[900px]`.
+ * Fixed pixel widths this file forces on a phone, e.g. `w-[900px]`.
  *
- * `max-w-[720px]` is excluded — it is already a cap, and a naive `\bw-\[`
- * matches its tail because a word boundary sits between the hyphen and the `w`.
+ * Two things are excluded, both because they cannot reach a narrow viewport:
+ *
+ *   - `max-w-[720px]` is already a cap, and a naive `\bw-\[` matches its tail
+ *     because a word boundary sits between the hyphen and the `w`.
+ *   - anything behind a breakpoint — `md:min-w-[560px]` applies from 768px up
+ *     and by definition never applies to a phone. Counting those made the
+ *     audit demand a cap against a width the phone is never given, which is a
+ *     false positive of exactly the kind that teaches people to ignore a test.
  */
 function fixedWidths(source: string): number[] {
-    return [...source.matchAll(/(?<!max-)\bw-\[(\d+)px\]/g)].map(m => Number(m[1]));
+    return [...source.matchAll(/(?<!max-)(?<!:)(?<!:min-)\bw-\[(\d+)px\]/g)]
+        .map(m => Number(m[1]));
 }
 
 /**

@@ -2,8 +2,11 @@ import { create } from 'zustand';
 import { audioEngine } from '@/engine/AudioEngineAdapter';
 import { Track, TrackAlternative, PluginSetting } from '@/models/Track';
 import { Clip, Note, ClipType } from '@/models/Clip';
-import { recordedClipType } from '@/lib/trackKinds';
-import { createChordTrigger, type ChordTrigger } from '@/engine/midi/fx/chordTrigger';
+import { recordedClipType } from '@/lib/trackKinds'
+import type { Chord } from '@/lib/chords';
+import { midiFxChain } from '@/engine/midi/fx/chain';
+import type { MidiFxSettings, MidiFxSettingsMap } from '@/lib/midiFxSettings';
+import type { MidiFxId } from '@/lib/midiFxCatalog';
 import { TimelineAnnotation } from '@/models/Annotation';
 import { ArticulationSet, Articulation } from '@/models/Articulation';
 import { libraryData, Preset } from '@/lib/libraryData';
@@ -75,6 +78,14 @@ interface GlobalTracks {
     markers: { id: string; time: number; duration: number; text: string; color: string }[];
     signature: { time: number; numerator: number; denominator: number }[];
     key: { time: number; root: string; mode: 'major' | 'minor' }[];
+    /**
+     * The Chord track.
+     *
+     * The manual puts chords in two places: here, where every Session Player
+     * can follow them and stay in sync, and on individual regions, which
+     * override this for that region alone.
+     */
+    chords: Chord[];
     beatMapping: BeatMappingEntry[];
 }
 
@@ -430,6 +441,8 @@ interface ProjectState {
     showTrackHeaderConfig: boolean;
     trackHeaderWidth: number;
     openPluginEditor: { trackId: string; pluginId: string } | null;
+    /** Track whose MIDI FX plug-in window is open. One slot, so no plugin id. */
+    openMidiFxEditor: { trackId: string } | null;
     hoveredHelpId: string | null;
     trackHeaderConfig: {
         showMute: boolean;
@@ -558,6 +571,12 @@ interface ProjectState {
     createTrackStack: (trackIds: string[], type: 'Folder' | 'Summing') => void;
     flattenStack: (stackId: string) => void;
     addMarker: (time: number, text: string, duration?: number) => void;
+    /** Write a chord onto the global Chord track. */
+    addChord: (chord: Chord) => void;
+    updateChord: (id: string, changes: Partial<Chord>) => void;
+    deleteChord: (id: string) => void;
+    /** Replace the whole Chord track — used when applying a progression. */
+    setChordTrack: (chords: Chord[]) => void;
     updateTempoPoint: (index: number, updates: Partial<GlobalTrackPoint>) => void;
     setProjectFileDialog: (dialog: ProjectState['projectFileDialog']) => void;
     setProjectExportStatus: (status: string | null) => void;
@@ -861,7 +880,7 @@ interface ProjectState {
     applyPatch: (trackId: string, presetId: string) => void;
 
     // --- New Professional Track Actions ---
-    updateTrackParameter: (trackId: string, params: Partial<Pick<Track, 'protected' | 'frozen' | 'enabled' | 'freezeMode'>>) => void;
+    updateTrackParameter: (trackId: string, params: Partial<Pick<Track, 'protected' | 'frozen' | 'enabled' | 'freezeMode' | 'midiFxBypass'>>) => void;
     /** Render a track offline and play the render instead of its source. */
     freezeTrack: (trackId: string) => Promise<void>;
     /** Restore a frozen track's source material. */
@@ -981,6 +1000,20 @@ interface ProjectState {
     toggleShareDialog: (show?: boolean) => void;
     shareProject: (options: { format: 'project' | 'song' | 'aaf' | 'xml' | 'musicxml'; destination: 'download' | 'web-share'; includeAssets: boolean; compress: boolean; customName: string}) => Promise<void>;
     setOpenPluginEditor: (editor: { trackId: string; pluginId: string } | null) => void;
+    setOpenMidiFxEditor: (editor: { trackId: string } | null) => void;
+    /**
+     * Write settings for one MIDI effect on one track.
+     *
+     * `replace` swaps the whole record rather than merging into it, which is
+     * what Compare needs — a merge would leave any control the held set did not
+     * mention sitting at its current value.
+     */
+    updateMidiFxSettings: (
+        trackId: string,
+        fxId: MidiFxId,
+        patch: MidiFxSettings,
+        options?: { replace?: boolean },
+    ) => void;
     toggleVirtualKeyboard: (show?: boolean) => void;
     setVirtualKeyboardMode: (mode: ProjectState['virtualKeyboardMode']) => void;
     updateVirtualKeyboardParams: (updates: Partial<{ octave: number, velocity: number, pitchBend: number, modulation: number, sustain: boolean }>) => void;
@@ -1303,26 +1336,20 @@ let recordedNoteSeq = 0;
 const MIN_RECORDED_NOTE_BEATS = 0.125;
 
 /**
- * Live MIDI-effect processors, one per track, keyed by track id.
+ * The track as `engine/midi/fx/chain` needs to see it.
  *
- * Held outside the store because they carry sounding-voice state rather than
- * project data, and are rebuilt from `track.midiFx` on demand. `engine/midi/fx`
- * had working processors that nothing imported; this is what reaches them.
+ * A bypassed slot is reported as empty rather than checked separately, so
+ * bypass cannot be honoured in one of the two note paths and missed in the
+ * other — the chain then returns the note untouched, which is what bypass
+ * means.
  */
-const midiFxProcessors = new Map<string, ChordTrigger>();
-
-/** The chord trigger for a track, or null when the slot is empty. */
-function chordTriggerFor(track: { id: string; midiFx?: string | null } | undefined): ChordTrigger | null {
-    if (!track || track.midiFx !== 'chordTrigger') {
-        if (track) midiFxProcessors.delete(track.id);
-        return null;
-    }
-    let processor = midiFxProcessors.get(track.id);
-    if (!processor) {
-        processor = createChordTrigger();
-        midiFxProcessors.set(track.id, processor);
-    }
-    return processor;
+function midiFxView(track: Track | undefined) {
+    if (!track || track.midiFxBypass) return undefined;
+    return {
+        id: track.id,
+        midiFx: track.midiFx,
+        midiFxSettings: track.midiFxSettings,
+    };
 }
 
 /**
@@ -1424,6 +1451,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         markers: [],
         signature: [{ time: 0, numerator: 4, denominator: 4 }],
         key: [{ time: 0, root: 'C', mode: 'major' }],
+        chords: [],
         beatMapping: []
     },
     settings: {
@@ -1794,6 +1822,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     showTrackHeaderConfig: false,
     trackHeaderWidth: 280,
     openPluginEditor: null,
+    openMidiFxEditor: null,
     hoveredHelpId: null,
     trackHeaderConfig: {
         showMute: true,
@@ -2281,6 +2310,44 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     removeBeatMappingEntry: (entryId) => set(s => ({ globalTracks: { ...s.globalTracks, beatMapping: s.globalTracks.beatMapping.filter(e => e.id !== entryId) } })),
 
     clearBeatMapping: () => set(s => ({ globalTracks: { ...s.globalTracks, beatMapping: [] } })),
+
+    /*
+     * The Chord track.
+     *
+     * Chords are sorted on the way in, so everything downstream can assume
+     * they are in order — `chordAt` and `harmonyFor` both read them as a
+     * sequence, and an out-of-order write would make a region play its chords
+     * in the order they were typed rather than the order they sound.
+     */
+    addChord: (chord) => set(s => ({
+        globalTracks: {
+            ...s.globalTracks,
+            chords: [...(s.globalTracks.chords ?? []), chord].sort((a, b) => a.start - b.start),
+        },
+    })),
+
+    updateChord: (id, changes) => set(s => ({
+        globalTracks: {
+            ...s.globalTracks,
+            chords: (s.globalTracks.chords ?? [])
+                .map(c => (c.id === id ? { ...c, ...changes } : c))
+                .sort((a, b) => a.start - b.start),
+        },
+    })),
+
+    deleteChord: (id) => set(s => ({
+        globalTracks: {
+            ...s.globalTracks,
+            chords: (s.globalTracks.chords ?? []).filter(c => c.id !== id),
+        },
+    })),
+
+    setChordTrack: (chords) => set(s => ({
+        globalTracks: {
+            ...s.globalTracks,
+            chords: [...chords].sort((a, b) => a.start - b.start),
+        },
+    })),
 
     applyBeatMappingToTempo: () => set(s => {
         const mappings = [...(s.globalTracks.beatMapping || [])].sort((a, b) => a.targetTime - b.targetTime);
@@ -4699,6 +4766,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     toggleVirtualKeyboard: (show) => set(s => ({ showVirtualKeyboard: show !== undefined ? show : !s.showVirtualKeyboard })),
     setVirtualKeyboardMode: (mode) => set({ virtualKeyboardMode: mode }),
     setOpenPluginEditor: (editor) => set({ openPluginEditor: editor }),
+    setOpenMidiFxEditor: (editor) => set({ openMidiFxEditor: editor }),
+
+    updateMidiFxSettings: (trackId, fxId, patch, options) => set(s => ({
+        tracks: s.tracks.map(t => {
+            if (t.id !== trackId) return t;
+            const existing = t.midiFxSettings ?? {};
+            // `replace` is how Compare swaps a whole settings object back in;
+            // merging there would leave any control the held set omitted at
+            // its current value, which is not a comparison.
+            const next = options?.replace
+                ? { ...patch }
+                : { ...(existing[fxId] ?? {}), ...patch };
+            return { ...t, midiFxSettings: { ...existing, [fxId]: next } };
+        }),
+    })),
     updateVirtualKeyboardParams: (updates) => {
         set(s => ({
             virtualKeyboardOctave: updates.octave !== undefined ? updates.octave : s.virtualKeyboardOctave,
@@ -4862,13 +4944,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const repeatRate = (targetTrackId === focusedTrackId && noteRepeatSettings.enabled) ? noteRepeatSettings.rate : undefined;
 
         // A MIDI effect in the strip's slot rewrites the note before it is
-        // played. One key in, a chord out.
-        const chordTrigger = chordTriggerFor(targetTrack);
-        const sounded = chordTrigger
-            ? chordTrigger.noteOn(pitch, velocity)
-                .filter(e => e.type === 'note-on')
-                .map(e => ({ pitch: e.pitch, velocity: e.velocity }))
-            : [{ pitch, velocity }];
+        // played. One key in, a chord out — or, for the Arpeggiator, nothing
+        // now and a stream of notes from the transport tick instead, which is
+        // why an empty result here is not a reason to fall back to the raw
+        // pitch.
+        const sounded = midiFxChain.noteOn(midiFxView(targetTrack), pitch, velocity);
 
         // Pass the track's instrument: without it the engine cannot reach the
         // sampler backends and every note fell through to the built-in synth.
@@ -4970,13 +5050,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         // Release whatever the effect sounded, not just the key pressed —
         // otherwise a chord trigger leaves its upper notes ringing.
         const releasingTrack = tracks.find(t => t.id === targetTrackId);
-        const chordTrigger = chordTriggerFor(releasingTrack);
-        if (chordTrigger) {
-            for (const event of chordTrigger.noteOff(pitch)) {
-                if (event.type === 'note-off') audioEngine.releaseNote(targetTrackId, event.pitch);
-            }
-        } else {
-            audioEngine.releaseNote(targetTrackId, pitch);
+        for (const released of midiFxChain.noteOff(midiFxView(releasingTrack), pitch)) {
+            audioEngine.releaseNote(targetTrackId, released);
         }
 
         // Update flashback buffer durations on note release
@@ -5846,6 +5921,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 markers: [],
                 signature: [{ time: 0, numerator: num || 4, denominator: den || 4 }],
                 key: [{ time: 0, root: root || 'C', mode: (mode?.toLowerCase() === 'minor' ? 'minor' : 'major') }],
+                chords: [],
                 beatMapping: []
             }
         });
@@ -6593,3 +6669,43 @@ if (typeof window !== 'undefined') {
     }
 }
 
+
+// ─── MIDI FX generators ──────────────────────────────────────────────────────
+
+/**
+ * Drive the Arpeggiator from the transport.
+ *
+ * The catalogue's reason for the Arpeggiator being unavailable was that it
+ * "needs a clock tick from the scheduler, which nothing calls yet". The
+ * scheduler was already emitting one: `transportTick` fires every 25 ms off the
+ * AudioContext clock, and only the UI and a diagnostics overlay listened. So
+ * nothing in the transport loop had to change — this subscribes to the event
+ * that was being thrown away.
+ *
+ * Notes an arpeggiator produces are sounded, not recorded. They are generated
+ * from held keys rather than played, so a take captures the keys you held,
+ * which is what lets the pattern be changed after the fact.
+ */
+if (typeof window !== 'undefined') {
+    midiFxChain.setSink({
+        noteOn(trackId, pitch, velocity) {
+            const track = useProjectStore.getState().tracks.find(t => t.id === trackId);
+            audioEngine.triggerNote(trackId, pitch, velocity, undefined, track?.instrument);
+        },
+        noteOff(trackId, pitch) {
+            audioEngine.releaseNote(trackId, pitch);
+        },
+    });
+
+    void import('@/engine/audioEngine/scheduler').then(({ advancedScheduler }) => {
+        advancedScheduler.addEventListener(event => {
+            if (event.type === 'transportTick') {
+                midiFxChain.tick(event.beat);
+            } else if (event.type === 'playbackStopped') {
+                // Held notes would otherwise keep sounding after the transport
+                // stops, since the arpeggiator's note-offs come from the tick.
+                midiFxChain.stopAll();
+            }
+        });
+    });
+}

@@ -146,6 +146,8 @@ export interface DrummerSettings {
      * part through a chorus.
      */
     followTrackId: string | null;
+    /** Place rhythmic emphasis where the chords change. */
+    followChords: boolean;
     /** Fills and swing can be pinned so a change of preset leaves them alone. */
     lockFills: boolean;
     lockSwing: boolean;
@@ -176,6 +178,7 @@ export const DEFAULT_DRUMMER_SETTINGS: DrummerSettings = {
     phraseVariation: 0.2,
     manual: null,
     followTrackId: null,
+    followChords: true,
     lockFills: false,
     lockSwing: false,
     seed: 1,
@@ -317,7 +320,14 @@ function stepToBeats(
     const period = swingGrid === '8th' ? 2 : 1; // in sixteenths
     const isOffbeat = (step / period) % 2 >= 1;
     const swungBy = isOffbeat ? (clamp01(swing) * period * 0.5) / 4 : 0;
-    const pushed = (Number.isFinite(feel) ? Math.max(-1, Math.min(1, feel)) : 0) * 0.03;
+    /*
+     * Feel: up is ahead of the beat, down is behind it.
+     *
+     * Ahead means *earlier*, so the sign is negated. Written without it, the
+     * knob labelled Pull / Push moved the part the wrong way at both ends —
+     * the drummer's own test had encoded the inversion as if it were correct.
+     */
+    const pushed = -(Number.isFinite(feel) ? Math.max(-1, Math.min(1, feel)) : 0) * 0.03;
     return beats + swungBy + pushed;
 }
 
@@ -464,6 +474,14 @@ export interface DrummerContext {
     tempo?: number;
     /** Beat positions of the followed track's notes, relative to the region. */
     followOnsets?: readonly number[];
+    /**
+     * Beat positions where the harmony changes.
+     *
+     * The Drummer has no chords of its own — it is told where they change so
+     * `followChords` can mark them, which is the manual's "place rhythmic
+     * emphasis on chord changes".
+     */
+    chordChanges?: readonly number[];
 }
 
 /**
@@ -526,7 +544,7 @@ function manualNotes(
  */
 export function generateDrummerPattern(
     settings: DrummerSettings,
-    { bars, beatsPerBar = 4, tempo = DRUMMER_NATIVE_TEMPO, followOnsets }: DrummerContext,
+    { bars, beatsPerBar = 4, tempo = DRUMMER_NATIVE_TEMPO, followOnsets, chordChanges }: DrummerContext,
 ): DrummerNote[] {
     const notes: DrummerNote[] = [];
     if (!(bars > 0)) return notes;
@@ -575,6 +593,24 @@ export function generateDrummerPattern(
         /** Whether the followed track puts a note on this step of this bar. */
         const followedHere = (step: number) =>
             !!follow && follow.has(Math.round(((pb * beatsPerBar + step / 4) / rate) * 4));
+
+        /*
+         * A chord change the drummer marks: a crash on the change itself, the
+         * gesture a drummer actually uses to point at one.
+         */
+        if (settings.followChords && chordChanges?.length && settings.pieces.hat) {
+            for (const change of chordChanges) {
+                if (change <= 0 || change >= regionBeats) continue;
+                const at = Math.round((change * rate - pb * beatsPerBar) * 4);
+                if (at < 0 || at >= stepsPerBar) continue;
+                push({
+                    pitch: crashPitch(settings.cymbals),
+                    start: place(pb, at, pb * 16 + at + 0.42),
+                    duration: 1,
+                    velocity: shapeVelocity(0.85, settings, pb * 16 + at + 0.42),
+                });
+            }
+        }
 
         if (settings.pieces.kick) {
             const played = survivingSteps(pattern.kick, complexity);

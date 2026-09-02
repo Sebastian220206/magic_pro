@@ -40,8 +40,10 @@ import { SpotEraseDialog } from "@/components/SpotEraseDialog"
 import { StepInputKeyboard } from "@/components/StepInputKeyboard"
 import { AudioTrackEditor } from "@/components/AudioTrackEditor"
 import { PluginEditorWindow } from "@/components/PluginEditorWindow"
+import { MidiFxWindow } from "@/components/midifx/MidiFxWindow"
 import { PluginBrowser } from "@/components/plugins/PluginBrowser"
 import { SessionPlayer } from "@/components/SessionPlayer"
+import { playerForTrackType } from "@/lib/sessionStyles"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { ProjectFileDialogs } from "@/components/ProjectFileDialogs"
 import { RecordingStatus } from "@/components/RecordingStatus"
@@ -174,8 +176,15 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
     useOutputDevice();
 
     /** Which editor the Editors button opens, from the track you are on. */
+    /*
+     * The Editors button opens the editor the focused track needs.
+     *
+     * Three track types carry a Session Player now, not one — this asked only
+     * for 'drummer', so a Bass Player track got the piano roll and its whole
+     * editor was unreachable.
+     */
     const focusedTrackIsDrummer = useProjectStore(
-        s => s.tracks.some(t => t.id === s.focusedTrackId && t.type === 'drummer'));
+        s => s.tracks.some(t => t.id === s.focusedTrackId && !!playerForTrackType(t.type)));
 
     return (
         /*
@@ -494,6 +503,7 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
             )}
             <ErrorBoundary name="PluginEditor">
                 <PluginEditorWindow />
+                <MidiFxWindow />
 
                 {pluginBrowserTrackId && (
                     <ErrorBoundary zone="panel" name="PluginBrowser">

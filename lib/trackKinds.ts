@@ -14,6 +14,8 @@ const MIDI_TRACK_TYPES: ReadonlySet<string> = new Set<TrackType>([
     'midi',
     'software-instrument',
     'drummer',
+    'bass-player',
+    'keyboard-player',
     'external-midi',
 ]);
 

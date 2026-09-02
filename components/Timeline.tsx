@@ -19,6 +19,9 @@ import {
     generateDrummerPattern,
     DEFAULT_DRUMMER_SETTINGS,
 } from '@/lib/drummerPattern'
+import { generateBassLine, DEFAULT_BASS_SETTINGS } from '@/lib/bassPlayer'
+import { generateKeyboardPart, DEFAULT_KEYBOARD_SETTINGS } from '@/lib/keyboardPlayer'
+import { playerForTrackType, PLAYER_LABEL, type SessionPlayerKind } from '@/lib/sessionStyles'
 
 export function Timeline() {
     const {
@@ -448,23 +451,23 @@ export function Timeline() {
                  */
                 if (isMidiTrackType(clickedTrack.type)) {
                     const snappedStart = getSnapValue(startTime);
-                    const isDrummer = clickedTrack.type === 'drummer';
+                    const player = playerForTrackType(clickedTrack.type);
                     const bars = Math.max(1, Math.round(4 / beatsPerBar)) * beatsPerBar;
                     useProjectStore.getState().addClip({
                         id: `clip-${Date.now()}`,
                         trackId: clickedTrackId,
-                        name: isDrummer ? 'Drummer' : 'MIDI Region',
+                        name: player ? PLAYER_LABEL[player] : 'MIDI Region',
                         start: snappedStart,
-                        duration: isDrummer ? beatsPerBar * 4 : bars,
+                        duration: player ? beatsPerBar * 4 : bars,
                         type: 'midi',
                         color: clickedTrack.color || '#63ed63',
                         alternativeId: clickedTrack.activeAlternativeId,
                         /*
-                         * A drummer region arrives playing. Drawing one and
-                         * finding it silent until you open the Session Player
-                         * and move a control is not what the pencil promises.
+                         * A Session Player region arrives playing. Drawing one
+                         * and finding it silent until you open the editor and
+                         * move a control is not what the pencil promises.
                          */
-                        ...(isDrummer ? drummerRegionSeed(beatsPerBar) : {}),
+                        ...(player ? sessionRegionSeed(player, beatsPerBar) : {}),
                     } as any);
                 }
             }
@@ -1285,23 +1288,40 @@ export function Timeline() {
  * the same clip started. Both now share the region's inset and its scale.
  */
 /**
- * What a freshly drawn drummer region contains.
+ * What a freshly drawn Session Player region contains.
  *
- * The Session Player's settings are the score and the notes are the render, so
- * a new region carries both — otherwise drawing one gives you a silent block
- * until you happen to open the panel and nudge something.
+ * The player's settings are the score and the notes are the render, so a new
+ * region carries both — otherwise drawing one gives you a silent block until
+ * you happen to open the editor and nudge something.
+ *
+ * The Bass and Keyboard Players have no chords yet at this point, so they play
+ * the tonic of the project key. That is what the manual specifies, and it is
+ * the difference between a region that sounds plain and one that sounds broken.
  */
-function drummerRegionSeed(beatsPerBar: number) {
+function sessionRegionSeed(player: SessionPlayerKind, beatsPerBar: number) {
     const bars = 4;
-    const notes = generateDrummerPattern(DEFAULT_DRUMMER_SETTINGS, { bars, beatsPerBar })
-        .map((n, i) => ({
-            id: `drum-new-${i}`,
-            pitch: n.pitch,
-            start: n.start,
-            duration: n.duration,
-            velocity: Math.round(n.velocity * 127),
-        }));
-    return { drummerSettings: DEFAULT_DRUMMER_SETTINGS, notes };
+    const keySignature = useProjectStore.getState().keySignature;
+    const raw = player === 'drummer'
+        ? generateDrummerPattern(DEFAULT_DRUMMER_SETTINGS, { bars, beatsPerBar })
+        : player === 'bass'
+            ? generateBassLine(DEFAULT_BASS_SETTINGS, { bars, beatsPerBar, keySignature })
+            : generateKeyboardPart(DEFAULT_KEYBOARD_SETTINGS, { bars, beatsPerBar, keySignature });
+
+    const notes = raw.map((n, i) => ({
+        id: `sp-new-${i}`,
+        pitch: n.pitch,
+        start: n.start,
+        duration: n.duration,
+        velocity: Math.round(n.velocity * 127),
+    }));
+
+    return {
+        notes,
+        sessionPlayer: player,
+        ...(player === 'drummer' ? { drummerSettings: DEFAULT_DRUMMER_SETTINGS } : {}),
+        ...(player === 'bass' ? { bassSettings: DEFAULT_BASS_SETTINGS } : {}),
+        ...(player === 'keyboard' ? { keyboardSettings: DEFAULT_KEYBOARD_SETTINGS } : {}),
+    };
 }
 
 function MIDIPoints({ clip, pixelsPerBeat }: { clip: Clip; pixelsPerBeat: number }) {
