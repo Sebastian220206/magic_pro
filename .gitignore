@@ -82,6 +82,9 @@ tsc-errors.txt
 
 # Test fixtures and scratch
 scratch/
+patch-*.mjs
+test-*.mjs
+*.glb
 
 # Next.js build cache
 .next/

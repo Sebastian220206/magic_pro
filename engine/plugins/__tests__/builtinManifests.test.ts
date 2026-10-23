@@ -29,6 +29,20 @@ const REAL_PARAMS: Record<string, Record<string, number | string | boolean>> = {
     [BUILTIN_PLUGIN_IDS.limiter]: {
         ceiling: -0.3, release: 0.1, lookahead: 1,
     },
+    [BUILTIN_PLUGIN_IDS.saturation]: {
+        drive: 0.5, tone: 0.8, mix: 1, type: 'tube',
+    },
+    [BUILTIN_PLUGIN_IDS.widener]: {
+        width: 1, mono: false,
+    },
+    [BUILTIN_PLUGIN_IDS.vintageEq]: {
+        type: 'pultec', lowBoost: 0, lowCut: 0, lowFreq: 100,
+        highBoost: 0, highCut: 0, highFreq: 10, bandwidth: 5,
+        highPassFreq: 20, lowPassFreq: 20000,
+        bell1Freq: 1000, bell1Gain: 0, bell1Q: 1,
+        bell2Freq: 500, bell2Gain: 0, bell2Q: 1,
+        saturationDrive: 0, transformerColor: false,
+    },
 };
 
 describe('built-in plugin manifests', () => {

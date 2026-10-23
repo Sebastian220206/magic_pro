@@ -27,19 +27,42 @@ export function LiveLoopsGrid() {
     const duplicateClip = useProjectStore((state) => state.duplicateClip);
     const deleteClip = useProjectStore((state) => state.deleteClip);
 
-    const [activeCells, setActiveCells] = useState<Record<string, number | null>>({});
+    const liveLoops = useProjectStore((state) => state.liveLoops);
+    const setLiveLoopsCellState = useProjectStore((state) => state.setLiveLoopsCellState);
+    const setLiveLoopsSceneName = useProjectStore((state) => state.setLiveLoopsSceneName);
+    const setLiveLoopsQuantizeMode = useProjectStore((state) => state.setLiveLoopsQuantizeMode);
+    const setLiveLoopsActiveCells = useProjectStore((state) => state.setLiveLoopsActiveCells);
+    const toggleLiveLoopsRecordingToArrangement = useProjectStore((state) => state.toggleLiveLoopsRecordingToArrangement);
+    const addClip = useProjectStore((state) => state.addClip);
+
+    const cellStates = liveLoops.cellStates;
+    const sceneNames = liveLoops.sceneNames;
+    const quantizeMode = liveLoops.quantizeMode;
+    const activeCells = liveLoops.activeCells;
+    const isRecordingToArrangement = liveLoops.isRecordingToArrangement;
+
     const [queuedCells, setQueuedCells] = useState<Record<string, boolean>>({});
     const [selectedCells, setSelectedCells] = useState<Record<string, boolean>>({});
-    const [cellStates, setCellStates] = useState<Record<string, LiveLoopCellState>>({});
-    const [sceneNames, setSceneNames] = useState<Record<number, string>>({});
     const [gridStopMode, setGridStopMode] = useState<'stop' | 'pause'>('stop');
     const [sceneCount, setSceneCount] = useState(DEFAULT_SCENES);
     const [barsPerScene, setBarsPerScene] = useState(1);
-    const [quantizeMode, setQuantizeMode] = useState<QuantizeMode>('bar');
     const [lastSelectedCell, setLastSelectedCell] = useState<string | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; trackId: string; sceneIndex: number; key: string } | null>(null);
 
     const previousPlayheadRef = useRef<number>(playhead);
+    const setActiveCells = (fnOrVal: Record<string, number | null> | ((prev: Record<string, number | null>) => Record<string, number | null>)) => {
+        const next = typeof fnOrVal === 'function' ? fnOrVal(activeCells) : fnOrVal;
+        setLiveLoopsActiveCells(next);
+    };
+    const setCellStates = (fnOrVal: Record<string, LiveLoopCellState> | ((prev: Record<string, LiveLoopCellState>) => Record<string, LiveLoopCellState>)) => {
+        const next = typeof fnOrVal === 'function' ? fnOrVal(cellStates) : fnOrVal;
+        Object.keys(next).forEach(k => setLiveLoopsCellState(k, next[k]));
+    };
+    const setSceneNames = (fnOrVal: Record<number, string> | ((prev: Record<number, string>) => Record<number, string>)) => {
+        const next = typeof fnOrVal === 'function' ? fnOrVal(sceneNames) : fnOrVal;
+        Object.keys(next).forEach(k => setLiveLoopsSceneName(Number(k), next[Number(k)]));
+    };
+    const setQuantizeMode = (mode: QuantizeMode) => setLiveLoopsQuantizeMode(mode);
 
     const trackRows = useMemo(() => {
         if (tracks.length > 0) return tracks;
@@ -91,10 +114,25 @@ export function LiveLoopsGrid() {
             const clip = clips.find((c) => c.id === cell.clipId);
             if (clip) {
                 audioEngine.playRegion(trackId, clip, playhead);
+
+                // If recording performance to arrangement, print this clip onto the timeline
+                if (isRecordingToArrangement) {
+                    const dur = clip.duration || (barsPerScene * 4);
+                    addClip({
+                        ...clip,
+                        id: `live-rec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                        trackId,
+                        start: playhead,
+                        startBeat: playhead,
+                        startTime: playhead,
+                        duration: dur,
+                        name: `${clip.name || 'Live Loop'} (Rec)`,
+                    });
+                }
             }
         }
 
-        setActiveCells((prev) => ({ ...prev, [trackId]: sceneIndex }));
+        setActiveCells((prev: any) => ({ ...prev, [trackId]: sceneIndex }));
         setQueuedCells((prev) => ({ ...prev, [key]: false }));
     };
 
@@ -113,6 +151,21 @@ export function LiveLoopsGrid() {
                 const clip = clips.find((c) => c.id === cell.clipId);
                 if (clip) {
                     audioEngine.playRegion(trackId, clip, playhead);
+
+                    // If recording performance to arrangement, print this clip onto the timeline
+                    if (isRecordingToArrangement) {
+                        const dur = clip.duration || (barsPerScene * 4);
+                        addClip({
+                            ...clip,
+                            id: `live-rec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                            trackId,
+                            start: playhead,
+                            startBeat: playhead,
+                            startTime: playhead,
+                            duration: dur,
+                            name: `${clip.name || 'Live Loop'} (Rec)`,
+                        });
+                    }
                 }
             }
             nextActive[trackId] = sceneIndex;
@@ -330,7 +383,14 @@ export function LiveLoopsGrid() {
                         </select>
                     </label>
                 </div>
-                <div className="flex-1" />
+                <button
+                    onClick={() => toggleLiveLoopsRecordingToArrangement()}
+                    className={`rounded-md border px-3 py-1 text-xs font-bold transition-all flex items-center gap-1.5 ${isRecordingToArrangement ? 'bg-red-500/25 border-red-500 text-red-300 shadow-[0_0_12px_rgba(239,68,68,0.4)] animate-pulse' : 'border-white/20 text-white/80 hover:bg-white/10'}`}
+                    title="Print triggered Live Loops directly to the Arrangement Timeline"
+                >
+                    <div className={`w-2 h-2 rounded-full ${isRecordingToArrangement ? 'bg-red-500' : 'bg-red-400/60'}`} />
+                    <span>Rec to Track {isRecordingToArrangement ? 'ON' : 'OFF'}</span>
+                </button>
                 <button
                     onClick={(e) => {
                         if (e.altKey) {

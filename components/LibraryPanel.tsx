@@ -9,6 +9,8 @@ import {
 import { useProjectStore } from '@/store/projectStore'
 import { libraryData, Preset, Category } from '@/lib/libraryData'
 import { useInstruments } from '@/hooks/useInstruments'
+import { SoundFontPanel } from './SoundFontPanel'
+import { BUILTIN_TRACK_TEMPLATES } from '@/engine/project/trackTemplatePresets'
 
 interface SoundFontItem {
     id: string
@@ -47,6 +49,7 @@ export function LibraryPanel() {
 
     const [selectedCategory, setSelectedCategory] = useState<Category | null>(libraryData[0])
     const [showActionsMenu, setShowActionsMenu] = useState(false)
+    const [showSoundFontManager, setShowSoundFontManager] = useState(false)
     const [dynamicSoundFonts, setDynamicSoundFonts] = useState<SoundFontItem[]>([])
     const [loadingSoundFonts, setLoadingSoundFonts] = useState(true)
     const [soundFontsError, setSoundFontsError] = useState<string | null>(null)
@@ -75,9 +78,26 @@ export function LibraryPanel() {
         fetchSoundFonts()
     }, [])
 
-    // Build categories: static + each uploaded SoundFont as its own category
+    // Build categories: static + Factory Channel Strip Patches + SoundFonts
     const categories = useMemo(() => {
         const cats = [...libraryData]
+
+        // Add Channel Strip Patches category from BUILTIN_TRACK_TEMPLATES
+        const patchCategory: Category = {
+            name: "Channel Strip Patches",
+            presets: BUILTIN_TRACK_TEMPLATES.map(tmpl => ({
+                id: tmpl.id,
+                name: tmpl.name,
+                type: 'instrument',
+                category: 'Channel Strip Patches',
+                engine: 'sampler',
+                description: tmpl.description,
+                icon: tmpl.category === 'vocals' ? 'mic' : tmpl.category === 'drums' ? 'drum' : tmpl.category === 'bass' ? 'speaker' : 'music',
+                color: tmpl.color,
+                tags: tmpl.tags,
+            }))
+        }
+        cats.unshift(patchCategory)
 
         dynamicSoundFonts.forEach(sf => {
             cats.push({
@@ -347,12 +367,19 @@ onClick={() => setShowActionsMenu(!showActionsMenu)}
                                 <ChevronDown className="w-2 h-2 ml-0.5 opacity-50" />
                             </button>
                             {showActionsMenu && (
-                                <div className="absolute bottom-full left-0 mb-2 w-48 bg-studio-control border border-white/10 rounded-lg shadow-2xl z-[100] py-1 overflow-hidden">
+                                <div className="absolute bottom-full left-0 mb-2 w-52 bg-studio-control border border-white/10 rounded-lg shadow-2xl z-[100] py-1 overflow-hidden">
                                     <button
                                         className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors flex items-center justify-between"
                                         onClick={() => { toggleLibraryPatchMerging(!libraryPatchMerging); setShowActionsMenu(false); }}
                                     >
                                         {libraryPatchMerging ? 'Disable Patch Merging' : 'Enable Patch Merging'}
+                                    </button>
+                                    <div className="h-px bg-white/5 my-1" />
+                                    <button
+                                        className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors flex items-center justify-between"
+                                        onClick={() => { setShowSoundFontManager(true); setShowActionsMenu(false); }}
+                                    >
+                                        Manage SoundFonts (.sf2)...
                                     </button>
                                     <div className="h-px bg-white/5 my-1" />
                                     <button className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors">Search Results to Track...</button>
@@ -375,6 +402,25 @@ onClick={() => setShowActionsMenu(!showActionsMenu)}
                 </div>
             </div>
 
+            {/* SoundFont Manager Modal */}
+            {showSoundFontManager && focusedTrackId && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-studio-panel border border-studio-line rounded-xl shadow-2xl w-[480px] max-h-[80vh] flex flex-col overflow-hidden relative">
+                        <div className="px-4 py-3 bg-studio-control border-b border-studio-line flex items-center justify-between">
+                            <span className="text-xs font-black text-white uppercase tracking-wider">SoundFont Manager</span>
+                            <button
+                                onClick={() => setShowSoundFontManager(false)}
+                                className="p-1 rounded text-studio-text-dim hover:text-white hover:bg-white/10"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto flex-1">
+                            <SoundFontPanel trackId={focusedTrackId} />
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     )

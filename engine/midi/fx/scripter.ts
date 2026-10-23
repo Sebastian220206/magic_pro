@@ -78,6 +78,8 @@ export class Scripter {
   private config: ScripterConfig;
   private sandbox: ScripterSandbox;
   private listeners: Array<(event: ScripterOutputEvent) => void> = [];
+  /** Message from the last failed compile, surfaced in the editor. */
+  private lastError: string | null = null;
 
   constructor(config: Partial<ScripterConfig> = {}) {
     this.config = {
@@ -117,10 +119,34 @@ export class Scripter {
   public compile(): boolean {
     try {
       this.sandbox.compile();
+      this.lastError = null;
       return true;
     } catch (error) {
+      // Kept as well as logged: the editor has to put the message beside the
+      // script, and a console line is no use to someone typing into a panel.
+      this.lastError = error instanceof Error ? error.message : String(error);
       console.error('[Scripter] Compilation error:', error);
       return false;
+    }
+  }
+
+  /** Why the last compile failed, or null if it succeeded. */
+  public getLastError(): string | null {
+    return this.lastError;
+  }
+
+  /**
+   * The handlers the current script declares.
+   *
+   * The editor shows these so it is obvious when a script compiles cleanly but
+   * declares nothing the sandbox will ever call — a typo in `onNoteOn` is
+   * otherwise completely silent.
+   */
+  public getHandlerNames(): string[] {
+    try {
+      return this.sandbox.getHandlerNames();
+    } catch {
+      return [];
     }
   }
 
@@ -228,7 +254,20 @@ export class Scripter {
 
 class ScripterSandbox {
   private script: string;
-  private compiledFn: Function | null = null;
+  /**
+   * The handlers the script declared, or null before it has been compiled.
+   *
+   * This used to be a single `compiledFn` holding the script body, which
+   * `callFunction` then invoked with the event's arguments. That could never
+   * work: every preset in this file declares `function onNoteOn(pitch,
+   * velocity, beat)`, so running the body only *defined* that function and
+   * returned undefined — the arguments were passed to a body that declared no
+   * parameters to receive them, and no preset ever emitted a note. Compiling
+   * to a table of the handlers the script declared is what makes the documented
+   * API — `onNoteOn`, `onNoteOff`, `onTransportStart`, `onTransportStop` — the
+   * API the sandbox actually calls.
+   */
+  private handlers: Record<string, Function> | null = null;
   private variables: Map<string, unknown> = new Map();
   private outputBuffer: ScripterOutputEvent[] = [];
 
@@ -238,7 +277,7 @@ class ScripterSandbox {
 
   public setScript(script: string): void {
     this.script = script;
-    this.compiledFn = null;
+    this.handlers = null;
   }
 
   public compile(): void {
@@ -268,7 +307,12 @@ class ScripterSandbox {
       const getTempo = () => this.variables.get('tempo') ?? 120;
       const isTransportPlaying = () => this.variables.get('isPlaying') ?? false;
 
-      // Compile script
+      // The script's own body runs once, at compile time, so top-level
+      // declarations (`var scale = [...]` in the Scale Quantize preset) are
+      // evaluated once rather than on every note. The trailing return collects
+      // whichever handlers it declared; `typeof` rather than a direct
+      // reference, because naming a function the script did not declare is a
+      // ReferenceError that would fail the whole compile.
       const fn = new Function(
         'addNote',
         'removeNote',
@@ -277,10 +321,16 @@ class ScripterSandbox {
         'getCurrentBeat',
         'getTempo',
         'isTransportPlaying',
-        this.script
+        `${this.script}
+;return {
+  onNoteOn: typeof onNoteOn === 'function' ? onNoteOn : null,
+  onNoteOff: typeof onNoteOff === 'function' ? onNoteOff : null,
+  onTransportStart: typeof onTransportStart === 'function' ? onTransportStart : null,
+  onTransportStop: typeof onTransportStop === 'function' ? onTransportStop : null,
+};`
       );
 
-      this.compiledFn = fn.bind(null,
+      const declared = fn(
         addNote,
         removeNote,
         getNotes,
@@ -288,22 +338,37 @@ class ScripterSandbox {
         getCurrentBeat,
         getTempo,
         isTransportPlaying
-      );
+      ) as Record<string, Function | null>;
+
+      this.handlers = {};
+      for (const [name, handler] of Object.entries(declared)) {
+        if (typeof handler === 'function') this.handlers[name] = handler;
+      }
     } catch (error) {
       throw new Error(`Script compilation failed: ${error}`);
     }
   }
 
-  public callFunction(_functionName: string, ...args: unknown[]): unknown {
-    if (!this.compiledFn) {
+  /** Names of the handlers the compiled script declared. */
+  public getHandlerNames(): string[] {
+    if (!this.handlers) this.compile();
+    return Object.keys(this.handlers ?? {});
+  }
+
+  public callFunction(functionName: string, ...args: unknown[]): unknown {
+    if (!this.handlers) {
       this.compile();
     }
+
+    const handler = this.handlers?.[functionName];
+    // A script that handles note-ons and not note-offs is normal, not an
+    // error; there is simply nothing to run.
+    if (!handler) return [];
 
     this.outputBuffer = [];
 
     try {
-      // Call the compiled function
-      const result = this.compiledFn!(...args);
+      const result = handler(...args);
       return [...this.outputBuffer, ...(Array.isArray(result) ? result : [])];
     } catch (error) {
       console.error('[ScripterSandbox] Execution error:', error);

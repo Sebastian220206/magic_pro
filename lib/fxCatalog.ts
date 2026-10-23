@@ -43,10 +43,29 @@ export const FX_CATALOG: readonly FxCategory[] = [
         name: 'EQ',
         entries: [
             { name: 'Channel EQ', pluginId: BUILTIN_PLUGIN_IDS.eq },
+            // One vintage box voiced three ways: the circuit selects which
+            // filters the settings drive, the same preset idea as the reverb.
+            {
+                name: 'Pultec',
+                pluginId: BUILTIN_PLUGIN_IDS.vintageEq,
+                params: { type: 0, lowBoost: 3, lowFreq: 100, highBoost: 4, highFreq: 10 },
+            },
+            {
+                name: 'Neve 1073',
+                pluginId: BUILTIN_PLUGIN_IDS.vintageEq,
+                params: { type: 1, highPassFreq: 50, bell1Freq: 3500, bell1Gain: 3, bell2Freq: 220, bell2Gain: 2 },
+            },
+            {
+                name: 'SSL Channel',
+                pluginId: BUILTIN_PLUGIN_IDS.vintageEq,
+                params: { type: 2, highPassFreq: 40, bell1Freq: 8000, bell1Gain: 2, bell2Freq: 400, bell2Gain: 1.5 },
+            },
             {
                 name: 'Graphic EQ',
-                pluginId: null,
-                unavailable: 'Needs fixed-band filters; the Channel EQ is parametric',
+                pluginId: BUILTIN_PLUGIN_IDS.graphicEq,
+                // Arrives flat, like the Channel EQ: a preset curve would
+                // colour the track before a fader is touched.
+                params: {},
             },
         ],
     },
@@ -56,8 +75,16 @@ export const FX_CATALOG: readonly FxCategory[] = [
             { name: 'Compressor', pluginId: BUILTIN_PLUGIN_IDS.compressor },
             { name: 'Limiter', pluginId: BUILTIN_PLUGIN_IDS.limiter },
             { name: 'Sidechain Comp', pluginId: BUILTIN_PLUGIN_IDS.sidechainCompressor },
-            { name: 'Gate', pluginId: null, unavailable: NEEDS_WORKLET },
-            { name: 'Expander', pluginId: null, unavailable: NEEDS_WORKLET },
+            {
+                name: 'Gate',
+                pluginId: BUILTIN_PLUGIN_IDS.gate,
+                params: { thresholdDb: -24, attackMs: 1, holdMs: 50, releaseMs: 150, floorDb: -80 },
+            },
+            {
+                name: 'Expander',
+                pluginId: BUILTIN_PLUGIN_IDS.expander,
+                params: { thresholdDb: -24, ratio: 2, attackMs: 5, releaseMs: 120 },
+            },
         ],
     },
     {
@@ -117,10 +144,25 @@ export const FX_CATALOG: readonly FxCategory[] = [
     },
     {
         name: 'Distortion',
+        // One waveshaper voiced three ways; the character index selects the
+        // curve the drive feeds. `decodeBuiltinParams` turns it back into the
+        // string the DSP takes.
         entries: [
-            { name: 'Saturation', pluginId: null, unavailable: 'Needs a standalone waveshaper plugin' },
-            { name: 'Overdrive', pluginId: null, unavailable: 'Needs a standalone waveshaper plugin' },
-            { name: 'Distortion', pluginId: null, unavailable: 'Needs a standalone waveshaper plugin' },
+            {
+                name: 'Saturation',
+                pluginId: BUILTIN_PLUGIN_IDS.saturation,
+                params: { type: 0, drive: 0.35, tone: 0.8, mix: 1 },
+            },
+            {
+                name: 'Overdrive',
+                pluginId: BUILTIN_PLUGIN_IDS.saturation,
+                params: { type: 0, drive: 0.6, tone: 0.65, mix: 1 },
+            },
+            {
+                name: 'Distortion',
+                pluginId: BUILTIN_PLUGIN_IDS.saturation,
+                params: { type: 2, drive: 0.8, tone: 0.6, mix: 1 },
+            },
             { name: 'Bitcrusher', pluginId: null, unavailable: NEEDS_WORKLET },
         ],
     },
@@ -162,11 +204,8 @@ export const FX_CATALOG: readonly FxCategory[] = [
         entries: [
             {
                 name: 'Stereo Widener',
-                pluginId: null,
-                // The id exists in `pluginIds` and is resolved by name, but
-                // `processorFactory` has no builder for it, so inserting one
-                // produced a slot the chain skipped.
-                unavailable: 'Its id exists but nothing builds it yet',
+                pluginId: BUILTIN_PLUGIN_IDS.widener,
+                params: { width: 1.4 },
             },
             { name: 'Stereo Imager', pluginId: null, unavailable: 'Needs per-band width control' },
             { name: 'Utility', pluginId: null, unavailable: 'Needs a gain, pan, mono and polarity plugin' },

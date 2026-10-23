@@ -6,11 +6,13 @@ import { encodeWav, downloadWav } from './wavEncoder';
 import { useProjectStore } from '@/store/projectStore';
 import { recordingDelaySeconds } from '@/lib/audioLatency';
 import { resolveDevice } from '@/lib/resolveDevice';
+import { routingEngine } from '../audioEngine/routingEngine';
 
 export interface RecordingConfig {
   trackId: string;
   startTime: number;
   batchSize?: number;
+  channelCount?: 1 | 2;
 }
 
 export interface RecordingResult {
@@ -109,13 +111,13 @@ export class AudioRecorder {
    * A device that has gone missing is a reason to say so and use the default,
    * not a reason to record nothing.
    */
-  private async openInput(): Promise<MediaStream> {
+  private async openInput(channels: number = 2): Promise<MediaStream> {
     const { globalSettings } = useProjectStore.getState();
     const selected = globalSettings?.audio?.inputDevice;
     const wanted = selected && selected !== 'None' && selected !== 'default' ? selected : null;
 
     const base: MediaTrackConstraints = {
-      channelCount: 1,
+      channelCount: channels,
       echoCancellation: false,
       noiseSuppression: false,
       autoGainControl: false,
@@ -211,10 +213,19 @@ export class AudioRecorder {
         this.monitorGain.gain.value = this.isMonitoring ? 0.8 : 0;
       }
 
-      // Routing for Arm State
+      // Routing for Arm State: connect to analyser and monitorGain
       this.sourceNode.connect(this.analyserNode);
       this.sourceNode.connect(this.monitorGain);
-      this.monitorGain.connect(context.destination);
+
+      // Route monitor through the armed track's inputGain (so insert FX / EQ / compressor apply to monitor),
+      // falling back to context.destination if no track chain is found.
+      const armedTrack = useProjectStore.getState().tracks.find(t => t.recordEnabled || t.inputMonitoring);
+      const trackNodes = armedTrack ? routingEngine.getTrackNodes(armedTrack.id) : null;
+      if (trackNodes?.inputGain) {
+        this.monitorGain.connect(trackNodes.inputGain);
+      } else {
+        this.monitorGain.connect(context.destination);
+      }
 
       this.isArmed = true;
       console.log("[AudioRecorder] Armed | Metering and Monitoring live");

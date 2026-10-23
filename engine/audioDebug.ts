@@ -442,6 +442,7 @@ export async function testCompressor(): Promise<void> {
 
 /** Print what each limiter control does to a loud tone. */
 export async function testLimiter(): Promise<void> {
+
     const { probeLimiter } = await import('./effectsProbe');
     const results = await probeLimiter();
     console.table(results.map(r => ({
@@ -461,6 +462,25 @@ export async function testFxRack(): Promise<void> {
         Works: r.changesSignal ? 'yes' : 'NO',
         'Change vs dry': r.difference.toExponential(2),
         Tail: r.peak.toExponential(2),
+        Error: r.error ?? '',
+    })));
+}
+
+/**
+ * Prove the widener widens.
+ *
+ * The rack probe renders a dual-mono burst, which a mid/side widener
+ * correctly leaves alone — so this runs `probeWidenerStereo` on a hard-left
+ * burst instead: `audioDebug.testWidenerStereo()` in the console.
+ */
+export async function testWidenerStereo(): Promise<void> {
+    const { probeWidenerStereo } = await import('./effectsProbe');
+    const results = await probeWidenerStereo();
+    console.table(results.map(r => ({
+        Check: r.name,
+        Works: r.changesSignal ? 'yes' : 'NO',
+        Gap: r.difference.toExponential(2),
+        Peak: r.peak.toFixed(4),
         Error: r.error ?? '',
     })));
 }
@@ -574,5 +594,6 @@ if (typeof window !== 'undefined') {
         testCompressor,
         testLimiter,
         testFxRack,
+        testWidenerStereo,
     };
 }

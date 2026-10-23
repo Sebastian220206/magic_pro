@@ -5,7 +5,22 @@ import type { WamInsertProcessor } from '@/engine/plugins/wam/wamProcessor';
 
 interface WamGuiMountProps {
     processor: WamInsertProcessor;
+    /**
+     * Rendered when the plugin has no interface of its own, or takes too long
+     * to build one. Pass the generated parameter UI.
+     */
+    fallback?: React.ReactNode;
 }
+
+/**
+ * How long to wait for `createGui()` before showing the fallback.
+ *
+ * A WAM's GUI is its own code — commonly a dynamic import of a bundle that
+ * fetches further assets — and nothing obliges that promise to settle. Without
+ * a deadline the editor sat on "Loading plugin interface…" for as long as it
+ * was left open. A GUI that arrives after the deadline is still mounted.
+ */
+const GUI_TIMEOUT_MS = 15_000;
 
 /**
  * Hosts a Web Audio Module's own GUI.
@@ -17,7 +32,7 @@ interface WamGuiMountProps {
  * effects twice in development, and an unbalanced create/destroy leaks both the
  * DOM node and whatever listeners the plugin attached to it.
  */
-export function WamGuiMount({ processor }: WamGuiMountProps) {
+export function WamGuiMount({ processor, fallback }: WamGuiMountProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [status, setStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
 
@@ -25,8 +40,14 @@ export function WamGuiMount({ processor }: WamGuiMountProps) {
         let cancelled = false;
         let mounted: HTMLElement | null = null;
 
+        // Stop waiting rather than stall the editor; see GUI_TIMEOUT_MS.
+        const deadline = window.setTimeout(() => {
+            if (!cancelled) setStatus(s => (s === 'loading' ? 'unavailable' : s));
+        }, GUI_TIMEOUT_MS);
+
         (async () => {
             const element = await processor.createGui();
+            window.clearTimeout(deadline);
 
             if (cancelled) {
                 // The effect was torn down while the GUI was being built.
@@ -46,6 +67,7 @@ export function WamGuiMount({ processor }: WamGuiMountProps) {
 
         return () => {
             cancelled = true;
+            window.clearTimeout(deadline);
             if (mounted) {
                 processor.destroyGui(mounted);
                 mounted.remove();
@@ -54,11 +76,6 @@ export function WamGuiMount({ processor }: WamGuiMountProps) {
         };
     }, [processor]);
 
-    if (status === 'unavailable') {
-        // Caller falls back to the generated parameter UI.
-        return null;
-    }
-
     return (
         <div className="relative">
             {status === 'loading' && (
@@ -66,7 +83,9 @@ export function WamGuiMount({ processor }: WamGuiMountProps) {
                     Loading plugin interface…
                 </div>
             )}
-            {/* The plugin sizes itself; let it, and scroll if it overflows. */}
+            {status === 'unavailable' && fallback}
+            {/* Always mounted, so a GUI that arrives late still has a home.
+                The plugin sizes itself; let it, and scroll if it overflows. */}
             <div ref={containerRef} className="overflow-auto max-h-[70vh]" />
         </div>
     );

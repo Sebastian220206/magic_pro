@@ -239,11 +239,30 @@ export function loadFromProjectStore(
       isModified: false,
     } as any;
 
+    // Load CC lanes from primary clip's ccData
+    const ccLanesMap = new Map<number, any>();
+    if (primaryClip.clip.ccData) {
+      const offset = clipStartBeat(primaryClip.clip);
+      Object.entries(primaryClip.clip.ccData).forEach(([ctrlStr, pts]) => {
+        const ctrl = Number(ctrlStr);
+        ccLanesMap.set(ctrl, {
+          id: `cc-${ctrl}`,
+          controller: ctrl,
+          name: `CC ${ctrl}`,
+          color: '#3B82F6',
+          points: pts.map(p => ({ beat: offset + p.time, value: p.value })),
+          visible: true,
+          height: 80,
+        });
+      });
+    }
+
     // Use setState to comply with Immer middleware (state is frozen and cannot be mutated directly)
     useMidiStore.setState({
       clips: new Map<string, any>().set(mergedClipId, virtualClip),
       currentClipId: mergedClipId,
       selectedNoteIds: new Set(),
+      ...(ccLanesMap.size > 0 ? { ccLanes: ccLanesMap } : {}),
       _syncMetadata: {
         linkMode,
         sourceClipIds: clipsToLoad.map(c => c.clip.id),
@@ -292,8 +311,11 @@ export function saveToProjectStore(): void {
       return;
     }
 
-    // Group notes by clipId
+    // Group notes by clipId (seed with all sourceClipIds so deleting the last note updates the clip to [])
     const notesByClip = new Map<string, SyncedNote[]>();
+    for (const srcId of syncMetadata.sourceClipIds) {
+      notesByClip.set(srcId, []);
+    }
     
     for (const note of currentClip.notes as SyncedNote[]) {
       const clipId = note.clipId || syncMetadata.activeClipId;
@@ -341,6 +363,27 @@ export function saveToProjectStore(): void {
       }
     }
 
+    // Save CC lanes back to active/primary clip
+    if (midiStore.ccLanes && midiStore.ccLanes.size > 0 && syncMetadata.activeClipId) {
+      const activeClip = projectStore.clips.find(c => c.id === syncMetadata.activeClipId);
+      if (activeClip && activeClip.type === 'midi') {
+        const offset = clipStartBeat(activeClip);
+        const ccData: Record<number, Array<{ time: number; value: number }>> = {};
+        midiStore.ccLanes.forEach((lane, ctrl) => {
+          if (lane.points && lane.points.length > 0) {
+            ccData[ctrl] = lane.points.map(p => ({
+              time: Math.max(0, p.beat - offset),
+              value: p.value
+            })).sort((a, b) => a.time - b.time);
+          }
+        });
+        projectStore.updateClip(syncMetadata.activeClipId, { ccData });
+      }
+    }
+
+    // Push snapshot into project undo history so Ctrl+Z from main timeline undoes piano roll edits
+    projectStore.saveHistorySnapshot();
+
     // Mark as saved (use setState because midiStore uses Immer middleware - state is frozen)
     if (currentClip.id) {
       useMidiStore.setState({
@@ -365,6 +408,62 @@ export function saveToProjectStore(): void {
 /**
  * Subscribe to midiStore changes and auto-save
  */
+/**
+ * Mirror notes recorded into projectStore while the transport rolls.
+ *
+ * `loadFromProjectStore` only runs on mount and selection change, so a take
+ * recorded into the focused clip never appears in an already-open piano roll
+ * — and the release that lengthens each note lands there equally silently.
+ * This subscribes the other direction: while `recording` is true, notes that
+ * appear in a sync-source clip are appended to the merged editor clip
+ * (clip-relative → absolute beats), and lengthened durations grow with them.
+ *
+ * Only additive: notes are never removed or re-pitched here, so an edit made
+ * in the piano roll mid-take cannot be reverted by the mirror. `isModified`
+ * is deliberately left alone — these notes already live in projectStore, so
+ * there is nothing to save back, and marking modified would bounce them
+ * through the autosave every 100ms.
+ */
+export function subscribeToProjectRecording(): () => void {
+  return useProjectStore.subscribe((state, prev) => {
+    const prevClips = (prev as unknown as { clips?: unknown }).clips;
+    if (state.clips === prevClips || !state.recording) return;
+
+    const midi = useMidiStore.getState();
+    const meta = (midi as unknown as { _syncMetadata?: { sourceClipIds?: string[] } })._syncMetadata;
+    if (!meta?.sourceClipIds?.length) return;
+    const sources = new Set(meta.sourceClipIds);
+    if (!midi.getCurrentClip()) return;
+
+    useMidiStore.setState((s) => {
+      const merged = s.clips.get(s.currentClipId ?? '');
+      if (!merged) return;
+      for (const clip of state.clips) {
+        if (!sources.has(clip.id) || clip.type !== 'midi' || !clip.notes) continue;
+        const offset = clipStartBeat(clip);
+        for (const n of clip.notes) {
+          const existing = (merged.notes as SyncedNote[]).find((m) => m.id === n.id);
+          if (!existing) {
+            (merged.notes as SyncedNote[]).push({
+              id: n.id,
+              pitch: n.pitch,
+              startBeat: offset + (n.start ?? 0),
+              duration: n.duration,
+              velocity: n.velocity,
+              selected: false,
+              clipId: clip.id,
+              trackId: clip.trackId,
+              isActive: true,
+            });
+          } else if (n.duration > existing.duration) {
+            existing.duration = n.duration;
+          }
+        }
+      }
+    });
+  });
+}
+
 export function subscribeToMidiChanges(): () => void {
   let lastModified = false;
   
@@ -498,11 +597,13 @@ export function useProjectSync(options: UseProjectSyncOptions = {}) {
     if (autoSave) {
       unsubscribeRef.current = subscribeToMidiChanges();
     }
+    const unsubRecording = subscribeToProjectRecording();
 
     return () => {
       // Flush any pending saves on unmount
       flushSync();
       unsubscribeRef.current?.();
+      unsubRecording();
     };
   }, [linkMode, autoSave]);
 

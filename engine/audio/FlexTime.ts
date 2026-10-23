@@ -22,11 +22,12 @@ export class FlexTimeProcessor {
     if (ratio <= 0) return new Float32Array(0);
     if (Math.abs(ratio - 1) < 0.001) return input.slice();
 
-    const windowSize = Math.floor(0.03 * sampleRate);
-    const hopIn = Math.floor(windowSize / 4);
-    const hopOut = Math.round(hopIn * ratio);
+    const windowSize = Math.min(Math.max(64, Math.floor(input.length / 2)), Math.floor(0.03 * sampleRate));
+    if (input.length < 64 || windowSize < 16) return input.slice();
+    const hopIn = Math.max(1, Math.floor(windowSize / 4));
+    const hopOut = Math.max(1, Math.round(hopIn * ratio));
 
-    const outputLength = Math.ceil(input.length * ratio);
+    const outputLength = Math.max(1, Math.ceil(input.length * ratio));
     const output = new Float32Array(outputLength);
 
     const window = new Float32Array(windowSize);
@@ -36,10 +37,32 @@ export class FlexTimeProcessor {
 
     let inIdx = 0;
     let outIdx = 0;
+    const maxDelta = Math.floor(windowSize / 4);
 
     while (inIdx + windowSize <= input.length && outIdx + windowSize <= outputLength) {
+      // Find best alignment delta via cross-correlation to align phase and prevent comb filtering
+      let bestDelta = 0;
+      let maxCorr = -Infinity;
+
+      if (outIdx > 0) {
+        for (let delta = -maxDelta; delta <= maxDelta; delta += 2) {
+          const testIn = inIdx + delta;
+          if (testIn < 0 || testIn + windowSize > input.length) continue;
+
+          let corr = 0;
+          for (let i = 0; i < windowSize; i += 4) {
+            corr += input[testIn + i] * output[outIdx + i];
+          }
+          if (corr > maxCorr) {
+            maxCorr = corr;
+            bestDelta = delta;
+          }
+        }
+      }
+
+      const actualIn = Math.max(0, Math.min(input.length - windowSize, inIdx + bestDelta));
       for (let i = 0; i < windowSize; i++) {
-        output[outIdx + i] += input[inIdx + i] * window[i];
+        output[outIdx + i] += input[actualIn + i] * window[i];
       }
 
       inIdx += hopIn;
@@ -47,7 +70,7 @@ export class FlexTimeProcessor {
     }
 
     // Normalize
-    const normScale = hopOut / hopIn;
+    const normScale = Math.max(0.01, hopOut / hopIn);
     for (let i = 0; i < outputLength; i++) {
       output[i] /= normScale;
     }

@@ -254,46 +254,49 @@ export function GlobalKeyHandler() {
 
             if (isMod && !isAlt && !isShift) {
                 switch (e.key.toLowerCase()) {
+                    case 'z':
+                        e.preventDefault();
+                        useProjectStore.getState().undo();
+                        break;
+                    case 'y':
+                        e.preventDefault();
+                        useProjectStore.getState().redo();
+                        break;
                     case 'a':
                         e.preventDefault();
-                        addTrack({ name: "Audio", type: 'audio', color: '#38bdf8', icon: 'mic' });
+                        const allClipIds = useProjectStore.getState().clips.map(c => c.id);
+                        useProjectStore.getState().selectClips(allClipIds);
                         break;
                     case 'p':
                         e.preventDefault();
                         addTrack({ name: "Drummer", type: 'drummer', color: '#fbbf24', icon: 'drum' });
                         break;
-                    case 'x':
-                        e.preventDefault();
-                        addTrack({ name: "MIDI", type: 'external-midi', color: '#10b981', icon: 'midi' });
-                        break;
                     case 't':
                         e.preventDefault();
                         toggleSearchAndSelect(true);
-                        break;
-                    case 'c':
-                        e.preventDefault();
-                        toggleColorPalette(true);
                         break;
                     case 'h':
                         e.preventDefault();
                         toggleTrackHeaderConfig(true);
                         break;
+                    case 'c':
+                        e.preventDefault();
+                        copySelectedClips();
+                        break;
+                    case 'x':
+                        e.preventDefault();
+                        cutSelectedClips();
+                        break;
+                    case 'v':
+                        e.preventDefault();
+                        pasteClipsAtPlayhead();
+                        break;
                 }
             }
 
-            if (e.ctrlKey && e.key.toLowerCase() === 'z') {
+            if (isMod && isShift && e.key.toLowerCase() === 'z') {
                 e.preventDefault();
-                if (focusedTrackId) {
-                    const track = tracks.find(t => t.id === focusedTrackId);
-                    if (track) {
-                        const newZoom = (track.zoom || 1) > 1.5 ? 1 : 3;
-                        updateTrackZoom(focusedTrackId, newZoom);
-                    }
-                }
-            }
-            if (e.shiftKey && e.key.toLowerCase() === 'z') {
-                e.preventDefault();
-                resetAllTrackZoom();
+                useProjectStore.getState().redo();
             }
 
             if (isMod && !isAlt) {
@@ -316,18 +319,6 @@ export function GlobalKeyHandler() {
                 if (e.key.toLowerCase() === 'i') {
                     e.preventDefault();
                     toggleStepInput();
-                }
-                if (e.key.toLowerCase() === 'c') {
-                    e.preventDefault();
-                    copySelectedClips();
-                }
-                if (e.key.toLowerCase() === 'x') {
-                    e.preventDefault();
-                    cutSelectedClips();
-                }
-                if (e.key.toLowerCase() === 'v') {
-                    e.preventDefault();
-                    pasteClipsAtPlayhead();
                 }
             }
 

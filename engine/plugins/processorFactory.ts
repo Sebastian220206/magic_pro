@@ -21,7 +21,24 @@ import {
     createEQPlugin,
     createLimiterPlugin,
     createReverbPlugin,
+    createSaturationPlugin,
+    createVintageEqPlugin,
+    createWidenerPlugin,
+    createUtilityPlugin,
+    createTremoloPlugin,
+    createAutoPanPlugin,
+    createRingModPlugin,
+    createPhaserPlugin,
+    createGraphicEqPlugin,
+    createStereoImagerPlugin,
 } from '../effects/plugins';
+import {
+    BITCRUSHER_WORKLET,
+    EXPANDER_WORKLET,
+    GATE_WORKLET,
+    createWorkletPlugin,
+    type WorkletPluginDef,
+} from '../audioEngine/dsp/workletPluginNode';
 import { createWamInstance } from './wam/wamLoader';
 import { WamInsertProcessor } from './wam/wamProcessor';
 
@@ -128,12 +145,36 @@ const BUILTIN_BUILDERS: Readonly<Record<string, BuiltinBuilder>> = {
     [BUILTIN_PLUGIN_IDS.reverb]: ctx => createReverbPlugin(ctx) as unknown as BuiltinEffect,
     [BUILTIN_PLUGIN_IDS.delay]: ctx => createDelayPlugin(ctx) as unknown as BuiltinEffect,
     [BUILTIN_PLUGIN_IDS.limiter]: ctx => createLimiterPlugin(ctx) as unknown as BuiltinEffect,
+    [BUILTIN_PLUGIN_IDS.widener]: ctx => createWidenerPlugin(ctx) as unknown as BuiltinEffect,
+    [BUILTIN_PLUGIN_IDS.saturation]: ctx => createSaturationPlugin(ctx) as unknown as BuiltinEffect,
+    [BUILTIN_PLUGIN_IDS.vintageEq]: ctx => createVintageEqPlugin(ctx) as unknown as BuiltinEffect,
+    [BUILTIN_PLUGIN_IDS.utility]: ctx => createUtilityPlugin(ctx) as unknown as BuiltinEffect,
+    [BUILTIN_PLUGIN_IDS.tremolo]: ctx => createTremoloPlugin(ctx) as unknown as BuiltinEffect,
+    [BUILTIN_PLUGIN_IDS.autoPan]: ctx => createAutoPanPlugin(ctx) as unknown as BuiltinEffect,
+    [BUILTIN_PLUGIN_IDS.ringMod]: ctx => createRingModPlugin(ctx) as unknown as BuiltinEffect,
+    [BUILTIN_PLUGIN_IDS.phaser]: ctx => createPhaserPlugin(ctx) as unknown as BuiltinEffect,
+    [BUILTIN_PLUGIN_IDS.graphicEq]: ctx => createGraphicEqPlugin(ctx) as unknown as BuiltinEffect,
+    [BUILTIN_PLUGIN_IDS.imager]: ctx => createStereoImagerPlugin(ctx) as unknown as BuiltinEffect,
+};
+
+/**
+ * Effects that build asynchronously on an AudioWorklet.
+ *
+ * Sample-level state (gate envelopes, bit depths) has no native-node
+ * equivalent, so these cannot be `BuiltinBuilder`s. They implement
+ * `InsertProcessor` directly, like the sidechain compressor already does.
+ */
+const WORKLET_BUILDERS: Readonly<Record<string, WorkletPluginDef>> = {
+    [BUILTIN_PLUGIN_IDS.gate]: GATE_WORKLET,
+    [BUILTIN_PLUGIN_IDS.expander]: EXPANDER_WORKLET,
+    [BUILTIN_PLUGIN_IDS.bitcrusher]: BITCRUSHER_WORKLET,
 };
 
 /** True when this factory can build the given plugin. */
 export function canCreateProcessor(spec: PluginSpec): boolean {
     return spec.format === 'builtin'
         && (spec.pluginId in BUILTIN_BUILDERS
+            || spec.pluginId in WORKLET_BUILDERS
             || spec.pluginId === BUILTIN_PLUGIN_IDS.sidechainCompressor);
 }
 
@@ -155,6 +196,18 @@ export async function createProcessor(
             lookaheadMs: typeof spec.params?.lookaheadMs === 'number' ? spec.params.lookaheadMs : 0,
         });
         if (processor && spec.params) processor.setParams(spec.params);
+        return processor;
+    }
+
+    // Single-input worklet effects. A null return means the context cannot
+    // host a worklet; the slot is skipped and the rest of the chain plays,
+    // the same rule as an unknown plugin id below.
+    if (spec.format === 'builtin' && spec.pluginId in WORKLET_BUILDERS) {
+        const processor = await createWorkletPlugin(ctx, WORKLET_BUILDERS[spec.pluginId]);
+        if (processor) {
+            if (spec.state !== undefined) processor.setState(spec.state);
+            if (spec.params) processor.setParams(spec.params);
+        }
         return processor;
     }
 

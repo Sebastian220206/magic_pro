@@ -6,14 +6,40 @@ import { useProjectStore } from '../../store/projectStore';
 
 export function TopTransport() {
   const isPlaying = useProjectStore(state => state.playing);
-  const rawBeat = useProjectStore(state => state.playhead);
+  const beatRef = React.useRef<HTMLDivElement>(null);
   const [isBooted, setIsBooted] = useState(false);
 
-  // Simple musical format (Bars.Beats.Subbeats) assuming 4/4
-  const bars = Math.floor(rawBeat / 4) + 1;
-  const beats = Math.floor(rawBeat % 4) + 1;
-  const sub = Math.floor((rawBeat % 1) * 4) + 1;
-  const beatStr = `${bars}.${beats}.${sub}`;
+  React.useEffect(() => {
+    let rafId: number;
+    const formatBeat = (beat: number) => {
+      const b = Math.max(0, beat);
+      const bars = Math.floor(b / 4) + 1;
+      const beats = Math.floor(b % 4) + 1;
+      const sub = Math.floor((b % 1) * 4) + 1;
+      return `${bars}.${beats}.${sub}`;
+    };
+
+    const updateDisplay = () => {
+      if (beatRef.current) {
+        beatRef.current.textContent = formatBeat(useProjectStore.getState().playhead);
+      }
+      if (isPlaying) {
+        rafId = requestAnimationFrame(updateDisplay);
+      }
+    };
+
+    updateDisplay();
+    const unsub = useProjectStore.subscribe((state, prev) => {
+      if (!state.playing && state.playhead !== prev.playhead && beatRef.current) {
+        beatRef.current.textContent = formatBeat(state.playhead);
+      }
+    });
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      unsub();
+    };
+  }, [isPlaying]);
 
   const handlePlay = async () => {
     if (!isBooted) {
@@ -43,8 +69,8 @@ export function TopTransport() {
         </button>
       </div>
 
-      <div className="bg-black border border-gray-800 px-6 py-1 rounded font-mono text-amber-500 text-xl tracking-widest shadow-inner">
-        {beatStr}
+      <div ref={beatRef} className="bg-black border border-gray-800 px-6 py-1 rounded font-mono text-amber-500 text-xl tracking-widest shadow-inner min-w-[100px] text-center">
+        1.1.1
       </div>
 
       <div className="flex gap-4 text-xs text-gray-400 font-medium">

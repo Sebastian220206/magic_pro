@@ -3,12 +3,18 @@ import { useProjectStore } from "@/store/projectStore";
 import { X, ChevronDown, Check } from "lucide-react";
 import { useToast } from "./Toast";
 import { downloadExport } from "@/engine/export/projectExport";
+import { exportMidiFromClips } from "@/lib/midiExport";
+import { generatePrintContent } from "@/lib/printExport";
 
 export function ExportDialog() {
   const {
     showExportDialog,
     toggleExportDialog,
+    tracks,
     clips,
+    tempo,
+    keySignature,
+    timeSignature,
     name: projectName,
     selectedClipIds,
     selectedClipId,
@@ -82,6 +88,43 @@ export function ExportDialog() {
       };
       const depth = settings.bitDepth === "16-bit" ? 16 : settings.bitDepth === "24-bit" ? 24 : 32;
 
+      if (settings.fileType === "MIDI") {
+        const midiClips = (trackIds
+          ? clips.filter(c => trackIds!.includes(c.trackId) && c.type === 'midi')
+          : clips.filter(c => c.type === 'midi')
+        ) as any[];
+
+        if (midiClips.length === 0) {
+          toast("No MIDI regions found to export.", "error");
+          return;
+        }
+
+        exportMidiFromClips(midiClips, tempo || 120, `${projectName || 'Project'}.mid`);
+        toast(`Exported ${midiClips.length} MIDI region(s) to MIDI file.`, "success");
+        return;
+      }
+
+      if (settings.fileType === "PDF Sheet") {
+        const printHtml = generatePrintContent({
+          name: projectName || 'Project',
+          tempo,
+          timeSignature,
+          keySignature,
+          tracks: trackIds ? tracks.filter(t => trackIds!.includes(t.id)) : tracks,
+        });
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(printHtml);
+          printWindow.document.close();
+          printWindow.focus();
+          printWindow.print();
+          toast("Opened print dialog for project track sheet.", "success");
+        } else {
+          toast("Popup blocked — allow popups to print project sheet.", "error");
+        }
+        return;
+      }
+
       if (asStems) {
         const stems = await exportStems({ bitDepth: depth, startBeat, endBeat });
         stems.forEach(stem => downloadExport({ blob: stem.blob, fileName: stem.fileName }));
@@ -151,7 +194,7 @@ export function ExportDialog() {
               <Dropdown
                 value={settings.fileType}
                 onChange={(v) => setSettings({ ...settings, fileType: v })}
-                options={["WAVE"]}
+                options={["WAVE", "MP3", "MIDI", "PDF Sheet"]}
               />
 
               <label className="text-[11px] font-bold text-studio-text-mid text-right pr-6">Bit Depth:</label>

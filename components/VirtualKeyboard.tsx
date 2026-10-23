@@ -31,6 +31,35 @@ export function VirtualKeyboard() {
     const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set())
     const focusedTrack = tracks.find(t => t.id === focusedTrackId)
     const windowRef = useRef<HTMLDivElement>(null)
+    const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+    const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
+
+    const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
+        if (e.button !== 0) return
+        if ((e.target as HTMLElement).closest('button')) return
+        const el = windowRef.current
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        dragRef.current = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top }
+        document.body.style.userSelect = 'none'
+        const onMove = (me: MouseEvent) => {
+            const d = dragRef.current
+            if (!d || !windowRef.current) return
+            const w = windowRef.current.offsetWidth
+            const h = windowRef.current.offsetHeight
+            const x = Math.min(Math.max(0, d.origX + me.clientX - d.startX), window.innerWidth - Math.min(w, 120))
+            const y = Math.min(Math.max(0, d.origY + me.clientY - d.startY), window.innerHeight - 60)
+            setPos({ x, y })
+        };
+        const onUp = () => {
+            dragRef.current = null
+            document.body.style.userSelect = ''
+            window.removeEventListener('mousemove', onMove)
+            window.removeEventListener('mouseup', onUp)
+        };
+        window.addEventListener('mousemove', onMove)
+        window.addEventListener('mouseup', onUp)
+    }, [])
 
     // Use refs for frequently-changing values so the keyboard event listeners
     // don't get torn down and re-created on every slider movement (which causes
@@ -68,6 +97,8 @@ export function VirtualKeyboard() {
      * the keys on screen did not, and that is the first thing anyone tries.
      * Both routes call these now, so they cannot drift apart.
      */
+    const soundingNotesRef = useRef<Map<string, number>>(new Map())
+
     const pressKey = useCallback((key: string) => {
         if (key === 'z') updateVirtualKeyboardParams({ octave: Math.max(0, octaveRef.current - 1) })
         if (key === 'x') updateVirtualKeyboardParams({ octave: Math.min(8, octaveRef.current + 1) })
@@ -80,15 +111,21 @@ export function VirtualKeyboard() {
             updateVirtualKeyboardParams({ modulation: Math.round((parseInt(key) - 3) * (127 / 5)) })
         }
         if (KEY_MAP[key] !== undefined) {
-            triggerNote((octaveRef.current + 1) * 12 + KEY_MAP[key], velocityRef.current)
+            const pitch = (octaveRef.current + 1) * 12 + KEY_MAP[key]
+            soundingNotesRef.current.set(key, pitch)
+            triggerNote(pitch, velocityRef.current)
             setActiveKeys(prev => new Set(prev).add(key))
         }
     }, [triggerNote, updateVirtualKeyboardParams])
 
     const releaseKey = useCallback((key: string) => {
         if (key === '1' || key === '2') updateVirtualKeyboardParams({ pitchBend: 0 })
+        const soundingPitch = soundingNotesRef.current.get(key)
+        if (soundingPitch !== undefined) {
+            handleNoteRelease(soundingPitch)
+            soundingNotesRef.current.delete(key)
+        }
         if (KEY_MAP[key] !== undefined) {
-            handleNoteRelease((octaveRef.current + 1) * 12 + KEY_MAP[key])
             setActiveKeys(prev => {
                 const next = new Set(prev)
                 next.delete(key)
@@ -101,14 +138,21 @@ export function VirtualKeyboard() {
         if (!showVirtualKeyboard || virtualKeyboardMode !== 'musical-typing') return
 
         const handleKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement | null
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+                return
+            }
             if (e.repeat) return
             const key = e.key.toLowerCase()
             if (key === 'tab') e.preventDefault()
             pressKey(key)
-            return
         }
 
         const handleKeyUp = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement | null
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+                return
+            }
             releaseKey(e.key.toLowerCase())
         }
 
@@ -131,11 +175,15 @@ export function VirtualKeyboard() {
     return (
         <div 
             ref={windowRef}
-            className="fixed bottom-4 sm:bottom-24 left-1/2 -translate-x-1/2 z-[1000] max-w-[calc(100vw-16px)] animate-in slide-in-from-bottom-4 duration-300"
+            style={pos ? { left: pos.x, top: pos.y } : undefined}
+            className={`fixed z-[1000] max-w-[calc(100vw-16px)] animate-in slide-in-from-bottom-4 duration-300 ${pos ? '' : 'bottom-4 sm:bottom-24 left-1/2 -translate-x-1/2'}`}
         >
             <div className="bg-studio-control/90 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden w-[720px]">
                 {/* Header */}
-                <div className="h-10 border-b border-black/20 bg-white/5 flex items-center justify-between px-4">
+                <div
+                    onMouseDown={handleHeaderMouseDown}
+                    className="h-10 border-b border-black/20 bg-white/5 flex items-center justify-between px-4 cursor-move select-none touch-none"
+                >
                     <div className="flex bg-studio-panel rounded-lg p-0.5 border border-white/5">
                         <button 
                             onClick={() => setVirtualKeyboardMode('piano-keyboard')}
@@ -271,30 +319,33 @@ function MusicalTypingView({ activeKeys, octave, velocity, sustain, pressKey, re
      * label is the computer key, so pressing one here does exactly what typing
      * it does.
      */
-    const renderKey = (label: string, symbol: string, color: string, isActive: boolean) => (
+    const renderKey = (label: string, symbol: string, color: string, isActive: boolean, actionKey?: string) => {
+        const key = actionKey ?? label
+        return (
         <button
             type="button"
-            data-vk-typing-key={label}
+            data-vk-typing-key={key}
             aria-label={`${symbol} (${label})`}
             aria-pressed={isActive}
-            title={`${symbol} — or press ${label.toUpperCase()}`}
-            onMouseDown={(e) => { e.preventDefault(); pressKey(label) }}
-            onMouseUp={() => releaseKey(label)}
-            onMouseLeave={() => releaseKey(label)}
+            title={`${symbol} — or press ${key.toUpperCase()}`}
+            onMouseDown={(e) => { e.preventDefault(); pressKey(key) }}
+            onMouseUp={() => releaseKey(key)}
+            onMouseLeave={() => releaseKey(key)}
             className={`w-12 h-12 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer ${isActive ? 'scale-90 brightness-125 shadow-inner' : 'shadow-lg active:scale-95'} ${color}`}
         >
             <span className="text-[9px] font-bold opacity-60 uppercase">{label}</span>
             <span className="text-sm font-black uppercase">{symbol}</span>
         </button>
-    )
+        )
+    }
 
     return (
         <div className="flex flex-col gap-6 items-center">
             {/* Control Keys Row */}
             <div className="flex gap-4 items-center mb-2">
                 <div className="flex gap-1.5">
-                    {renderKey('Pitch', '1', 'bg-accent-cyan border-accent-cyan/30', activeKeys.has('1'))}
-                    {renderKey('Bend', '2', 'bg-accent-cyan border-accent-cyan/30', activeKeys.has('2'))}
+                    {renderKey('Pitch', '1', 'bg-accent-cyan border-accent-cyan/30', activeKeys.has('1'), '1')}
+                    {renderKey('Bend', '2', 'bg-accent-cyan border-accent-cyan/30', activeKeys.has('2'), '2')}
                 </div>
                 <div className="w-px h-8 bg-white/10 mx-2"></div>
                 <div className="flex gap-1.5">

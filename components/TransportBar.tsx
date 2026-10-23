@@ -164,7 +164,7 @@ export function TransportBar() {
         cycleEnabled, toggleCycle, autoSetLocators, setAutoSetLocators,
         skipCycleEnabled, toggleSkipCycle,
         locatorLeft, locatorRight, settings, updateProjectSettings,
-        recording, toggleRecording, recordRepeat, discardAndReturn, flashback, toggleFlashback, flashbackCapture, replaceMode, toggleReplaceMode,
+        recording, toggleRecording,
         autopunchEnabled, toggleAutopunch,
         showVirtualKeyboard, toggleVirtualKeyboard,
         timeSignature, setTimeSignature,
@@ -786,51 +786,18 @@ export function TransportBar() {
                         <Circle className={`w-[19px] h-[19px] ${recording ? 'fill-red-500' : 'fill-current'}`} />
                     </button>
 
-                    <button
-                        onClick={recordRepeat}
-                        className="p-1.5 border border-black/40 rounded-sm text-[11px] text-white hover:bg-white/10"
-                        title="Record Repeat (Shift+R)"
-                    >
-                        RPT
-                    </button>
-
-                    <button
-                        onClick={() => { flashbackCapture(); }}
-                        className={`p-1.5 border border-black/40 rounded-sm text-[11px] ${flashback ? 'bg-cyan-500 text-black' : 'text-white hover:bg-white/10'}`}
-                        title="Flashback Capture (Alt+R)"
-                    >
-                        FB
-                    </button>
-
-                    <button
-                        onClick={discardAndReturn}
-                        className="p-1.5 border border-black/40 rounded-sm text-[11px] text-white hover:bg-white/10"
-                        title="Discard Live Recording (Shift+D)"
-                    >
-                        CLR
-                    </button>
-
                     {/* Recording Modes Strip */}
-                    <div className="flex items-center gap-1 ml-1 pl-1 border-l border-white/5">
-                        {controlBarSettings.modes.replace && (
-                            <button 
-                                onClick={() => toggleReplaceMode()}
-                                className={`h-6 px-1.5 border border-black/40 rounded-sm text-[8px] font-black transition-all ${replaceMode ? 'bg-orange-500 text-black shadow-lg shadow-orange-500/20' : 'bg-black/20 text-studio-text-dim hover:text-white'}`}
-                                title="Replace Mode"
-                            >
-                                REPLACE
-                            </button>
-                        )}
-                        {controlBarSettings.modes.autopunch && (
-                            <button 
+                    {controlBarSettings.modes.autopunch && (
+                        <div className="flex items-center gap-1 ml-1 pl-1 border-l border-white/5">
+                            <button
                                 onClick={() => toggleAutopunch()}
                                 className={`h-6 px-1.5 border border-black/40 rounded-sm text-[8px] font-black transition-all ${autopunchEnabled ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-black/20 text-studio-text-dim hover:text-white'}`}
                                 title="Autopunch Mode"
                             >
                                 PUNCH
                             </button>
-                        )}
-                    </div>
+                        </div>
+                    )}
 
                     {controlBarSettings.transportButtons.skipCycle && (
                         <button

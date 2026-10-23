@@ -17,7 +17,12 @@ export const SAMPLER_PRESETS: Readonly<Record<string, string>> = {
     // saved projects still carry.
     'Grand Piano': '/sound_sample/piano/Piano.dspreset',
     'Steinway Piano': '/sound_sample/piano/Piano.dspreset',
+    'Electric Piano': '/sound_sample/piano/Piano.dspreset',
     'Nylon Guitar': '/sound_sample/guitar/MG%20Soft%20Nylon%20Guitar%20(Lite).dspreset',
+    'Acoustic Guitar': '/sound_sample/guitar/MG%20Soft%20Nylon%20Guitar%20(Lite).dspreset',
+    'String Ensemble': '/sound_sample/piano/Piano.dspreset',
+    'Harpsichord': '/sound_sample/piano/Piano.dspreset',
+    'Vibraphone': '/sound_sample/piano/Piano.dspreset',
 };
 
 /** The sample set for an instrument, or undefined if it has none. */

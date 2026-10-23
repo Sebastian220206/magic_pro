@@ -67,9 +67,13 @@ const bandsFromParams = eqBandsFromParams;
 
 export function ChannelEQ({ trackId, pluginId }: { trackId: string, pluginId: string }) {
     const updatePluginParams = useProjectStore(s => s.updatePluginParams);
+    const isMaster = trackId === 'master';
+    const masterPlugins = useProjectStore(s => s.masterPlugins);
     const tracks = useProjectStore(s => s.tracks);
-    const track = tracks.find(t => t.id === trackId);
-    const plugin = track?.plugins.find(p => p.id === pluginId);
+    const track = isMaster ? null : tracks.find(t => t.id === trackId);
+    const plugin = isMaster
+        ? masterPlugins.find(p => p.id === pluginId)
+        : track?.plugins.find(p => p.id === pluginId);
     const params = plugin?.params as Record<string, number> | undefined;
 
     const [bands, setBands] = useState<Band[]>(() => bandsFromParams(params));

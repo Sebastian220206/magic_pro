@@ -1,9 +1,11 @@
 /**
  * The MIDI FX slot's catalogue.
  *
- * `engine/midi/fx` holds working Arpeggiator, Chord Trigger and Scripter
- * processors — roughly 1,200 lines nothing imported, so there was no way to
- * reach any of them from the app. The slot itself was a dead label.
+ * All nine entries process notes: the Arpeggiator, Chord Trigger and
+ * Scripter that already existed in `engine/midi/fx`, plus the Modifier,
+ * Modulator, Note Repeater, Randomizer, Transposer and Velocity Processor
+ * written to go with their editors. `engine/midi/fx/chain.ts` reaches all of
+ * them.
  *
  * The list names every effect you would expect to find, so the shape of the
  * menu matches what a Logic user is looking for, but only the entries that can
@@ -12,6 +14,7 @@
  */
 
 import { MIDI_FX_CATALOG, searchMidiFx, midiFxById } from '../midiFxCatalog';
+import { hasProcessor } from '@/engine/midi/fx/chain';
 
 describe('the catalogue', () => {
     it('lists the effects the slot offers, in order', () => {
@@ -22,8 +25,24 @@ describe('the catalogue', () => {
         ]);
     });
 
-    it('offers Chord Trigger, which is wired end to end', () => {
-        expect(midiFxById('chordTrigger')?.available).toBe(true);
+    it('offers every effect that has a processor behind it', () => {
+        // All nine are reachable from the slot and change a note.
+        for (const id of [
+            'arpeggiator', 'chordTrigger', 'modifier', 'modulator',
+            'noteRepeater', 'randomizer', 'scripter', 'transposer',
+            'velocityProcessor',
+        ]) {
+            expect(midiFxById(id)?.available).toBe(true);
+        }
+    });
+
+    it('agrees with the chain about which effects can be built', () => {
+        // The catalogue's `available` flag and `hasProcessor` are two claims
+        // about the same fact. A menu row that inserts an effect the chain
+        // cannot build is the silent no-op this list exists to prevent.
+        for (const entry of MIDI_FX_CATALOG) {
+            expect(hasProcessor(entry.id)).toBe(entry.available);
+        }
     });
 
     it('gives every unavailable entry a reason', () => {
@@ -35,13 +54,24 @@ describe('the catalogue', () => {
         }
     });
 
-    it('distinguishes "written but not hosted" from "not implemented"', () => {
-        // Arpeggiator and Scripter exist and work; they are waiting on a clock
-        // and an editor. Saying "not implemented" would send someone to write
-        // code that is already there.
-        expect(midiFxById('arpeggiator')?.reason).toMatch(/transport clock/i);
-        expect(midiFxById('scripter')?.reason).toMatch(/script editor/i);
-        expect(midiFxById('modifier')?.reason).toBe('Not implemented');
+    it('carries no stale reason on an entry that now works', () => {
+        // The Arpeggiator and Scripter each shipped with a reason naming what
+        // they were waiting for — a transport clock and a script editor. Both
+        // arrived. A reason left behind on a working effect is worse than no
+        // reason at all, because the tooltip contradicts the menu.
+        for (const entry of MIDI_FX_CATALOG) {
+            if (!entry.available) continue;
+            expect(entry.reason).toBeUndefined();
+        }
+    });
+
+    it('has no unavailable entries left', () => {
+        // The Modulator and Note Repeater each shipped with a "Not
+        // implemented" reason. Both arrived; an unavailable row left behind
+        // would be a menu entry that can never be chosen.
+        for (const entry of MIDI_FX_CATALOG) {
+            expect(entry.available).toBe(true);
+        }
     });
 
     it('has unique ids', () => {

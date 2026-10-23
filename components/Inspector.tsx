@@ -1,23 +1,33 @@
 "use client"
-import { useState, useRef, useEffect, useCallback, memo } from "react"
+import { useState, useRef, useEffect, memo } from "react"
 import { useProjectStore } from "@/store/projectStore"
 import { audioEngine } from "@/engine/AudioEngineAdapter"
 import { VerticalMeter } from "./VerticalMeter"
-import { getSoundInfo } from "@/engine/soundLibrary/instruments"
-import { SoundFontPanel } from "./SoundFontPanel"
-import {
-    ChevronDown, ChevronRight,
-    ChevronUp, Settings2, Sliders,
-    MoreHorizontal, Circle, MousePointer2,
-    Keyboard, Drum, Mic, Speaker
-} from "lucide-react"
+import { ChevronDown, ChevronRight, Link2 } from "lucide-react"
+import type { Track } from "@/models/Track"
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+function midiToName(n: number): string {
+    const name = NOTE_NAMES[((n % 12) + 12) % 12]
+    const oct = Math.floor(n / 12) - 2
+    return `${name}${oct}`
+}
+function limitToNames(limit: unknown, fallback: [string, string]): [string, string] {
+    if (Array.isArray(limit) && limit.length >= 2 && typeof limit[0] === 'number' && typeof limit[1] === 'number') {
+        return [midiToName(limit[0] as number), midiToName(limit[1] as number)]
+    }
+    return fallback
+}
 
 export function Inspector() {
     const {
         focusedTrackId, tracks, clips, selectedClipId,
         showInspector, updateTrack, updateClip,
-        setInternalMidiIn, setInternalMidiInRecordMode,
-        setPluginBrowserTrack
+        setInternalMidiIn,
     } = useProjectStore()
 
     const track = tracks.find(t => t.id === focusedTrackId)
@@ -25,16 +35,17 @@ export function Inspector() {
 
     const [regionOpen, setRegionOpen] = useState(true)
     const [trackOpen, setTrackOpen] = useState(true)
+    const [regionMore, setRegionMore] = useState(false)
 
     if (!showInspector) return null
 
     if (!track) {
         return (
-            <div className="w-[280px] bg-studio-panel border-r border-[var(--accent-cyan)]/50 flex flex-col items-center justify-center text-studio-text-dim shrink-0 z-40">
-                <span className="text-[10px] uppercase font-black tracking-widest">No Track Selected</span>
-        </div>
-    )
-}
+            <div className="w-[280px] bg-studio-panel border-r border-[var(--accent-cyan)]/50 flex flex-col items-center justify-center shrink-0 z-40">
+                <span className="text-[10px] uppercase font-black tracking-widest text-studio-text-dim">No Track Selected</span>
+            </div>
+        )
+    }
 
     const handleTrackUpdate = (field: keyof Track, value: any) => {
         if (!focusedTrackId) return
@@ -46,580 +57,645 @@ export function Inspector() {
         updateClip(selectedClipId, { [field]: value })
     }
 
+    const regionName = clip ? clip.name : "Analog Bass"
+    const trackName = track.name || "Deep Bass"
+
+    // Track inspector derived values (match reference defaults)
+    const defaultRegionLabel = track.defaultRegionType === 'pattern'
+        ? 'Pattern'
+        : track.defaultRegionType === 'session-player'
+            ? 'Session Plyr'
+            : track.defaultRegionType === 'midi'
+                ? 'MIDI'
+                : '(Undefi...'
+    const [keyLo, keyHi] = limitToNames((track as any).keyLimit, ['C-2', 'G8'])
+    const velLimit = (track as any).velocityLimit
+    const velLo = Array.isArray(velLimit) ? velLimit[0] : 1
+    const velHi = Array.isArray(velLimit) ? velLimit[1] : 127
+    const articulation = (track as any).articulationSetId ? String((track as any).articulationSetId) : 'None'
+
     return (
         <div className="w-[280px] bg-studio-panel border-r border-[var(--accent-cyan)]/50 flex flex-col shrink-0 select-none overflow-y-auto custom-scrollbar-v z-40">
-            {/* 1. Region Inspector Section (Professional Logic Implementation) */}
+            {/* ============ 1. Region inspector ============ */}
             <div className="flex flex-col border-b border-[var(--accent-cyan)]/30">
-                <div
+                <button
                     onClick={() => setRegionOpen(!regionOpen)}
-                    className="h-9 px-3 flex items-center gap-2 hover:bg-white/[0.03] cursor-pointer transition-colors bg-studio-raised/30"
+                    className="h-9 px-3 flex items-center gap-2 bg-studio-raised/30 hover:bg-white/[0.03] transition-colors text-left w-full"
                 >
-                    {regionOpen ? <ChevronDown className="w-3.5 h-3.5 text-studio-text-dim" /> : <ChevronRight className="w-3.5 h-3.5 text-studio-text-dim" />}
+                    {regionOpen
+                        ? <ChevronDown className="w-3.5 h-3.5 text-studio-text-dim shrink-0" />
+                        : <ChevronRight className="w-3.5 h-3.5 text-studio-text-dim shrink-0" />}
                     <span className="text-[11px] font-bold text-studio-text-mid">Region:</span>
-                    <span className="text-[11px] font-black text-white/90 truncate">{clip ? clip.name : "Analog Bass"}</span>
-                </div>
+                    <span className="text-[11px] font-black text-white/90 truncate">{regionName}</span>
+                </button>
 
-                {regionOpen && clip && (
+                {regionOpen && (
                     <div className="flex flex-col py-1 bg-studio-panel/50">
-                        <InspectorField label="Mute" type="checkbox" checked={clip.muted} onChange={(v: boolean) => handleClipUpdate('muted', v)} />
-                        <InspectorField label="Loop" type="checkbox" checked={clip.loop} onChange={(v: boolean) => handleClipUpdate('loop', v)} />
-                        <InspectorField label="Quantize" value={clip.quantize || "Off"} hasChevron />
-                        <InspectorField label="Q-Swing" value={`${clip.qSwing || 0}%`} />
-                        <InspectorField
+                        <LogicCheckRow
+                            label="Mute"
+                            checked={!!clip?.muted}
+                            onChange={(v) => handleClipUpdate('muted', v)}
+                            disabled={!clip}
+                        />
+                        <LogicCheckRow
+                            label="Loop"
+                            checked={!!clip?.loop}
+                            onChange={(v) => handleClipUpdate('loop', v)}
+                            disabled={!clip}
+                        />
+                        <LogicSelectRow
+                            label="Quantize"
+                            value={clip?.quantize ? String(clip.quantize) : 'Off'}
+                            options={['Off', '1/16', '1/8', '1/4', '1/2', 'None']}
+                            disabled={!clip}
+                            onChange={(v) => handleClipUpdate('quantize', v === 'Off' ? undefined : v)}
+                        />
+                        <LogicValueRow label="Q-Swing" value="" dimmed />
+                        <LogicStepperRow
                             label="Transpose"
-                            value={clip.transpose ? (clip.transpose > 0 ? `+${clip.transpose}` : clip.transpose) : "0"}
-                            hasChevron
-                            onUpdate={(inc: number) => handleClipUpdate('transpose', (clip.transpose || 0) + inc)}
+                            value={clip?.transpose ? (clip.transpose > 0 ? `+${clip.transpose}` : `${clip.transpose}`) : ''}
+                            disabled={!clip}
+                            onStep={(d) => handleClipUpdate('transpose', (clip?.transpose || 0) + d)}
                         />
-                        <InspectorField label="Pitch Source" value={clip.pitchSource || "Off"} hasChevron />                        <InspectorField label="Flex Enabled" type="checkbox" checked={clip.flexEnabled || false} onChange={(v: boolean) => handleClipUpdate('flexEnabled', v)} />
-                        <InspectorField label="Flex Mode">
-                            <select
-                                className="bg-transparent text-[11px] font-black text-studio-text outline-none cursor-pointer text-right w-[140px] appearance-none focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
-                                value={clip.flexMode || 'off'}
-                                onChange={(e) => handleClipUpdate('flexMode', e.target.value as any)}
-                            >
-                                <option value="off">Off</option>
-                                <option value="time">Flex Time</option>
-                                <option value="pitch">Flex Pitch</option>
-                                <option value="time+pitch">Time + Pitch</option>
-                            </select>
-                        </InspectorField>
-                        <InspectorField label="Flex Time Factor">
-                            <input
-                                type="range"
-                                min={0.25}
-                                max={4}
-                                step={0.05}
-                                value={clip.flexTimeFactor || 1}
-                                onChange={(e) => handleClipUpdate('flexTimeFactor', parseFloat(e.target.value))}
-                                className="w-[140px]"
-                            />
-                            <span className="text-[11px] font-black text-studio-text">{(clip.flexTimeFactor || 1).toFixed(2)}x</span>
-                        </InspectorField>
-                        <InspectorField
-                            label="Flex Pitch Offset"
-                            value={clip.flexPitchOffset ? (clip.flexPitchOffset > 0 ? `+${clip.flexPitchOffset}` : clip.flexPitchOffset) : "0"}
-                            hasChevron
-                            onUpdate={(inc: number) => handleClipUpdate('flexPitchOffset', (clip.flexPitchOffset || 0) + inc)}
-                        />                        <InspectorField
+                        <div className="h-[18px] flex items-center justify-center text-[11px] text-studio-text-dim opacity-50 tracking-[6px]">--</div>
+                        <LogicSelectRow
+                            label="Pitch Source"
+                            value={clip?.pitchSource || 'Off'}
+                            options={['Off', 'On']}
+                            disabled={!clip}
+                            onChange={(v) => handleClipUpdate('pitchSource', v)}
+                        />
+                        <div className="h-[18px] flex items-center justify-center text-[11px] text-studio-text-dim opacity-50 tracking-[6px]">--</div>
+                        <LogicStepperRow
                             label="Velocity Offset"
-                            value={clip.velocityOffset ? (clip.velocityOffset > 0 ? `+${clip.velocityOffset}` : clip.velocityOffset) : "0"}
-                            onUpdate={(inc: number) => handleClipUpdate('velocityOffset', (clip.velocityOffset || 0) + inc * 5)}
+                            value={clip?.velocityOffset ? (clip.velocityOffset > 0 ? `+${clip.velocityOffset}` : `${clip.velocityOffset}`) : ''}
+                            disabled={!clip}
+                            onStep={(d) => handleClipUpdate('velocityOffset', (clip?.velocityOffset || 0) + d * 5)}
                         />
-                        <div className="px-6 py-1 flex items-center gap-1 cursor-pointer group">
-                            <ChevronRight className="w-3 h-3 text-studio-text-dim group-hover:text-studio-text-mid" />
-                            <span className="text-[9px] font-black text-studio-text-dim group-hover:text-studio-text-mid uppercase">More</span>
-                        </div>
+                        <button
+                            onClick={() => setRegionMore(!regionMore)}
+                            className="h-6 pl-[26px] flex items-center gap-1 hover:bg-white/[0.02] text-left group"
+                        >
+                            {regionMore
+                                ? <ChevronDown className="w-3 h-3 text-studio-text-dim group-hover:text-studio-text-mid" />
+                                : <ChevronRight className="w-3 h-3 text-studio-text-dim group-hover:text-studio-text-mid" />}
+                            <span className="text-[11px] font-bold text-studio-text-dim group-hover:text-studio-text-mid">More</span>
+                        </button>
+                        {regionMore && clip && (
+                            <div className="border-t border-white/5 mt-1 pt-1">
+                                <LogicCheckRow label="Flex Enabled" checked={!!(clip as any).flexEnabled} onChange={(v) => handleClipUpdate('flexEnabled', v)} small />
+                                <LogicSelectRow
+                                    label="Flex Mode"
+                                    small
+                                    value={(clip as any).flexMode || 'off'}
+                                    options={['off', 'time', 'pitch', 'time+pitch']}
+                                    onChange={(v) => handleClipUpdate('flexMode', v)}
+                                />
+                                <LogicValueRow small label="Flex Factor" value={`${((clip as any).flexTimeFactor || 1).toFixed(2)}x`} />
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
 
-            {/* 2. Track Inspector Section (Professional Logic Implementation) */}
+            {/* ============ 2. Track inspector ============ */}
             <div className="flex flex-col border-b border-[var(--accent-cyan)]/30">
-                <div
+                <button
                     onClick={() => setTrackOpen(!trackOpen)}
-                    className="h-9 px-3 flex items-center gap-2 hover:bg-white/[0.03] cursor-pointer transition-colors bg-studio-raised/30"
+                    className="h-9 px-3 flex items-center gap-2 bg-studio-raised/30 hover:bg-white/[0.03] transition-colors text-left w-full"
                 >
-                    {trackOpen ? <ChevronDown className="w-3.5 h-3.5 text-studio-text-dim" /> : <ChevronRight className="w-3.5 h-3.5 text-studio-text-dim" />}
+                    {trackOpen
+                        ? <ChevronDown className="w-3.5 h-3.5 text-studio-text-dim shrink-0" />
+                        : <ChevronRight className="w-3.5 h-3.5 text-studio-text-dim shrink-0" />}
                     <span className="text-[11px] font-bold text-studio-text-mid">Track:</span>
-                    <span className="text-[11px] font-black text-white/90 truncate">{track.name}</span>
-                </div>
+                    <span className="text-[11px] font-black text-white/90 truncate">{trackName}</span>
+                </button>
 
                 {trackOpen && (
                     <div className="flex flex-col py-2 bg-studio-panel/50">
-                        <InspectorField label="Icon">
-                            <div className="w-10 h-10 border border-[#63ed63]/40 rounded bg-black/40 flex items-center justify-center shadow-lg">
-                                {track.type === 'midi' ? <Keyboard className="w-6 h-6 text-[#63ed63] opacity-80" /> : <Mic className="w-6 h-6 text-accent-cyan opacity-80" />}
+                        {/* Icon */}
+                        <div className="h-11 flex items-center group hover:bg-white/[0.02]">
+                            <div className="flex-1 text-right pr-2 text-[11px] font-bold text-studio-text-dim group-hover:text-studio-text-mid truncate">Icon:</div>
+                            <div className="w-[104px] flex items-center justify-start pl-1 shrink-0">
+                                <div className="border border-accent-cyan/40 rounded bg-black/40 flex items-center justify-center px-1 py-0.5 shadow-[0_0_8px_var(--accent-cyan-glow)]">
+                                    <svg viewBox="0 0 48 32" className="w-[40px] h-[26px]">
+                                        <g stroke="var(--accent-cyan)" strokeWidth="1.4" fill="none" opacity="0.9">
+                                            <rect x="8" y="4" width="32" height="10" rx="1" />
+                                            {Array.from({ length: 8 }).map((_, i) => (
+                                                <line key={i} x1={11 + i * 3.7} y1="4" x2={11 + i * 3.7} y2="9" />
+                                            ))}
+                                            <line x1="8" y1="9" x2="40" y2="9" />
+                                            <line x1="14" y1="14" x2="24" y2="28" />
+                                            <line x1="34" y1="14" x2="24" y2="28" />
+                                            <line x1="10" y1="28" x2="38" y2="28" />
+                                        </g>
+                                    </svg>
+                                </div>
                             </div>
-                        </InspectorField>
-                        {/* The one place to see and change what a track plays.
-                            Instrument selection was previously buried in the
-                            Library panel and the Audio FX menu, with nothing in
-                            the Inspector showing the current instrument. */}
-                        {(track.type === 'midi' || track.type === 'software-instrument' || track.type === 'drummer') && (
-                            <InspectorField label="Instrument">
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setPluginBrowserTrack(track.id, 'instrument');
-                                    }}
-                                    title="Choose an instrument for this track"
-                                    className="flex items-center gap-1 max-w-[130px] px-1.5 py-0.5 rounded hover:bg-accent-cyan/20 transition-colors group/inst"
-                                >
-                                    <span className={`text-[11px] font-black truncate ${track.instrument ? 'text-studio-text' : 'text-studio-text-dim italic'}`}>
-                                        {track.instrument || 'None'}
-                                    </span>
-                                    <ChevronDown className="w-3 h-3 text-studio-text-dim group-hover/inst:text-accent-cyan shrink-0" />
-                                </button>
-                            </InspectorField>
-                        )}
-                        <InspectorField label="Channel" value={track.channel || "Inst 1"} hasChevron />
-                        <InspectorField label="MIDI Input" value={track.midiInput || "All"} hasChevron />
-
-                        {track.instrument && getSoundInfo(track.instrument)?.engine === 'soundfont' && (
-                            <div className="px-2 py-2">
-                                <SoundFontPanel trackId={track.id} />
-                            </div>
-                        )}
-
-                        {/* Internal MIDI In Section */}
-                        <div className="flex flex-col border-y border-white/5 my-1 py-1 bg-black/10">
-                            <InspectorField label="Internal MIDI In">
-                                <select 
-                                    className="bg-transparent text-[11px] font-black text-studio-text outline-none cursor-pointer text-right w-[140px] appearance-none focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
-                                    value={track.internalMidiInSourceId || ""}
-                                    onChange={(e) => {
-                                        const sourceId = e.target.value || undefined;
-                                        setInternalMidiIn(track.id, sourceId, sourceId ? 'Instrument Input' : 'Off');
-                                    }}
-                                >
-                                    <option value="" className="bg-studio-panel">Off</option>
-                                    <optgroup label="Instrument Input" className="bg-studio-panel">
-                                        {tracks.filter(t => t.id !== track.id && (t.type === 'software-instrument' || t.type === 'midi')).map(t => (
-                                            <option key={t.id} value={t.id} className="bg-studio-panel">{t.name}</option>
-                                        ))}
-                                    </optgroup>
-                                </select>
-                            </InspectorField>
-
-                            {track.internalMidiInSourceId && (
-                                <>
-                                    <InspectorField label="Record">
-                                        <select 
-                                            className="bg-transparent text-[11px] font-black text-accent-cyan outline-none cursor-pointer text-right w-[140px] appearance-none"
-                                            value={track.internalMidiInRecordMode || "Internal Only"}
-                                            onChange={(e) => setInternalMidiInRecordMode(track.id, e.target.value as any)}
-                                        >
-                                            <option value="Internal Only" className="bg-studio-panel">Internal Only</option>
-                                            <option value="Internal + External" className="bg-studio-panel">Int + External</option>
-                                        </select>
-                                    </InspectorField>
-                                </>
-                            )}
+                            <div className="w-[22px]" />
                         </div>
 
-                        <InspectorField label="MIDI In Channel">
-                            <select 
-                                className="bg-transparent text-[11px] font-black text-studio-text outline-none cursor-pointer text-right appearance-none focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
-                                value={track.midiInChannel || "All"}
-                                onChange={(e) => handleTrackUpdate('midiInChannel', e.target.value === 'All' ? 'All' : Number(e.target.value))}
-                            >
-                                <option value="All" className="bg-studio-panel">All</option>
-                                {Array.from({length: 16}).map((_, i) => (
-                                    <option key={i+1} value={i+1} className="bg-studio-panel">{i+1}</option>
-                                ))}
-                            </select>
-                        </InspectorField>
-                        <InspectorField label="MIDI Out Chan..." value={track.midiOutChannel || "All"} hasChevron />
-                        {(track.type === 'software-instrument' || track.type === 'drummer') && (
-                            <InspectorField
-                                label="Def. Region Type"
-                                value={track.defaultRegionType === 'pattern' ? 'Pattern' : track.defaultRegionType === 'session-player' ? 'Session Player' : 'MIDI'}
-                                hasChevron
-                            />
-                        )}
-                        <InspectorField
+                        <LogicValueRow label="Default Region..." value={defaultRegionLabel} stepper />
+                        <LogicValueRow label="Channel" value={track.channel || 'Inst 1'} stepper />
+                        <LogicSelectRow
+                            label="MIDI Input"
+                            value={track.midiInput || 'All'}
+                            options={['All', 'Keyboard', 'External']}
+                            onChange={(v) => handleTrackUpdate('midiInput', v)}
+                        />
+                        <LogicSelectRow
+                            label="Internal MIDI In"
+                            value={track.internalMidiInSourceId ? (tracks.find(t => t.id === track.internalMidiInSourceId)?.name || 'On') : 'Off'}
+                            options={['Off', ...tracks.filter(t => t.id !== track.id && (t.type === 'software-instrument' || t.type === 'midi')).map(t => t.name)]}
+                            onChange={(v) => {
+                                if (v === 'Off') setInternalMidiIn(track.id, undefined, 'Off')
+                                else {
+                                    const src = tracks.find(t => t.name === v && t.id !== track.id)
+                                    setInternalMidiIn(track.id, src?.id, 'Instrument Input')
+                                }
+                            }}
+                        />
+                        <LogicSelectRow
+                            label="MIDI In Channel"
+                            value={String(track.midiInChannel || 'All')}
+                            options={['All', ...Array.from({ length: 16 }).map((_, i) => String(i + 1))]}
+                            onChange={(v) => handleTrackUpdate('midiInChannel', v === 'All' ? 'All' : Number(v))}
+                        />
+                        <LogicSelectRow
+                            label="MIDI Out Chan..."
+                            value={String((track as any).midiOutChannel || 'All')}
+                            options={['All', ...Array.from({ length: 16 }).map((_, i) => String(i + 1))]}
+                            onChange={(v) => handleTrackUpdate('midiOutChannel' as any, v === 'All' ? 'All' : Number(v))}
+                        />
+                        <LogicSelectRow
+                            label="Freeze Mode"
+                            value={track.freezeMode || 'Pre Fader'}
+                            options={['Pre Fader', 'Source Only']}
+                            onChange={(v) => handleTrackUpdate('freezeMode', v)}
+                        />
+                        <LogicStepperRow
                             label="Transpose"
-                            value={track.transpose ? (track.transpose > 0 ? `+${track.transpose}` : track.transpose) : "0"}
-                            hasChevron
-                            onUpdate={(inc: number) => handleTrackUpdate('transpose', (track.transpose || 0) + inc)}
+                            value={track.transpose ? (track.transpose > 0 ? `+${track.transpose}` : `${track.transpose}`) : ''}
+                            onStep={(d) => handleTrackUpdate('transpose', (track.transpose || 0) + d)}
                         />
-                        <InspectorField
+                        <LogicStepperRow
                             label="Velocity Offset"
-                            value={track.velocityOffset ? (track.velocityOffset > 0 ? `+${track.velocityOffset}` : track.velocityOffset) : "0"}
-                            onUpdate={(inc: number) => handleTrackUpdate('velocityOffset', (track.velocityOffset || 0) + inc * 5)}
+                            value={(track.velocityOffset || 0) !== 0 ? `${(track.velocityOffset || 0) > 0 ? '+' : ''}${track.velocityOffset}` : ''}
+                            onStep={(d) => handleTrackUpdate('velocityOffset', (track.velocityOffset || 0) + d * 5)}
                         />
-                        <InspectorField label="Key Limit" value={`${track.keyLimit?.[0] || 'C-2'} ${track.keyLimit?.[1] || 'G8'}`} />
-                        <InspectorField label="Velocity Limit" value={`${track.velocityLimit?.[0] || '1'} ${track.velocityLimit?.[1] || '127'}`} />
-                        <InspectorField label="Delay" value={`${track.delay || 0} ms`} hasChevron onUpdate={(inc: number) => handleTrackUpdate('delay', (track.delay || 0) + inc)} />
-                        {track.type === 'midi' && (
-                            <InspectorField label="No Transpose" type="checkbox" checked={track.noTranspose || false} onChange={(v: boolean) => handleTrackUpdate('noTranspose', v)} />
-                        )}
+                        <LogicValueRow label="Key Limit" value={`${keyLo}  ${keyHi}`} />
+                        <LogicValueRow label="Velocity Limit" value={`${velLo}   ${velHi}`} mono />
+                        <LogicStepperRow
+                            label="Delay"
+                            value={(track.delay || 0) !== 0 ? `${track.delay} ms` : ''}
+                            onStep={(d) => handleTrackUpdate('delay', (track.delay || 0) + d)}
+                        />
+                        <LogicCheckRow label="No Transpose" checked={!!track.noTranspose} onChange={(v) => handleTrackUpdate('noTranspose', v)} />
+                        <LogicCheckRow label="No Reset" checked={!!track.noReset} onChange={(v) => handleTrackUpdate('noReset', v)} />
+                        <LogicSelectRow label="Staff Style" value="Auto" options={['Auto', 'Treble', 'Bass', 'Grand Staff']} onChange={() => { }} />
+                        <LogicSelectRow
+                            label="Articulation Set"
+                            value={articulation}
+                            options={['None', articulation !== 'None' ? articulation : undefined].filter(Boolean) as string[]}
+                            onChange={() => { }}
+                        />
                     </div>
                 )}
             </div>
 
-            {/* 3. Dual Channel Strips Area */}
-            <div className="flex-1 flex bg-studio-panel min-h-0">
-                <InspectorChannelStrip track={track} />
-                <InspectorChannelStrip track={null} isOutput />
+            {/* ============ 3. Inspector channel strips ============ */}
+            <div className="flex-1 flex bg-studio-panel min-h-[420px]">
+                <LogicChannelStrip track={track} variant="track" />
+                <LogicChannelStrip track={null} variant="output" />
             </div>
-
-
         </div>
     )
 }
 
-interface InspectorFieldProps {
-    label: string;
-    value?: string | number;
-    children?: React.ReactNode;
-    hasChevron?: boolean;
-    type?: 'text' | 'checkbox';
-    checked?: boolean;
-    onChange?: (val: boolean) => void;
-    onUpdate?: (inc: number) => void;
-}
+/* ------------------------------------------------------------------ */
+/* Studio-themed rows                                                  */
+/* ------------------------------------------------------------------ */
 
-function InspectorField({ label, value, children, hasChevron, type = 'text', checked, onChange, onUpdate }: InspectorFieldProps) {
+function RowShell({ children }: { children: React.ReactNode }) {
     return (
-        <div className="flex items-center justify-between px-6 h-6 leading-none group hover:bg-white/[0.02]">
-            <span className="text-[11px] font-bold text-studio-text-dim group-hover:text-studio-text-mid truncate pr-2">{label}:</span>
-            <div className="flex items-center gap-1 cursor-pointer shrink-0">
-                {children}
-                {!children && type === 'text' && (
-                    <>
-                        <span className="text-[11px] font-black text-studio-text tabular-nums">{value}</span>
-                        {hasChevron && (
-                            <div className="flex flex-col -gap-1 opacity-40 group-hover:opacity-80">
-                                <button onClick={(e) => { e.stopPropagation(); onUpdate?.(1); }}><ChevronUpSmall className="w-2 h-2" /></button>
-                                <button onClick={(e) => { e.stopPropagation(); onUpdate?.(-1); }}><ChevronDownSmall className="w-2 h-2" /></button>
-                            </div>
-                        )}
-                    </>
-                )}
-                {!children && type === 'checkbox' && (
-                    <div
-                        onClick={() => onChange?.(!checked)}
-                        className={`w-3 h-3 border border-studio-line rounded-sm transition-colors ${checked ? 'bg-accent-cyan border-accent-cyan' : 'bg-black/40'}`}
-                    ></div>
-                )}
-            </div>
+        <div className="min-h-[24px] flex items-center hover:bg-white/[0.02] pr-[4px] group">
+            {children}
         </div>
     )
 }
 
-import { Track } from "@/models/Track";
+function Label({ text, dimmed, small }: { text: string; dimmed?: boolean; small?: boolean }) {
+    return (
+        <div className={`flex-1 text-right pr-2 truncate ${small ? 'text-[10px]' : 'text-[11px]'} font-bold ${dimmed ? 'text-studio-text-dim opacity-60' : 'text-studio-text-dim group-hover:text-studio-text-mid'}`}>
+            {text}:
+        </div>
+    )
+}
 
-const InspectorChannelStrip = memo(function InspectorChannelStrip({ track, isOutput = false }: { track: Track | null, isOutput?: boolean }) {
-    const { 
-        addPlugin, togglePlugin, focusedTrackId, 
-        setOpenPluginEditor, settings, updateProjectSettings, saveHistorySnapshot
+function Stepper({ onStep }: { onStep?: (d: number) => void }) {
+    return (
+        <div className="flex flex-col leading-none ml-[3px] opacity-40 group-hover:opacity-80 w-[10px] items-center justify-center shrink-0 transition-opacity">
+            <button className="h-[8px] text-studio-text-dim hover:text-white text-[8px] leading-none" onClick={(e) => { e.stopPropagation(); onStep?.(1) }}>▲</button>
+            <button className="h-[8px] text-studio-text-dim hover:text-white text-[8px] leading-none" onClick={(e) => { e.stopPropagation(); onStep?.(-1) }}>▼</button>
+        </div>
+    )
+}
+
+function LogicCheckRow({ label, checked, onChange, disabled, small }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; small?: boolean }) {
+    return (
+        <RowShell>
+            <div className={`flex-1 text-center ${small ? 'text-[10px]' : 'text-[11px]'} font-bold ${disabled ? 'text-studio-text-dim opacity-60' : 'text-studio-text-dim group-hover:text-studio-text-mid'}`}>{label}:</div>
+            <div className="w-[104px] flex items-center justify-start pl-1 shrink-0">
+                <button
+                    disabled={disabled}
+                    onClick={() => onChange(!checked)}
+                    className={`w-3 h-3 border border-studio-line rounded-sm transition-colors ${checked ? 'bg-accent-cyan border-accent-cyan shadow-[0_0_6px_var(--accent-cyan-glow)]' : 'bg-black/40'} ${disabled ? 'opacity-50' : ''}`}
+                    aria-pressed={checked}
+                />
+            </div>
+            <div className="w-[22px]" />
+        </RowShell>
+    )
+}
+
+function LogicValueRow({ label, value, stepper, dimmed, small, mono }: { label: string; value: string; stepper?: boolean; dimmed?: boolean; small?: boolean; mono?: boolean }) {
+    return (
+        <RowShell>
+            <Label text={label} dimmed={dimmed} small={small} />
+            <div className="w-[104px] flex items-center justify-start shrink-0">
+                <span className={`${small ? 'text-[10px]' : 'text-[11px]'} font-black truncate tabular-nums ${mono ? 'tracking-wide' : ''} ${dimmed ? 'text-studio-text-dim opacity-60' : 'text-studio-text'}`}>{value}</span>
+            </div>
+            <div className="w-[22px] shrink-0">{stepper && !dimmed ? <Stepper /> : null}</div>
+        </RowShell>
+    )
+}
+
+function LogicStepperRow({ label, value, onStep, disabled }: { label: string; value: string; onStep: (d: number) => void; disabled?: boolean }) {
+    return (
+        <RowShell>
+            <Label text={label} dimmed={disabled} />
+            <div className="w-[104px] flex items-center justify-start shrink-0">
+                <span className={`text-[11px] font-black tabular-nums ${disabled ? 'text-studio-text-dim opacity-60' : 'text-studio-text'}`}>{value}</span>
+            </div>
+            <div className="w-[22px] shrink-0">{!disabled ? <Stepper onStep={onStep} /> : null}</div>
+        </RowShell>
+    )
+}
+
+function LogicSelectRow({ label, value, options, onChange, disabled, small }: { label: string; value: string; options: string[]; onChange: (v: string) => void; disabled?: boolean; small?: boolean }) {
+    return (
+        <RowShell>
+            <Label text={label} dimmed={disabled} small={small} />
+            <div className="w-[104px] flex items-center justify-start shrink-0 relative">
+                <select
+                    disabled={disabled}
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    className={`${small ? 'text-[10px]' : 'text-[11px]'} font-black bg-transparent outline-none cursor-pointer appearance-none max-w-[86px] truncate transition-all focus:ring-1 focus:ring-[var(--accent-cyan)] focus:shadow-[0_0_8px_var(--accent-cyan-glow)] ${disabled ? 'text-studio-text-dim opacity-60' : 'text-studio-text'}`}
+                >
+                    {options.map(o => (
+                        <option key={o} value={o} className="bg-studio-panel">{o}</option>
+                    ))}
+                </select>
+            </div>
+            <div className="w-[22px] shrink-0">{!disabled ? <Stepper onStep={(d) => {
+                const i = options.indexOf(value)
+                const n = i < 0 ? 0 : Math.min(options.length - 1, Math.max(0, i + d))
+                onChange(options[n])
+            }} /> : null}</div>
+        </RowShell>
+    )
+}
+
+/* ------------------------------------------------------------------ */
+/* Studio-themed channel strips                                        */
+/* ------------------------------------------------------------------ */
+
+const FADER_SCALE = [0, 3, 6, 9, 12, 15, 18, 21, 24, 30, 35, 40, 45, 50, 60]
+
+const LogicChannelStrip = memo(function LogicChannelStrip({ track, variant }: { track: Track | null; variant: 'track' | 'output' }) {
+    const isOutput = variant === 'output'
+    const {
+        addPlugin, addMasterPlugin, masterPlugins, setOpenPluginEditor,
+        settings, updateProjectSettings, saveHistorySnapshot, setPluginBrowserTrack,
     } = useProjectStore()
     const updateTrack = useProjectStore(s => s.updateTrack)
-    const faderCapRef = useRef<HTMLDivElement>(null);
-    const isDraggingRef = useRef(false);
+    const faderCapRef = useRef<HTMLDivElement>(null)
+    const isDraggingRef = useRef(false)
 
-    const currentVolume = isOutput ? settings.masterVolume : (track?.volume || 0.8);
-    const currentPan = isOutput ? settings.masterPan : (track?.pan || 0);
+    const currentVolume = isOutput ? settings.masterVolume : (track?.volume ?? 0.8)
+    const currentPan = isOutput ? (settings.masterPan ?? 0) : (track?.pan ?? 0)
 
     useEffect(() => {
         if (!isDraggingRef.current && faderCapRef.current) {
-            faderCapRef.current.style.bottom = `${(currentVolume / 1.5) * 100}%`;
+            faderCapRef.current.style.bottom = `${(currentVolume / 1.5) * 100}%`
         }
-    }, [currentVolume]);
+    }, [currentVolume])
 
-    const handleLevelChange = (v: number) => {
+    const commitVolume = (v: number) => {
         if (isOutput) {
-            audioEngine.setMasterVolume(v);
+            updateProjectSettings({ masterVolume: v })
+            audioEngine.setMasterVolume(v)
         } else if (track) {
-            audioEngine.setTrackVolume(track.id, v);
+            updateTrack(track.id, { volume: v })
+            audioEngine.setTrackVolume(track.id, v)
         }
+    }
+    const liveVolume = (v: number) => {
+        if (isOutput) audioEngine.setMasterVolume(v)
+        else if (track) audioEngine.setTrackVolume(track.id, v)
     }
     const handlePanChange = (v: number) => {
+        const nv = Math.max(-1, Math.min(1, v))
         if (isOutput) {
-            updateProjectSettings({ masterPan: v });
-            audioEngine.setMasterPan(v);
+            updateProjectSettings({ masterPan: nv })
+            audioEngine.setMasterPan(nv)
         } else if (track) {
-            updateTrack(track.id, { pan: v });
+            updateTrack(track.id, { pan: nv })
         }
     }
 
-    const analyzer = (isOutput ? audioEngine.getMasterAnalyzer() : (track ? audioEngine.getTrackNodes(track.id)?.analyzer : null)) || null;
+    const analyzer = (isOutput ? audioEngine.getMasterAnalyzer() : (track ? audioEngine.getTrackNodes(track.id)?.analyzer : null)) || null
+
+    const topLabel = isOutput ? 'Setting' : ((track?.instrument || track?.name || 'Analog Bass').slice(0, 12))
+    const instrumentLabel = (track?.instrument || 'ES2').slice(0, 12)
+    const volumeDb = currentVolume <= 0.001 ? '-∞' : (20 * Math.log10(currentVolume)).toFixed(1)
 
     return (
-        <div className={`flex-1 flex flex-col border-r border-[var(--accent-cyan)]/30 ${isOutput ? 'bg-studio-panel' : 'bg-studio-panel'}`}>
-            <div className="flex-1 flex flex-col px-1.5 py-3 gap-0.5">
-                <div className="h-6 bg-studio-raised rounded-sm mb-1.5 flex items-center justify-center text-[9px] font-black text-studio-text-mid uppercase tracking-tighter border border-white/5 truncate px-1">
-                    {isOutput ? 'Setting' : (track?.name || 'Analog De...')}
+        <div className="flex-1 flex flex-col border-r border-[var(--accent-cyan)]/30 bg-studio-panel min-w-0">
+            <div className="flex-1 flex flex-col px-[6px] pt-[6px] pb-1 min-h-0">
+                {/* setting / patch */}
+                <div className="h-6 bg-studio-raised rounded-sm border border-white/5 flex items-center justify-center px-1">
+                    <span className="text-[9px] font-black text-studio-text-mid uppercase tracking-tighter truncate leading-none">{topLabel}</span>
                 </div>
 
-                <div className="h-10 bg-black/40 rounded-sm mb-1.5 flex items-center justify-center relative overflow-hidden group border border-white/5">
-                    <svg viewBox="0 0 100 40" className="w-full h-full opacity-40 group-hover:opacity-80 transition-opacity">
-                        <path d="M0,25 Q25,10 50,20 T100,25" fill="none" stroke="#38bdf8" strokeWidth="2" />
+                {/* EQ thumbnail */}
+                <div className="h-[46px] mt-[5px] rounded-sm bg-black/40 border border-white/5 relative overflow-hidden group">
+                    <svg viewBox="0 0 100 40" className="w-full h-full opacity-60 group-hover:opacity-90 transition-opacity" preserveAspectRatio="none">
+                        {isOutput
+                            ? <path d="M0,22 L100,22" fill="none" stroke="var(--accent-cyan)" strokeWidth="1.5" />
+                            : <path d="M0,12 C15,12 20,30 35,28 C50,26 55,18 70,20 L100,22" fill="none" stroke="var(--accent-cyan)" strokeWidth="1.5" />}
                     </svg>
                 </div>
 
-                {/* Dynamic Signal Chain (Logic Implementation) */}
-                <div className="flex flex-col gap-0.5 mb-2 h-[100px] overflow-y-auto custom-scrollbar-v relative">
-                    {!isOutput && <div className="h-4 flex items-center justify-center text-[8px] font-black text-studio-text-dim uppercase tracking-widest relative">
-                        MIDI FX
-                        {track && track.midiOutToTrackSlot === -1 && (
-                            <div className="absolute right-0 top-1 w-0 h-0 border-t-[4px] border-t-transparent border-l-[6px] border-l-orange-500 border-b-[4px] border-b-transparent" title="Record MIDI to Track Here"></div>
-                        )}
-                    </div>}
-
-                    {/* Fake MIDI Effect Slot for demonstration of the tap point feature */}
-                    {!isOutput && track && (track.type === 'software-instrument' || track.type === 'midi') && (
-                        <div 
-                            className="h-5 rounded-sm flex items-center px-1 text-[9px] font-black shadow-sm border-t border-white/10 cursor-pointer hover:brightness-110 bg-green-700/80 text-white relative group"
-                        >
-                            ChordTrigger
-                            <div className="absolute right-1 hidden group-hover:flex items-center gap-1">
-                                <button className="text-[7px]" onClick={() => useProjectStore.getState().setMidiOutToTrackSlot(track.id, 0)}>Tap</button>
-                            </div>
-                            {track.midiOutToTrackSlot === 0 && (
-                                <div className="absolute right-[-2px] inset-y-0 flex items-center">
-                                    <div className="w-0 h-0 border-t-[4px] border-t-transparent border-l-[6px] border-l-orange-500 border-b-[4px] border-b-transparent" title="Record MIDI to Track Here"></div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {track?.plugins.map((p: any) => (
-                        <div
-                            key={p.id}
-                            onClick={() => setOpenPluginEditor({ trackId: track.id, pluginId: p.id })}
-                            className={`h-5 rounded-sm flex items-center px-1 text-[9px] font-black shadow-sm border-t border-white/10 cursor-pointer hover:brightness-110 transition-all ${p.enabled ? (p.name.includes('EQ') ? 'bg-accent-cyan text-white' : 'bg-accent-cyan text-white') : 'bg-studio-panel text-studio-text-dim opacity-60'}`}
-                        >
-                            <div 
-                                onClick={(e) => { e.stopPropagation(); togglePlugin(track.id, p.id); }}
-                                className="mr-1 p-0.5 hover:bg-white/10 rounded cursor-pointer"
-                            >
-                                <Circle className={`w-1.5 h-1.5 ${p.enabled ? 'fill-white text-white' : 'text-studio-text-dim'}`} />
-                            </div>
-                            <span className="truncate">{p.name}</span>
-                        </div>
-                    ))}
-
-                    {track && track.plugins.length < 5 && (
-                        <div className="relative">
-                            <PluginMenu onSelect={(type) => addPlugin(track.id, type)} />
-                        </div>
-                    )}
-                </div>
-
-                <div className="h-5 bg-accent-cyan/20 border border-accent-cyan/20 rounded-md flex items-center px-2 justify-between mb-2">
-                    <span className="text-[9px] font-black text-accent-cyan uppercase">Bus 1</span>
-                    <div className="w-2.5 h-2.5 rounded-full border border-accent-cyan bg-accent-cyan/40"></div>
-                </div>
-
-                <div className="h-6 bg-studio-raised rounded-sm flex items-center justify-center text-[9px] font-black text-studio-text-mid uppercase border border-white/5 mb-1">
-                    {isOutput ? 'Mastering' : 'Stereo Out'}
-                </div>
-
-                <div className="h-6 bg-black/40 rounded-sm flex items-center justify-center text-[9px] font-black text-[#1ed760] uppercase mb-1 border border-white/5">Read</div>
-
-                {/* Control Group: Pan & Fader Area */}
-                <div className="flex-1 flex flex-col items-center justify-end pb-4 gap-3 relative">
-                    <div className="flex flex-col items-center gap-1 group">
-                        <PanKnob 
-                            value={currentPan} 
-                            onChange={handlePanChange} 
-                            isOutput={false} // Now making it a functional knob even for master
-                        />
-                        <span className="text-[8px] font-black text-studio-text-dim opacity-0 group-hover:opacity-100 transition-opacity">PAN</span>
+                {/* MIDI FX / link row */}
+                {!isOutput ? (
+                    <div className="h-[18px] flex items-center justify-center">
+                        <span className="text-[9px] font-black text-studio-text-dim uppercase tracking-widest">MIDI FX</span>
                     </div>
+                ) : (
+                    <div className="flex flex-col gap-[3px] mt-[5px]">
+                        <div className="h-[19px] rounded-sm bg-studio-raised border border-white/5 flex items-center justify-center">
+                            <Link2 className="w-3 h-3 text-studio-text-mid" />
+                        </div>
+                        <div className="h-[19px] rounded-sm bg-studio-raised border border-white/5 flex items-center justify-center">
+                            <Link2 className="w-3 h-3 text-studio-text-mid" />
+                        </div>
+                    </div>
+                )}
 
-                    <div className="flex gap-2 items-end relative h-40">
-                        <VerticalMeter analyzer={analyzer} side="L" />
-                        
-                        <div className="h-40 w-5 bg-studio-sunken rounded-sm border border-studio-line/50 relative group shadow-inner">
-                            {/* Fader Track Details (Ticks) */}
-                            <div className="absolute inset-y-2 left-[45%] w-[1px] bg-white/5 flex flex-col justify-between opacity-30">
-                                {[...Array(11)].map((_, i) => (
-                                    <div key={i} className={`h-[1px] bg-white/40 ${i % 5 === 0 ? 'w-2 -ml-1' : 'w-1'}`}></div>
-                                ))}
-                            </div>
+                {/* Instrument (track only) */}
+                {!isOutput && track && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const synthPlugin = track.plugins?.find(p => p.pluginId === 'magic.retroSynth' || p.pluginId === 'retroSynth');
+                            if (synthPlugin) {
+                                setOpenPluginEditor({ trackId: track.id, pluginId: synthPlugin.id });
+                            } else {
+                                setPluginBrowserTrack(track.id, 'instrument');
+                            }
+                        }}
+                        title="Click to open synthesizer or choose an instrument for this track"
+                        className="h-[19px] mt-[3px] rounded-sm bg-accent-cyan/20 border border-accent-cyan/40 flex items-center justify-center px-1 hover:bg-accent-cyan/30 hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
+                    >
+                        <span className="text-[11px] font-black text-accent-cyan truncate leading-none">{instrumentLabel}</span>
+                    </button>
+                )}
 
-                            {/* Fader Handle (Premium Visuals) */}
-                            <div
-                                ref={faderCapRef}
-                                className="absolute -left-1.5 w-8 h-4 cursor-ns-resize z-20 group-hover:brightness-125 transition-all outline-none"
-                                style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))' }}
-                                onMouseDown={(e) => {
-                                    isDraggingRef.current = true;
-                                    const startY = e.clientY;
-                                    const startVol = currentVolume;
-                                    let lastFlushedVol = startVol;
-
-                                    const onMove = (me: MouseEvent) => {
-                                        const delta = (startY - me.clientY) / 150;
-                                        const newVol = Math.max(0, Math.min(1.5, startVol + delta));
-                                        lastFlushedVol = newVol;
-                                        handleLevelChange(newVol);
-                                    };
-
-                                    let rafId: number | null = null;
-                                    const onRafMove = (me: MouseEvent) => {
-                                        onMove(me);
-                                        if (rafId === null && faderCapRef.current) {
-                                            rafId = requestAnimationFrame(() => {
-                                                rafId = null;
-                                                if (faderCapRef.current) {
-                                                    faderCapRef.current.style.bottom = `${Math.min(100, (lastFlushedVol / 1.5) * 100)}%`;
-                                                }
-                                            });
-                                        }
-                                    };
-
-                                    const onUp = () => {
-                                        isDraggingRef.current = false;
-                                        if (rafId !== null) cancelAnimationFrame(rafId);
-                                        if (faderCapRef.current) {
-                                            faderCapRef.current.style.bottom = `${Math.min(100, (lastFlushedVol / 1.5) * 100)}%`;
-                                        }
-                                        if (isOutput) {
-                                            updateProjectSettings({ masterVolume: lastFlushedVol });
-                                            audioEngine.setMasterVolume(lastFlushedVol);
-                                        } else if (track) {
-                                            updateTrack(track.id, { volume: lastFlushedVol });
-                                            audioEngine.setTrackVolume(track.id, lastFlushedVol);
-                                        }
-                                        saveHistorySnapshot();
-                                        window.removeEventListener('mousemove', onRafMove);
-                                        window.removeEventListener('mouseup', onUp);
-                                    };
-                                    window.addEventListener('mousemove', onRafMove);
-                                    window.addEventListener('mouseup', onUp);
-                                }}
-                            >
-                                <div className="w-full h-full bg-gradient-to-b from-studio-control via-studio-raised to-studio-sunken border border-studio-line-strong rounded shadow-xl relative overflow-hidden">
-                                    <div className="absolute top-[50%] left-0 right-0 h-[1x] bg-white/20 shadow-[0_0_2px_rgba(255,255,255,0.5)]"></div>
-                                    <div className="absolute top-0 left-[2px] right-[2px] h-[1px] bg-white/10"></div>
+                {/* Audio FX slots */}
+                <div className="flex flex-col gap-[3px] mt-[3px]">
+                    {!isOutput ? (
+                        <>
+                            {(track?.plugins || []).map((p: any) => (
+                                <div
+                                    key={p.id}
+                                    onClick={() => track && setOpenPluginEditor({ trackId: track.id, pluginId: p.id })}
+                                    className={`h-[19px] rounded-sm border-t border-white/10 flex items-center px-1 cursor-pointer hover:brightness-110 transition-all shadow-sm ${p.enabled ? 'bg-accent-cyan text-white' : 'bg-studio-raised text-studio-text-dim opacity-60'}`}
+                                >
+                                    <span className="text-[10px] font-black truncate leading-none">{p.name}</span>
                                 </div>
+                            ))}
+                            {track && track.plugins.length < 5 && (
+                                <PluginAddSlot onSelect={(type) => addPlugin(track.id, type)} />
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            {(masterPlugins || []).map((p: any) => (
+                                <div
+                                    key={p.id}
+                                    onClick={() => setOpenPluginEditor({ trackId: 'master', pluginId: p.id })}
+                                    className={`h-[19px] rounded-sm border-t border-white/10 flex items-center px-1 cursor-pointer hover:brightness-110 transition-all shadow-sm ${p.enabled !== false ? 'bg-accent-cyan text-white' : 'bg-studio-raised text-studio-text-dim opacity-60'}`}
+                                >
+                                    <span className="text-[10px] font-black truncate leading-none">{p.name || p.pluginId}</span>
+                                </div>
+                            ))}
+                            {(masterPlugins || []).length < 5 && (
+                                <PluginAddSlot onSelect={(type) => addMasterPlugin(type)} />
+                            )}
+                        </>
+                    )}
+                </div>
+
+                <div className="flex-1" />
+
+                {/* Bus send */}
+                {!isOutput ? (
+                    <div className="flex items-center gap-1 mt-2">
+                        <div className="flex-1 h-[19px] rounded-md bg-accent-cyan/20 border border-accent-cyan/20 flex items-center px-1.5">
+                            <span className="text-[9px] font-black text-accent-cyan uppercase leading-none">Bus 2</span>
+                        </div>
+                        <div className="w-[16px] h-[16px] rounded-full bg-gradient-to-b from-studio-raised to-studio-sunken border border-studio-line shadow" />
+                    </div>
+                ) : (
+                    <div className="h-[19px] mt-2" />
+                )}
+
+                {/* Output / mastering */}
+                {!isOutput ? (
+                    <div className="h-[19px] mt-[3px] rounded-sm bg-studio-raised border border-white/5 flex items-center px-1.5">
+                        <span className="text-[9px] font-black text-studio-text-mid uppercase truncate leading-none">Stereo Out</span>
+                    </div>
+                ) : (
+                    <div className="h-[19px] mt-[3px]" />
+                )}
+                <div className="h-[18px] flex items-center justify-center">
+                    <span className="text-[10px] font-black text-studio-text-dim uppercase">{isOutput ? 'Mastering' : 'Group'}</span>
+                </div>
+                {!isOutput && (
+                    <div className="h-[16px] flex items-center justify-center">
+                        <span className="text-[10px] font-black text-studio-text-dim uppercase opacity-0">Group</span>
+                    </div>
+                )}
+                {isOutput && (
+                    <div className="h-[18px] flex items-center justify-center">
+                        <span className="text-[10px] font-black text-studio-text-dim uppercase">Group</span>
+                    </div>
+                )}
+
+                {/* Automation mode */}
+                <div className="h-[19px] rounded-sm bg-black/40 border border-white/5 flex items-center justify-center">
+                    <span className="text-[10px] font-black text-[#1ed760] uppercase leading-none">Read</span>
+                </div>
+
+                {/* Pan knob */}
+                <div className="flex justify-center mt-2 group/knob">
+                    <div
+                        className="w-[38px] h-[38px] rounded-full cursor-ns-resize relative shadow-[0_2px_6px_rgba(0,0,0,0.6)] border border-[var(--accent-cyan)]/30 bg-gradient-to-tr from-studio-sunken via-studio-raised to-studio-control active:scale-95 transition-transform"
+                        onMouseDown={(e) => {
+                            const startY = e.clientY
+                            const startVal = currentPan
+                            const onMove = (me: MouseEvent) => {
+                                const delta = (startY - me.clientY) / 100
+                                handlePanChange(startVal + delta)
+                            }
+                            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+                            window.addEventListener('mousemove', onMove)
+                            window.addEventListener('mouseup', onUp)
+                        }}
+                    >
+                        <div className="absolute inset-0 flex items-start justify-center pt-[4px] pointer-events-none">
+                            <div className="w-[2px] h-[12px] bg-accent-cyan rounded-full shadow-[0_0_4px_var(--accent-cyan-glow)]" style={{ transform: `rotate(${currentPan * 135}deg)`, transformOrigin: '50% 15px' }} />
+                        </div>
+                        <div className="absolute inset-[3px] rounded-full border border-white/5 pointer-events-none" />
+                    </div>
+                </div>
+
+                {/* Value boxes */}
+                <div className="flex justify-center gap-1 mt-2">
+                    <div className="w-[38px] h-[18px] rounded-[2px] bg-studio-sunken border border-studio-line flex items-center justify-center">
+                        <span className="text-[10px] font-black text-studio-text tabular-nums leading-none">{volumeDb}</span>
+                    </div>
+                    <div className="w-[24px] h-[18px] rounded-[2px] bg-studio-sunken border border-studio-line" />
+                </div>
+
+                {/* Fader + meters + scale */}
+                <div className="flex justify-center items-stretch gap-[3px] mt-2 relative">
+                    <div className="flex items-end pb-[2px]">
+                        <VerticalMeter analyzer={analyzer} side="L" />
+                    </div>
+                    <div className="h-[150px] w-[26px] bg-studio-sunken border border-studio-line/50 rounded-sm relative shadow-inner">
+                        <div className="absolute inset-y-[6px] left-1/2 w-[2px] -ml-[1px] bg-black/60" />
+                        <div
+                            ref={faderCapRef}
+                            className="absolute left-[2px] right-[2px] h-[14px] cursor-ns-resize z-20 hover:brightness-125 transition-all"
+                            style={{ filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.6))' }}
+                            onMouseDown={(e) => {
+                                isDraggingRef.current = true
+                                const startY = e.clientY
+                                const startVol = currentVolume
+                                let lastVol = startVol
+                                const onMove = (me: MouseEvent) => {
+                                    const delta = (startY - me.clientY) / 150
+                                    const nv = Math.max(0, Math.min(1.5, startVol + delta))
+                                    lastVol = nv
+                                    liveVolume(nv)
+                                    if (faderCapRef.current) {
+                                        faderCapRef.current.style.bottom = `${Math.min(100, (nv / 1.5) * 100)}%`
+                                    }
+                                }
+                                const onUp = () => {
+                                    isDraggingRef.current = false
+                                    commitVolume(lastVol)
+                                    saveHistorySnapshot()
+                                    window.removeEventListener('mousemove', onMove)
+                                    window.removeEventListener('mouseup', onUp)
+                                }
+                                window.addEventListener('mousemove', onMove)
+                                window.addEventListener('mouseup', onUp)
+                            }}
+                        >
+                            <div className="w-full h-full rounded-[2px] bg-gradient-to-b from-studio-control via-studio-raised to-studio-sunken border border-studio-line-strong relative overflow-hidden">
+                                <div className="absolute top-1/2 left-0 right-0 h-px bg-white/30 shadow-[0_0_2px_rgba(255,255,255,0.5)]" />
                             </div>
                         </div>
-
+                    </div>
+                    <div className="flex items-end pb-[2px]">
                         <VerticalMeter analyzer={analyzer} side="R" />
                     </div>
+                    <div className="flex flex-col justify-between py-[2px] pl-[1px]">
+                        {FADER_SCALE.map(v => (
+                            <span key={v} className="text-[7px] leading-[1] text-studio-text-dim tabular-nums">{v}</span>
+                        ))}
+                    </div>
+                    {isOutput && (
+                        <div className="absolute -top-[2px] right-0 h-[16px] px-1.5 rounded bg-studio-raised border border-white/5 flex items-center">
+                            <span className="text-[9px] font-black text-studio-text-mid uppercase leading-none">Bnc</span>
+                        </div>
+                    )}
+                </div>
 
-                    <div className="flex gap-1 h-6 w-full px-1 pt-2">
-                        <button 
-                            className={`flex-1 border rounded-sm text-[10px] font-black transition-colors ${track?.muted ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-studio-panel border-studio-line text-studio-text-dim'}`} 
-                            onClick={() => track && updateTrack(track.id, { muted: !track.muted })}
-                        >
-                            M
-                        </button>
-                        <button 
-                            className={`flex-1 border rounded-sm text-[10px] font-black transition-colors ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500]' : 'bg-studio-panel border-studio-line text-studio-text-dim'}`} 
+                {/* M / S */}
+                <div className="flex gap-1 mt-2">
+                    <button
+                        className={`h-[19px] flex-1 rounded-sm border text-[10px] font-black transition-colors ${(isOutput ? settings.masterMuted : track?.muted) ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text-mid'}`}
+                        onClick={() => {
+                            if (isOutput) {
+                                updateProjectSettings({ masterMuted: !settings.masterMuted })
+                            } else if (track) {
+                                updateTrack(track.id, { muted: !track.muted })
+                            }
+                        }}
+                    >
+                        M
+                    </button>
+                    {!isOutput && (
+                        <button
+                            className={`h-[19px] flex-1 rounded-sm border text-[10px] font-black transition-colors ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500]' : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text-mid'}`}
                             onClick={() => track && updateTrack(track.id, { soloed: !track.soloed })}
                         >
                             S
                         </button>
-                    </div>
+                    )}
                 </div>
             </div>
 
             <div className="h-[22px] bg-studio-sunken border-t border-black flex items-center justify-center shrink-0">
-                <span className="text-[10px] font-black text-studio-text-dim uppercase truncate px-2 leading-none">
-                    {isOutput ? 'Output' : (track?.name || 'Track')}
-                </span>
+                <span className="text-[10px] font-black text-studio-text-dim uppercase truncate px-2 leading-none">{isOutput ? 'Output' : (track?.name || 'Deep Bass')}</span>
             </div>
         </div>
     )
 })
 
-function PluginMenu({ onSelect }: { onSelect: (type: 'comp' | 'eq' | 'reverb' | 'delay') => void }) {
-    const [open, setOpen] = useState(false);
-    const [coords, setCoords] = useState({ top: 0, left: 0 });
-    const buttonRef = useRef<HTMLButtonElement>(null);
-    const menuRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (!open) return;
-        const handleClick = (e: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(e.target as Node) && buttonRef.current && !buttonRef.current.contains(e.target as Node)) {
-                setOpen(false);
-            }
-        };
-        window.addEventListener('mousedown', handleClick);
-        return () => window.removeEventListener('mousedown', handleClick);
-    }, [open]);
-
-    const handleToggle = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (buttonRef.current) {
-            const rect = buttonRef.current.getBoundingClientRect();
-            setCoords({ top: rect.bottom + 2, left: rect.left });
-        }
-        setOpen(!open);
-    };
-
-    const plugins = [
-        { id: 'comp', name: 'Compressor', category: 'Dynamics' },
-        { id: 'eq', name: 'Channel EQ', category: 'EQ' },
-        { id: 'reverb', name: 'ChromaVerb', category: 'Reverb' },
-        { id: 'delay', name: 'Delay Designer', category: 'Delay' },
-    ];
-
-    return (
-        <div className="relative w-full">
-            <button
-                ref={buttonRef}
-                onClick={handleToggle}
-                className="h-5 bg-black/20 rounded-sm border border-white/5 text-[8px] font-black text-studio-text-dim hover:text-studio-text-mid hover:bg-white/5 uppercase flex items-center justify-center transition-all w-full"
-            >
-                Audio FX
-            </button>
-            {open && (
-                <div 
-                    ref={menuRef}
-                    style={{ top: coords.top, left: coords.left }}
-                    className="fixed z-[999] w-[180px] bg-studio-panel border border-studio-line-strong rounded shadow-[0_15px_50px_rgba(0,0,0,1)] p-1 overflow-hidden"
-                >
-                    <div className="text-[7px] uppercase text-studio-text-dim font-black px-2 py-1 border-b border-white/5 mb-1 tracking-widest">Plug-ins</div>
-                    {plugins.map(p => (
-                        <button
-                            key={p.id}
-                            onClick={(e) => { e.stopPropagation(); onSelect(p.id as any); setOpen(false); }}
-                            className="w-full text-left px-3 py-1.5 hover:bg-accent-cyan hover:text-white text-[10px] font-black text-studio-text transition-colors flex items-center justify-between group"
-                        >
-                            <span>{p.name}</span>
-                            <span className="text-[8px] text-studio-text-dim group-hover:text-accent-cyan">{p.category}</span>
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
-
-function PanKnob({ value, onChange, isOutput }: { value: number, onChange: (v: number) => void, isOutput?: boolean }) {
-    if (isOutput) {
+function PluginAddSlot({ onSelect }: { onSelect: (type: 'comp' | 'eq' | 'reverb' | 'delay') => void }) {
+    const [open, setOpen] = useState(false)
+    if (!open) {
         return (
-             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-studio-sunken to-studio-raised border border-white/5 relative shadow-inner flex items-center justify-center">
-                 <div className="w-7 h-7 rounded-full bg-studio-sunken border border-black flex items-center justify-center text-[7px] font-black text-studio-text-dim uppercase">Mst</div>
-        </div>
-    )
-}
-
-    const rotation = value * 135; // Pan -1 to 1 maps to -135 to 135 degrees
-
-    return (
-        <div 
-            className="w-3 h-3 rounded-full bg-gradient-to-tr from-studio-void to-studio-control border border-[var(--accent-cyan)]/50 relative shadow-2xl cursor-pointer group active:scale-95 transition-transform"
-            onMouseDown={(e) => {
-                const startY = e.clientY;
-                const startVal = value;
-                const onMove = (me: MouseEvent) => {
-                    const delta = (startY - me.clientY) / 100;
-                    onChange(Math.max(-1, Math.min(1, startVal + delta)));
-                }
-                const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
-            }}
-        >
-            <div className="absolute inset-1 rounded-full border border-[var(--accent-cyan)]/30 shadow-inner bg-gradient-to-tr from-studio-sunken via-studio-raised to-studio-control"></div>
-            <div 
-                className="absolute top-1.5 left-[17px] w-[2px] h-3 bg-[var(--accent-cyan)] rounded-full origin-[1px_16.5px] transition-transform duration-100 ease-out"
-                style={{ transform: `rotate(${rotation}deg)` }}
+            <button
+                onClick={() => setOpen(true)}
+                className="h-[14px] rounded-[3px] border border-dashed border-white/10 text-[8px] font-black text-studio-text-dim hover:text-studio-text-mid hover:border-white/25 uppercase transition-colors"
             >
-                <div className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-[var(--accent-cyan)]/20 blur-sm rounded-full"></div>
-            </div>
+                +
+            </button>
+        )
+    }
+    return (
+        <div className="flex flex-col gap-[2px] bg-studio-panel border border-studio-line-strong rounded-[3px] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.6)]">
+            {([
+                { id: 'comp', name: 'Compressor' },
+                { id: 'eq', name: 'Channel EQ' },
+                { id: 'reverb', name: 'ChromaVerb' },
+                { id: 'delay', name: 'Delay' },
+            ] as const).map(p => (
+                <button
+                    key={p.id}
+                    onClick={() => { onSelect(p.id); setOpen(false) }}
+                    className="text-left px-1 py-[1px] text-[10px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white rounded-[2px] transition-colors"
+                >
+                    {p.name}
+                </button>
+            ))}
         </div>
-    )
-}
-
- function ChevronUpSmall({ className }: { className?: string }) {
-    return (
-        <svg viewBox="0 0 100 100" className={className} fill="currentColor"><polygon points="50,30 80,60 20,60" /></svg>
-    )
-}
-
-function ChevronDownSmall({ className }: { className?: string }) {
-    return (
-        <svg viewBox="0 0 100 100" className={className} fill="currentColor"><polygon points="20,40 80,40 50,70" /></svg>
     )
 }

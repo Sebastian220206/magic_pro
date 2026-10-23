@@ -1,4 +1,4 @@
-import { isTrackVisible, visibleTracks } from '@/lib/trackVisibility';
+import { isTrackVisible, visibleTracks, type VisibilityTrack } from '@/lib/trackVisibility';
 
 /**
  * The header column and the timeline lanes must render the same list.
@@ -7,8 +7,8 @@ import { isTrackVisible, visibleTracks } from '@/lib/trackVisibility';
  * `Timeline` rendered `tracks.map`, so hiding a track or collapsing a stack
  * left every header below it beside the wrong track's clips.
  */
-const t = (id: string, extra: Record<string, unknown> = {}) =>
-    ({ id, ...extra }) as never;
+const t = (id: string, extra: Partial<VisibilityTrack> = {}): VisibilityTrack =>
+    ({ id, ...extra });
 
 describe('which tracks get a row', () => {
     it('shows everything by default', () => {

@@ -13,6 +13,7 @@ import { libraryData, Preset } from '@/lib/libraryData';
 import { serializeStoreState, deserializeState, saveToIndexedDB, loadFromIndexedDB, CURRENT_SCHEMA_VERSION } from '@/engine/persistence/projectPersistence';
 import { getAudioRecorder } from '@/engine/audioRecording/recorder';
 import { rebuildEngine } from '@/engine/persistence/engineRebuilder';
+import { TransientDetector } from '@/engine/audio/AudioQuantizer';
 import { storeAudioFile } from '@/engine/persistence/audioFileStore';
 import { syncInputMonitoring } from '@/engine/audioRecording/inputMonitoring';
 import { describeRecordingError } from '@/lib/recordingErrors';
@@ -172,7 +173,7 @@ export interface ControlBarSettings {
         tempo: boolean; timeSignature: boolean; keySignature: boolean; midiActivity: boolean; performanceMeter: boolean;
     };
     modes: {
-        sync: boolean; replace: boolean; autopunch: boolean; setPunchByPlayhead: boolean;
+        sync: boolean; autopunch: boolean; setPunchByPlayhead: boolean;
         softwareMonitoring: boolean; autoInputMonitoring: boolean; preFaderMetering: boolean;
         lowLatency: boolean; tuner: boolean; solo: boolean; countIn: boolean; metronome: boolean;
         masterOutput: 'Volume' | 'Meter' | 'None';
@@ -546,6 +547,20 @@ interface ProjectState {
     articulationSets: ArticulationSet[];
     showArticulationEditor: boolean;
     editingArticulationSetId: string | null;
+
+    // Live Loops State
+    liveLoops: {
+        cellStates: Record<string, { clipId?: string; name?: string; quantize?: 'off' | 'bar' | 'half' | 'quarter' }>;
+        sceneNames: Record<number, string>;
+        quantizeMode: 'off' | 'bar' | 'half' | 'quarter';
+        activeCells: Record<string, number | null>;
+        isRecordingToArrangement: boolean;
+    };
+    setLiveLoopsCellState: (key: string, state: { clipId?: string; name?: string; quantize?: 'off' | 'bar' | 'half' | 'quarter' }) => void;
+    setLiveLoopsSceneName: (sceneIndex: number, name: string) => void;
+    setLiveLoopsQuantizeMode: (mode: 'off' | 'bar' | 'half' | 'quarter') => void;
+    setLiveLoopsActiveCells: (active: Record<string, number | null>) => void;
+    toggleLiveLoopsRecordingToArrangement: (recording?: boolean) => void;
 
     /*
      * `recentProjects` and `demoProjects` are gone.
@@ -1068,12 +1083,23 @@ function createHistorySnapshot(state: ProjectState): Partial<ProjectState> {
         tempo: state.tempo,
         timeSignature: state.timeSignature,
         keySignature: state.keySignature,
-        tracks: (state.tracks ?? []).map(t => ({ ...t })),
-        clips: (state.clips ?? []).map(c => ({ ...c })),
+        tracks: (state.tracks ?? []).map(t => ({
+            ...t,
+            plugins: (t.plugins ?? []).map(p => ({ ...p, params: p.params ? { ...p.params } : {} })),
+            sends: (t.sends ?? []).map(s => ({ ...s })),
+            automation: (t.automation ?? []).map(a => ({
+                ...a,
+                points: (a.points ?? []).map(pt => ({ ...pt })),
+            })),
+        })),
+        clips: (state.clips ?? []).map(c => ({
+            ...c,
+            fadeIn: c.fadeIn ? { ...c.fadeIn } : { duration: 0, curve: 'linear', gain: 1 },
+            fadeOut: c.fadeOut ? { ...c.fadeOut } : { duration: 0, curve: 'linear', gain: 1 },
+            notes: c.notes ? c.notes.map(n => ({ ...n })) : undefined,
+            takes: c.takes ? c.takes.map(tk => ({ ...tk, notes: tk.notes ? tk.notes.map(n => ({ ...n })) : undefined })) : undefined,
+        })),
         annotations: state.annotations ? state.annotations.map(a => ({ ...a })) : undefined,
-        // An alternative restored from a project that predates track/clip
-        // snapshots has neither array; mapping them unguarded threw and took
-        // undo down with it.
         muteSoloGroups: (state.muteSoloGroups ?? []).map(g => ({ ...g, trackIds: [...g.trackIds] })),
         vcaFaders: (state.vcaFaders ?? []).map(v => ({ ...v, trackIds: [...v.trackIds] })),
         alternatives: state.alternatives
@@ -1085,10 +1111,7 @@ function createHistorySnapshot(state: ProjectState): Partial<ProjectState> {
             : undefined,
         currentAlternativeId: state.currentAlternativeId,
         globalTracks: state.globalTracks ? JSON.parse(JSON.stringify(state.globalTracks)) : undefined,
-        settings: state.settings ? { ...state.settings } : undefined,
-        globalSettings: undefined,
-        // `GET /api/project/[id]` returns `environment: {}` when a project has
-        // none — truthy, but with no layers/objects to map.
+        settings: state.settings ? JSON.parse(JSON.stringify(state.settings)) : undefined,
         environment: state.environment
             ? {
                 ...state.environment,
@@ -1100,98 +1123,18 @@ function createHistorySnapshot(state: ProjectState): Partial<ProjectState> {
         zoom: state.zoom,
         trackHeight: state.trackHeight,
         snap: state.snap,
-        controlBarSettings: state.controlBarSettings ? { ...state.controlBarSettings } : undefined,
         isDirty: state.isDirty,
-        showAutomation: state.showAutomation,
-        showLibrary: state.showLibrary,
-        showInspector: state.showInspector,
-        showToolbar: state.showToolbar,
-        showSmartControls: state.showSmartControls,
-        showMixer: state.showMixer,
-        showEditors: state.showEditors,
-        showListEditors: state.showListEditors,
-        showNotePad: state.showNotePad,
-        showLoopBrowser: state.showLoopBrowser,
-        showBrowsers: state.showBrowsers,
-        showLiveLoopsGrid: state.showLiveLoopsGrid,
-        showTracksArea: state.showTracksArea,
-        showGlobalTracks: state.showGlobalTracks,
-        beatMappingMode: state.beatMappingMode,
-        metronomeEnabled: state.metronomeEnabled,
-        countInEnabled: state.countInEnabled,
-        countInBars: state.countInBars,
-        hideViewActive: state.hideViewActive,
-        selectedTrackIds: state.selectedTrackIds ? [...state.selectedTrackIds] : undefined,
-        focusedTrackId: state.focusedTrackId,
-        selectedClipId: state.selectedClipId,
-        selectedClipIds: state.selectedClipIds ? [...state.selectedClipIds] : undefined,
-        regionClipboard: state.regionClipboard ? state.regionClipboard.map(c => ({ ...c })) : undefined,
-        selectedNoteId: state.selectedNoteId,
-        projectFormat: state.projectFormat,
-        surroundFormat: state.surroundFormat,
-        spatialAudioMode: state.spatialAudioMode,
-        bottomPanel: state.bottomPanel,
-        bottomPanelHeight: state.bottomPanelHeight,
-        pianoRollLinkMode: state.pianoRollLinkMode,
-        pianoRollFocusClipId: state.pianoRollFocusClipId,
-        selectedAutomationPointId: state.selectedAutomationPointId,
-        selectedAutomationPointIds: state.selectedAutomationPointIds ? [...state.selectedAutomationPointIds] : undefined,
-        showSelectionBasedProcessing: state.showSelectionBasedProcessing,
-        marqueeSelection: state.marqueeSelection ? { ...state.marqueeSelection } : undefined,
-        sbpState: state.sbpState ? { ...state.sbpState } : undefined,
+        // Musical locator / cycle bounds
         cycleEnabled: state.cycleEnabled,
         skipCycleEnabled: state.skipCycleEnabled,
         locatorLeft: state.locatorLeft,
         locatorRight: state.locatorRight,
         autoSetLocators: state.autoSetLocators,
-        showNewTrackDialog: state.showNewTrackDialog,
-        showCreateTrackUsing: state.showCreateTrackUsing,
-        showColorPalette: state.showColorPalette,
-        showIconBrowser: state.showIconBrowser,
-        showDrumReplacement: state.showDrumReplacement,
-        drumReplacementTargetId: state.drumReplacementTargetId,
-        showBounceTrackDialog: state.showBounceTrackDialog,
-        showBounceRegionsDialog: state.showBounceRegionsDialog,
-        showBounceAllTracksDialog: state.showBounceAllTracksDialog,
-        showExportDialog: state.showExportDialog,
-        showSettingsDialog: state.showSettingsDialog,
-        settingsActiveTab: state.settingsActiveTab,
-        settingsActiveSubTab: state.settingsActiveSubTab,
-        showShareDialog: state.showShareDialog,
-        showVirtualKeyboard: state.showVirtualKeyboard,
-        virtualKeyboardMode: state.virtualKeyboardMode,
-        virtualKeyboardOctave: state.virtualKeyboardOctave,
-        virtualKeyboardVelocity: state.virtualKeyboardVelocity,
-        virtualKeyboardPitchBend: state.virtualKeyboardPitchBend,
-        virtualKeyboardModulation: state.virtualKeyboardModulation,
-        virtualKeyboardSustain: state.virtualKeyboardSustain,
-        showTrackHeaderConfig: state.showTrackHeaderConfig,
-        trackHeaderWidth: state.trackHeaderWidth,
-        openPluginEditor: state.openPluginEditor ? { ...state.openPluginEditor } : undefined,
-        hoveredHelpId: state.hoveredHelpId,
-        trackHeaderConfig: state.trackHeaderConfig ? { ...state.trackHeaderConfig } : undefined,
-        showNoteRepeatDialog: state.showNoteRepeatDialog,
-        showSpotEraseDialog: state.showSpotEraseDialog,
-        noteRepeatSettings: state.noteRepeatSettings ? { ...state.noteRepeatSettings } : undefined,
-        spotEraseSettings: state.spotEraseSettings ? { ...state.spotEraseSettings } : undefined,
-        showStepInputKeyboard: state.showStepInputKeyboard,
-        stepInputSettings: state.stepInputSettings ? { ...state.stepInputSettings } : undefined,
-        channelStripSettings: state.channelStripSettings ? state.channelStripSettings.map(c => ({ ...c, settings: { ...c.settings, plugins: c.settings.plugins.map(p => ({ ...p })), sends: c.settings.sends.map(s => ({ ...s })) } })) : undefined,
-        channelStripCopyBuffer: state.channelStripCopyBuffer
-            ? {
-                ...state.channelStripCopyBuffer,
-                plugins: (state.channelStripCopyBuffer.plugins ?? []).map(p => ({ ...p })),
-                sends: (state.channelStripCopyBuffer.sends ?? []).map(s => ({ ...s })),
-            }
-            : undefined,
-        channelStripPerformances: state.channelStripPerformances ? state.channelStripPerformances.map(p => ({ ...p, settings: { ...p.settings, plugins: p.settings.plugins.map(p2 => ({ ...p2 })), sends: p.settings.sends.map(s => ({ ...s })) } })) : undefined,
-        librarySearchQuery: state.librarySearchQuery,
-        libraryPatchMerging: state.libraryPatchMerging,
-        libraryMergingOptions: state.libraryMergingOptions ? { ...state.libraryMergingOptions } : undefined,
-        librarySelectedPresetId: state.librarySelectedPresetId,
+        projectFormat: state.projectFormat,
+        surroundFormat: state.surroundFormat,
+        spatialAudioMode: state.spatialAudioMode,
         articulationSets: state.articulationSets ? state.articulationSets.map(a => ({ ...a })) : undefined,
-        showArticulationEditor: state.showArticulationEditor,
-        editingArticulationSetId: state.editingArticulationSetId,
+        liveLoops: state.liveLoops ? JSON.parse(JSON.stringify(state.liveLoops)) : undefined,
     };
 }
 
@@ -1334,6 +1277,37 @@ let recordedNoteSeq = 0;
 
 /** Floor for a recorded note, so a stray tap is still visible and audible. */
 const MIN_RECORDED_NOTE_BEATS = 0.125;
+
+/**
+ * Give held recording notes their real length at the current playhead.
+ *
+ * Keys still down when the transport stops never get a note-off through
+ * `releaseNote` — its recording branch only runs while `recording` is true,
+ * and every stop path clears that flag first. Without this the take keeps
+ * minimum-length stubs and the map below leaks entries into the next take.
+ */
+function finalizeHeldRecordingNotes(): void {
+    if (heldRecordingNotes.size === 0) return;
+    const { playhead } = useProjectStore.getState();
+    const held = Array.from(heldRecordingNotes.values());
+    heldRecordingNotes.clear();
+    useProjectStore.setState((s) => ({
+        clips: s.clips.map((c) => {
+            const mine = held.filter((h) => h.clipId === c.id);
+            if (mine.length === 0) return c;
+            let duration = c.duration ?? 0;
+            const notes = c.notes?.map((n) => {
+                const h = mine.find((m) => m.noteId === n.id || m.extraIds?.includes(n.id));
+                if (!h) return n;
+                const d = Math.max(MIN_RECORDED_NOTE_BEATS, playhead - h.startBeat);
+                const end = (n.start ?? 0) + d;
+                if (end > duration) duration = end;
+                return { ...n, duration: d };
+            });
+            return { ...c, duration, notes };
+        }),
+    }));
+}
 
 /**
  * The track as `engine/midi/fx/chain` needs to see it.
@@ -1695,7 +1669,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             tempo: true, timeSignature: true, keySignature: true, midiActivity: true, performanceMeter: true
         },
         modes: {
-            sync: false, replace: true, autopunch: false, setPunchByPlayhead: false,
+            sync: false, autopunch: false, setPunchByPlayhead: false,
             softwareMonitoring: false, autoInputMonitoring: false, preFaderMetering: false,
             lowLatency: false, tuner: true, solo: true, countIn: true, metronome: true,
             masterOutput: 'Meter'
@@ -1779,6 +1753,47 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     channelStripSettings: [],
     channelStripCopyBuffer: null,
     channelStripPerformances: [],
+
+    liveLoops: {
+        cellStates: {},
+        sceneNames: {},
+        quantizeMode: 'bar',
+        activeCells: {},
+        isRecordingToArrangement: false,
+    },
+    setLiveLoopsCellState: (key, cell) => set(s => ({
+        liveLoops: {
+            ...s.liveLoops,
+            cellStates: { ...s.liveLoops.cellStates, [key]: cell }
+        },
+        isDirty: true
+    })),
+    setLiveLoopsSceneName: (idx, name) => set(s => ({
+        liveLoops: {
+            ...s.liveLoops,
+            sceneNames: { ...s.liveLoops.sceneNames, [idx]: name }
+        },
+        isDirty: true
+    })),
+    setLiveLoopsQuantizeMode: (mode) => set(s => ({
+        liveLoops: {
+            ...s.liveLoops,
+            quantizeMode: mode
+        },
+        isDirty: true
+    })),
+    setLiveLoopsActiveCells: (active) => set(s => ({
+        liveLoops: {
+            ...s.liveLoops,
+            activeCells: active
+        }
+    })),
+    toggleLiveLoopsRecordingToArrangement: (recording) => set(s => ({
+        liveLoops: {
+            ...s.liveLoops,
+            isRecordingToArrangement: recording !== undefined ? recording : !s.liveLoops.isRecordingToArrangement
+        }
+    })),
 
     showBounceTrackDialog: null,
     showBounceRegionsDialog: null,
@@ -1906,17 +1921,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         // routing and track-level mix state (mute/solo)
         const anySolo = tracks.some(t => t.soloed);
         tracks.forEach(t => {
-            if (t.outputBusId && t.outputBusId !== 'stereo-out') {
-                const parent = tracks.find(p => p.id === t.outputBusId);
-                if (parent) {
-                    audioEngine.routeTrackToTrack(t.id, parent.id);
-                }
-            } else if (t.parentId) {
-                const parent = tracks.find(p => p.id === t.parentId);
-                if (parent) {
-                    audioEngine.routeTrackToTrack(t.id, parent.id);
-                }
-            }
+            const parentId = t.outputBusId && t.outputBusId !== 'stereo-out' ? t.outputBusId : t.parentId;
+            const parent = parentId ? tracks.find(p => p.id === parentId) : undefined;
+            audioEngine.routeTrackToTrack(t.id, parent ? parent.id : null);
 
             // sends
             if (t.sends?.length) {
@@ -1989,34 +1996,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             /*
              * Automation.
              *
-             * Lanes used to be data nothing played: `automationValueAt` was
-             * called by one test and the mixer's Read/Touch/Latch/Write button
-             * wrote a field nothing read. The runtime decides per parameter
-             * whether the lane drives the control or the control is being
-             * recorded, and hands back only what changed this frame.
+             * The runtime decides per parameter whether the lane drives the
+             * control or the control is being recorded. Applying changes
+             * directly to the audio engine (and tracking live parameter values)
+             * avoids re-allocating `tracks` array and re-triggering React
+             * renders 60 times a second during playback.
              */
             if (wrapped) automationRuntime.invalidate();
             const { playback } = automationRuntime.tick(state.tracks, nextPlayhead, true);
             if (playback.length > 0) {
-                set(s2 => ({
-                    tracks: s2.tracks.map(t => {
-                        const changes = playback.filter(p => p.trackId === t.id);
-                        if (changes.length === 0) return t;
-                        const next = { ...t };
-                        for (const change of changes) {
-                            if (change.parameter === 'volume') next.volume = change.value;
-                            else if (change.parameter === 'pan') next.pan = change.value;
-                        }
-                        return next;
-                    }),
-                }));
-                // The engine takes volume and pan together, so one call per
-                // touched track rather than one per parameter.
-                const touched = new Set(playback.map(p => p.trackId));
-                const after = get().tracks;
-                for (const id of touched) {
-                    const t = after.find(x => x.id === id);
-                    if (t) audioEngine.updateTrackParams(id, t.muted ? 0 : t.volume, t.pan);
+                for (const change of playback) {
+                    if (change.parameter === 'volume') {
+                        audioEngine.setTrackVolume?.(change.trackId, change.value);
+                    } else if (change.parameter === 'pan') {
+                        audioEngine.setTrackPan?.(change.trackId, change.value);
+                    }
                 }
             }
 
@@ -2188,6 +2182,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
              * and it was the one path that threw it away.
              */
             set({ recording: false, recordingStartTime: null, liveRecordingClips: {} });
+            finalizeHeldRecordingNotes();
             void endAudioCapture();
         }
         if (s.playing) {
@@ -3568,11 +3563,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const s = get();
         const source = s.clips.find(c => c.id === sourceClipId);
         if (!source) return;
+        const effectiveStart = Math.max(0, start);
         const newClip = {
             ...source,
             id: `clip-${Date.now()}`,
             trackId,
-            start: Math.max(0, start),
+            start: effectiveStart,
+            startBeat: effectiveStart,
+            startTime: effectiveStart,
             aliasOf: sourceClipId,
             aliasName: aliasName || undefined,
             // keep independent params like transpose/velocity/muted/loop
@@ -3591,15 +3589,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const newAliases = s.selectedClipIds
             .map(id => s.clips.find(c => c.id === id))
             .filter((c): c is Clip => !!c)
-            .map(c => ({
-                ...c,
-                id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                trackId: trackId || c.trackId,
-                start: Math.max(0, c.start + timeDelta),
-                aliasOf: c.id,
-                aliasName: undefined,
-                name: c.name,
-            }));
+            .map(c => {
+                const effectiveStart = Math.max(0, c.start + timeDelta);
+                return {
+                    ...c,
+                    id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    trackId: trackId || c.trackId,
+                    start: effectiveStart,
+                    startBeat: effectiveStart,
+                    startTime: effectiveStart,
+                    aliasOf: c.id,
+                    aliasName: undefined,
+                    name: c.name,
+                };
+            });
         set({ clips: [...s.clips, ...newAliases], selectedClipIds: newAliases.map(a => a.id), selectedClipId: newAliases[0]?.id || null });
     },
 
@@ -3678,26 +3681,33 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const s = get();
         const clip = s.clips.find(c => c.id === clipId);
         if (!clip) return;
-        const splitPoint = Math.max(clip.start, Math.min(clip.start + clip.duration, time));
-        if (splitPoint <= clip.start || splitPoint >= clip.start + clip.duration) return;
+        const clipStart = clip.startBeat ?? clip.start;
+        const splitPoint = Math.max(clipStart, Math.min(clipStart + clip.duration, time));
+        if (splitPoint <= clipStart || splitPoint >= clipStart + clip.duration) return;
 
+        const cut = splitPoint - clipStart;
         const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const first: Clip = {
             ...clip,
             id: `clip-${stamp}-a`,
-            duration: splitPoint - clip.start,
+            start: clipStart,
+            startBeat: clipStart,
+            startTime: clipStart,
+            duration: cut,
         };
         const second: Clip = {
             ...clip,
             id: `clip-${stamp}-b`,
             start: splitPoint,
-            duration: clip.start + clip.duration - splitPoint,
+            startBeat: splitPoint,
+            startTime: splitPoint,
+            duration: clipStart + clip.duration - splitPoint,
+            offset: (clip.offset || 0) + cut,
         };
 
         if (clip.notes?.length) {
             // Note positions are relative to the clip, so the second half's
             // notes have to be rebased onto its new start.
-            const cut = splitPoint - clip.start;
             first.notes = clip.notes
                 .filter(n => n.start < cut)
                 .map(n => n.start + n.duration > cut
@@ -3758,11 +3768,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const clip = s.clips.find(c => c.id === clipId);
         if (!clip) return;
 
-        const newStart = clip.start + Math.max(0, trimLeft);
-        const newDuration = Math.max(0.1, clip.duration - Math.max(0, trimLeft) - Math.max(0, trimRight));
+        const leftDelta = Math.max(0, trimLeft);
+        const rightDelta = Math.max(0, trimRight);
+        const newStart = (clip.startBeat ?? clip.start) + leftDelta;
+        const newDuration = Math.max(0.1, clip.duration - leftDelta - rightDelta);
+        const newOffset = (clip.offset || 0) + leftDelta;
 
         set({
-            clips: s.clips.map(c => c.id === clipId ? { ...c, start: newStart, duration: newDuration } : c)
+            clips: s.clips.map(c => c.id === clipId ? {
+                ...c,
+                start: newStart,
+                startBeat: newStart,
+                startTime: newStart,
+                duration: newDuration,
+                offset: newOffset,
+            } : c)
         });
     },
 
@@ -3775,17 +3795,93 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const minSilence = Math.max(0.1, options?.minSilence ?? 0.25);
         const preAttack = Math.max(0, options?.preAttack ?? 0);
         const postRelease = Math.max(0, options?.postRelease ?? 0);
-        const zeroCross = options?.zeroCross ?? false;
 
-        // Placeholder algorithm: we don't have actual waveform data in this simplified engine.
-        const estimatedSegmentCount = Math.max(1, Math.floor(clip.duration / Math.max(0.5, minSilence)));
-        const segmentDuration = clip.duration / estimatedSegmentCount;
+        const source = clip.isTakeFolder && clip.takes?.length
+            ? clip.takes[Math.max(0, Math.min(clip.activeTakeIndex ?? 0, clip.takes.length - 1))]
+            : clip;
+        const buffer =
+            bufferCacheManager.getBuffer((source as any).storageKey ?? (source as any).sampleId ?? source.id)
+            ?? bufferCacheManager.getBuffer(clip.storageKey ?? clip.sampleId ?? clip.id);
 
-        const splitClips = Array.from({ length: estimatedSegmentCount }, (_, i) => ({
+        let splitPoints: Array<{ start: number; duration: number }> = [];
+
+        if (buffer) {
+            const data = buffer.getChannelData(0);
+            const sr = buffer.sampleRate;
+            const tempo = s.tempo || 120;
+            const secondsPerBeat = 60 / tempo;
+            const clipDurationSec = clip.duration * secondsPerBeat;
+            const totalSamples = Math.min(data.length, Math.floor(clipDurationSec * sr));
+            const windowSamples = Math.floor(0.02 * sr); // 20ms RMS analysis window
+
+            const isSilent: boolean[] = [];
+            for (let i = 0; i < totalSamples; i += windowSamples) {
+                let sumSq = 0;
+                const count = Math.min(windowSamples, totalSamples - i);
+                for (let j = 0; j < count; j++) {
+                    const v = data[i + j];
+                    sumSq += v * v;
+                }
+                const rms = Math.sqrt(sumSq / count);
+                isSilent.push(rms < threshold);
+            }
+
+            // Group into active non-silent segments
+            const minSilenceWindows = Math.floor(minSilence / 0.02);
+            let inSegment = false;
+            let segmentStartWindow = 0;
+            let silenceCount = 0;
+
+            for (let w = 0; w < isSilent.length; w++) {
+                if (!isSilent[w]) {
+                    if (!inSegment) {
+                        inSegment = true;
+                        segmentStartWindow = w;
+                    }
+                    silenceCount = 0;
+                } else {
+                    if (inSegment) {
+                        silenceCount++;
+                        if (silenceCount >= minSilenceWindows) {
+                            const segStartSec = Math.max(0, segmentStartWindow * 0.02 - preAttack);
+                            const segEndSec = Math.min(clipDurationSec, (w - silenceCount) * 0.02 + postRelease);
+                            if (segEndSec > segStartSec + 0.05) {
+                                splitPoints.push({
+                                    start: clip.start + segStartSec / secondsPerBeat,
+                                    duration: (segEndSec - segStartSec) / secondsPerBeat,
+                                });
+                            }
+                            inSegment = false;
+                            silenceCount = 0;
+                        }
+                    }
+                }
+            }
+
+            if (inSegment) {
+                const segStartSec = Math.max(0, segmentStartWindow * 0.02 - preAttack);
+                const segEndSec = clipDurationSec;
+                if (segEndSec > segStartSec + 0.05) {
+                    splitPoints.push({
+                        start: clip.start + segStartSec / secondsPerBeat,
+                        duration: (segEndSec - segStartSec) / secondsPerBeat,
+                    });
+                }
+            }
+        }
+
+        // Fallback if buffer not available or no silence was detected
+        if (splitPoints.length === 0) {
+            splitPoints = [{ start: clip.start, duration: clip.duration }];
+        }
+
+        const splitClips = splitPoints.map((pt, i) => ({
             ...clip,
             id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${i}`,
-            start: clip.start + i * segmentDuration,
-            duration: segmentDuration,
+            start: pt.start,
+            startBeat: pt.start,
+            startTime: pt.start,
+            duration: pt.duration,
             name: `${clip.name} (Split ${i + 1})`,
             muted: false,
             aliasOf: undefined,
@@ -3796,6 +3892,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             clips: [...s.clips.filter(c => c.id !== clipId), ...splitClips],
             selectedClipIds: splitClips.map(c => c.id),
             selectedClipId: splitClips[0]?.id ?? null,
+            isDirty: true,
         });
     },
 
@@ -4145,7 +4242,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     updateClip: (id, updates) => set(s => ({
         clips: s.clips.map(c => {
             if (c.id === id) {
-                return { ...c, ...updates };
+                const effectiveStart = updates.start !== undefined ? updates.start : (updates.startBeat !== undefined ? updates.startBeat : (updates.startTime !== undefined ? updates.startTime : c.start));
+                const syncedUpdates: Partial<Clip> = { ...updates };
+                if (updates.start !== undefined || updates.startBeat !== undefined || updates.startTime !== undefined) {
+                    syncedUpdates.start = effectiveStart;
+                    syncedUpdates.startBeat = effectiveStart;
+                    syncedUpdates.startTime = effectiveStart;
+                }
+                return { ...c, ...syncedUpdates };
             }
             if (c.aliasOf === id && updates.name && !c.aliasName) {
                 return { ...c, name: updates.name };
@@ -4158,11 +4262,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const original = s.clips.find(c => c.id === clipId);
         if (!original) return {};
         const cloneId = `clip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const newStart = original.start + original.duration;
         const cloneClip: Clip = {
             ...original,
             id: cloneId,
             name: `${original.name} Copy`,
-            start: original.start + original.duration,
+            start: newStart,
+            startBeat: newStart,
+            startTime: newStart,
             aliasOf: original.id,
             aliasName: original.name,
         };
@@ -4206,18 +4313,34 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     splitClip: (clipId, splitBeat) => set(s => {
         const clip = s.clips.find(c => c.id === clipId);
         if (!clip) return {};
+        const clipStart = clip.startBeat ?? clip.start;
+        const cut = splitBeat - clipStart;
+        if (cut <= 0 || cut >= clip.duration) return {};
+
+        const firstHalf: Clip = {
+            ...clip,
+            duration: cut,
+        };
         const secondHalf: Clip = {
             ...clip,
-            id: `clip-${Date.now()}`,
+            id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             start: splitBeat,
             startBeat: splitBeat,
             startTime: splitBeat,
+            duration: clip.duration - cut,
+            offset: (clip.offset || 0) + cut,
             name: `${clip.name} (Part 2)`,
         };
-        const firstHalf = {
-            ...clip,
-            duration: splitBeat - (clip.startBeat ?? clip.start),
-        };
+
+        if (clip.notes?.length) {
+            firstHalf.notes = clip.notes
+                .filter(n => n.start < cut)
+                .map(n => n.start + n.duration > cut ? { ...n, duration: cut - n.start } : { ...n });
+            secondHalf.notes = clip.notes
+                .filter(n => n.start >= cut)
+                .map(n => ({ ...n, start: n.start - cut }));
+        }
+
         return {
             clips: [...s.clips.filter(c => c.id !== clipId), firstHalf, secondHalf],
             selectedClipIds: [firstHalf.id, secondHalf.id],
@@ -4985,7 +5108,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 };
                 set(s => ({ 
                     clips: [...s.clips, newClip],
-                    liveRecordingClips: { ...s.liveRecordingClips, [targetTrackId]: liveClipId }
+                    liveRecordingClips: { ...s.liveRecordingClips, [targetTrackId]: liveClipId },
+                    // The take becomes the selection, or it is invisible:
+                    // the piano roll only loads the focused/selected clip,
+                    // so a live clip nobody selected never appears there.
+                    selectedClipId: liveClipId,
+                    selectedClipIds: [liveClipId],
+                    pianoRollFocusClipId: liveClipId,
                 }));
             }
 
@@ -5147,14 +5276,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         if (s.regionClipboard.length === 0) return;
         const minStart = Math.min(...s.regionClipboard.map(c => c.start));
         const pasteStart = s.playhead;
-        const newClips = s.regionClipboard.map(c => ({
-            ...c,
-            id: `${c.id}-paste-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-            start: Math.max(0, c.start - minStart + pasteStart),
-            trackId: s.focusedTrackId || c.trackId,
-            muted: false,
-            alternativeId: c.alternativeId || 'alt-1'
-        } as Clip));
+        const newClips = s.regionClipboard.map(c => {
+            const effectiveStart = Math.max(0, c.start - minStart + pasteStart);
+            return {
+                ...c,
+                id: `${c.id}-paste-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                start: effectiveStart,
+                startBeat: effectiveStart,
+                startTime: effectiveStart,
+                trackId: s.focusedTrackId || c.trackId,
+                muted: false,
+                alternativeId: c.alternativeId || 'alt-1'
+            } as Clip;
+        });
 
         set({ clips: [...s.clips, ...newClips], selectedClipIds: newClips.map(c => c.id), selectedClipId: newClips[0]?.id || null, isDirty: true });
     },
@@ -5557,14 +5691,49 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
         // Create MIDI region based on audio regions
         const originalRegions = s.clips.filter(c => c.trackId === targetTrackId);
-        const newClips: Clip[] = originalRegions.map(r => ({
-            ...r,
-            id: `clip-${Date.now()}-${Math.random()}`,
-            trackId: newId,
-            type: 'midi',
-            name: 'Generated Drum MIDI',
-            color: '#fbbf24'
-        }));
+        const tempo = s.tempo || 120;
+        const secondsPerBeat = 60 / tempo;
+        const drumPitch = settings?.note ?? (settings?.drumType === 'snare' ? 38 : settings?.drumType === 'hihat' ? 42 : 36);
+
+        const newClips: Clip[] = originalRegions.map(r => {
+            const source = r.isTakeFolder && r.takes?.length
+                ? r.takes[Math.max(0, Math.min(r.activeTakeIndex ?? 0, r.takes.length - 1))]
+                : r;
+            const buffer =
+                bufferCacheManager.getBuffer((source as any).storageKey ?? (source as any).sampleId ?? source.id)
+                ?? bufferCacheManager.getBuffer(r.storageKey ?? r.sampleId ?? r.id);
+
+            const notes: Note[] = [];
+            if (buffer) {
+                const channelData = buffer.getChannelData(0);
+                const transients = TransientDetector.detectTransients(channelData, buffer.sampleRate, 0.6);
+                transients.forEach((sampleIdx, idx) => {
+                    const timeSec = sampleIdx / buffer.sampleRate;
+                    const timeBeats = timeSec / secondsPerBeat;
+                    if (timeBeats <= r.duration) {
+                        const energy = Math.abs(channelData[sampleIdx]);
+                        const vel = Math.max(40, Math.min(127, Math.round(energy * 127 * 1.5)));
+                        notes.push({
+                            id: `drum-note-${Date.now()}-${idx}`,
+                            pitch: drumPitch,
+                            velocity: vel,
+                            start: timeBeats,
+                            duration: 0.25,
+                        });
+                    }
+                });
+            }
+
+            return {
+                ...r,
+                id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                trackId: newId,
+                type: 'midi' as const,
+                name: 'Generated Drum MIDI',
+                color: '#fbbf24',
+                notes,
+            };
+        });
 
         return {
             tracks: updatedTracks,
@@ -6239,7 +6408,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const s = get();
         if (s.recording) {
             set({ recording: false, recordingStartTime: null, liveRecordingClips: {} });
-            heldRecordingNotes.clear();
+            finalizeHeldRecordingNotes();
             cancelCountIn();
             void endAudioCapture();
             return;
@@ -6339,6 +6508,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     stopRecording: () => {
         const s = get();
         if (s.recording) {
+            finalizeHeldRecordingNotes();
             set({ recording: false, recordingStartTime: null, liveRecordingClips: {} });
             // The recorder builds the clip, its waveform and its buffer; this
             // is the call that was missing, so takes captured nothing.
@@ -6383,6 +6553,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         // holds — otherwise the take being discarded stays in its buffer and
         // the next one is appended to it.
         void discardAudioCapture();
+        // The deleted take's held notes point at clips that no longer exist.
+        heldRecordingNotes.clear();
 
         set({
             clips: updatedClips,
@@ -6505,6 +6677,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             activeTakeIndex: 0,
             comps: [],
             takes: takes.map((t, i) => ({
+                ...t,
                 id: t.id,
                 name: t.name || `Take ${i + 1}`,
                 clip: { ...t },

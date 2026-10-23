@@ -120,11 +120,29 @@ export function useAudioPlayer() {
     const clipsRef    = useRef(clips);
     const tracksRef   = useRef(tracks);
 
-    // Keep refs fresh without triggering the transport effect
+    // Keep refs fresh and push live updates to the running scheduler during playback
     useEffect(() => { playheadRef.current = playhead; }, [playhead]);
     useEffect(() => { tempoRef.current    = tempo;    }, [tempo]);
-    useEffect(() => { clipsRef.current    = clips;    }, [clips]);
-    useEffect(() => { tracksRef.current   = tracks;   }, [tracks]);
+    useEffect(() => {
+        clipsRef.current = clips;
+        if (playing) {
+            const clipsWithBuffers = clips.map(c => ({
+                ...c,
+                buffer: buffersRef.current.get(c.id) || (c.fileUrl ? buffersRef.current.get(c.fileUrl) : undefined)
+            }));
+            scheduler.updatePlaybackData(clipsWithBuffers as any, tracksRef.current as any);
+        }
+    }, [clips, playing]);
+    useEffect(() => {
+        tracksRef.current = tracks;
+        if (playing) {
+            const clipsWithBuffers = clipsRef.current.map(c => ({
+                ...c,
+                buffer: buffersRef.current.get(c.id) || (c.fileUrl ? buffersRef.current.get(c.fileUrl) : undefined)
+            }));
+            scheduler.updatePlaybackData(clipsWithBuffers as any, tracks as any);
+        }
+    }, [tracks, playing]);
 
     useEffect(() => {
         if (!playing) {

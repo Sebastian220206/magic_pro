@@ -26,7 +26,7 @@ describe('RoutingEngine & NodePool Logic', () => {
             createStereoPanner: jest.fn(() => ({
                 connect: jest.fn(),
                 disconnect: jest.fn(),
-                pan: { value: 0 }
+                pan: { value: 0, setTargetAtTime: jest.fn() }
             })),
             createAnalyser: jest.fn(() => ({
                 connect: jest.fn(),
@@ -184,4 +184,43 @@ describe('RoutingEngine & NodePool Logic', () => {
             expect(compensationOf('dry')).toBe(0);
         });
     });
+
+    describe('Track Output Routing & Cycle Detection', () => {
+        beforeEach(() => {
+            routingEngine.createTrack({ id: 'track-A' });
+            routingEngine.createTrack({ id: 'track-B' });
+            routingEngine.createTrack({ id: 'bus-1' });
+        });
+
+        test('routes track output to another track/bus and reads it back', () => {
+            const success = routingEngine.routeTrackOutput('track-A', 'bus-1');
+            expect(success).toBe(true);
+            expect(routingEngine.getTrackOutput('track-A')).toBe('bus-1');
+
+            // Route back to master
+            const reset = routingEngine.routeTrackOutput('track-A', null);
+            expect(reset).toBe(true);
+            expect(routingEngine.getTrackOutput('track-A')).toBeNull();
+        });
+
+        test('prevents direct feedback loops (A -> A)', () => {
+            const loop = routingEngine.routeTrackOutput('track-A', 'track-A');
+            expect(loop).toBe(false);
+            expect(routingEngine.getTrackOutput('track-A')).toBeNull();
+        });
+
+        test('prevents indirect feedback loops (A -> B -> A)', () => {
+            expect(routingEngine.routeTrackOutput('track-A', 'track-B')).toBe(true);
+            const cycle = routingEngine.routeTrackOutput('track-B', 'track-A');
+            expect(cycle).toBe(false);
+            expect(routingEngine.getTrackOutput('track-B')).toBeNull();
+        });
+
+        test('master pan sets panner param with smoothing', () => {
+            routingEngine.setMasterPan(0.5);
+            const panner = (routingEngine as any).masterPanner;
+            expect(panner.pan.setTargetAtTime).toHaveBeenCalledWith(0.5, 0, 0.02);
+        });
+    });
 });
+

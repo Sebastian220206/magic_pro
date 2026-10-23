@@ -113,6 +113,14 @@ class RoutingEngine {
     private monoMerger: ChannelMergerNode | null = null;
     /** Which track keys each sidechain compressor, `trackId:pluginId` -> source. */
     private sidechainKeys: Map<string, string> = new Map();
+    /**
+     * Where each track's channel output goes, by destination track/bus id.
+     * Absent means the master. This is what makes buses, summing stacks
+     * and track-to-track routing real instead of a log line.
+     */
+    private outputTargets: Map<string, string> = new Map();
+    /** Master balance, between the master inserts and the master fader. */
+    private masterPanner: StereoPannerNode | null = null;
 
     constructor() {
         console.log('[RoutingEngine] Initialized');
@@ -156,8 +164,18 @@ class RoutingEngine {
         // limiting go, so mastering plugins sit after every track but before
         // the master fader.
         this.safeConnect(this.outputNode, this.ctx.destination);
+        this.masterPanner = this.ctx.createStereoPanner();
+        this.masterPanner.pan.value = 0;
+        this.safeConnect(this.masterPanner, this.outputNode);
         this.masterChain = new InsertChain(
-            this.ctx, this.masterGain, this.outputNode, createProcessor);
+            this.ctx, this.masterGain, this.masterPanner, createProcessor);
+    }
+
+    /** Master balance, -1 (left) to 1 (right). */
+    setMasterPan(pan: number): void {
+        if (!this.masterPanner || !this.ctx) return;
+        const p = Math.max(-1, Math.min(1, Number.isFinite(pan) ? pan : 0));
+        this.masterPanner.pan.setTargetAtTime(p, this.ctx.currentTime, 0.02);
     }
 
     /**
@@ -319,7 +337,7 @@ class RoutingEngine {
             pdcDelay,
             userDelay,
             analyzer,
-            output: mainGain,
+            output: pdcDelay,
             baseVolume: normalizedTrack.volume,
             isMuted: normalizedTrack.muted,
             isSoloed: normalizedTrack.solo,
@@ -388,7 +406,9 @@ class RoutingEngine {
 
         this.safeDisconnectFrom(chain.output, this.masterGain);
         this.safeDisconnectFrom(chain.output, this.outputNode);
-        this.safeConnect(chain.output, mode === 'direct' ? this.outputNode : this.masterGain);
+        const routed = this.resolveInput(this.outputTargets.get(trackId));
+        if (routed) this.safeDisconnectFrom(chain.output, routed);
+        this.safeConnect(chain.output, mode === 'direct' ? this.outputNode : this.destinationFor(trackId));
     }
 
     /**
@@ -670,10 +690,13 @@ class RoutingEngine {
                 if (!sendGain) {
                     sendGain = this.nodePool!.getGain();
                     trackChain.sendGains.set(send.busId, sendGain);
-                    // Reconnect sends to bus
-                    const busChain = this.busNodes.get(send.busId);
-                    if (busChain) {
-                        this.safeConnect(sendGain, busChain.inputGain);
+                    const position = (send as { position?: SendPosition }).position ?? 'postPan';
+                    trackChain.sendPositions.set(send.busId, position);
+                    // A brand-new send was never fed from the channel before.
+                    this.safeConnect(this.sendTapNode(trackId, trackChain, position), sendGain);
+                    const dest = this.resolveInput(send.busId);
+                    if (dest && send.busId !== trackId) {
+                        this.safeConnect(sendGain, dest);
                     }
                 }
                 sendGain.gain.setValueAtTime(sendLevel(send), now);
@@ -721,11 +744,26 @@ class RoutingEngine {
         if (chain.isMuted) {
             effectiveGain = 0;
         }
-        if (hasAnySolo && !chain.isSoloed && !chain.isSoloSafe) {
+        if (hasAnySolo && !chain.isSoloed && !chain.isSoloSafe && !this.isFedBySolo(trackId)) {
             effectiveGain = 0;
         }
 
         chain.mainGain.gain.setTargetAtTime(effectiveGain, now, 0.02);
+    }
+
+    /** True if any soloed track reaches this one through routing or a send. */
+    private isFedBySolo(trackId: string): boolean {
+        for (const soloId of this.soloedTracks) {
+            if (this.trackNodes.get(soloId)?.sendGains.has(trackId)) return true;
+            let cur = this.outputTargets.get(soloId);
+            const seen = new Set<string>();
+            while (cur && !seen.has(cur)) {
+                if (cur === trackId) return true;
+                seen.add(cur);
+                cur = this.outputTargets.get(cur);
+            }
+        }
+        return false;
     }
 
     private recomputeAllTrackGains(): void {
@@ -740,10 +778,26 @@ class RoutingEngine {
     removeTrack(trackId: string): void {
         const trackChain = this.trackNodes.get(trackId);
         if (trackChain && this.nodePool) {
+            // Detach everything feeding this track before its input node goes
+            // back to the pool — otherwise a recycled node would pick up
+            // another track's send or routed output.
+            this.trackNodes.forEach((other, otherId) => {
+                if (otherId === trackId) return;
+                const send = other.sendGains.get(trackId);
+                if (send) this.safeDisconnectFrom(send, trackChain.inputGain);
+                if (this.outputTargets.get(otherId) === trackId) {
+                    this.safeDisconnectFrom(other.output, trackChain.inputGain);
+                    this.outputTargets.delete(otherId);
+                    this.safeConnect(other.output, this.masterGain!);
+                }
+            });
+            this.outputTargets.delete(trackId);
+
             // Disconnect all nodes
             this.safeDisconnect(trackChain.inputGain);
             this.safeDisconnect(trackChain.mainGain);
             this.safeDisconnect(trackChain.panner);
+            this.safeDisconnect(trackChain.userDelay);
             this.safeDisconnect(trackChain.pdcDelay);
 
             // Release nodes to pool
@@ -923,6 +977,10 @@ class RoutingEngine {
         this.safeConnect(currentNode, chain.panner);
         currentNode = chain.panner;
 
+        // User track delay (Inspector "Delay"), kept separate from PDC.
+        this.safeConnect(currentNode, chain.userDelay);
+        currentNode = chain.userDelay;
+
         // Plugin delay compensation, applied once at the end of the chain so
         // sends and the master receive an already-aligned signal.
         this.safeConnect(currentNode, chain.pdcDelay);
@@ -937,16 +995,87 @@ class RoutingEngine {
         chain.sendGains.forEach((sendGain, busId) => {
             const position = chain.sendPositions.get(busId) ?? 'postPan';
             this.safeConnect(this.sendTapNode(trackId, chain, position), sendGain);
-            const busChain = this.busNodes.get(busId);
-            if (busChain) {
-                this.safeConnect(sendGain, busChain.inputGain);
+            const dest = this.resolveInput(busId);
+            if (dest && busId !== trackId) {
+                this.safeConnect(sendGain, dest);
             }
         });
 
-        // Connect to master
-        this.safeConnect(currentNode, this.masterGain!);
-
         this.trackNodes.set(trackId, chain);
+
+        // Connect to its assigned destination (a bus/stack, or the master).
+        this.safeConnect(currentNode, this.destinationFor(trackId));
+
+        // Anything that was routed or sending here before this track existed
+        // (load order, lazy creation) can now be attached.
+        this.trackNodes.forEach((other, otherId) => {
+            if (otherId === trackId) return;
+            const send = other.sendGains.get(trackId);
+            if (send) this.safeConnect(send, chain.inputGain);
+            if (this.outputTargets.get(otherId) === trackId) {
+                this.safeDisconnectFrom(other.output, this.masterGain!);
+                this.safeConnect(other.output, chain.inputGain);
+            }
+        });
+    }
+
+    // ── Track output routing ───────────────────────────────────────────────
+
+    /** Input node of a bus or track, by id. */
+    private resolveInput(id: string | undefined): AudioNode | null {
+        if (!id) return null;
+        return this.busNodes.get(id)?.inputGain ?? this.trackNodes.get(id)?.inputGain ?? null;
+    }
+
+    /** Where a track's channel output should connect right now. */
+    private destinationFor(trackId: string): AudioNode {
+        return this.resolveInput(this.outputTargets.get(trackId)) ?? this.masterGain!;
+    }
+
+    /** True if routing `sourceId` into `destId` would create a feedback loop. */
+    private wouldCycle(sourceId: string, destId: string): boolean {
+        const seen = new Set<string>();
+        let cur: string | undefined = destId;
+        while (cur) {
+            if (cur === sourceId) return true;
+            if (seen.has(cur)) return true;
+            seen.add(cur);
+            cur = this.outputTargets.get(cur);
+        }
+        return false;
+    }
+
+    /**
+     * Route a track's channel output to another track/bus (a summing stack,
+     * group or bus), or back to the master with `null`.
+     *
+     * Returns false if the route was refused because it would loop.
+     */
+    routeTrackOutput(sourceId: string, destId: string | null): boolean {
+        if (destId === sourceId) return false;
+        if (destId && this.wouldCycle(sourceId, destId)) {
+            console.warn(`[RoutingEngine] Refusing route ${sourceId} -> ${destId}: feedback loop`);
+            return false;
+        }
+
+        const chain = this.trackNodes.get(sourceId);
+        const previous = this.outputTargets.get(sourceId);
+        if (destId) this.outputTargets.set(sourceId, destId);
+        else this.outputTargets.delete(sourceId);
+
+        // Destination may not exist yet; buildTrackChain attaches it later.
+        if (!chain || !this.masterGain) return true;
+
+        const prevNode = this.resolveInput(previous);
+        if (prevNode) this.safeDisconnectFrom(chain.output, prevNode);
+        this.safeDisconnectFrom(chain.output, this.masterGain);
+        this.safeConnect(chain.output, this.destinationFor(sourceId));
+        return true;
+    }
+
+    /** The current output destination id of a track, or null for master. */
+    getTrackOutput(trackId: string): string | null {
+        return this.outputTargets.get(trackId) ?? null;
     }
 
 

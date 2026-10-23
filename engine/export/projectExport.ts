@@ -106,7 +106,19 @@ function toExportClip(clip: Clip): ExportClip {
         playbackRate: clip.playbackRate,
         fadeIn: clip.fadeIn,
         fadeOut: clip.fadeOut,
+        gain: (clip as any).gain,
+        loop: clip.loop,
         notes: clip.notes,
+        isTakeFolder: clip.isTakeFolder,
+        takes: clip.takes,
+        activeTakeIndex: clip.activeTakeIndex,
+        comps: clip.comps,
+        activeCompId: clip.activeCompId,
+        flexEnabled: clip.flexEnabled,
+        flexMode: clip.flexMode,
+        flexTimeFactor: clip.flexTimeFactor,
+        flexPitchSemitones: (clip as any).flexPitchSemitones ?? clip.flexPitchOffset,
+        warpMarkers: (clip as any).warpMarkers,
     } as ExportClip;
 }
 
@@ -118,8 +130,16 @@ function toExportTrack(track: Track): ExportTrack {
         pan: track.pan ?? 0,
         muted: track.muted ?? false,
         soloed: track.soloed ?? false,
+        soloSafe: track.soloSafe,
         instrument: track.instrument,
+        soundFont: track.soundFont,
+        midiFx: track.midiFx,
+        midiFxSettings: track.midiFxSettings,
+        midiFxBypass: track.midiFxBypass,
         plugins: track.plugins,
+        outputBusId: track.outputBusId,
+        parentId: track.parentId,
+        sends: track.sends,
     };
 }
 
@@ -167,6 +187,7 @@ export async function exportProjectAudio(
             endBeat,
             sampleRate: settings.sampleRate,
             bitDepth: settings.bitDepth,
+            masterPlugins: input.masterPlugins,
             onPluginFailure: failed => degradedTracks.push(...failed),
         },
     );

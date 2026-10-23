@@ -19,6 +19,8 @@ import { HorizontalMeter } from "./HorizontalMeter"
 import { audioEngine } from "@/engine/AudioEngineAdapter"
 import { neonTrackColor, neonTrackAlpha, neonTrackTextColor } from "@/lib/trackColor"
 import { visibleTracks } from '@/lib/trackVisibility'
+import { isMidiTrackType } from '@/lib/trackKinds'
+import { playerForTrackType, PLAYER_LABEL } from "@/lib/sessionStyles"
 export function TrackList() {
     const store = useProjectStore(useShallow(s => ({
         tracks: s.tracks, updateTrack: s.updateTrack, trackHeight: s.trackHeight,
@@ -1036,6 +1038,44 @@ export function TrackList() {
                     style={{ left: trackContextMenu.x, top: trackContextMenu.y }}
                 >
                     <div className="px-3 py-1.5 text-[9px] font-black text-studio-text-dim uppercase tracking-widest border-b border-[var(--accent-cyan)]/20 mb-1">Track Operations</div>
+                    {(() => {
+                        const targetTrack = tracks.find(track => track.id === trackContextMenu.id);
+                        if (!targetTrack || !isMidiTrackType(targetTrack.type)) return null;
+                        return (
+                            <button
+                                className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-accent-cyan hover:bg-accent-cyan/20 transition-colors flex items-center justify-between group"
+                                onClick={() => {
+                                    const storeState = useProjectStore.getState();
+                                    const beatsPerBar = Number(storeState.timeSignature?.split('/')[0]) || 4;
+                                    const bars = Math.max(1, Math.round(4 / beatsPerBar)) * beatsPerBar;
+                                    const player = playerForTrackType(targetTrack.type);
+                                    const duration = player ? beatsPerBar * 4 : bars;
+                                    const clipId = `clip-${Date.now()}`;
+                                    storeState.addClip({
+                                        id: clipId,
+                                        trackId: targetTrack.id,
+                                        name: player ? PLAYER_LABEL[player] : 'MIDI Region',
+                                        start: storeState.playhead || 0,
+                                        startBeat: storeState.playhead || 0,
+                                        startTime: 0,
+                                        duration,
+                                        durationBeats: duration,
+                                        type: 'midi',
+                                        color: targetTrack.color || '#63ed63',
+                                        alternativeId: targetTrack.activeAlternativeId,
+                                    } as any);
+                                    storeState.selectClip(clipId);
+                                    storeState.selectClips([clipId]);
+                                    if (!storeState.showEditors) {
+                                        storeState.toggleEditors();
+                                    }
+                                    setTrackContextMenu(null);
+                                }}
+                            >
+                                Create MIDI Region at Playhead
+                            </button>
+                        );
+                    })()}
                     <button
                         className="w-full px-3 py-1.5 text-left text-[11.5px] font-bold text-studio-text hover:bg-[var(--accent-cyan)]/20 hover:text-[var(--accent-cyan)] transition-colors flex items-center justify-between group"
                         onClick={() => {

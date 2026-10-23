@@ -49,6 +49,14 @@ export interface SerializedState {
   channelStripCopyBuffer: any | null;
   channelStripPerformances: any[];
   mixerState?: any;
+  vcaFaders?: any[];
+  muteSoloGroups?: any[];
+  liveLoops?: {
+    cellStates?: Record<string, any>;
+    sceneNames?: Record<number, string>;
+    quantizeMode?: string;
+    activeCells?: Record<string, number | null>;
+  };
 }
 
 const DB_KEY_PREFIX = 'magicpro-project-';
@@ -230,6 +238,9 @@ export function serializeStoreState(getState: () => any, extra?: { mixerState?: 
     channelStripCopyBuffer: s.channelStripCopyBuffer,
     channelStripPerformances: s.channelStripPerformances,
     mixerState: extra?.mixerState,
+    vcaFaders: s.vcaFaders ?? [],
+    muteSoloGroups: s.muteSoloGroups ?? [],
+    liveLoops: s.liveLoops ?? { cellStates: {}, sceneNames: {}, quantizeMode: 'bar', activeCells: {} },
   };
 }
 
@@ -243,6 +254,7 @@ export function deserializeState(serialized: SerializedState): Partial<any> {
     playhead: serialized.playhead,
     tracks: serialized.tracks,
     masterPlugins: serialized.masterPlugins ?? [],
+    liveLoops: serialized.liveLoops ?? { cellStates: {}, sceneNames: {}, quantizeMode: 'bar', activeCells: {} },
     clips: (serialized.clips ?? []).map((c: any) => ({
       ...c,
       waveformPeaks: deserializeWaveformPeaks(c.waveformPeaks),
@@ -277,6 +289,8 @@ export function deserializeState(serialized: SerializedState): Partial<any> {
     channelStripSettings: serialized.channelStripSettings,
     channelStripCopyBuffer: serialized.channelStripCopyBuffer,
     channelStripPerformances: serialized.channelStripPerformances,
+    vcaFaders: serialized.vcaFaders ?? [],
+    muteSoloGroups: serialized.muteSoloGroups ?? [],
     isDirty: false,
     recording: false,
     playing: false,

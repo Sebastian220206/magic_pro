@@ -72,8 +72,8 @@ const menu = await page.evaluate(() => {
         names: rows.map(r => r.dataset.fxEntry),
     };
 });
-check('the rack lists every entry in the tree', menu.entries === 31, `${menu.entries} rows`);
-check('13 of them can be inserted', menu.available === 13, `${menu.available} available`);
+check('the rack lists every entry in the tree', menu.entries === 34, `${menu.entries} rows`);
+check('20 of them can be inserted', menu.available === 20, `${menu.available} available`);
 check('every dimmed row says why', menu.disabledHaveReasons);
 check('the tree is in the order asked for',
     menu.names?.[0] === 'Channel EQ' && menu.names?.[menu.names.length - 1] === 'Frequency Shifter',
@@ -94,10 +94,13 @@ const rows = await page.evaluate(async () => {
 
 console.log('  detail:', rows.map(r => `${r.Entry}=${r.Works}`).join(' | '));
 // Every voiced entry must do something the moment it is inserted — that is
-// what makes a preset a preset rather than a name.
-const voicedRows = rows.filter(r => !r.Entry.endsWith('Channel EQ'));
+// what makes a preset a preset rather than a name. Two exemptions, both
+// honest transparencies rather than faults: a fresh Channel EQ arrives flat,
+// and a widener on the harness's dual-mono burst has no side to scale (its
+// real proof is the stereo check below).
+const voicedRows = rows.filter(r => !r.Entry.endsWith('Channel EQ') && r.Entry !== 'Stereo / Stereo Widener');
 check('every voiced entry changes the signal on insert',
-    rows.length === 13 && voicedRows.every(r => r.Works === 'yes'),
+    rows.length === 20 && voicedRows.every(r => r.Works === 'yes'),
     `${voicedRows.filter(r => r.Works === 'yes').length}/${voicedRows.length}`);
 
 // And the one that should not: an EQ arrives flat, so it is transparent until
@@ -119,6 +122,23 @@ check('no two voicings are the same sound',
     `${new Set(voiced.map(r => r['Change vs dry'])).size} distinct of ${voiced.length}`);
 
 const failed = results.filter(r => !r).length;
-console.log(`\n${results.length - failed}/${results.length} checks passed`);
+
+// ── The widener widens, on real stereo ──────────────────────────────────
+// The voicing harness above renders dual-mono, which a mid/side widener
+// correctly leaves alone. This is the check that actually exercises it.
+const stereoRows = await page.evaluate(async () => {
+    const out = [];
+    const original = console.table;
+    console.table = (d) => { out.push(...d); };
+    await window.audioDebug.testWidenerStereo();
+    console.table = original;
+    return out;
+});
+for (const r of stereoRows) {
+    check(`widener: ${r.Check}`, r.Works === 'yes', `gap ${r.Gap}`);
+}
+
+const failedAfter = results.filter(r => !r).length;
+console.log(`\n${results.length - failedAfter}/${results.length} checks passed`);
 await browser.close();
-process.exit(failed ? 1 : 0);
+process.exit(failedAfter ? 1 : 0);

@@ -369,14 +369,16 @@ class BounceEngine {
             buffer.sampleRate
         );
 
-        const ditherScale = Math.pow(2, bitDepth - 1) - 1;
+        // 1 LSB at the target bit depth. Float exports need no dither.
+        if (bitDepth >= 32) return buffer;
+        const ditherScale = 1 / (Math.pow(2, bitDepth - 1) - 1);
 
         for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
             const sourceData = buffer.getChannelData(channel);
             const targetData = ditheredBuffer.getChannelData(channel);
             
             for (let i = 0; i < sourceData.length; i++) {
-                // Simple triangular dithering
+                // TPDF dither, ±1 LSB peak
                 const dither = (Math.random() - Math.random()) * ditherScale;
                 targetData[i] = Math.max(-1, Math.min(1, sourceData[i] + dither));
             }
@@ -466,8 +468,9 @@ class BounceEngine {
         setUint32(0x20746d66);
         // Chunk size
         setUint32(16);
-        // Audio format (PCM)
-        setUint16(1);
+        // Audio format: 1 = PCM int, 3 = IEEE float (used for 32-bit)
+        const isFloat = bitDepth === 32;
+        setUint16(isFloat ? 3 : 1);
         // Number of channels
         setUint16(buffer.numberOfChannels);
         // Sample rate
@@ -490,10 +493,20 @@ class BounceEngine {
 
         while (offset < buffer.length) {
             for (let i = 0; i < buffer.numberOfChannels; i++) {
-                let sample = Math.max(-1, Math.min(1, channels[i][offset]));
-                sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-                view.setInt16(pos, sample, true);
-                pos += 2;
+                const sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                if (isFloat) {
+                    view.setFloat32(pos, sample, true);
+                    pos += 4;
+                } else if (bitDepth === 24) {
+                    const v = Math.round(sample < 0 ? sample * 0x800000 : sample * 0x7FFFFF);
+                    view.setUint8(pos, v & 0xFF);
+                    view.setUint8(pos + 1, (v >> 8) & 0xFF);
+                    view.setUint8(pos + 2, (v >> 16) & 0xFF);
+                    pos += 3;
+                } else {
+                    view.setInt16(pos, Math.round(sample < 0 ? sample * 0x8000 : sample * 0x7FFF), true);
+                    pos += 2;
+                }
             }
             offset++;
         }

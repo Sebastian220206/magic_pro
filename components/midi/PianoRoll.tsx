@@ -20,6 +20,7 @@ import { MidiRenderer } from '../../engine/midi/MidiRenderer';
 import { globalSpatialNoteCache } from '../../engine/midi/cache/SpatialNoteCache';
 import StepInputKeyboard from './StepInputKeyboard';
 import { StepSequencer } from './StepSequencer';
+import { ScoreEditor } from '@/components/score/ScoreEditor';
 import NoteEditPopover from './NoteEditPopover';
 import { detectChord, pitchToNoteName as chordPitchToNoteName } from '../../engine/midi/chordDetection';
 import { ChevronDown, ChevronRight, Link as LinkIcon, MousePointer2, Pencil, LogIn, LogOut, ArrowRightToLine, ZoomIn, ZoomOut, ArrowUpDown, Maximize2, Search, Circle, GitMerge, Repeat, KeyboardMusic, FoldHorizontal, Play, SkipBack, Palette, Eraser, Hand, Scissors, VolumeX, Activity, Paintbrush, Check } from 'lucide-react';
@@ -542,7 +543,7 @@ export const PianoRoll = memo(function PianoRoll({
     const unsubscribeStore = useMidiStore.subscribe(() => renderCanvas());
 
     return () => { unsubscribeNav(); unsubscribeStore(); };
-  }, [width, gridHeight, showVelocityLane, clipId]);
+  }, [width, gridHeight, showVelocityLane, clipId, lassoSelection, currentTool, showRulerSeconds]);
 
   // ── Auto-scroll to follow the playhead ─────────────────────────────────
   //
@@ -1480,6 +1481,25 @@ export const PianoRoll = memo(function PianoRoll({
       {/* ── Main Layout (Sidebar + Canvas) ── */}
       {activeTab === 'step-sequencer' ? (
         <StepSequencer />
+      ) : activeTab === 'score' ? (
+        <div className="flex-1 overflow-auto bg-studio-panel p-4 flex flex-col items-center">
+          <ScoreEditor
+            notes={(clip.notes || []).map(n => ({
+              id: n.id,
+              pitch: n.pitch,
+              startBeat: n.startBeat,
+              duration: n.duration,
+              velocity: n.velocity,
+            }))}
+            selectedNoteIds={selectedNoteIds}
+            width={Math.max(800, (clip.notes?.reduce((max, n) => Math.max(max, n.startBeat + n.duration), 16) || 16) * 60)}
+            height={height ? Math.max(280, height - 100) : 320}
+            tempo={useProjectStore.getState().tempo || 120}
+            onNoteClick={(noteId) => {
+              selectNote(noteId, false);
+            }}
+          />
+        </div>
       ) : (
       <div className="flex flex-1 overflow-hidden">
         

@@ -96,7 +96,15 @@ export async function rebuildEngine(options: RebuildOptions): Promise<RebuildRes
   }
 
   // ── Step 5: Restore audio buffers from IndexedDB ─────────────────────────
-  const audioClips = (clips || []).filter((c: any) => c.type === 'audio' && c.storageKey);
+  const allClipsWithTakes: any[] = [];
+  (clips || []).forEach((c: any) => {
+    allClipsWithTakes.push(c);
+    if (c.takes && Array.isArray(c.takes)) {
+      c.takes.forEach((t: any) => allClipsWithTakes.push(t));
+    }
+  });
+
+  const audioClips = allClipsWithTakes.filter((c: any) => c.type === 'audio' && c.storageKey);
   const seenKeys = new Set<string>();
 
   for (const clip of audioClips) {

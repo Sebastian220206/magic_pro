@@ -4,8 +4,9 @@ import {
     Clock, Tag, Activity,
     Type, ChevronDown, Plus,
     Maximize2, MoreHorizontal,
-    Flag, Music, Zap
+    Flag, Music, Zap, Film
 } from "lucide-react"
+import { VideoTrack } from "@/components/tracks/VideoTrack"
 
 export function GlobalTracks() {
     const {
@@ -191,6 +192,30 @@ export function GlobalTracks() {
                 </div>
             </div>
 
+            {/* 5. Video Track */}
+            {(() => {
+                const videoClip = clips.find(c => c.type === 'video');
+                if (!videoClip) return null;
+                const state = useProjectStore.getState();
+                return (
+                    <div className="flex border-b border-black/60 bg-black/20 group relative">
+                        <div className="w-[280px] bg-studio-panel border-r border-black flex items-center px-4 justify-between shrink-0 sticky left-0 z-10 py-2">
+                            <div className="flex items-center gap-2">
+                                <Film className="w-3.5 h-3.5 text-accent-cyan" />
+                                <span className="text-[10px] font-black text-white uppercase tracking-wider">Movie Track</span>
+                            </div>
+                        </div>
+                        <div className="flex-1 min-w-0 p-2 overflow-x-auto">
+                            <VideoTrack
+                                clip={videoClip}
+                                projectBpm={state.tempo || 120}
+                                projectPlayhead={state.playhead || 0}
+                                isPlaying={state.playing}
+                            />
+                        </div>
+                    </div>
+                );
+            })()}
 
         </div>
     )

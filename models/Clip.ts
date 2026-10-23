@@ -28,10 +28,12 @@ export interface Clip {
     // --- Engine compatibility ---
     fadeIn: { duration: number; curve: 'linear' | 'exponential' | 'scurve' | 'logarithmic'; gain: number };
     fadeOut: { duration: number; curve: 'linear' | 'exponential' | 'scurve' | 'logarithmic'; gain: number };
+    gain?: number; // Clip gain multiplier (1.0 = unity, 0.0 to 4.0 / +12dB)
     playbackRate: number;
     pitchOffset: number;
     stretchMode: 'none' | 'time' | 'pitch' | 'both';
     bufferId?: string;
+    ccData?: Record<number, Array<{ time: number; value: number }>>; // MIDI CC curves (CC 1 = mod wheel, 11 = expr, 64 = sustain, etc.)
 
     // --- Take Folders ---
     isTakeFolder?: boolean;

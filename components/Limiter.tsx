@@ -94,9 +94,13 @@ function MeterColumn({
 
 export function Limiter({ trackId, pluginId }: { trackId: string; pluginId: string }) {
     const updatePluginParams = useProjectStore(s => s.updatePluginParams);
+    const isMaster = trackId === 'master';
+    const masterPlugins = useProjectStore(s => s.masterPlugins);
     const tracks = useProjectStore(s => s.tracks);
-    const track = tracks.find(t => t.id === trackId);
-    const plugin = track?.plugins.find(p => p.id === pluginId);
+    const track = isMaster ? null : tracks.find(t => t.id === trackId);
+    const plugin = isMaster
+        ? masterPlugins.find(p => p.id === pluginId)
+        : track?.plugins.find(p => p.id === pluginId);
 
     const [state, setState] = useState<LimState>(() => stateFromParams(plugin?.params as never));
     const [meters, setMeters] = useState({

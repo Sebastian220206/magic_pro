@@ -5,8 +5,10 @@ import { useToast } from '@/components/Toast';
 import { renderSongOffline } from '@/engine/export/OfflineRenderer';
 import { encodeWav } from '@/engine/export/wavEncoder';
 import {
-    Save, FileText, Copy, Download, Layers, RotateCcw, X, type LucideIcon,
+    Save, FileText, Copy, Download, Layers, RotateCcw, X, Music, Printer, type LucideIcon,
 } from 'lucide-react';
+import { exportMidiFromClips } from '@/lib/midiExport';
+import { generatePrintContent } from '@/lib/printExport';
 
 /**
  * The project-file commands, in one place.
@@ -143,11 +145,44 @@ export function useProjectFileActions(): {
         closeProject();
     }, [isDirty, saveProject, closeProject]);
 
+    const exportMidi = useCallback(() => {
+        const state = useProjectStore.getState();
+        const midiClips = state.clips.filter(c => c.type === 'midi') as any[];
+        if (midiClips.length === 0) {
+            toast('No MIDI regions found to export.', 'error');
+            return;
+        }
+        exportMidiFromClips(midiClips, state.tempo || 120, `${state.name || 'project'}.mid`);
+        toast(`Exported ${midiClips.length} MIDI regions.`, 'success');
+    }, [toast]);
+
+    const printProject = useCallback(() => {
+        const state = useProjectStore.getState();
+        const html = generatePrintContent({
+            name: state.name || 'Project',
+            tempo: state.tempo,
+            timeSignature: state.timeSignature,
+            keySignature: state.keySignature,
+            tracks: state.tracks,
+        });
+        const w = window.open('', '_blank');
+        if (w) {
+            w.document.write(html);
+            w.document.close();
+            w.focus();
+            w.print();
+        } else {
+            toast('Popup blocked — allow popups to print project sheet.', 'error');
+        }
+    }, [toast]);
+
     const commands: ProjectFileCommand[] = [
         { id: 'save', label: 'Save Project', shortcut: 'Cmd+S', icon: Save, run: saveProject },
         { id: 'saveAs', label: 'Save As...', shortcut: 'Cmd+Shift+S', icon: FileText, run: () => setDialog('saveAs') },
         { id: 'saveCopy', label: 'Save a Copy As...', icon: Copy, run: () => setDialog('saveCopy') },
         { id: 'exportWav', label: 'Export as WAV...', icon: Download, run: () => { void exportWav(); } },
+        { id: 'exportMidi', label: 'Export Project as MIDI...', icon: Music, run: exportMidi },
+        { id: 'printSheet', label: 'Print Track Sheet (PDF)...', icon: Printer, run: printProject },
         { id: 'template', label: 'Save as Template...', icon: Layers, run: saveTemplate },
         { id: 'import', label: 'Import Project Settings...', icon: Download, separatorBefore: true, run: () => setDialog('import') },
         { id: 'info', label: 'Project Information...', icon: FileText, run: () => setDialog('info') },

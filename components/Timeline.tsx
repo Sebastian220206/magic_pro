@@ -48,6 +48,7 @@ export function Timeline() {
     const playheadLineRef = useRef<HTMLDivElement>(null)
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, clipIds: string[] } | null>(null)
     const [takeFolderMenuClipId, setTakeFolderMenuClipId] = useState<string | null>(null)
+    const [laneContextMenu, setLaneContextMenu] = useState<{ x: number, y: number, trackId: string, beat: number } | null>(null)
 
     /*
      * The rows that exist, shared with the header column.
@@ -346,6 +347,61 @@ export function Timeline() {
         window.addEventListener('mouseup', onMouseUp);
     };
 
+    
+    const handleTimelineDoubleClick = (e: React.MouseEvent) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const clickX = e.clientX - rect.left + containerRef.current!.scrollLeft;
+        const clickY = e.clientY - rect.top + containerRef.current!.scrollTop;
+        const clickedBeat = clickX / pixelsPerBeat;
+
+        let currentOffset = 48; // Timeline ruler height
+        let clickedTrack: any = null;
+        for (const track of laneTracks) {
+            const currentHeight = trackHeight * (track.zoom || 1);
+            const activeClips = clips.filter(c => c.trackId === track.id && c.alternativeId === track.activeAlternativeId);
+            const openTakeFolders = activeClips.filter(c => c.isTakeFolder && c.isTakeFolderOpen);
+            const maxTakes = openTakeFolders.reduce((max, c) => Math.max(max, (c.takes?.length || 0)), 0);
+            const trackTotalHeight = currentHeight + (maxTakes * currentHeight);
+
+            if (clickY >= currentOffset && clickY < currentOffset + trackTotalHeight) {
+                clickedTrack = track;
+                break;
+            }
+            currentOffset += trackTotalHeight;
+        }
+
+        if (clickedTrack && isMidiTrackType(clickedTrack.type)) {
+            const snappedStart = getSnapValue(clickedBeat);
+            const player = playerForTrackType(clickedTrack.type);
+            const bars = Math.max(1, Math.round(4 / beatsPerBar)) * beatsPerBar;
+            const duration = player ? beatsPerBar * 4 : bars;
+            const clipId = 'clip-' + Date.now();
+            
+            const store = useProjectStore.getState();
+            store.addClip({
+                id: clipId,
+                trackId: clickedTrack.id,
+                name: player ? PLAYER_LABEL[player] : 'MIDI Region',
+                start: snappedStart,
+                startBeat: snappedStart,
+                startTime: 0,
+                duration,
+                durationBeats: duration,
+                type: 'midi',
+                color: clickedTrack.color || '#63ed63',
+                alternativeId: clickedTrack.activeAlternativeId,
+                ...(player ? sessionRegionSeed(player, beatsPerBar) : {}),
+            } as any);
+
+            store.selectClip(clipId);
+            store.selectClips([clipId]);
+            if (!store.showEditors) {
+                store.toggleEditors();
+            }
+        }
+    };
+
     const handleTimelineMouseDown = (e: React.MouseEvent) => {
         if (e.button !== 0) return;
         const rect = containerRef.current?.getBoundingClientRect();
@@ -564,7 +620,32 @@ export function Timeline() {
             ref={containerRef}
             style={{ cursor: timelineCursor }}
             onMouseDown={handleTimelineMouseDown}
-            onContextMenu={(e) => e.preventDefault()}
+            onDoubleClick={handleTimelineDoubleClick}
+            onContextMenu={(e) => {
+                e.preventDefault();
+                const rect = containerRef.current?.getBoundingClientRect();
+                if (!rect) return;
+                const clickX = e.clientX - rect.left + containerRef.current!.scrollLeft;
+                const clickY = e.clientY - rect.top + containerRef.current!.scrollTop;
+                const clickedBeat = clickX / pixelsPerBeat;
+                let currentOffset = 48;
+                let clickedTrack: any = null;
+                for (const track of laneTracks) {
+                    const currentHeight = trackHeight * (track.zoom || 1);
+                    const activeClips = clips.filter(c => c.trackId === track.id && c.alternativeId === track.activeAlternativeId);
+                    const openTakeFolders = activeClips.filter(c => c.isTakeFolder && c.isTakeFolderOpen);
+                    const maxTakes = openTakeFolders.reduce((max, c) => Math.max(max, (c.takes?.length || 0)), 0);
+                    const trackTotalHeight = currentHeight + (maxTakes * currentHeight);
+                    if (clickY >= currentOffset && clickY < currentOffset + trackTotalHeight) {
+                        clickedTrack = track;
+                        break;
+                    }
+                    currentOffset += trackTotalHeight;
+                }
+                if (clickedTrack) {
+                    setLaneContextMenu({ x: e.clientX, y: e.clientY, trackId: clickedTrack.id, beat: getSnapValue(clickedBeat) });
+                }
+            }}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
         >
@@ -812,7 +893,44 @@ export function Timeline() {
 
                         return (
                             <div key={track.id} className="flex flex-col">
-                                <div className="relative border-b border-black/40 group/track" style={{ height: `${trackTotalHeight}px` }}>
+                                <div
+                                    data-track-lane={track.id}
+                                    onDoubleClick={(e) => {
+                                        e.stopPropagation();
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        const clickX = e.clientX - rect.left;
+                                        const clickedBeat = clickX / pixelsPerBeat;
+                                        if (isMidiTrackType(track.type)) {
+                                            const snappedStart = getSnapValue(clickedBeat);
+                                            const player = playerForTrackType(track.type);
+                                            const bars = Math.max(1, Math.round(4 / beatsPerBar)) * beatsPerBar;
+                                            const duration = player ? beatsPerBar * 4 : bars;
+                                            const clipId = 'clip-' + Date.now();
+                                            const store = useProjectStore.getState();
+                                            store.addClip({
+                                                id: clipId,
+                                                trackId: track.id,
+                                                name: player ? PLAYER_LABEL[player] : 'MIDI Region',
+                                                start: snappedStart,
+                                                startBeat: snappedStart,
+                                                startTime: 0,
+                                                duration,
+                                                durationBeats: duration,
+                                                type: 'midi',
+                                                color: track.color || '#63ed63',
+                                                alternativeId: track.activeAlternativeId,
+                                                ...(player ? sessionRegionSeed(player, beatsPerBar) : {}),
+                                            } as any);
+                                            store.selectClip(clipId);
+                                            store.selectClips([clipId]);
+                                            if (!store.showEditors) {
+                                                store.toggleEditors();
+                                            }
+                                        }
+                                    }}
+                                    className="relative border-b border-black/40 group/track"
+                                    style={{ height: `${trackTotalHeight}px` }}
+                                >
                                     {/* Track Automation Layer (Logic Signature) */}
                                     {showAutomation && (
                                         <div
@@ -1138,6 +1256,55 @@ export function Timeline() {
                     })}
                 </div>
             </div>
+
+            
+            {laneContextMenu && (
+                <div
+                    className="fixed z-[200] w-64 bg-studio-control/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
+                    style={{ left: laneContextMenu.x, top: laneContextMenu.y }}
+                    onMouseLeave={() => setLaneContextMenu(null)}
+                >
+                    <div className="px-3 py-1.5 text-[10px] font-black text-studio-text-dim uppercase tracking-widest border-b border-white/5 mb-1">Track Lane Operations</div>
+                    {(() => {
+                        const targetTrack = tracks.find(t => t.id === laneContextMenu.trackId);
+                        if (!targetTrack || !isMidiTrackType(targetTrack.type)) return null;
+                        return (
+                            <button
+                                className="w-full px-4 py-2 text-left text-[12px] font-bold text-accent-cyan hover:bg-accent-cyan/20 transition-colors flex items-center justify-between"
+                                onClick={() => {
+                                    const store = useProjectStore.getState();
+                                    const player = playerForTrackType(targetTrack.type);
+                                    const bars = Math.max(1, Math.round(4 / beatsPerBar)) * beatsPerBar;
+                                    const duration = player ? beatsPerBar * 4 : bars;
+                                    const clipId = 'clip-' + Date.now();
+                                    store.addClip({
+                                        id: clipId,
+                                        trackId: targetTrack.id,
+                                        name: player ? PLAYER_LABEL[player] : 'MIDI Region',
+                                        start: laneContextMenu.beat,
+                                        startBeat: laneContextMenu.beat,
+                                        startTime: 0,
+                                        duration,
+                                        durationBeats: duration,
+                                        type: 'midi',
+                                        color: targetTrack.color || '#63ed63',
+                                        alternativeId: targetTrack.activeAlternativeId,
+                                        ...(player ? sessionRegionSeed(player, beatsPerBar) : {}),
+                                    } as any);
+                                    store.selectClip(clipId);
+                                    store.selectClips([clipId]);
+                                    if (!store.showEditors) {
+                                        store.toggleEditors();
+                                    }
+                                    setLaneContextMenu(null);
+                                }}
+                            >
+                                Create MIDI Region Here
+                            </button>
+                        );
+                    })()}
+                </div>
+            )}
 
             {contextMenu && (
                 <div 

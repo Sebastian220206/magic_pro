@@ -1,12 +1,11 @@
 /**
  * The MIDI effects the mixer's MIDI FX slot offers.
  *
- * Three of these are real: `engine/midi/fx` holds working Arpeggiator, Chord
- * Trigger and Scripter processors, roughly 1,200 lines that nothing imported —
- * there was no way to reach them from the app at all. The rest are named here
- * because the slot should show the same list you would expect to find, and
- * each one that cannot do its job yet says why rather than inserting something
- * inert.
+ * All nine process notes. `engine/midi/fx` holds the Arpeggiator, Chord
+ * Trigger and Scripter — roughly 1,200 lines that nothing imported — plus the
+ * Modifier, Modulator, Note Repeater, Randomizer, Transposer and Velocity
+ * Processor written to go with their editors. `engine/midi/fx/chain.ts` is
+ * what reaches all of them.
  */
 
 export type MidiFxId =
@@ -23,23 +22,17 @@ export interface MidiFxEntry {
 }
 
 export const MIDI_FX_CATALOG: readonly MidiFxEntry[] = [
-    {
-        id: 'arpeggiator', name: 'Arpeggiator', available: false,
-        // The processor is written and tested; it needs a clock tick from the
-        // scheduler, which nothing calls yet.
-        reason: 'Written, but not yet driven by the transport clock',
-    },
+    // Driven by the scheduler's `transportTick`, which `store/projectStore.ts`
+    // subscribes to. The event was already being emitted and thrown away.
+    { id: 'arpeggiator', name: 'Arpeggiator', available: true },
     { id: 'chordTrigger', name: 'Chord Trigger', available: true },
-    { id: 'modifier', name: 'Modifier', available: false, reason: 'Not implemented' },
-    { id: 'modulator', name: 'Modulator', available: false, reason: 'Not implemented' },
-    { id: 'noteRepeater', name: 'Note Repeater', available: false, reason: 'Not implemented' },
-    { id: 'randomizer', name: 'Randomizer', available: false, reason: 'Not implemented' },
-    {
-        id: 'scripter', name: 'Scripter', available: false,
-        reason: 'Written, but has no script editor yet',
-    },
-    { id: 'transposer', name: 'Transposer', available: false, reason: 'Not implemented' },
-    { id: 'velocityProcessor', name: 'Velocity Processor', available: false, reason: 'Not implemented' },
+    { id: 'modifier', name: 'Modifier', available: true },
+    { id: 'modulator', name: 'Modulator', available: true },
+    { id: 'noteRepeater', name: 'Note Repeater', available: true },
+    { id: 'randomizer', name: 'Randomizer', available: true },
+    { id: 'scripter', name: 'Scripter', available: true },
+    { id: 'transposer', name: 'Transposer', available: true },
+    { id: 'velocityProcessor', name: 'Velocity Processor', available: true },
 ] as const;
 
 /**

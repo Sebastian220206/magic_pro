@@ -12,6 +12,9 @@
 import { create } from 'zustand';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { enableMapSet } from 'immer';
+
+enableMapSet();
 import {
   MidiNote,
   MidiClip,
@@ -1237,16 +1240,16 @@ channelFilter: null,
           const currentClipId = get().currentClipId;
           if (!currentClipId) return;
           
-          const clip = get().clips.get(currentClipId);
-          if (!clip) return;
-          
           set((state) => {
+            const clip = state.clips.get(currentClipId);
+            if (!clip) return;
             const newSelection = new Set<string>();
             for (const note of clip.notes) {
               if (!state.selectedNoteIds.has(note.id)) {
                 newSelection.add(note.id);
               }
-}
+            }
+            state.selectedNoteIds = newSelection;
             clip.isModified = true;
           });
         },
@@ -1515,15 +1518,14 @@ channelFilter: null,
           const currentClipId = get().currentClipId;
           if (!currentClipId) return;
           
-          const clip = get().clips.get(currentClipId);
-          if (!clip) return;
-          
           const minBeat = Math.min(startBeat, endBeat);
           const maxBeat = Math.max(startBeat, endBeat);
           const minPitch = Math.min(lowPitch, highPitch);
           const maxPitch = Math.max(lowPitch, highPitch);
           
           set((state) => {
+            const clip = state.clips.get(currentClipId);
+            if (!clip) return;
             for (const note of clip.notes) {
               const inRegion =
                 note.startBeat >= minBeat &&

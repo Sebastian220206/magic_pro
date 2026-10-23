@@ -343,10 +343,11 @@ export function TrackNameField({ track, index, isMaster, isSelected }: {
  * the monitor level by a fixed amount so you can talk over the mix without
  * losing the fader position — it restores exactly what it took.
  */
-export function OutputStripButtons({ dimmed, onToggleDim, onBounce }: {
+export function OutputStripButtons({ dimmed, onToggleDim, onBounce, onMastering }: {
     dimmed: boolean;
     onToggleDim: () => void;
     onBounce: () => void;
+    onMastering?: () => void;
 }) {
     return (
         <div className="flex gap-0.5 w-full h-full">
@@ -369,6 +370,16 @@ export function OutputStripButtons({ dimmed, onToggleDim, onBounce }: {
                     ? 'bg-accent-cyan/25 border-accent-cyan text-accent-cyan'
                     : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text'}`}
             >DIM</button>
+            {onMastering && (
+                <button
+                    type="button"
+                    data-mastering-button
+                    title="Open Mastering Assistant"
+                    aria-label="Mastering Assistant"
+                    onClick={(e) => { e.stopPropagation(); onMastering(); }}
+                    className="flex-1 h-full rounded-[2px] border border-amber-500/40 bg-amber-500/15 text-[8px] font-black text-amber-300 hover:bg-amber-500/25 transition-colors"
+                >MST</button>
+            )}
         </div>
     );
 }

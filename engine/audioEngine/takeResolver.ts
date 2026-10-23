@@ -44,13 +44,21 @@ export function activeTakeOf(clip: ResolvableClip): ResolvableClip | null {
     const takes = clip.takes ?? [];
     if (takes.length === 0) return null;
 
+    const unwrap = (raw: any): ResolvableClip | null => {
+        if (!raw) return null;
+        if (raw.clip && typeof raw.clip === 'object') {
+            return { ...raw.clip, id: raw.id ?? raw.clip.id, name: raw.name ?? raw.clip.name };
+        }
+        return raw as ResolvableClip;
+    };
+
     if (clip.activeCompId) {
         const comp = clip.comps?.find(c => c.id === clip.activeCompId);
-        if (comp && takes[comp.takeIndex]) return takes[comp.takeIndex];
+        if (comp && takes[comp.takeIndex]) return unwrap(takes[comp.takeIndex]);
     }
 
     const index = clip.activeTakeIndex ?? 0;
-    return takes[index] ?? takes[0];
+    return unwrap(takes[index] ?? takes[0]);
 }
 
 /**

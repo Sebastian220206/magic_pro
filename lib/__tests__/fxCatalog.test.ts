@@ -1,5 +1,7 @@
 import { FX_CATALOG, fxCatalogCounts, availableFx, findFxEntry } from '../fxCatalog';
 import { BUILTIN_PLUGIN_IDS, isBuiltinPluginId } from '@/engine/plugins/pluginIds';
+import { canCreateProcessor } from '@/engine/plugins/processorFactory';
+import type { PluginSpec } from '@/engine/plugins/pluginSpec';
 
 describe('the FX rack', () => {
     it('has the nine categories the rack is organised into', () => {
@@ -26,6 +28,19 @@ describe('what can actually be inserted', () => {
         for (const entry of availableFx()) {
             expect(`${entry.name}: ${isBuiltinPluginId(entry.pluginId!)}`)
                 .toBe(`${entry.name}: true`);
+        }
+    });
+
+    it('every available entry has a builder in the processor factory', () => {
+        // An id the factory cannot build inserts a slot the chain skips: the
+        // Stereo Widener's exact fault, an id with no builder behind it.
+        for (const entry of availableFx()) {
+            const spec: PluginSpec = {
+                instanceId: 'test', pluginId: entry.pluginId!,
+                format: 'builtin', enabled: true, insertPoint: 'pre', params: {},
+            };
+            expect(`${entry.name} builds: ${canCreateProcessor(spec)}`)
+                .toBe(`${entry.name} builds: true`);
         }
     });
 

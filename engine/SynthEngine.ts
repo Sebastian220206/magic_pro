@@ -173,12 +173,17 @@ class SynthVoice {
         });
     }
 
+    private startedAt = 0;
+    private velScale = 0;
+
     start(time: number, velocity: number) {
         const { envelope } = this.preset;
         // Clamp velocity to MIDI range (0-127) to prevent
         // gain > 1.0 that could clip or silence the output
         const clampedVel = Math.max(0, Math.min(127, velocity));
         const velScale = clampedVel / 127;
+        this.startedAt = time;
+        this.velScale = velScale;
 
         // Apply Envelope - Attack and Decay
         this.gain.gain.cancelScheduledValues(time);
@@ -188,6 +193,19 @@ class SynthVoice {
 
         // Start Oscillators
         this.oscillators.forEach(osc => osc.start(time));
+    }
+
+    /** Envelope level at a context time, from the ADS shape (pre-release). */
+    private levelAt(time: number): number {
+        const { attack, decay, sustain } = this.preset.envelope;
+        const t = time - this.startedAt;
+        if (t <= 0) return 0;
+        if (t < attack) return this.velScale * (t / attack);
+        if (t < attack + decay) {
+            const k = (t - attack) / decay;
+            return this.velScale * (1 + (sustain - 1) * k);
+        }
+        return this.velScale * sustain;
     }
 
     setPitchBend(cents: number) {
@@ -201,7 +219,7 @@ class SynthVoice {
         const { envelope } = this.preset;
         
         this.gain.gain.cancelScheduledValues(time);
-        this.gain.gain.setValueAtTime(this.gain.gain.value, time);
+        this.gain.gain.setValueAtTime(Math.max(this.levelAt(time), 0.0011), time);
         this.gain.gain.exponentialRampToValueAtTime(0.001, time + envelope.release);
         
         this.oscillators.forEach(osc => {

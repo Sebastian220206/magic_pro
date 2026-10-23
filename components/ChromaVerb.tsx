@@ -122,19 +122,34 @@ export function ChromaVerb({ trackId, pluginId }: ReverbProps) {
         });
     };
 
+    const reverbModes = [
+        { name: 'Room', icon: '◈', algorithm: 'room_small' },
+        { name: 'Chamber', icon: '❂', algorithm: 'chamber' },
+        { name: 'Concert Hall', icon: '✧', algorithm: 'hall_concert' },
+        { name: 'Cathedral', icon: '❖', algorithm: 'hall_cathedral' },
+        { name: 'Plate', icon: '❃', algorithm: 'plate' },
+        { name: 'Spring', icon: '⚙', algorithm: 'spring' },
+        { name: 'Shimmer', icon: '🌑', algorithm: 'shimmer' },
+        { name: 'Ambient', icon: '▩', algorithm: 'ambient' },
+        { name: 'Gated', icon: '≋', algorithm: 'nonlinear_gated' },
+        { name: 'Reverse', icon: '🎤', algorithm: 'nonlinear_reverse' },
+        { name: 'Reflective Hall', icon: '◰', algorithm: 'hall_concert' },
+        { name: 'Strange Room', icon: '🌀', algorithm: 'room_large' },
+        { name: 'Airy', icon: '💨', algorithm: 'room_medium' },
+        { name: 'Bloomy', icon: '🌸', algorithm: 'ambient' }
+    ];
+
     const handleParamChange = (key: string, val: number) => {
         const newParams = { ...params, [key]: val };
+        if (key === 'modeIndex') {
+            const chosenMode = reverbModes[val];
+            if (chosenMode) {
+                (newParams as any).algorithm = chosenMode.algorithm;
+            }
+        }
         setParams(newParams);
         updatePluginParams(trackId, pluginId, newParams);
     };
-
-    const reverbModes = [
-        { name: 'Room', icon: '◈' }, { name: 'Chamber', icon: '❂' }, { name: 'Concert Hall', icon: '✧' },
-        { name: 'Theatre', icon: '❖' }, { name: 'Synth Hall', icon: '❃' }, { name: 'Digital', icon: '⚙' },
-        { name: 'Dark Room', icon: '🌑' }, { name: 'Dense', icon: '▩' }, { name: 'Smooth Space', icon: '≋' },
-        { name: 'Vocal Hall', icon: '🎤' }, { name: 'Reflective Hall', icon: '◰' }, { name: 'Strange Room', icon: '🌀' },
-        { name: 'Airy', icon: '💨' }, { name: 'Bloomy', icon: '🌸' }
-    ];
 
     return (
         <div className="flex flex-col w-[940px] h-[680px] bg-[#0d0d0d] shadow-[0_50px_100px_rgba(0,0,0,1)] rounded-xl border border-white/5 font-sans overflow-hidden">

@@ -112,23 +112,59 @@ export function NewTrackDialog({ onClose }: NewTrackDialogProps) {
 
     const handleCreate = () => {
         const { type: trackType, color, icon, name } = trackPreset(mainCategory, subOption);
+        const store = useProjectStore.getState();
+        const beatsPerBar = Number(store.timeSignature?.split('/')[0]) || 4;
 
+        let lastCreatedTrackId: string | null = null;
         for (let i = 0; i < trackCount; i++) {
+            const trackId = `track-${Date.now()}-${i}`;
+            lastCreatedTrackId = trackId;
             addTrack({
+                id: trackId,
                 name: `${name} ${i + 1}`,
                 type: trackType,
                 color: color,
                 icon: icon as any,
                 recordEnabled: mainCategory === 'Audio' ? recordEnable : false,
                 inputMonitoring: mainCategory === 'Audio' ? inputMonitoring : false,
-                // Only playable types carry an instrument. `'software-instrument'`
-                // was also tested here, but this dialog never produced that type —
-                // typing the preset made the dead branch visible.
                 ...(['midi', 'drummer', 'bass-player', 'keyboard-player'].includes(trackType)
                     ? trackFieldsFor(instrument)
                     : {}),
             });
+
+            // Seed an initial 4-bar empty region for instruments
+            if (['midi', 'drummer', 'bass-player', 'keyboard-player'].includes(trackType)) {
+                const clipId = `clip-init-${Date.now()}-${i}`;
+                const duration = beatsPerBar * 4;
+                store.addClip({
+                    id: clipId,
+                    trackId: trackId,
+                    name: `${name} Region`,
+                    start: 0,
+                    startBeat: 0,
+                    startTime: 0,
+                    duration,
+                    durationBeats: duration,
+                    type: 'midi',
+                    color: color,
+                    notes: [],
+                } as any);
+
+                store.selectClip(clipId);
+                store.selectClips([clipId]);
+            }
         }
+
+        // Auto-open Piano Roll / Editors when adding an instrument track
+        if (['midi', 'drummer', 'bass-player', 'keyboard-player'].includes(trackType)) {
+            if (lastCreatedTrackId) {
+                store.selectTrack(lastCreatedTrackId);
+            }
+            if (!store.showEditors) {
+                store.toggleEditors();
+            }
+        }
+
         onClose();
     };
 

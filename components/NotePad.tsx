@@ -101,7 +101,7 @@ export function NotePad() {
                 </div>
             </div>
 
-            <style jsx>{`
+            <style>{`
                 textarea { line-height: 1.2rem; }
             `}</style>
 

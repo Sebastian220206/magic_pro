@@ -7,6 +7,7 @@ import {
     COMPRESSOR_MODELS, transferCurve, meterFraction, autoMakeupDb,
     type AutoGainMode,
 } from '@/lib/compressorCurve'
+import { SidechainPicker } from './mixer/RoutingControls'
 
 /**
  * The compressor.
@@ -107,9 +108,13 @@ function LevelMeter({ db, label, scaleOnLeft }: { db: number; label: string; sca
 
 export function Compressor({ trackId, pluginId }: { trackId: string; pluginId: string }) {
     const updatePluginParams = useProjectStore(s => s.updatePluginParams);
+    const isMaster = trackId === 'master';
+    const masterPlugins = useProjectStore(s => s.masterPlugins);
     const tracks = useProjectStore(s => s.tracks);
-    const track = tracks.find(t => t.id === trackId);
-    const plugin = track?.plugins.find(p => p.id === pluginId);
+    const track = isMaster ? null : tracks.find(t => t.id === trackId);
+    const plugin = isMaster
+        ? masterPlugins.find(p => p.id === pluginId)
+        : track?.plugins.find(p => p.id === pluginId);
 
     const [state, setState] = useState<CompState>(() => stateFromParams(plugin?.params as never));
     const [view, setView] = useState<'meter' | 'graph'>('meter');
@@ -286,20 +291,19 @@ export function Compressor({ trackId, pluginId }: { trackId: string; pluginId: s
                     ))}
                 </div>
 
-                {/* Dimmed with its reason: a side-chain key needs a second
-                    input, which the insert chain does not route to a
-                    compressor. The Sidechain Comp plugin is the one that does. */}
+                {/* Side-chain Routing Picker */}
                 <div
-                    className="w-[190px] rounded-md border border-studio-line-strong bg-black/40 p-1.5 opacity-40"
-                    title="Keying from another track is the Sidechain Comp plugin; this insert has one input"
+                    className="w-[190px] rounded-md border border-accent-cyan/30 bg-black/50 p-1.5 shadow-sm"
+                    title="Keying from another track via sidechain detector"
                 >
-                    <div className="text-[8px] font-bold uppercase tracking-wider text-studio-text-dim text-center mb-1">
-                        Side-Chain
+                    <div className="text-[8px] font-bold uppercase tracking-wider text-accent-cyan text-center mb-1">
+                        Side-Chain Key
                     </div>
-                    <div className="flex gap-1">
-                        <span className="flex-1 h-6 grid place-items-center rounded bg-black/50 text-[9px] text-studio-text-dim">Side Chain</span>
-                        <span className="flex-1 h-6 grid place-items-center rounded bg-studio-control text-[9px] text-studio-text">Output</span>
-                    </div>
+                    {track ? (
+                        <SidechainPicker track={track} pluginId={pluginId} />
+                    ) : (
+                        <div className="text-[9px] text-center text-studio-text-dim">Master Bus Direct</div>
+                    )}
                 </div>
             </div>
 

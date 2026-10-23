@@ -25,13 +25,15 @@ interface MidiFxMenuProps {
     recordOutput: boolean;
     onSelect: (id: MidiFxId | null) => void;
     onToggleRecordOutput: () => void;
+    /** Open the inserted effect's plug-in window. */
+    onOpenEditor: () => void;
     disabled?: boolean;
 }
 
 const MENU_WIDTH = 236;
 
 export function MidiFxMenu({
-    inserted, recordOutput, onSelect, onToggleRecordOutput, disabled,
+    inserted, recordOutput, onSelect, onToggleRecordOutput, onOpenEditor, disabled,
 }: MidiFxMenuProps) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -109,6 +111,15 @@ export function MidiFxMenu({
                 aria-haspopup="menu"
                 aria-expanded={open}
                 onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+                onDoubleClick={(e) => {
+                    // Logic opens a plug-in from its slot on a double-click.
+                    // Single click keeps opening the menu, so the gesture that
+                    // was already here is unchanged.
+                    e.stopPropagation();
+                    if (!current) return;
+                    setOpen(false);
+                    onOpenEditor();
+                }}
                 className={`h-full w-full rounded-[2px] border flex items-center justify-center px-1 text-[8px] font-black uppercase truncate transition-colors ${disabled
                     ? 'bg-black/30 border-white/5 text-studio-text-dim/40 cursor-default'
                     : current
@@ -149,6 +160,23 @@ export function MidiFxMenu({
                             />
                         </div>
                     </div>
+
+                    {/* Open the inserted effect. First row, because reaching a
+                        plug-in's controls is what you want from an occupied
+                        slot far more often than swapping the plug-in. */}
+                    {current && (
+                        <div className="shrink-0 border-b border-studio-line-strong pb-1 mb-1">
+                            <button
+                                type="button"
+                                role="menuitem"
+                                data-open-midi-fx-editor
+                                onClick={() => { setOpen(false); onOpenEditor(); }}
+                                className="w-full h-8 pl-8 pr-3 flex items-center text-left text-[13px] text-studio-text hover:bg-accent-cyan hover:text-black transition-colors"
+                            >
+                                Open {current.name}
+                            </button>
+                        </div>
+                    )}
 
                     {/* Effects */}
                     <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar-v pb-1">

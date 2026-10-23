@@ -141,6 +141,32 @@ describe('MIDI recording', () => {
         expect(clip.duration).toBeGreaterThanOrEqual(note.start + note.duration);
     });
 
+    it('selects the live clip so the timeline and piano roll follow the take', () => {
+        useProjectStore.getState().toggleRecording();
+        useProjectStore.setState({ playhead: 1 });
+        useProjectStore.getState().triggerNote(60, 100, TRACK);
+
+        const clip = liveClip()!;
+        const s = useProjectStore.getState();
+        // The piano roll only loads the focused/selected clip; an unselected
+        // live clip recorded fine but never appeared anywhere.
+        expect(s.selectedClipId).toBe(clip.id);
+        expect(s.selectedClipIds).toEqual([clip.id]);
+        expect(s.pianoRollFocusClipId).toBe(clip.id);
+    });
+
+    it('gives held notes their real length when stopping with keys down', () => {
+        useProjectStore.getState().toggleRecording();
+        useProjectStore.setState({ playhead: 1 });
+        useProjectStore.getState().triggerNote(60, 100, TRACK);
+        useProjectStore.setState({ playhead: 3 });
+        // No releaseNote: the keys are still down when the transport stops.
+        useProjectStore.getState().stopRecording();
+
+        // The old stop path left the minimum-length stub and leaked the entry.
+        expect(liveClip()!.notes![0].duration).toBeCloseTo(2, 5);
+    });
+
     it('counts in before rolling when count-in is enabled', () => {
         useProjectStore.setState({ countInEnabled: true, countInBars: 2, tempo: 120, timeSignature: '4/4' });
         countIn.mockReturnValue(4);

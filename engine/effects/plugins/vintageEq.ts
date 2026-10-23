@@ -107,7 +107,7 @@ const SSL_PRESETS: Record<string, Partial<VintageEqParameters>> = {
   },
 };
 
-const DEFAULT_PARAMS: VintageEqParameters = {
+export const DEFAULT_PARAMS: VintageEqParameters = {
   type: 'pultec',
   lowBoost: 0, lowCut: 0, lowFreq: 100,
   highBoost: 0, highCut: 0, highFreq: 10,
@@ -411,6 +411,48 @@ export class VintageEq {
     return this.outputNode;
   }
 
+  /** The factory/chain contract reads these, not the getters above. */
+  get input(): AudioNode { return this.inputNode; }
+  get output(): AudioNode { return this.outputNode; }
+  connect(dest: AudioNode): void { this.outputNode.connect(dest); }
+  disconnect(dest?: AudioNode): void {
+    dest ? this.outputNode.disconnect(dest) : this.outputNode.disconnect();
+  }
+
+  /**
+   * Restore a flat state, as the insert chain holds it.
+   *
+   * `type` re-voices the filters rather than only relabelling them: without
+   * the re-apply a project reopening on the Neve voicing would sound the
+   * Pultec curves it was built with. Colour is assigned directly instead of
+   * going through `setTransformerColor`, whose drive floor would rewrite a
+   * saved drive value on the way in.
+   */
+  setState(state: Partial<VintageEqParameters & { bypass: boolean }>): void {
+    if (state.type === 'pultec' || state.type === 'neve' || state.type === 'ssl') {
+      this.params.type = state.type;
+    }
+    const numeric: (keyof VintageEqParameters)[] = [
+      'lowBoost', 'lowCut', 'lowFreq', 'highBoost', 'highCut', 'highFreq',
+      'bandwidth', 'highPassFreq', 'lowPassFreq',
+      'bell1Freq', 'bell1Gain', 'bell1Q', 'bell2Freq', 'bell2Gain', 'bell2Q',
+      'saturationDrive',
+    ];
+    for (const key of numeric) {
+      const value = state[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        (this.params[key] as number) = value;
+      }
+    }
+    if (typeof state.transformerColor === 'boolean') {
+      this.params.transformerColor = state.transformerColor;
+    }
+    this.applyCurrentType();
+    this.updateSaturationCurve();
+    this.updateState();
+    if (state.bypass !== undefined) this.setBypass(state.bypass);
+  }
+
   /**
    * Get state
    */
@@ -440,3 +482,11 @@ export class VintageEq {
 }
 
 export default VintageEq;
+
+export interface VintageEqOptions {
+  type?: VintageEqType;
+}
+
+export function createVintageEqPlugin(ctx: AudioContext, options?: VintageEqOptions): VintageEq {
+  return new VintageEq(ctx, options?.type ?? DEFAULT_PARAMS.type);
+}

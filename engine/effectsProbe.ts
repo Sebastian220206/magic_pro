@@ -132,6 +132,11 @@ const PROBE_SPECS: { pluginId: string; params: Record<string, unknown> }[] = [
     { pluginId: BUILTIN_PLUGIN_IDS.delay, params: { timeL: 0.2, timeR: 0.3, feedback: 0.5, mix: 0.7 } },
     { pluginId: BUILTIN_PLUGIN_IDS.limiter, params: { ceiling: -6, release: 0.05, lookahead: 1 } },
     { pluginId: BUILTIN_PLUGIN_IDS.sidechainCompressor, params: { threshold: -30, ratio: 8 } },
+    { pluginId: BUILTIN_PLUGIN_IDS.saturation, params: { drive: 0.7, tone: 0.8, mix: 1, type: 0 } },
+    // Full width: the harness signal is near-mono, so a subtle setting would
+    // read as unprocessed. The rack probe covers the widener on real stereo.
+    { pluginId: BUILTIN_PLUGIN_IDS.widener, params: { width: 2, mono: 0 } },
+    { pluginId: BUILTIN_PLUGIN_IDS.vintageEq, params: { type: 0, lowBoost: 6, lowFreq: 100 } },
 ];
 
 /**
@@ -538,6 +543,83 @@ export async function probeFxVoicings(): Promise<EffectProbeResult[]> {
         }
     }
     return results;
+}
+
+/**
+ * Does the widener actually widen?
+ *
+ * `probeFxVoicings` renders a dual-mono burst, which a mid/side widener
+ * correctly leaves untouched — there is no side to scale. So the rack probe
+ * exempts it there, and this checks it on a signal with real stereo content:
+ * a hard-left burst must collapse to dual-mono at width 0 and open back up
+ * at width 2.
+ */
+export async function probeWidenerStereo(): Promise<EffectProbeResult[]> {
+  const results: EffectProbeResult[] = [];
+  const rate = 48000;
+  const length = Math.round(rate * 1.5);
+  // Past the parameter smoothing: every built-in ramps gains with
+  // setTargetAtTime, so a burst at zero starts mid-ramp and measures the
+  // transition rather than the setting.
+  const burstAt = Math.round(rate * 0.5);
+  const burstLen = Math.round(rate * 0.02);
+
+  const renderHardLeft = async (params: Record<string, number>): Promise<AudioBuffer> => {
+    const ctx = new OfflineAudioContext(2, length, rate);
+    const source = ctx.createBufferSource();
+    const input = ctx.createBuffer(2, length, rate);
+    const left = input.getChannelData(0);
+    for (let i = 0; i < burstLen; i++) left[burstAt + i] = Math.sin(i / 6) * 0.8;
+    // Right stays silent: maximum side content.
+    source.buffer = input;
+
+    const processor = await createProcessor(ctx, {
+      pluginId: BUILTIN_PLUGIN_IDS.widener, format: 'builtin', params,
+    } as PluginSpec);
+    if (!processor) throw new Error('no widener processor');
+    source.connect(processor.input);
+    processor.output.connect(ctx.destination);
+    source.start(0);
+    return ctx.startRendering();
+  };
+
+  /** Largest |L − R| anywhere in the burst window. */
+  const stereoGap = (buffer: AudioBuffer): number => {
+    const left = buffer.getChannelData(0);
+    const right = buffer.getChannelData(1);
+    let gap = 0;
+    const end = Math.min(buffer.length, burstAt + burstLen * 2);
+    for (let i = burstAt; i < end; i++) {
+      gap = Math.max(gap, Math.abs(left[i] - right[i]));
+    }
+    return gap;
+  };
+
+  const collapsed = await renderHardLeft({ width: 0 });
+  const gapAtZero = stereoGap(collapsed);
+  results.push({
+    pluginId: BUILTIN_PLUGIN_IDS.widener,
+    name: 'Width 0 collapses hard-left to mono',
+    built: true,
+    peak: peakOf(collapsed),
+    passesAudio: peakOf(collapsed) > AUDIBLE,
+    changesSignal: gapAtZero < 1e-6,
+    difference: gapAtZero,
+  });
+
+  const opened = await renderHardLeft({ width: 2 });
+  const gapAtTwo = stereoGap(opened);
+  results.push({
+    pluginId: BUILTIN_PLUGIN_IDS.widener,
+    name: 'Width 2 restores (and exaggerates) the stereo gap',
+    built: true,
+    peak: peakOf(opened),
+    passesAudio: peakOf(opened) > AUDIBLE,
+    changesSignal: gapAtTwo > 0.1,
+    difference: gapAtTwo,
+  });
+
+  return results;
 }
 
 /**

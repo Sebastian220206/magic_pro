@@ -116,7 +116,7 @@ export function SmartControls() {
                 </div>
             </div>
 
-            <style jsx>{`
+            <style>{`
                 .bg-brushed-metal {
                     background: #161616;
                     background-image: linear-gradient(rgba(255,255,255,.01) 50%, transparent 50%),

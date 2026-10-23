@@ -19,11 +19,14 @@ import { eqBandsFromParams, eqThumbnailPath } from "@/lib/eqCurve"
 import { resolvePluginId } from "@/engine/plugins/pluginIds"
 import { MAX_GAIN } from "@/lib/mixerLevel"
 import { BUILTIN_PLUGIN_IDS } from "@/engine/plugins/pluginIds"
+import type { MultiOutputChannel } from "@/engine/mixer/multiOutputChannel"
+import type { MultiOutputDrumMachine } from "@/engine/instruments/multiOutputDrumMachine"
+import { MasteringPanel } from "./mixer/MasteringPanel"
 import {
     ChevronDown, Filter, MoreHorizontal,
     Settings2, Sliders, LayoutList,
     Circle, Volume2, Music, Mic, Keyboard,
-    Plus, Power
+    Plus, Power, Wand2, X
 } from "lucide-react"
 
 export function Mixer() {
@@ -79,6 +82,7 @@ export function Mixer() {
     const [mixerMode, setMixerMode] = useState<'single' | 'tracks' | 'all'>('all')
     const [trackTypeFilter, setTrackTypeFilter] = useState<'All' | 'Audio' | 'Inst' | 'Aux' | 'Bus' | 'VCA' | 'Output' | 'Master'>('All')
     const [showTrackStacks, setShowTrackStacks] = useState(true)
+    const [showMasteringDrawer, setShowMasteringDrawer] = useState(false)
 
     if (!showMixer) return null
 
@@ -246,8 +250,30 @@ export function Mixer() {
                     masterVolume={settings.masterVolume}
                     masterPan={settings.masterPan}
                     masterMuted={settings.masterMuted}
+                    onMastering={() => setShowMasteringDrawer(v => !v)}
                 />
             </div>
+
+            {/* Mastering Assistant Drawer (Logic Pro style) */}
+            {showMasteringDrawer && (
+                <div className="absolute right-0 bottom-8 top-10 w-[380px] bg-studio-panel/95 backdrop-blur-xl border-l border-accent-cyan/30 shadow-[0_0_50px_rgba(0,0,0,0.85)] z-50 flex flex-col">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-black/40">
+                        <div className="flex items-center gap-2 text-xs font-bold uppercase text-accent-cyan">
+                            <Wand2 className="w-3.5 h-3.5" />
+                            <span>Mastering Assistant</span>
+                        </div>
+                        <button
+                            onClick={() => setShowMasteringDrawer(false)}
+                            className="p-1 rounded text-white/60 hover:text-white hover:bg-white/10"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-3">
+                        <MasteringPanel />
+                    </div>
+                </div>
+            )}
 
             {/* EBU R128 loudness on the master bus — the figures needed to
                 master to a streaming target rather than by eye. */}
@@ -406,6 +432,7 @@ interface MixerChannelStripProps {
     masterMuted?: boolean;
     toggleTrackFreeze?: (trackId: string) => void;
     handleAction?: (field: keyof Track, value: any, e: React.MouseEvent) => void;
+    onMastering?: () => void;
 }
 
 function TrackMixerChannelStrip({ track, isSelected, trackIndex, longFaders, focusedTrackId }: { track: Track; isSelected: boolean; trackIndex: number; longFaders?: boolean; focusedTrackId: string | null }) {
@@ -444,12 +471,25 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
     track, isSelected, trackIndex = 0, longFaders = false, onSelect, onUpdate, onAddPlugin, onTogglePlugin, setOpenPluginEditor,
     saveHistorySnapshot,
     isMaster = false, masterVolume = 0.8, masterPan = 0, masterMuted = false,
-    toggleTrackFreeze, handleAction
+    toggleTrackFreeze, handleAction, onMastering
 }: MixerChannelStripProps) {
     const faderCapRef = useRef<HTMLDivElement>(null);
     // Dim is a monitor-only cut: it never touches the stored fader value, so
     // releasing it restores exactly the level that was set.
     const [dimmed, setDimmed] = useState(false);
+    const [expandedMultiOut, setExpandedMultiOut] = useState(false);
+    const [subVolumes, setSubVolumes] = useState<Record<string, number>>({
+        kick: 0.85,
+        snare: 0.80,
+        hihat: 0.75,
+        perc: 0.70,
+    });
+    const [subMutes, setSubMutes] = useState<Record<string, boolean>>({
+        kick: false,
+        snare: false,
+        hihat: false,
+        perc: false,
+    });
     const initialVolume = isMaster ? masterVolume : (track?.volume || 0.8);
     const initialPan = isMaster ? masterPan : (track?.pan || 0);
     const initialMuted = isMaster ? masterMuted : (track?.muted || false);
@@ -670,6 +710,7 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                 disabled={isMaster || !track || !isMidiTrackType(track.type)}
                 onSelect={(id) => track && onUpdate({ midiFx: id } as Partial<Track>)}
                 onToggleRecordOutput={() => track && onUpdate({ recordMidiFxOutput: !track.recordMidiFxOutput } as Partial<Track>)}
+                onOpenEditor={() => track && useProjectStore.getState().setOpenMidiFxEditor({ trackId: track.id })}
             />
         ),
 
@@ -691,7 +732,11 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                 {fxChain.map((plugin: any) => (
                     <div
                         key={plugin.id}
-                        onClick={(e) => { e.stopPropagation(); if (track) setOpenPluginEditor({ trackId: track.id, pluginId: plugin.id }); }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const targetId = isMaster ? 'master' : track?.id;
+                            if (targetId) setOpenPluginEditor({ trackId: targetId, pluginId: plugin.id });
+                        }}
                         title={plugin.name}
                         className={`h-[15px] shrink-0 rounded-[2px] flex items-center px-1.5 text-[8px] font-bold cursor-pointer truncate transition-all ${plugin.enabled
                             ? 'bg-accent-cyan/80 text-black hover:bg-accent-cyan'
@@ -703,7 +748,7 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                 <PluginMenu
                     onSelect={(type, params, name) => addToChain(type, params, name)}
                     onBrowse={() => {
-                        const id = isMaster ? null : track?.id;
+                        const id = isMaster ? 'master' : track?.id;
                         if (id) useProjectStore.getState().setPluginBrowserTrack(id, 'effect');
                     }}
                 />
@@ -791,6 +836,7 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                         audioEngine2.setMasterVolume(next ? masterVolume * DIM_FACTOR : masterVolume);
                     }}
                     onBounce={() => useProjectStore.getState().toggleExportDialog('all')}
+                    onMastering={onMastering}
                 />
             )
             : track
@@ -889,7 +935,7 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
 
         name: (
             <div
-                className="h-full flex items-center justify-center px-1 text-[8px] font-black uppercase truncate tracking-tight"
+                className="h-full flex items-center justify-between px-1 text-[8px] font-black uppercase truncate tracking-tight"
                 style={{ background: tint, color: '#04070b' }}
                 title={isMaster ? 'Master' : track?.name}
                 onDoubleClick={(e) => {
@@ -900,31 +946,132 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                 }}
                 data-track-name-field
             >
-                {isMaster ? 'Master' : (track?.name || 'Track')}
+                <span className="truncate flex-1">{isMaster ? 'Master' : (track?.name || 'Track')}</span>
+                {track && (track.type === 'drummer' || track.instrument?.toLowerCase().includes('drum') || track.instrument?.toLowerCase().includes('trap')) && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedMultiOut(prev => !prev);
+                        }}
+                        title={expandedMultiOut ? 'Collapse multi-output channels' : 'Expand multi-output drum channels'}
+                        className="ml-1 w-3.5 h-3.5 rounded bg-black/40 text-white flex items-center justify-center hover:bg-black/60 font-mono text-[9px]"
+                    >
+                        {expandedMultiOut ? '-' : '+'}
+                    </button>
+                )}
             </div>
         ),
     };
 
+    const DRUM_SUBS = [
+        { id: 'kick', name: 'Kick', color: '#ef4444' },
+        { id: 'snare', name: 'Snare', color: '#10b981' },
+        { id: 'hihat', name: 'Hi-Hats', color: '#f59e0b' },
+        { id: 'perc', name: 'Perc', color: '#8b5cf6' },
+    ];
+
     return (
-        <div
-            onClick={onSelect}
-            style={{ width: longFaders ? STRIP_WIDTH * 1.5 : STRIP_WIDTH }}
-            className={`h-full flex flex-col border-r border-black shrink-0 transition-colors relative group ${isSelected ? 'bg-accent-cyan/[0.06]' : 'bg-studio-panel/60 hover:bg-white/[0.02]'}`}
-        >
-            {isSelected && <div className="absolute inset-x-0 top-0 h-0.5 bg-accent-cyan z-10 shadow-[0_0_10px_var(--accent-cyan-glow)]" />}
-            {STRIP_ROWS.map((row: StripRow) => (
-                <div
-                    key={row.key}
-                    data-strip-row={row.key}
-                    style={row.height === null ? undefined : { height: row.height }}
-                    /* `overflow-hidden` on every row: the Audio FX slot holds a
-                       list, and without it three inserts and an add button
-                       painted straight over the Sends slot below. */
-                    className={`${row.height === null ? 'flex-1 min-h-0' : 'shrink-0'} overflow-hidden px-1.5 py-px ${row.key === 'name' ? 'px-0 py-0' : ''}`}
-                >
-                    {rows[row.key] ?? null}
-                </div>
-            ))}
+        <div className="flex shrink-0 h-full">
+            <div
+                onClick={onSelect}
+                style={{ width: longFaders ? STRIP_WIDTH * 1.5 : STRIP_WIDTH }}
+                className={`h-full flex flex-col border-r border-black shrink-0 transition-colors relative group ${isSelected ? 'bg-accent-cyan/[0.06]' : 'bg-studio-panel/60 hover:bg-white/[0.02]'}`}
+            >
+                {isSelected && <div className="absolute inset-x-0 top-0 h-0.5 bg-accent-cyan z-10 shadow-[0_0_10px_var(--accent-cyan-glow)]" />}
+                {STRIP_ROWS.map((row: StripRow) => (
+                    <div
+                        key={row.key}
+                        data-strip-row={row.key}
+                        style={row.height === null ? undefined : { height: row.height }}
+                        className={`${row.height === null ? 'flex-1 min-h-0' : 'shrink-0'} overflow-hidden px-1.5 py-px ${row.key === 'name' ? 'px-0 py-0' : ''}`}
+                    >
+                        {rows[row.key] ?? null}
+                    </div>
+                ))}
+            </div>
+
+            {/* Multi-Output Drum Sub-Channels */}
+            {expandedMultiOut && track && (
+                DRUM_SUBS.map((sub, idx) => {
+                    const subVol = subVolumes[sub.id] ?? 0.8;
+                    const subMuted = subMutes[sub.id] ?? false;
+                    return (
+                        <div
+                            key={sub.id}
+                            style={{ width: STRIP_WIDTH * 0.85 }}
+                            className="h-full flex flex-col border-r border-black/80 shrink-0 bg-studio-panel/40 relative"
+                        >
+                            <div className="h-[30px] border-b border-white/5 flex items-center justify-center text-[8px] font-mono text-studio-text-dim">
+                                Out {idx + 1}
+                            </div>
+                            <div className="h-[46px] flex items-center justify-center opacity-30">
+                                <span className="text-[7px] uppercase font-bold text-studio-text-dim">Sub</span>
+                            </div>
+                            <div className="h-[22px] flex items-center justify-center">
+                                <span className="text-[7px] font-bold text-studio-text-dim">Bus {track.name.slice(0, 3)}</span>
+                            </div>
+                            <div className="h-[22px] flex items-center justify-center">
+                                <span className="text-[7px] font-mono text-accent-cyan truncate px-1">{sub.name}</span>
+                            </div>
+                            <div className="h-[66px] flex items-center justify-center">
+                                <span className="text-[7px] text-studio-text-dim/50">Direct</span>
+                            </div>
+                            <div className="h-[51px] flex items-center justify-center">
+                                <span className="text-[7px] text-studio-text-dim/50">—</span>
+                            </div>
+                            <div className="h-[26px] flex items-center justify-center">
+                                <span className="text-[7px] text-studio-text-dim">St Out</span>
+                            </div>
+                            <div className="h-[26px]" />
+                            <div className="h-[22px]" />
+                            <div className="h-[32px] flex items-center justify-center">
+                                <div
+                                    className="w-5 h-5 rounded flex items-center justify-center text-[10px]"
+                                    style={{ background: `${sub.color}30`, border: `1px solid ${sub.color}80` }}
+                                >
+                                    🥁
+                                </div>
+                            </div>
+                            <div className="h-[48px] flex flex-col items-center justify-center">
+                                <div className="w-4 h-4 rounded-full bg-studio-raised border border-white/10" />
+                                <span className="text-[8px] text-studio-text-dim font-mono mt-0.5">0</span>
+                            </div>
+                            <div className="h-[20px]" />
+                            <div className="h-[20px] flex items-center justify-center text-[8px] font-mono text-studio-text-mid">
+                                {subMuted ? '-inf' : `${Math.round((subVol - 1) * 20)} dB`}
+                            </div>
+                            {/* Sub Fader */}
+                            <div className="flex-1 min-h-0 flex items-end justify-center pb-2">
+                                <div className="h-full w-3.5 bg-black/40 rounded-sm border border-white/10 relative">
+                                    <div
+                                        style={{ bottom: `${subMuted ? 0 : subVol * 80}%` }}
+                                        className="absolute -left-1 w-5.5 h-2.5 bg-studio-raised border border-white/20 rounded-[1px] shadow"
+                                    />
+                                </div>
+                            </div>
+                            <div className="h-[24px]" />
+                            {/* Mute Button */}
+                            <div className="h-[22px] flex px-1 pb-1">
+                                <button
+                                    onClick={() => setSubMutes(prev => ({ ...prev, [sub.id]: !prev[sub.id] }))}
+                                    className={`flex-1 rounded-[2px] border text-[8px] font-black ${
+                                        subMuted ? 'bg-[#ff4d4d]/30 border-[#ff4d4d] text-[#ff4d4d]' : 'bg-studio-panel border-white/10 text-studio-text-dim'
+                                    }`}
+                                >
+                                    M
+                                </button>
+                            </div>
+                            {/* Name footer */}
+                            <div
+                                className="h-[22px] flex items-center justify-center px-1 text-[8px] font-black uppercase truncate tracking-tight text-black"
+                                style={{ background: sub.color }}
+                            >
+                                {sub.name}
+                            </div>
+                        </div>
+                    );
+                })
+            )}
         </div>
     );
 })

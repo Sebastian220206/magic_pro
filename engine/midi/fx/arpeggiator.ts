@@ -62,6 +62,41 @@ const RATE_BEATS: Record<ArpRate, number> = {
   '1/32': 0.125,
 };
 
+/** The velocity every step of a pattern plays at. */
+const BASE_VELOCITY = 100;
+
+/**
+ * Velocity for one step of the pattern.
+ *
+ * A free function rather than a method so the editor can draw its step grid
+ * from the rule the arpeggiator actually plays by. Drawing the grid from a
+ * second copy of this switch is how a display starts disagreeing with what you
+ * hear the first time either side is edited.
+ *
+ * `random` takes an injectable source so a caller that needs a stable picture
+ * — the editor, redrawing every frame — can pass one that does not jitter.
+ */
+export function stepVelocity(
+  step: number,
+  totalSteps: number,
+  velocityPattern: VelocityPattern,
+  velocityAmount: number,
+  random: () => number = Math.random,
+): number {
+  switch (velocityPattern) {
+    case 'accent':
+      return step === 0 ? Math.min(127, BASE_VELOCITY + 27 * velocityAmount) : BASE_VELOCITY;
+    case 'crescendo':
+      return Math.round(BASE_VELOCITY * (0.5 + (step / totalSteps) * 0.5 * velocityAmount));
+    case 'diminuendo':
+      return Math.round(BASE_VELOCITY * (1 - (step / totalSteps) * 0.5 * velocityAmount));
+    case 'random':
+      return Math.round(BASE_VELOCITY * (0.5 + random() * 0.5 * velocityAmount));
+    default:
+      return BASE_VELOCITY;
+  }
+}
+
 const DEFAULT_CONFIG: ArpeggiatorConfig = {
   pattern: 'up',
   rate: '1/16',
@@ -106,6 +141,7 @@ export class Arpeggiator {
     this.state.heldNotes.delete(pitch);
 
     if (!this.state.config.latch && this.state.heldNotes.size === 0) {
+      this.state.isPlaying = false;
       this.allNotesOff();
     }
   }
@@ -195,11 +231,10 @@ export class Arpeggiator {
       return events;
     }
 
-    // Turn off previous note
+    // Turn off previous note (always emit note-off before re-sounding the same pitch,
+    // otherwise synths and Web Audio voice allocators leave stuck voices)
     for (const prevPitch of this.state.activeNotes) {
-      if (prevPitch !== pitch) {
-        events.push({ type: 'note-off', pitch: prevPitch, velocity: 0 });
-      }
+      events.push({ type: 'note-off', pitch: prevPitch, velocity: 0 });
     }
     this.state.activeNotes.clear();
 
@@ -225,20 +260,7 @@ export class Arpeggiator {
 
   private calculateVelocity(step: number, totalSteps: number): number {
     const { velocityPattern, velocityAmount } = this.state.config;
-    const baseVelocity = 100;
-
-    switch (velocityPattern) {
-      case 'accent':
-        return step === 0 ? Math.min(127, baseVelocity + 27 * velocityAmount) : baseVelocity;
-      case 'crescendo':
-        return Math.round(baseVelocity * (0.5 + (step / totalSteps) * 0.5 * velocityAmount));
-      case 'diminuendo':
-        return Math.round(baseVelocity * (1 - (step / totalSteps) * 0.5 * velocityAmount));
-      case 'random':
-        return Math.round(baseVelocity * (0.5 + Math.random() * 0.5 * velocityAmount));
-      default:
-        return baseVelocity;
-    }
+    return stepVelocity(step, totalSteps, velocityPattern, velocityAmount);
   }
 
   private getSwingOffset(beat: number): number {

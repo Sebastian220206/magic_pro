@@ -24,10 +24,12 @@ import { routingEngine } from './routingEngine';
 import { bufferCacheManager } from './bufferCache';
 import {
     collectMidiNoteEvents,
+    collectMidiCcEvents,
     type MidiSink,
     type SequencerClip,
 } from './midiSequencer';
 import { TempoMap, type TempoPoint } from './tempoMap';
+import { scheduleClipEnvelope } from './clipEnvelope';
 import { flexCacheKey, isFlexActive, renderFlexBuffer, type FlexSettings } from './flexRender';
 import { resolveClipsForPlayback, type ResolvableClip } from './takeResolver';
 
@@ -292,9 +294,35 @@ class AdvancedScheduler {
         // Resolve all buffers in parallel first, then schedule synchronously
         await this.resolveBuffers(clipsToSchedule);
 
+        // Guard against stopPlayback() or seekTo() occurring while resolveBuffers was awaiting
+        if (!this.isPlaying) return;
+
         // Schedule each clip synchronously
         for (const clip of clipsToSchedule) {
             this.scheduleClipSync(clip, window);
+        }
+    }
+
+    /**
+     * Update cached clips and tracks during active playback so edits on the timeline
+     * (deleting, muting, moving, or adding clips) take effect immediately without restarting.
+     */
+    updatePlaybackData(clips: AudioClip[], tracks: AudioTrack[]): void {
+        this.clipsCache = clips;
+        this.tracksCache = tracks;
+        if (!this.isPlaying) return;
+
+        const clipById = new Map(clips.map(c => [c.id, c]));
+        for (const [id, scheduled] of Array.from(this.scheduledClips.entries())) {
+            const current = clipById.get(id);
+            const moved = current && Math.abs(clipStartBeatOf(current) - clipStartBeatOf(scheduled.clip)) > 0.001;
+            const resized = current && Math.abs((current.duration ?? 0) - (scheduled.clip.duration ?? 0)) > 0.001;
+            const muted = current && (current as any).muted;
+            if (!current || muted || moved || resized || !this.isTrackAudible(scheduled.trackId)) {
+                try { scheduled.source.stop(); } catch { }
+                this.activeSources.delete(scheduled.source);
+                this.scheduledClips.delete(id);
+            }
         }
     }
 
@@ -350,6 +378,31 @@ class AdvancedScheduler {
                 this.midiSink.scheduleNote(event);
             } catch (error) {
                 console.warn('[Scheduler] MIDI sink failed to schedule note:', error);
+            }
+        }
+
+        if (this.midiSink.scheduleCc) {
+            const ccEvents = collectMidiCcEvents(
+                clips as unknown as SequencerClip[],
+                {
+                    transportStartTime: this.startTime,
+                    currentTime: ctx.currentTime,
+                    windowStartBeat: window.windowStart,
+                    windowEndBeat: window.windowEnd,
+                },
+                {
+                    beatsToSeconds: (beats) => this.beatsToSeconds(beats),
+                    isTrackAudible: (trackId) => this.isTrackAudible(trackId),
+                    alreadyScheduled: this.scheduledNoteKeys,
+                },
+            );
+
+            for (const ccEvent of ccEvents) {
+                try {
+                    this.midiSink.scheduleCc(ccEvent);
+                } catch (error) {
+                    console.warn('[Scheduler] MIDI sink failed to schedule CC:', error);
+                }
             }
         }
     }
@@ -445,14 +498,25 @@ class AdvancedScheduler {
         const remainingDurationSeconds = clipDurationSeconds - playheadOffsetSeconds;
         if (remainingDurationSeconds <= 0) return;
 
+        const rate = Math.max(0.0625, Number((clip as any).playbackRate || clip.timeStretch || 1.0));
         const baseClipOffsetSeconds = (clip as any).offset
-            ? this.beatSpanToSeconds(clipStartBeat, (clip as any).offset)
+            ? this.beatSpanToSeconds(clipStartBeat, Math.max(0, (clip as any).offset))
             : 0;
-        const totalBufferOffsetSeconds = baseClipOffsetSeconds + playheadOffsetSeconds;
+        const totalBufferOffsetSeconds = Math.max(0, baseClipOffsetSeconds + playheadOffsetSeconds * rate);
+
+        const isLooped = !!(clip as any).loop;
+        if (!isLooped && totalBufferOffsetSeconds >= buffer.duration) return;
 
         const source = ctx.createBufferSource();
         source.buffer = buffer;
-        source.playbackRate.value = clip.timeStretch || 1.0;
+        source.playbackRate.value = rate;
+
+        // Looped regions repeat their source material for the region's length.
+        if (isLooped) {
+            source.loop = true;
+            source.loopStart = Math.min(baseClipOffsetSeconds, Math.max(0, buffer.duration - 0.001));
+            source.loopEnd = buffer.duration;
+        }
 
         let trackNodes = (routingEngine as any).trackNodes.get(clip.trackId);
         if (!trackNodes) {
@@ -461,13 +525,31 @@ class AdvancedScheduler {
             trackNodes = (routingEngine as any).trackNodes.get(clip.trackId);
         }
 
+        // Per-clip gain stage: clip gain + fade envelopes.
+        const clipGain = ctx.createGain();
+        this.applyClipEnvelope(
+            clipGain.gain, clip, clipStartBeat, clipDurationSeconds,
+            playheadOffsetSeconds, scheduledStartTime,
+        );
+        source.connect(clipGain);
+
         if (trackNodes) {
-            source.connect(trackNodes.inputGain);
+            clipGain.connect(trackNodes.inputGain);
         } else {
             console.error(`[Scheduler] Critical Error: Track ${clip.trackId} could not be allocated.`);
         }
 
-        source.start(scheduledStartTime, totalBufferOffsetSeconds, remainingDurationSeconds);
+        if (isLooped) {
+            // Start position wraps inside the loop; duration bounds the region.
+            const loopLen = Math.max(0.001, source.loopEnd - source.loopStart);
+            const startInBuffer = totalBufferOffsetSeconds < source.loopEnd
+                ? totalBufferOffsetSeconds
+                : source.loopStart + ((totalBufferOffsetSeconds - source.loopStart) % loopLen);
+            source.start(scheduledStartTime, startInBuffer);
+            source.stop(scheduledStartTime + remainingDurationSeconds);
+        } else {
+            source.start(scheduledStartTime, totalBufferOffsetSeconds, remainingDurationSeconds * rate);
+        }
         this.activeSources.add(source);
 
         const scheduledClip: ScheduledClip = {
@@ -475,7 +557,7 @@ class AdvancedScheduler {
             clip,
             source,
             startTime: scheduledStartTime,
-            endTime: scheduledStartTime + clipDurationSeconds,
+            endTime: scheduledStartTime + remainingDurationSeconds,
             trackId: clip.trackId
         };
 
@@ -484,6 +566,7 @@ class AdvancedScheduler {
         source.onended = () => {
             this.activeSources.delete(source);
             this.scheduledClips.delete(clip.id);
+            try { clipGain.disconnect(); } catch { /* already gone */ }
             this.emitEvent({
                 type: 'clipFinished',
                 clipId: clip.id,
@@ -496,6 +579,48 @@ class AdvancedScheduler {
             clipId: clip.id,
             startTime: scheduledStartTime
         });
+    }
+
+    /**
+     * Schedule clip gain and fade-in/out on a clip's gain param.
+     *
+     * Fade lengths are in beats on the clip. The envelope is evaluated from
+     * where playback actually enters the clip, so starting mid-fade picks up
+     * at the right level instead of jumping to full.
+     */
+    private applyClipEnvelope(
+        param: AudioParam,
+        clip: AudioClip,
+        clipStartBeat: number,
+        clipSeconds: number,
+        enterAt: number,
+        when: number,
+    ): void {
+        type Fade = { duration?: number; curve?: string } | undefined;
+        const raw = (clip as any).gain;
+        const level = typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : 1;
+        const fadeIn = (clip as any).fadeIn as Fade;
+        const fadeOut = (clip as any).fadeOut as Fade;
+
+        const fi = fadeIn?.duration ? this.beatSpanToSeconds(clipStartBeat, fadeIn.duration) : 0;
+        const foBeats = fadeOut?.duration ?? 0;
+        const fo = foBeats
+            ? this.beatSpanToSeconds(clipStartBeat + Math.max(0, (clip.duration ?? 0) - foBeats), foBeats)
+            : 0;
+
+        scheduleClipEnvelope(
+            param,
+            {
+                level,
+                clipSeconds,
+                fadeInSeconds: fi,
+                fadeOutSeconds: fo,
+                fadeInCurve: fadeIn?.curve,
+                fadeOutCurve: fadeOut?.curve,
+            },
+            enterAt,
+            when,
+        );
     }
 
     /**

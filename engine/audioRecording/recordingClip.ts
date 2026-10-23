@@ -183,6 +183,7 @@ export function addClipToTimeline(clip: RecordingClip): void {
     velocityOffset: 0,
     fileUrl: undefined,
     sampleId: clip.id,
+    storageKey: clip.id,
     waveformPeaks,
     fadeIn: fadeIn ?? { duration: 0, curve: 'linear', gain: 1 },
     fadeOut: fadeOut ?? { duration: 0, curve: 'linear', gain: 1 },
@@ -199,6 +200,30 @@ export function addClipToTimeline(clip: RecordingClip): void {
   useProjectStore.setState(s => ({ 
     clips: [...s.clips, trackClip] 
   }));
+
+  // Add to bufferCacheManager so engine and scheduler find it immediately
+  try {
+    const { bufferCacheManager } = require('../audio/BufferCacheManager');
+    if (bufferCacheManager) {
+      bufferCacheManager.addBuffer(clip.id, clip.audioBuffer, trackClip.name);
+    }
+  } catch (err) {
+    console.warn('[RecordingClip] Could not register with bufferCacheManager:', err);
+  }
+
+  // Persist to IndexedDB so recorded audio survives project save and page reload
+  try {
+    const { encodeWav } = require('./wavEncoder');
+    const { storeAudioFile } = require('../persistence/audioFileStore');
+    if (encodeWav && storeAudioFile) {
+      const wavBlob = encodeWav(clip.audioBuffer);
+      void storeAudioFile(wavBlob, trackClip.name, clip.id).catch((err: unknown) => {
+        console.warn('[RecordingClip] Failed to store audio file in IndexedDB:', err);
+      });
+    }
+  } catch (err) {
+    console.warn('[RecordingClip] Could not persist audio recording to IndexedDB:', err);
+  }
 
   // Add to buffer cache for playback (System A)
   const { audioEngine: engine } = require('../AudioEngineAdapter');

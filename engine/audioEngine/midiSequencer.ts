@@ -39,6 +39,7 @@ export interface SequencerClip {
     /** Velocity offset applied to every note in the clip. */
     velocityOffset?: number;
     instrument?: string;
+    ccData?: Record<number, Array<{ time: number; value: number }>>;
 }
 
 /** A note resolved to absolute AudioContext times, ready to hand to a sink. */
@@ -52,6 +53,16 @@ export interface MidiNoteEvent {
     startTime: number;
     stopTime: number;
     instrument?: string;
+}
+
+/** A CC curve point resolved to AudioContext time. */
+export interface MidiCcEvent {
+    key: string;
+    clipId: string;
+    trackId: string;
+    controller: number;
+    value: number;
+    time: number;
 }
 
 export interface MidiSchedulingWindow {
@@ -184,12 +195,62 @@ export function collectMidiNoteEvents(
 }
 
 /**
+ * Collect MIDI CC events within the scheduling window.
+ */
+export function collectMidiCcEvents(
+    clips: SequencerClip[],
+    window: MidiSchedulingWindow,
+    options: MidiSchedulingOptions,
+): MidiCcEvent[] {
+    const { beatsToSeconds, isTrackAudible, alreadyScheduled } = options;
+    const events: MidiCcEvent[] = [];
+
+    for (const clip of clips) {
+        if (clip.type !== 'midi' || clip.muted || !clip.ccData) continue;
+        if (!isTrackAudible(clip.trackId)) continue;
+
+        const startBeat = clipStartBeat(clip);
+        const clipEndBeat = startBeat + (Number.isFinite(clip.duration) ? clip.duration : 0);
+        if (clipEndBeat <= window.windowStartBeat || startBeat > window.windowEndBeat) continue;
+
+        Object.entries(clip.ccData).forEach(([ctrlStr, points]) => {
+            const ctrl = Number(ctrlStr);
+            points.forEach((pt, idx) => {
+                const ptBeat = startBeat + pt.time;
+                if (ptBeat < window.windowStartBeat || ptBeat >= window.windowEndBeat) return;
+
+                const key = `cc:${clip.id}:${ctrl}:${idx}:${ptBeat}`;
+                if (alreadyScheduled.has(key)) return;
+
+                const idealTime = window.transportStartTime + beatsToSeconds(ptBeat);
+                const time = Math.max(idealTime, window.currentTime);
+
+                alreadyScheduled.add(key);
+                events.push({
+                    key,
+                    clipId: clip.id,
+                    trackId: clip.trackId,
+                    controller: ctrl,
+                    value: clamp(Math.round(pt.value), 0, 127),
+                    time,
+                });
+            });
+        });
+    }
+
+    events.sort((a, b) => a.time - b.time);
+    return events;
+}
+
+/**
  * Receives scheduled notes. Implemented by `AudioEngineAdapter` against the
  * synth/soundfont/sampler engines; tests substitute a recording stub.
  */
 export interface MidiSink {
     /** Play `pitch` on `trackId` from `startTime` until `stopTime` (AudioContext seconds). */
     scheduleNote(event: MidiNoteEvent): void;
+    /** Schedule CC event at `time`. Optional. */
+    scheduleCc?(event: MidiCcEvent): void;
     /** Silence everything currently sounding or scheduled — stop, seek, tempo change. */
     allNotesOff(): void;
 }

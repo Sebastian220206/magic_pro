@@ -27,7 +27,7 @@ import os
 import re
 import sys
 
-BASELINE_FILES = 135
+BASELINE_FILES = 134
 
 ROOTS = ['app', 'components', 'engine', 'store', 'lib', 'models', 'hooks',
          'templates', 'data', 'types']

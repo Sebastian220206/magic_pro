@@ -76,10 +76,8 @@ const bufferCache = new Map<string, AudioBuffer>();
 function getSampleUrl(path: string, basePath: string): string {
     let urlPath = path;
     if (urlPath.startsWith('Samples/')) { urlPath = urlPath.slice(8); }
-    // Add cache buster to prevent persistent 204 errors from browser cache
-    const cb = `?v=${Date.now()}`;
     const encoded = encodeURIComponent(urlPath).replace(/%2F/g, '/');
-    return `${basePath}${encoded}${cb}`;
+    return `${basePath}${encoded}`;
 }
 
 async function fetchSample(ctx: AudioContext, url: string): Promise<AudioBuffer> {
@@ -207,9 +205,9 @@ export class MultiSamplerEngine {
         source.playbackRate.value = Math.pow(2, (note - zone.rootNote) / 12);
         
         const gainNode = this.ctx.createGain();
-        const peakGain = velocity / 127;
+        const peakGain = Math.max(0.0001, Math.min(1, velocity / 127));
         
-        gainNode.gain.setValueAtTime(0, t);
+        gainNode.gain.setValueAtTime(0.0001, t);
         gainNode.gain.linearRampToValueAtTime(peakGain, t + 0.005);
         // Piano usually has a long natural decay if pedal is down, 
         // but here we just let it fade over 5s unless noteOff called.
@@ -226,13 +224,87 @@ export class MultiSamplerEngine {
         };
     }
 
+    /**
+     * Play a note between two absolute context times.
+     *
+     * Used by the sequencer and offline export, where the note length is
+     * known up front. Unlike playNote/noteOff it is not keyed by pitch, so
+     * repeated notes inside one lookahead window don't cancel each other.
+     */
+    public async scheduleNote(note: number, velocity: number, startTime: number, stopTime: number): Promise<void> {
+        if (!this.loaded || !this.mapper) return;
+        const zone = this.mapper.getMapping(note, velocity);
+        if (!zone) return;
+
+        const url = getSampleUrl(zone.path, this.basePath);
+        let buffer = bufferCache.get(url);
+        if (!buffer) {
+            try {
+                buffer = await fetchSample(this.ctx, url);
+            } catch (e) {
+                console.warn('[MultiSampler] Play fail:', url, e);
+                return;
+            }
+        }
+        if (!buffer) return;
+
+        const ATTACK = 0.005, DECAY = 5.0, RELEASE = 0.3;
+        const t0 = startTime;
+        const t1 = Math.max(stopTime, t0 + 0.01);
+        const peak = Math.max(0, Math.min(127, velocity)) / 127;
+        // Level at note-off, evaluated from the envelope shape rather than
+        // read from gain.value (which is the *current* value, not t1's).
+        const held = t1 - t0;
+        const levelAtStop = held <= ATTACK
+            ? peak * (held / ATTACK)
+            : peak * Math.pow(0.001 / Math.max(peak, 0.001), Math.min(1, (held - ATTACK) / (DECAY - ATTACK)));
+
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        source.playbackRate.value = Math.pow(2, (note - zone.rootNote) / 12);
+        const gainNode = this.ctx.createGain();
+        const g = gainNode.gain;
+        g.setValueAtTime(0, t0);
+        if (held <= ATTACK) {
+            g.linearRampToValueAtTime(Math.max(levelAtStop, 0.0001), t1);
+        } else {
+            g.linearRampToValueAtTime(Math.max(peak, 0.0001), t0 + ATTACK);
+            g.exponentialRampToValueAtTime(Math.max(levelAtStop, 0.0001), t1);
+        }
+        g.setValueAtTime(Math.max(levelAtStop, 0.0001), t1);
+        g.exponentialRampToValueAtTime(0.0001, t1 + RELEASE);
+
+        source.connect(gainNode);
+        gainNode.connect(this.masterGain);
+        source.start(t0);
+        source.stop(t1 + RELEASE + 0.05);
+        source.onended = () => { try { gainNode.disconnect(); } catch { /* gone */ } };
+    }
+
+    /**
+     * A copy of this instrument on another context (e.g. an
+     * OfflineAudioContext for export). Shares the zone map and the decoded
+     * sample cache, so nothing is refetched.
+     */
+    public cloneFor(ctx: BaseAudioContext): MultiSamplerEngine {
+        const copy = new MultiSamplerEngine(ctx as AudioContext);
+        copy.mapper = this.mapper;
+        copy.basePath = this.basePath;
+        copy.loaded = this.loaded;
+        copy.masterGain.gain.value = this.masterGain.gain.value;
+        return copy;
+    }
+
     public noteOff(note: number, time?: number): void {
         const t = time ?? this.ctx.currentTime;
         const voice = this.activeVoices.get(note);
         if (voice) {
-            voice.gain.gain.cancelScheduledValues(t);
-            voice.gain.gain.setValueAtTime(voice.gain.gain.value, t);
-            voice.gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3); // Smooth release
+            try {
+                voice.gain.gain.cancelScheduledValues(t);
+                const cur = Math.max(0.0001, voice.gain.gain.value || 0.0001);
+                voice.gain.gain.setValueAtTime(cur, t);
+                voice.gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3); // Smooth release
+            } catch { }
             try { voice.source.stop(t + 0.35); } catch { }
             this.activeVoices.delete(note);
         }
@@ -240,11 +312,14 @@ export class MultiSamplerEngine {
 
     public stopAll(time?: number): void {
         const t = time ?? this.ctx.currentTime;
-        this.activeVoices.forEach(({ source, gain }, note) => {
+        this.activeVoices.forEach(({ source, gain }) => {
             try {
                 gain.gain.cancelScheduledValues(t);
-                gain.gain.setValueAtTime(gain.gain.value, t);
-                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+                const cur = Math.max(0.0001, gain.gain.value || 0.0001);
+                gain.gain.setValueAtTime(cur, t);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+            } catch { }
+            try {
                 source.stop(t + 0.35);
             } catch { }
         });

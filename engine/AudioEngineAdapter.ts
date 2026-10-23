@@ -14,7 +14,7 @@ import { recordingEngine } from './audioEngine/recordingEngine';
 import { bufferCacheManager } from './audioEngine/bufferCache';
 import { bounceEngine } from './audioEngine/bounceEngine';
 import { metronomeEngine } from './audioEngine/metronome';
-import type { MidiNoteEvent, MidiSink } from './audioEngine/midiSequencer';
+import type { MidiNoteEvent, MidiCcEvent, MidiSink } from './audioEngine/midiSequencer';
 import { midiDeviceService } from './midi/midiDeviceService';
 import {
     assignWamInstrument,
@@ -406,9 +406,10 @@ export class AudioEngineAdapter implements MidiSink {
         return routingEngine.getProjectLatencySeconds();
     }
 
-    routeTrackToTrack(sourceId: string, destinationId: string) {
-        // In V2, tracks connect to master by default. Complex routing logic here.
-        console.log(`[AudioEngineAdapter] routing ${sourceId} to ${destinationId}`);
+    routeTrackToTrack(sourceId: string, destinationId: string | null) {
+        const dest = !destinationId || destinationId === 'master' || destinationId === 'stereo-out'
+            ? null : destinationId;
+        return routingEngine.routeTrackOutput(sourceId, dest);
     }
 
     routeTrackToBus(trackId: string, busId: string, level: number) {
@@ -422,8 +423,7 @@ export class AudioEngineAdapter implements MidiSink {
     }
 
     setMasterPan(pan: number) {
-        // V2 Master output doesn't have pan yet, but we can implement it
-        console.log(`[AudioEngineAdapter] setMasterPan`, pan);
+        routingEngine.setMasterPan(pan);
     }
 
     setMasterMuted(muted: boolean) {
@@ -933,7 +933,7 @@ export class AudioEngineAdapter implements MidiSink {
         // 2. A multi-sampler already loaded for this track.
         const sampler = this.samplerEngines.get(event.trackId);
         if (sampler) {
-            sampler.playNote(pitch, velocity, startTime);
+            void sampler.scheduleNote(pitch, velocity, startTime, stopTime);
             return;
         }
 
@@ -941,6 +941,32 @@ export class AudioEngineAdapter implements MidiSink {
         const targetNode: AudioNode = channel.inputGain || channel.mainGain!;
         const engine = this.getOrCreateSynth(event.trackId, ctx, targetNode);
         engine.scheduleNote(pitch, velocity, event.instrument || 'piano', startTime, stopTime);
+    }
+
+    /**
+     * Schedule MIDI Continuous Controller (CC) events (e.g. Mod Wheel CC1, Volume CC7, Pan CC10, Expression CC11)
+     */
+    scheduleCc(event: MidiCcEvent): void {
+        const { trackId, controller, value, time } = event;
+        const chain = routingEngine.getTrackNodes(trackId);
+        if (!chain) return;
+
+        // Route standard CCs to Web Audio parameters without clobbering mainGain (which owns mute/solo/fader):
+        // CC 7 (Volume): 0-127 -> 0.0 to 1.0 quadratic gain on inputGain
+        if (controller === 7 && chain.inputGain) {
+            const linearGain = (value / 127) ** 2;
+            chain.inputGain.gain.setValueAtTime(linearGain, time);
+        }
+        // CC 10 (Pan): 0-127 -> -1.0 to +1.0 scheduled on stereo panner
+        else if (controller === 10 && chain.panner) {
+            const panVal = Math.max(-1, Math.min(1, (value - 64) / 64));
+            chain.panner.pan.setValueAtTime(panVal, time);
+        }
+        // CC 11 (Expression): secondary volume scaling on inputGain
+        else if (controller === 11 && chain.inputGain) {
+            const exprGain = value / 127;
+            chain.inputGain.gain.setValueAtTime(exprGain, time);
+        }
     }
 
     /**
@@ -954,6 +980,17 @@ export class AudioEngineAdapter implements MidiSink {
         this.synthEngines.forEach(engine => engine.stopAll());
         this.samplerEngines.forEach(engine => engine.stopAll(now));
         wamAllNotesOff();
+
+        // Cancel any scheduled CC gain automation on track inputGain so tracks don't stay attenuated after stop
+        try {
+            const trackMap = (routingEngine as any).trackNodes as Map<string, { inputGain?: GainNode }> | undefined;
+            trackMap?.forEach(chain => {
+                if (chain.inputGain) {
+                    chain.inputGain.gain.cancelScheduledValues(now);
+                    chain.inputGain.gain.setValueAtTime(1.0, now);
+                }
+            });
+        } catch { }
 
         const service = getInstrumentService();
         service.getAllAssignments().forEach(a => service.allNotesOff(a.trackId, now));
@@ -1097,6 +1134,10 @@ export class AudioEngineAdapter implements MidiSink {
         this.synthEngines.get(trackId)?.setPitchBend(cents);
     }
 
+    getSamplerEngine(trackId: string): MultiSamplerEngine | undefined {
+        return this.samplerEngines.get(trackId);
+    }
+
     playRegion(trackId: string, clip: RegionPlaybackClip, positionBeat: number) {
         if (clip.type === 'audio') {
             const bufferId = clip.sampleId ?? clip.id;
@@ -1197,7 +1238,16 @@ export class AudioEngineAdapter implements MidiSink {
     }
 
     async bounce(config: any) {
-        return bounceEngine.bounceProject([], [], config.startBeat, config.endBeat, 120, config);
+        const clips = config.clips || [];
+        const tracks = config.tracks ? config.tracks.map((t: any) => this.normalizeTrack(t)) : [];
+        return bounceEngine.bounceProject(
+            clips,
+            tracks,
+            config.startBeat ?? 0,
+            config.endBeat ?? 100,
+            config.tempo ?? 120,
+            config
+        );
     }
 
     dispose() {

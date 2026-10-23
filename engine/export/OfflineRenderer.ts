@@ -11,7 +11,15 @@ import {
     type PluginDescriptor,
     type TrackLatencyReport,
 } from '../audioEngine/latencyCompensation';
+import { scheduleClipEnvelope } from '../audioEngine/clipEnvelope';
+import { resolveClipsForPlayback, type ResolvableClip } from '../audioEngine/takeResolver';
+import { flexCacheKey, isFlexActive, renderFlexBuffer, type FlexSettings } from '../audioEngine/flexRender';
+import { audioEngineAdapter } from '../AudioEngineAdapter';
+import { SoundFontManager } from '../../lib/soundfontStore';
+import { drumKitPresets, type DrumKit } from '../instruments/drumMachine';
+import { midiFxChain, type MidiFxTrack } from '../midi/fx/chain';
 import type { PluginSetting } from '../../models/Track';
+import type { MidiFxSettingsMap } from '../../lib/midiFxSettings';
 
 export interface ExportClip {
   id: string;
@@ -25,9 +33,21 @@ export interface ExportClip {
   fileUrl?: string;
   storageKey?: string;
   playbackRate?: number;
+  gain?: number;
+  loop?: boolean;
   fadeIn?: { duration: number; curve?: string };
   fadeOut?: { duration: number; curve?: string };
   notes?: { pitch: number; velocity: number; start: number; duration: number }[];
+  isTakeFolder?: boolean;
+  takes?: any[];
+  activeTakeIndex?: number;
+  comps?: { id: string; name: string; takeIndex: number }[];
+  activeCompId?: string;
+  flexEnabled?: boolean;
+  flexMode?: string;
+  flexTimeFactor?: number;
+  flexPitchSemitones?: number;
+  warpMarkers?: any[];
 }
 
 export interface ExportTrack {
@@ -37,7 +57,15 @@ export interface ExportTrack {
   pan: number;
   muted: boolean;
   soloed: boolean;
+  soloSafe?: boolean;
   instrument?: string;
+  soundFont?: { id?: string; url: string; presetIndex: number; presetName?: string };
+  midiFx?: string | null;
+  midiFxSettings?: MidiFxSettingsMap;
+  midiFxBypass?: boolean;
+  outputBusId?: string;
+  parentId?: string;
+  sends?: { busId: string; level?: number; amount?: number; position?: 'postPan' | 'postFader' | 'preFader' }[];
   /** Insert chain to apply, so the export matches playback. */
   plugins?: PluginSetting[];
 }
@@ -47,6 +75,7 @@ export interface ExportOptions {
   endBeat?: number;
   sampleRate?: number;
   bitDepth?: 16 | 24 | 32;
+  masterPlugins?: PluginSetting[];
   /**
    * Called when plugins could not be instantiated for the render. Those tracks
    * are rendered dry — surface this rather than shipping a file that quietly
@@ -59,13 +88,16 @@ const EXPORT_TAIL_SECONDS = 2;
 const MAX_RENDER_DURATION_SECONDS = 600; // cap at 10 minutes to avoid browser freeze
 
 export async function renderSongOffline(
-  clips: ExportClip[],
+  rawClips: ExportClip[],
   tracks: ExportTrack[],
   tempo: number,
   options: ExportOptions = {}
 ): Promise<AudioBuffer> {
   const sampleRate = options.sampleRate || 44100;
   const startBeat = options.startBeat ?? 0;
+
+  // Flatten take folders to their active take/comp before duration & scheduling
+  const clips = resolveClipsForPlayback(rawClips as unknown as ResolvableClip[]) as unknown as ExportClip[];
 
   console.log('[EXPORT START]');
   console.log('tracks:', tracks.length);
@@ -75,13 +107,13 @@ export async function renderSongOffline(
   console.log('tempo:', tempo);
 
   // ── Duration calculation with diagnostics ───────────────────────────────
-  let maxEndBeat = 0;
+  let maxEndBeat = options.endBeat ?? 0;
   for (const clip of clips) {
     if (!clip.muted) {
-      const s = Number(clip.startBeat) || 0;
+      const s = Number(clip.startBeat ?? (clip as any).start) || 0;
       const d = Number(clip.duration) || 0;
       const end = s + d;
-      if (end > maxEndBeat) {
+      if (!options.endBeat && end > maxEndBeat) {
         maxEndBeat = end;
       }
       if (!isFinite(end) || end < 0) {
@@ -113,19 +145,33 @@ export async function renderSongOffline(
     sampleRate,
   });
 
-  // Build master bus
+  // Build master bus with optional master insert chain
+  const masterInput = offlineCtx.createGain();
+  masterInput.gain.value = 1;
   const masterGain = offlineCtx.createGain();
   masterGain.gain.value = 1;
   masterGain.connect(offlineCtx.destination);
 
-  // Check for solo
+  // Check for solo and compute implicit solo-safe exemptions for destination buses and summing parents
   const hasSolo = tracks.some(t => t.soloed);
+  const exemptIds = new Set<string>();
+  if (hasSolo) {
+    for (const t of tracks) {
+      if (t.soloed || t.soloSafe) {
+        exemptIds.add(t.id);
+        if (t.parentId) exemptIds.add(t.parentId);
+        if (t.outputBusId && t.outputBusId !== 'stereo-out') exemptIds.add(t.outputBusId);
+        t.sends?.forEach(s => exemptIds.add(s.busId));
+      }
+    }
+  }
 
   // Build track routing graph
   const trackNodeMap = new Map<string, {
     gainNode: GainNode;
     panNode: StereoPannerNode;
     inputNode: GainNode;
+    outputNode: AudioNode;
   }>();
 
   // Plugin delay compensation, mirroring live playback. Without it a track
@@ -144,10 +190,26 @@ export async function renderSongOffline(
   const chains: InsertChain[] = [];
   const failedPlugins: string[] = [];
 
+  const masterSpecs = toPluginSpecs(options.masterPlugins);
+  if (masterSpecs.length > 0) {
+    const masterChain = new InsertChain(offlineCtx, masterInput, masterGain, createProcessor);
+    chains.push(masterChain);
+    chainReady.push(
+      masterChain.setSpecs(masterSpecs).then(() => {
+        const built = masterChain.getInstanceIds().length;
+        if (built < masterSpecs.length) {
+          failedPlugins.push(`Master (${masterSpecs.length - built} of ${masterSpecs.length})`);
+        }
+      }),
+    );
+  } else {
+    masterInput.connect(masterGain);
+  }
+
   for (const track of tracks) {
     let effectiveGain = track.volume;
     if (track.muted) effectiveGain = 0;
-    if (hasSolo && !track.soloed) effectiveGain = 0;
+    if (hasSolo && !track.soloed && !track.soloSafe && !exemptIds.has(track.id)) effectiveGain = 0;
 
     const gainNode = offlineCtx.createGain();
     gainNode.gain.value = effectiveGain;
@@ -184,9 +246,44 @@ export async function renderSongOffline(
 
     gainNode.connect(panNode);
     panNode.connect(pdcDelay);
-    pdcDelay.connect(masterGain);
 
-    trackNodeMap.set(track.id, { gainNode, panNode, inputNode });
+    trackNodeMap.set(track.id, { gainNode, panNode, inputNode, outputNode: pdcDelay });
+  }
+
+  // Connect track outputs (to parent track stack / bus, or master) and sends
+  for (const track of tracks) {
+    const nodes = trackNodeMap.get(track.id);
+    if (!nodes) continue;
+
+    // Determine destination
+    const destId = track.outputBusId && track.outputBusId !== 'stereo-out'
+      ? track.outputBusId
+      : track.parentId;
+    const destNode = destId ? trackNodeMap.get(destId)?.inputNode : null;
+    nodes.outputNode.connect(destNode ?? masterInput);
+
+    // Connect aux sends
+    if (track.sends?.length) {
+      for (const send of track.sends) {
+        const bus = trackNodeMap.get(send.busId);
+        if (!bus) continue;
+        const level = send.level ?? send.amount ?? 0;
+        if (level <= 0) continue;
+
+        const sendGain = offlineCtx.createGain();
+        sendGain.gain.value = level;
+
+        // Position: preFader taps inputNode/gainNode, postFader taps gainNode, postPan taps pdcDelay
+        if (send.position === 'preFader') {
+          nodes.inputNode.connect(sendGain);
+        } else if (send.position === 'postFader') {
+          nodes.gainNode.connect(sendGain);
+        } else {
+          nodes.outputNode.connect(sendGain);
+        }
+        sendGain.connect(bus.inputNode);
+      }
+    }
   }
 
   // Schedule audio clips
@@ -199,13 +296,15 @@ export async function renderSongOffline(
     const track = tracks.find(t => t.id === clip.trackId);
     if (!track) continue;
     if (track.muted) continue;
-    if (hasSolo && !track.soloed) continue;
+    if (hasSolo && !track.soloed && !track.soloSafe && !exemptIds.has(track.id)) continue;
 
     const trackNodes = trackNodeMap.get(clip.trackId);
     if (!trackNodes) continue;
 
-    const rawStart = ((Number(clip.startBeat) || 0) - startBeat) / (tempo || 120) * 60;
+    const clipBeat = Number(clip.startBeat ?? (clip as any).start) || 0;
+    const rawStart = ((clipBeat - startBeat) / (tempo || 120)) * 60;
     const clipStartSeconds = Math.max(0, rawStart);
+    const enterOffsetSeconds = rawStart < 0 ? -rawStart : 0;
 
     if (!isFinite(clipStartSeconds)) {
       console.warn('[Export] Invalid clipStartSeconds for', clip.id);
@@ -215,11 +314,13 @@ export async function renderSongOffline(
     if (clip.type === 'audio') {
       scheduledCount++;
       clipStartPromises.push(
-        scheduleAudioClip(offlineCtx, clip, trackNodes.inputNode, clipStartSeconds, tempo)
+        scheduleAudioClip(offlineCtx, clip, trackNodes.inputNode, clipStartSeconds, enterOffsetSeconds, tempo)
       );
     } else if (clip.type === 'midi') {
       scheduledCount++;
-      scheduleMidiClip(offlineCtx, clip, trackNodes.inputNode, clipStartSeconds, tempo, track.instrument);
+      clipStartPromises.push(
+        scheduleMidiClip(offlineCtx, clip, trackNodes.inputNode, rawStart, tempo, track)
+      );
     }
   }
 
@@ -290,6 +391,7 @@ async function scheduleAudioClip(
   clip: ExportClip,
   inputNode: AudioNode,
   clipStartSeconds: number,
+  enterOffsetSeconds: number,
   tempo: number,
 ): Promise<void> {
   // Guard: invalid start time would crash OfflineAudioContext
@@ -325,48 +427,89 @@ async function scheduleAudioClip(
     return;
   }
 
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  source.playbackRate.value = clip.playbackRate ?? 1;
-
-  let output: AudioNode = source;
-  if ((clip.fadeIn?.duration ?? 0) > 0 || (clip.fadeOut?.duration ?? 0) > 0) {
-    const envGain = ctx.createGain();
-    envGain.gain.setValueAtTime(0, clipStartSeconds);
-
-    if ((clip.fadeIn?.duration ?? 0) > 0) {
-      const fadeInSec = (clip.fadeIn!.duration / tempo) * 60;
-      envGain.gain.linearRampToValueAtTime(1, clipStartSeconds + fadeInSec);
+  // Apply Flex Time / Flex Pitch if active on the clip
+  const flexSettings = clip as unknown as FlexSettings;
+  if (isFlexActive(flexSettings)) {
+    const key = flexCacheKey(clip.id, flexSettings);
+    const cached = bufferCacheManager.getBuffer(key);
+    if (cached) {
+      buffer = cached;
     } else {
-      envGain.gain.setValueAtTime(1, clipStartSeconds);
+      try {
+        const processed = renderFlexBuffer(buffer, flexSettings, (channels, length, sr) =>
+          ctx.createBuffer(channels, length, sr));
+        if (processed !== buffer) bufferCacheManager.addBuffer(key, processed);
+        buffer = processed;
+      } catch (e) {
+        console.warn('[Export] Flex processing failed for clip', clip.id, e);
+      }
     }
-
-    const clipEndSeconds = clipStartSeconds + (clip.duration / tempo) * 60;
-    if ((clip.fadeOut?.duration ?? 0) > 0) {
-      const fadeOutSec = (clip.fadeOut!.duration / tempo) * 60;
-      envGain.gain.setValueAtTime(1, clipEndSeconds - fadeOutSec);
-      envGain.gain.linearRampToValueAtTime(0, clipEndSeconds);
-    }
-    envGain.gain.setValueAtTime(0, clipEndSeconds);
-
-    source.connect(envGain);
-    output = envGain;
   }
 
-  output.connect(inputNode);
+  const clipDurationSeconds = (clip.duration / tempo) * 60;
+  const remainingDurationSeconds = clipDurationSeconds - enterOffsetSeconds;
+  if (remainingDurationSeconds <= 0) return;
 
-  const offsetSeconds = (clip.offset || 0) / tempo * 60;
-  source.start(clipStartSeconds, offsetSeconds);
+  const rate = Math.max(0.0625, Number(clip.playbackRate ?? 1));
+  const isLooped = !!clip.loop;
+  const baseClipOffsetSeconds = (Math.max(0, clip.offset || 0) / tempo) * 60;
+  const totalBufferOffsetSeconds = Math.max(0, baseClipOffsetSeconds + enterOffsetSeconds * rate);
+
+  if (!isLooped && totalBufferOffsetSeconds >= buffer.duration) return;
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.playbackRate.value = rate;
+
+  if (isLooped) {
+    source.loop = true;
+    source.loopStart = Math.min(baseClipOffsetSeconds, Math.max(0, buffer.duration - 0.001));
+    source.loopEnd = buffer.duration;
+  }
+
+  const clipGainNode = ctx.createGain();
+  const rawGain = clip.gain;
+  const level = typeof rawGain === 'number' && Number.isFinite(rawGain) && rawGain >= 0 ? rawGain : 1;
+  const fi = clip.fadeIn?.duration ? (clip.fadeIn.duration / tempo) * 60 : 0;
+  const fo = clip.fadeOut?.duration ? (clip.fadeOut.duration / tempo) * 60 : 0;
+
+  scheduleClipEnvelope(
+    clipGainNode.gain,
+    {
+      level,
+      clipSeconds: clipDurationSeconds,
+      fadeInSeconds: fi,
+      fadeOutSeconds: fo,
+      fadeInCurve: clip.fadeIn?.curve,
+      fadeOutCurve: clip.fadeOut?.curve,
+    },
+    enterOffsetSeconds,
+    clipStartSeconds,
+  );
+
+  source.connect(clipGainNode);
+  clipGainNode.connect(inputNode);
+
+  if (isLooped) {
+    const loopLen = Math.max(0.001, source.loopEnd - source.loopStart);
+    const startInBuffer = totalBufferOffsetSeconds < source.loopEnd
+      ? totalBufferOffsetSeconds
+      : source.loopStart + ((totalBufferOffsetSeconds - source.loopStart) % loopLen);
+    source.start(clipStartSeconds, startInBuffer);
+    source.stop(clipStartSeconds + remainingDurationSeconds);
+  } else {
+    source.start(clipStartSeconds, totalBufferOffsetSeconds, remainingDurationSeconds * rate);
+  }
 }
 
-function scheduleMidiClip(
+async function scheduleMidiClip(
   ctx: OfflineAudioContext,
   clip: ExportClip,
   inputNode: AudioNode,
   clipStartSeconds: number,
   tempo: number,
-  instrument?: string,
-): void {
+  track?: ExportTrack,
+): Promise<void> {
   const notes = clip.notes;
   if (!notes || notes.length === 0) return;
 
@@ -375,11 +518,103 @@ function scheduleMidiClip(
   if (notes.length > MAX_MIDI_NOTES) {
     console.warn(`[Export] Clip ${clip.id} has ${notes.length} notes — limiting to ${MAX_MIDI_NOTES}`);
   }
-  const notesToSchedule = notes.slice(0, MAX_MIDI_NOTES);
+  const rawNotes = notes.slice(0, MAX_MIDI_NOTES);
 
+  // Apply MIDI FX transforms if present and not bypassed
+  let processedNotes: { pitch: number; velocity: number; start: number; duration: number }[] = [];
+  if (track?.midiFx && !track.midiFxBypass) {
+    const fxView: MidiFxTrack = {
+      id: track.id,
+      midiFx: track.midiFx,
+      midiFxSettings: track.midiFxSettings,
+    };
+    for (const n of rawNotes) {
+      const sounded = midiFxChain.noteOn(fxView, n.pitch, n.velocity);
+      midiFxChain.noteOff(fxView, n.pitch);
+      if (sounded.length > 0) {
+        for (const s of sounded) {
+          processedNotes.push({
+            pitch: s.pitch,
+            velocity: s.velocity,
+            start: n.start,
+            duration: n.duration,
+          });
+        }
+      } else {
+        processedNotes.push(n);
+      }
+    }
+  } else {
+    processedNotes = rawNotes;
+  }
+
+  // 1. MultiSampler check: if track or live engine has a MultiSamplerEngine loaded
+  if (track) {
+    const liveSampler = audioEngineAdapter.getSamplerEngine(track.id);
+    if (liveSampler) {
+      const clonedSampler = liveSampler.cloneFor(ctx);
+      clonedSampler.getOutput().connect(inputNode);
+      for (const note of processedNotes) {
+        const noteStart = clipStartSeconds + (note.start / tempo) * 60;
+        const noteDuration = Math.max((note.duration / tempo) * 60, 0.05);
+        await clonedSampler.scheduleNote(note.pitch, note.velocity, noteStart, noteStart + noteDuration);
+      }
+      return;
+    }
+  }
+
+  // 2. SoundFont check: if track has an assigned SoundFont
+  if (track) {
+    const sfManager = SoundFontManager.getInstance();
+    const sfSel = sfManager.getSelection(track.id) ?? sfManager.getSelection('_global_');
+    const fontId = track.soundFont?.id ?? sfSel?.fontId;
+    if (fontId) {
+      const liveInstrument = sfManager.getInstrument(fontId);
+      if (liveInstrument?.isLoaded) {
+        try {
+          liveInstrument.getOutput().connect(inputNode);
+        } catch {
+          // Cross-context or already connected
+        }
+        for (const note of processedNotes) {
+          const noteStart = clipStartSeconds + (note.start / tempo) * 60;
+          const noteDuration = Math.max((note.duration / tempo) * 60, 0.05);
+          liveInstrument.noteOn(note.pitch, note.velocity, noteStart);
+          liveInstrument.noteOff(note.pitch, noteStart + noteDuration);
+        }
+        return;
+      }
+    }
+  }
+
+  // 3. Drum Kit check: if track instrument matches a drum kit preset
+  const instrument = track?.instrument;
+  const drumKitKey = Object.keys(drumKitPresets).find(k =>
+    instrument && (k.toLowerCase() === instrument.toLowerCase() || drumKitPresets[k].name.toLowerCase() === instrument.toLowerCase())
+  );
+  if (drumKitKey) {
+    const kit = drumKitPresets[drumKitKey];
+    for (const note of processedNotes) {
+      const noteStart = clipStartSeconds + (note.start / tempo) * 60;
+      const pad = kit.pads.find(p => p.note === note.pitch);
+      if (pad && pad.buffer) {
+        const source = ctx.createBufferSource();
+        source.buffer = pad.buffer;
+        if (pad.tune) source.playbackRate.value = Math.pow(2, pad.tune / 12);
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = ((pad.volume ?? 1) * note.velocity) / 127;
+        source.connect(gainNode);
+        gainNode.connect(inputNode);
+        source.start(noteStart);
+      }
+    }
+    return;
+  }
+
+  // 4. Fallback: Polyphonic Subtractive Synth
   const preset = SYNTH_PRESETS[instrument || 'piano'] || SYNTH_PRESETS.piano;
 
-  for (const note of notesToSchedule) {
+  for (const note of processedNotes) {
     const noteStart = clipStartSeconds + (note.start / tempo) * 60;
     const noteDuration = Math.max((note.duration / tempo) * 60, 0.05);
     const freq = 440 * Math.pow(2, (note.pitch - 69) / 12);
@@ -401,7 +636,15 @@ function scheduleMidiClip(
     );
 
     const noteEnd = noteStart + noteDuration;
-    envGain.gain.setValueAtTime(envGain.gain.value, noteEnd);
+    const held = noteDuration;
+    let levelAtEnd = sustain * velScale;
+    if (held < attack) {
+      levelAtEnd = velScale * (held / attack);
+    } else if (held < attack + decay) {
+      const k = (held - attack) / decay;
+      levelAtEnd = velScale * (1 + (sustain - 1) * k);
+    }
+    envGain.gain.setValueAtTime(Math.max(levelAtEnd, 0.0011), noteEnd);
     envGain.gain.linearRampToValueAtTime(0.001, noteEnd + release);
 
     filter.connect(envGain);
