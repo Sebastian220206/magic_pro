@@ -142,9 +142,10 @@ export function PluginEditorWindow() {
             <div className="pointer-events-auto relative shadow-[0_40px_120px_rgba(0,0,0,0.9)] rounded-xl my-auto">
                 <button
                     onClick={() => setOpenPluginEditor(null)}
-                    className="absolute top-4 right-[10px] z-[150] text-studio-text-dim hover:text-white transition-colors bg-black/20 rounded p-1"
+                    title="Close Window"
+                    className="absolute top-2.5 right-3 z-[150] w-5 h-5 rounded-full bg-[#18191b] border border-[#3b3e44] text-[#8b8e93] hover:text-white hover:border-[#52555a] flex items-center justify-center transition-colors shadow-sm"
                 >
-                    <X className="w-4 h-4" />
+                    <X className="w-3 h-3" />
                 </button>
 
                 {isChannelEq ? (

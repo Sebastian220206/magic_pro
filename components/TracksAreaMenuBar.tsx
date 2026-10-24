@@ -99,7 +99,7 @@ export function TracksAreaMenuBar() {
     }
 
     return (
-        <div className="h-10 bg-studio-control border-b border-black flex items-center px-1.5 justify-between shrink-0 z-40 select-none">
+        <div className="h-9 bg-[#262729] border-b border-[#18191a] flex items-center px-2 justify-between shrink-0 z-40 select-none">
             {/* 1. Left Section: Dropdowns & View Toggles */}
             <div className="flex items-center">
                 {/* Local Inspector Toggle (The UP arrow in image) */}
@@ -228,7 +228,7 @@ function ViewToggle({ icon: Icon, active, onClick }: { icon: any, active: boolea
     return (
         <button 
             onClick={onClick}
-            className={`w-7 h-6 flex items-center justify-center rounded-[3px] transition-all ${active ? 'bg-accent-cyan text-white shadow-inner' : 'text-studio-text-mid hover:text-studio-text hover:bg-white/5'}`}
+            className={`w-7 h-6 flex items-center justify-center rounded-[3px] transition-all ${active ? 'bg-[#2a4563] text-white border border-[#3b608a] shadow-inner' : 'text-[#8e9095] hover:text-white hover:bg-white/5 border border-transparent'}`}
         >
             <Icon className="w-3.5 h-3.5" />
         </button>

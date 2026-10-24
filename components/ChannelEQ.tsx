@@ -340,82 +340,68 @@ export function ChannelEQ({ trackId, pluginId }: { trackId: string, pluginId: st
             /* Caps itself against the viewport: 900px is wider than a phone,
                and the backdrop that would otherwise constrain it lives in
                `PluginEditorWindow`, not here. */
-            className="w-[900px] max-w-[calc(100vw-1rem)] bg-gradient-to-b from-[#0b1420] to-[#060a10] rounded-xl border border-accent-cyan/25 shadow-[0_30px_80px_rgba(0,0,0,0.8)] overflow-hidden"
+            className="w-[920px] max-w-[calc(100vw-1rem)] bg-[#1e2023] rounded-xl border border-[#3b3e44] shadow-[0_30px_90px_rgba(0,0,0,0.95)] overflow-hidden font-sans select-none"
         >
-            {/* Header */}
-            <div className="px-5 pt-3 pb-3 flex items-end justify-between border-b border-accent-cyan/15 bg-gradient-to-b from-white/[0.04] to-transparent">
-                <div>
-                    <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-studio-text-dim/70 mb-0.5">
-                        {track?.name ?? 'Track'} · Channel EQ
-                    </div>
-                    <h2 className="text-[26px] leading-none font-black tracking-tight text-accent-cyan drop-shadow-[0_0_14px_rgba(34,211,238,0.45)]">
-                        EQUALIZER
-                    </h2>
-                    <div className="text-[8px] font-bold uppercase tracking-[0.25em] text-studio-text-dim mt-1">
-                        Studio EQ · 8 Band Parametric
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2 pb-1">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-studio-text-dim">Preset:</span>
-                    <div className="flex items-center h-6 rounded-md border border-studio-line-strong bg-black/50 overflow-hidden">
-                        <button className="px-1.5 h-full text-studio-text-dim hover:text-accent-cyan" title="Previous preset">
-                            <ChevronLeft className="w-3 h-3" />
-                        </button>
-                        <span className="px-4 text-[10px] font-bold tracking-wider text-studio-text">[DEFAULT]</span>
-                        <button className="px-1.5 h-full text-studio-text-dim hover:text-accent-cyan" title="Next preset">
-                            <ChevronRight className="w-3 h-3" />
-                        </button>
-                    </div>
-                    <button className="p-1 rounded text-studio-text-dim hover:text-accent-cyan" title="Copy settings">
-                        <Copy className="w-3.5 h-3.5" />
-                    </button>
-                </div>
-
-                <div className="flex items-center gap-1.5 pb-1">
+            {/* Logic Pro Native Effect Window Header Bar */}
+            <div className="h-10 bg-gradient-to-b from-[#3a3d42] to-[#27292d] px-4 flex items-center justify-between border-b border-[#18191b] shadow-sm">
+                <div className="flex items-center gap-2">
                     <button
                         data-eq-bypass
                         onClick={() => setGlobal({ bypass: !bypass })}
                         title="Bypass the whole EQ"
-                        className={`h-6 px-3 rounded-md text-[9px] font-black uppercase tracking-wider border transition-colors ${bypass
-                            ? 'bg-amber-500/20 border-amber-400/60 text-amber-300'
-                            : 'bg-black/50 border-studio-line-strong text-studio-text-dim hover:text-accent-cyan hover:border-accent-cyan/50'}`}
+                        className={`w-7 h-7 rounded-[3px] border flex items-center justify-center transition-all ${
+                            !bypass
+                                ? 'bg-gradient-to-b from-[#2e7d32] to-[#1b5e20] border-[#4caf50] text-white shadow-[0_0_8px_rgba(76,175,80,0.6)]'
+                                : 'bg-[#1e2023] border-[#3b3e44] text-[#8b8e93] hover:text-white'
+                        }`}
                     >
-                        Bypass
+                        <Power className="w-3.5 h-3.5 fill-current" />
                     </button>
-                    <button className="h-6 px-3 rounded-md text-[9px] font-black uppercase tracking-wider border border-studio-line-strong bg-black/50 text-studio-text-dim hover:text-accent-cyan">
-                        Save
-                    </button>
-                    <button className="h-6 w-6 grid place-items-center rounded-md border border-studio-line-strong bg-black/50 text-studio-text-dim hover:text-accent-cyan" title="Save as">
-                        <Save className="w-3 h-3" />
-                    </button>
-                    <button className="h-6 w-6 grid place-items-center rounded-md border border-studio-line-strong bg-black/50 text-studio-text-dim hover:text-accent-cyan" title="Settings">
-                        <Settings className="w-3 h-3" />
+                    <div className="h-4 w-px bg-black/40 mx-1" />
+                    <span className="text-[12px] font-bold text-white/90 tracking-wide">Channel EQ</span>
+                    <span className="text-[10px] font-semibold text-white/40 tracking-wider">[{track?.name ?? 'Track'}]</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-white/40">Setting:</span>
+                    <div className="flex items-center h-6 rounded-[3px] border border-[#3b3e44] bg-[#141517] px-2 shadow-inner">
+                        <button className="text-white/40 hover:text-white pr-1" title="Previous preset">
+                            <ChevronLeft className="w-3 h-3" />
+                        </button>
+                        <span className="px-2 text-[10px] font-bold tracking-tight text-white/90">Factory Default</span>
+                        <button className="text-white/40 hover:text-white pl-1" title="Next preset">
+                            <ChevronRight className="w-3 h-3" />
+                        </button>
+                    </div>
+                    <button className="h-6 px-2.5 rounded-[3px] border border-[#3b3e44] bg-[#282a2e] text-[9px] font-bold text-white/70 hover:text-white shadow-sm" title="Copy settings">
+                        Compare
                     </button>
                 </div>
             </div>
 
-            {/* Curve */}
-            <div className="px-4 pt-3 pb-2">
-                <canvas
-                    ref={canvasRef}
-                    data-eq-canvas
-                    onMouseDown={onCanvasDown}
-                    onWheel={onCanvasWheel}
-                    className="w-full h-[240px] rounded-lg border border-accent-cyan/15 cursor-crosshair"
-                    title="Drag a node to move its band. Scroll over one to change its Q."
-                />
+            {/* Curve Display */}
+            <div className="px-5 pt-3 pb-2 bg-[#17181a]">
+                <div className="rounded-lg border border-[#2d2f34] bg-[#0c0d0f] shadow-[inset_0_2px_12px_rgba(0,0,0,0.9)] p-1">
+                    <canvas
+                        ref={canvasRef}
+                        data-eq-canvas
+                        onMouseDown={onCanvasDown}
+                        onWheel={onCanvasWheel}
+                        className="w-full h-[250px] rounded cursor-crosshair"
+                        title="Drag a node to move its band. Scroll over one to change its Q."
+                    />
+                </div>
             </div>
 
             {/* Band matrix */}
-            <div className="px-4 pb-3">
-                <div className="rounded-lg border border-accent-cyan/15 bg-black/30 p-2">
-                    <div className="flex gap-1.5">
+            <div className="px-5 py-3 bg-[#1e2023] border-t border-[#18191b]">
+                <div className="rounded-lg border border-[#2d2f34] bg-[#141518] p-2.5 shadow-inner">
+                    <div className="flex gap-2">
                         {/* Row labels */}
-                        <div className="w-12 shrink-0 flex flex-col gap-1.5 pt-0.5">
+                        <div className="w-11 shrink-0 flex flex-col gap-2 pt-0.5">
                             {['Band', 'Type', 'Freq', 'Gain', 'Q', 'On'].map(label => (
                                 <div key={label} className="h-6 flex items-center justify-end pr-1">
-                                    <span className="text-[8px] font-black uppercase tracking-wider text-studio-text-dim">{label}</span>
+                                    <span className="text-[8px] font-bold uppercase tracking-wider text-white/35">{label}</span>
                                 </div>
                             ))}
                         </div>
@@ -428,8 +414,9 @@ export function ChannelEQ({ trackId, pluginId }: { trackId: string, pluginId: st
                                     key={index}
                                     data-eq-band={index + 1}
                                     onClick={() => setSelected(index)}
-                                    className={`flex-1 min-w-0 flex flex-col gap-1.5 rounded-md p-1 transition-colors cursor-pointer ${selected === index ? 'bg-white/[0.06] ring-1 ring-inset' : 'hover:bg-white/[0.03]'}`}
-                                    style={selected === index ? { boxShadow: `inset 0 0 0 1px ${colour}55` } : undefined}
+                                    className={`flex-1 min-w-0 flex flex-col gap-2 rounded-md p-1 transition-all cursor-pointer ${
+                                        selected === index ? 'bg-white/[0.05] ring-1 ring-[#52a9ff]/40 shadow-sm' : 'hover:bg-white/[0.02]'
+                                    }`}
                                 >
                                     {/* Number chip */}
                                     <div className="h-6 flex items-center justify-center">
@@ -524,21 +511,21 @@ export function ChannelEQ({ trackId, pluginId }: { trackId: string, pluginId: st
                 </div>
             </div>
 
-            {/* Global controls */}
-            <div className="px-4 pb-4">
-                <div className="rounded-lg border border-accent-cyan/15 bg-black/30 px-4 py-2 flex items-center gap-6">
-                    <span className="text-[9px] font-black uppercase tracking-[0.15em] text-studio-text-dim shrink-0">
-                        Global Controls
+            {/* Global Controls */}
+            <div className="px-5 pb-4 bg-[#1e2023]">
+                <div className="rounded-lg border border-[#2d2f34] bg-[#141518] px-4 py-2.5 flex items-center justify-between shadow-inner">
+                    <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/40 shrink-0">
+                        Master Controls
                     </span>
 
-                    <div className="flex items-center gap-5">
+                    <div className="flex items-center gap-6">
                         <div className="flex flex-col items-center">
                             <EqKnob
-                                size={34} value={inputGain} min={-24} max={24} label="Input"
+                                size={34} value={inputGain} min={-24} max={24} label="Gain"
                                 onChange={(v) => setGlobal({ inputGain: Math.round(v * 10) / 10 })}
                                 title="Trim before the filters"
                             />
-                            <span className="text-[8px] font-bold tabular-nums text-accent-cyan">{formatDb(inputGain)}</span>
+                            <span className="text-[8px] font-bold tabular-nums text-white/80">{formatDb(inputGain)}</span>
                         </div>
                         <div className="flex flex-col items-center">
                             <EqKnob
@@ -546,53 +533,37 @@ export function ChannelEQ({ trackId, pluginId }: { trackId: string, pluginId: st
                                 onChange={(v) => setGlobal({ outputGain: Math.round(v * 10) / 10 })}
                                 title="Trim after them"
                             />
-                            <span className="text-[8px] font-bold tabular-nums text-accent-cyan">{formatDb(outputGain)}</span>
+                            <span className="text-[8px] font-bold tabular-nums text-white/80">{formatDb(outputGain)}</span>
                         </div>
                         <div className="flex flex-col items-center">
                             <EqKnob
-                                size={34} value={mix} min={0} max={1} defaultValue={1} label="Dry/Wet"
+                                size={34} value={mix} min={0} max={1} defaultValue={1} label="Mix"
                                 onChange={(v) => setGlobal({ mix: Math.round(v * 100) / 100 })}
                                 title="Blend the untouched signal back in"
                             />
-                            <span className="text-[8px] font-bold tabular-nums text-accent-cyan">{Math.round(mix * 100)}%</span>
+                            <span className="text-[8px] font-bold tabular-nums text-white/80">{Math.round(mix * 100)}%</span>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 ml-auto">
-                        <button
-                            onClick={() => setGlobal({ bypass: !bypass })}
-                            className={`h-7 px-4 rounded-md text-[9px] font-black uppercase tracking-wider border transition-colors ${bypass
-                                ? 'bg-amber-500/20 border-amber-400/60 text-amber-300'
-                                : 'bg-black/50 border-studio-line-strong text-studio-text-dim hover:text-accent-cyan'}`}
-                        >
-                            Bypass
-                        </button>
-
-                        {/* Dimmed with the reason: mid/side needs the signal
-                            split, filtered separately and recombined, which
-                            this EQ's single chain does not do. */}
-                        <div
-                            className="flex flex-col items-center opacity-30 cursor-default"
-                            title="Mid/Side needs two filter chains; this EQ has one"
-                        >
-                            <div className="h-5 w-9 rounded-full bg-studio-control border border-studio-line" />
-                            <span className="text-[7px] font-bold uppercase tracking-wide text-studio-text-dim mt-0.5">M/S Mode</span>
-                        </div>
-
+                    <div className="flex items-center gap-3">
                         <div className="flex flex-col items-center">
                             <button
                                 data-eq-automakeup
                                 onClick={() => setGlobal({ autoMakeup: !autoMakeup })}
                                 title="Offset the output by the curve's average boost"
-                                className={`h-5 w-9 rounded-full border transition-colors relative ${autoMakeup
-                                    ? 'bg-accent-cyan/30 border-accent-cyan'
-                                    : 'bg-studio-control border-studio-line'}`}
+                                className={`h-5 w-9 rounded-full border transition-all relative ${
+                                    autoMakeup
+                                        ? 'bg-[#2e7d32] border-[#4caf50]'
+                                        : 'bg-[#222427] border-[#383a3f]'
+                                }`}
                             >
                                 <span
-                                    className={`absolute top-0.5 h-3.5 w-3.5 rounded-full transition-all ${autoMakeup ? 'left-4 bg-accent-cyan' : 'left-0.5 bg-studio-text-dim'}`}
+                                    className={`absolute top-0.5 h-3.5 w-3.5 rounded-full transition-all shadow ${
+                                        autoMakeup ? 'left-4 bg-white' : 'left-0.5 bg-[#666a72]'
+                                    }`}
                                 />
                             </button>
-                            <span className="text-[7px] font-bold uppercase tracking-wide text-studio-text-dim mt-0.5">Auto Makeup</span>
+                            <span className="text-[7.5px] font-bold uppercase tracking-wider text-white/40 mt-1">Auto Gain</span>
                         </div>
                     </div>
                 </div>

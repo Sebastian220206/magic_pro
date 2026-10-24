@@ -9,12 +9,10 @@ interface VerticalMeterProps {
   className?: string
 }
 
-/**
- * VerticalMeter
- * 
- * A high-performance vertical level meter for channel strips.
- * Uses requestAnimationFrame for real-time visualization.
- */
+// Authentic Logic Pro PPM Meter styling
+// Reverse-engineered from MAMixerAssetMapping.plist & LevelMeterStereoDark
+const LOGIC_METER_GRADIENT = 'linear-gradient(to top, #4cd964 0%, #4cd964 55%, #ffd203 70%, #ffd203 87%, #e53939 88%, #ff3b30 100%)';
+
 export function VerticalMeter({ analyzer, side, className = "" }: VerticalMeterProps) {
     const barRef = useRef<HTMLDivElement>(null);
     const peakRef = useRef<HTMLDivElement>(null);
@@ -27,50 +25,44 @@ export function VerticalMeter({ analyzer, side, className = "" }: VerticalMeterP
             if (barRef.current) barRef.current.style.height = '0%';
             if (peakRef.current) peakRef.current.style.bottom = '0%';
             return;
-        };
+        }
         
-        const bufferLength = 32; // Small buffer for performance
+        const bufferLength = 32;
         const dataArray = new Uint8Array(bufferLength);
         let rafId: number;
 
         const update = () => {
             analyzer.getByteTimeDomainData(dataArray);
             let max = 0;
-            // Get instantaneous peak from time domain data
             for (let i = 0; i < bufferLength; i++) {
                 const v = Math.abs(dataArray[i] - 128);
                 if (v > max) max = v;
             }
 
-            // Convert to 0-1.0 range
             let level = (max / 128);
             
-            // Smoothed falling edge
+            // Logic Pro ballistics: fast attack, smooth logarithmic decay
             if (level < lastValue.current) {
-                level = lastValue.current * 0.85 + level * 0.15;
+                level = lastValue.current * 0.88 + level * 0.12;
             }
             lastValue.current = level;
 
-            const percent = level * 100;
+            const percent = Math.min(100, level * 100);
             
-            // Peak Hold logic
+            // Logic Pro Peak Hold (1.2s hold duration)
             if (percent > lastPeak.current) {
                 lastPeak.current = percent;
-                peakDecayTime.current = Date.now() + 1000;
+                peakDecayTime.current = Date.now() + 1200;
             } else if (Date.now() > peakDecayTime.current) {
-                lastPeak.current *= 0.95;
+                lastPeak.current *= 0.94;
             }
 
             if (barRef.current) {
-                const band = meterBandColor(level);
                 barRef.current.style.height = `${percent}%`;
-                barRef.current.style.backgroundColor = band;
-                // The glow tracks the band, so a clipping meter flares red.
-                barRef.current.style.boxShadow = `0 0 8px ${band}`;
             }
             if (peakRef.current) {
                 peakRef.current.style.bottom = `${lastPeak.current}%`;
-                peakRef.current.style.opacity = lastPeak.current > 1 ? '1' : '0';
+                peakRef.current.style.opacity = lastPeak.current > 1.5 ? '1' : '0';
             }
 
             rafId = requestAnimationFrame(update);
@@ -81,17 +73,28 @@ export function VerticalMeter({ analyzer, side, className = "" }: VerticalMeterP
     }, [analyzer]);
 
     return (
-        <div className={`h-full w-1.5 bg-studio-void rounded-full border border-studio-line relative overflow-hidden flex flex-col justify-end ${className}`}>
+        <div 
+            className={`h-full w-2 bg-[#090b0d] rounded-[1.5px] border border-[#1b1c1e] relative overflow-hidden flex flex-col justify-end shadow-inner ${className}`}
+            style={{
+                backgroundImage: 'repeating-linear-gradient(to bottom, rgba(0,0,0,0.45) 0px, rgba(0,0,0,0.45) 1px, transparent 1px, transparent 3px)'
+            }}
+        >
+            {/* Logic Pro LED segmented meter bar */}
             <div 
                 ref={barRef} 
-                className="w-full transition-all duration-75 ease-out rounded-t-[1px]"
-                style={{ height: '0%', backgroundColor: METER_NOMINAL, boxShadow: `0 0 8px ${METER_NOMINAL}` }}
-            ></div>
+                className="w-full transition-all duration-75 ease-out rounded-t-[0.5px]"
+                style={{ 
+                    height: '0%', 
+                    background: LOGIC_METER_GRADIENT,
+                    boxShadow: '0 0 4px rgba(76, 217, 100, 0.4)'
+                }}
+            />
+            {/* Logic Pro Peak Hold Needle */}
             <div 
                 ref={peakRef}
-                className="absolute left-0 right-0 h-[1px] bg-white z-10"
+                className="absolute left-0 right-0 h-[1.5px] bg-[#ffffff] z-10 shadow-[0_0_2px_#ffffff]"
                 style={{ bottom: '0%' }}
-            ></div>
+            />
         </div>
     );
 }

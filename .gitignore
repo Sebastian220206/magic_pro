@@ -137,3 +137,7 @@ sound sample/
 /*.png
 /*.jpg
 /*.log
+
+# Cloned/sub-repo work directories
+/rea/
+

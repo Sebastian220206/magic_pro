@@ -262,29 +262,43 @@ export function Compressor({ trackId, pluginId }: { trackId: string; pluginId: s
     return (
         <div
             data-compressor-editor
-            className="w-[1000px] max-w-[calc(100vw-1rem)] rounded-xl border border-accent-cyan/25 bg-gradient-to-b from-[#0c1826] to-[#060a10] shadow-[0_30px_80px_rgba(0,0,0,0.85)] overflow-hidden"
+            className="w-[1020px] max-w-[calc(100vw-1rem)] rounded-xl border border-[#3b3e44] bg-[#1e2023] shadow-[0_30px_90px_rgba(0,0,0,0.95)] overflow-hidden font-sans select-none"
         >
-            {/* Title */}
-            <div className="relative px-6 pt-3 pb-2 text-center border-b border-accent-cyan/15">
-                <div className="absolute left-6 top-3 text-[8px] font-bold uppercase tracking-[0.2em] text-studio-text-dim">
-                    {track?.name ?? 'Track'}
+            {/* Logic Pro Compressor Header Bar */}
+            <div className="h-10 bg-gradient-to-b from-[#3a3d42] to-[#27292d] px-4 flex items-center justify-between border-b border-[#18191b] shadow-sm">
+                <div className="flex items-center gap-2">
+                    <button
+                        title="Bypass Compressor"
+                        className="w-7 h-7 rounded-[3px] border border-[#4caf50] bg-gradient-to-b from-[#2e7d32] to-[#1b5e20] text-white flex items-center justify-center shadow-[0_0_8px_rgba(76,175,80,0.6)]"
+                    >
+                        <span className="text-[10px] font-black">ON</span>
+                    </button>
+                    <div className="h-4 w-px bg-black/40 mx-1" />
+                    <span className="text-[12px] font-bold text-white/90 tracking-wide">Compressor</span>
+                    <span className="text-[10px] font-semibold text-white/40 tracking-wider">[{track?.name ?? 'Track'}]</span>
                 </div>
-                <h2 className="text-[22px] leading-none font-light tracking-wide text-accent-cyan drop-shadow-[0_0_16px_rgba(34,211,238,0.5)]">
-                    Compressor
-                </h2>
+
+                <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-white/40">Setting:</span>
+                    <div className="flex items-center h-6 rounded-[3px] border border-[#3b3e44] bg-[#141517] px-2 shadow-inner">
+                        <span className="px-1 text-[10px] font-bold tracking-tight text-white/90">Factory Default</span>
+                    </div>
+                </div>
             </div>
 
-            {/* Model row + side-chain */}
-            <div className="px-4 pt-3 flex items-start gap-3">
-                <div className="flex-1 flex gap-1">
+            {/* Circuit Model Selection Strip */}
+            <div className="px-4 py-2.5 bg-[#17181a] border-b border-[#131416] flex items-center gap-3">
+                <div className="flex-1 flex gap-1 bg-[#121315] p-1 rounded-md border border-[#2d2f34]">
                     {COMPRESSOR_MODELS.map(m => (
                         <button
                             key={m.id}
                             data-comp-model={m.id}
                             onClick={() => edit({ model: m.id })}
-                            className={`flex-1 h-9 rounded-md border text-[9px] font-bold leading-tight px-1 transition-colors ${state.model === m.id
-                                ? 'bg-accent-cyan/15 border-accent-cyan text-accent-cyan shadow-[0_0_12px_rgba(34,211,238,0.25)]'
-                                : 'bg-black/40 border-studio-line-strong text-studio-text-dim hover:text-studio-text hover:border-accent-cyan/40'}`}
+                            className={`flex-1 h-8 rounded-[3px] border text-[9px] font-bold leading-tight px-1.5 transition-all flex items-center justify-center text-center ${
+                                state.model === m.id
+                                    ? 'bg-gradient-to-b from-[#3a6ea5] to-[#1e4470] border-[#5293d8] text-white shadow-[0_0_8px_rgba(82,147,216,0.5)] font-black'
+                                    : 'bg-[#222428] border-[#36383e] text-white/60 hover:text-white hover:bg-[#2c2e33]'
+                            }`}
                         >
                             {m.label}
                         </button>
@@ -293,16 +307,16 @@ export function Compressor({ trackId, pluginId }: { trackId: string; pluginId: s
 
                 {/* Side-chain Routing Picker */}
                 <div
-                    className="w-[190px] rounded-md border border-accent-cyan/30 bg-black/50 p-1.5 shadow-sm"
+                    className="w-[190px] rounded-md border border-[#2d2f34] bg-[#121315] p-1.5 shadow-inner"
                     title="Keying from another track via sidechain detector"
                 >
-                    <div className="text-[8px] font-bold uppercase tracking-wider text-accent-cyan text-center mb-1">
-                        Side-Chain Key
+                    <div className="text-[8px] font-bold uppercase tracking-wider text-white/40 text-center mb-1">
+                        Side Chain
                     </div>
                     {track ? (
                         <SidechainPicker track={track} pluginId={pluginId} />
                     ) : (
-                        <div className="text-[9px] text-center text-studio-text-dim">Master Bus Direct</div>
+                        <div className="text-[9px] text-center text-white/40">Master Bus Direct</div>
                     )}
                 </div>
             </div>
@@ -321,24 +335,24 @@ export function Compressor({ trackId, pluginId }: { trackId: string; pluginId: s
                 {/* Centre column */}
                 <div className="flex-1 min-w-0 flex flex-col gap-3">
                     {/* Display */}
-                    <div className="rounded-lg border border-accent-cyan/20 bg-black/40 p-2">
+                    <div className="rounded-lg border border-[#2d2f34] bg-[#121315] p-2.5 shadow-[inset_0_2px_8px_rgba(0,0,0,0.8)]">
                         <div className="flex justify-center mb-2">
-                            <div className="flex rounded-md overflow-hidden border border-studio-line-strong">
+                            <div className="flex rounded-[3px] overflow-hidden border border-[#3b3e44] bg-[#1a1b1e]">
                                 {(['meter', 'graph'] as const).map(v => (
                                     <button
                                         key={v}
                                         data-comp-view={v}
                                         onClick={() => setView(v)}
-                                        className={`px-6 h-6 text-[10px] font-bold capitalize transition-colors ${view === v
-                                            ? 'bg-accent-cyan/20 text-accent-cyan'
-                                            : 'bg-black/50 text-studio-text-dim hover:text-studio-text'}`}
+                                        className={`px-5 h-6 text-[10px] font-bold capitalize transition-all ${view === v
+                                            ? 'bg-gradient-to-b from-[#3a6ea5] to-[#1e4470] text-white shadow-sm'
+                                            : 'text-white/40 hover:text-white'}`}
                                     >
                                         {v}
                                     </button>
                                 ))}
                             </div>
                         </div>
-                        <canvas ref={canvasRef} data-comp-canvas className="w-full h-[130px] rounded" />
+                        <canvas ref={canvasRef} data-comp-canvas className="w-full h-[130px] rounded bg-[#0a0b0d]" />
                     </div>
 
                     {/* Main knobs */}

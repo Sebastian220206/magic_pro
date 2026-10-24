@@ -143,7 +143,7 @@ export function LevelField({ gain, onCommit, className = '' }: {
                 }}
                 onClick={(e) => e.stopPropagation()}
                 aria-label="Fader level in decibels"
-                className={`h-full w-full px-0.5 rounded-[2px] bg-black text-[8px] font-black tabular-nums text-center text-accent-cyan border border-accent-cyan outline-none ${className}`}
+                className={`h-full w-full px-0.5 rounded-[2px] bg-black text-[8px] font-bold tabular-nums text-center text-white border border-[#2670b8] outline-none ${className}`}
             />
         );
     }
@@ -202,7 +202,7 @@ export function PanField({ pan, onCommit, className = '' }: {
                 }}
                 onClick={(e) => e.stopPropagation()}
                 aria-label="Pan position"
-                className={`h-4 w-12 px-1 rounded-[2px] bg-black text-[9px] font-black tabular-nums text-center text-accent-cyan border border-accent-cyan outline-none ${className}`}
+                className={`h-4 w-12 px-1 rounded-[2px] bg-black text-[9px] font-bold tabular-nums text-center text-white border border-[#2670b8] outline-none ${className}`}
             />
         );
     }
@@ -215,7 +215,7 @@ export function PanField({ pan, onCommit, className = '' }: {
             title="Pan — double-click to type, Alt-click the knob to centre"
             aria-label="Pan position"
             data-pan-field
-            className={`text-[8px] font-black uppercase text-studio-text-dim hover:text-accent-cyan tabular-nums ${className}`}
+            className={`text-[8px] font-bold uppercase text-white/50 hover:text-white tabular-nums ${className}`}
         >
             {formatPan(pan)}
         </button>
@@ -238,9 +238,10 @@ export function RecordMonitorButtons({ recordEnabled, inputMonitoring, disabled,
     onToggleRecord: () => void;
     onToggleMonitor: () => void;
 }) {
-    const base = 'flex-1 h-4 rounded-[2px] border text-[8px] font-black transition-all disabled:opacity-30 disabled:cursor-default';
+    const base = 'flex-1 h-[18px] rounded-[3px] border text-[9px] font-black transition-all active:scale-95 disabled:opacity-30 disabled:cursor-default shadow-sm';
     return (
-        <div className="flex gap-1 w-full px-2">
+        <div className="flex gap-1 w-full px-1">
+            {/* Logic Pro Record Arm Button */}
             <button
                 type="button"
                 disabled={disabled}
@@ -250,9 +251,10 @@ export function RecordMonitorButtons({ recordEnabled, inputMonitoring, disabled,
                 data-record-enable
                 onClick={(e) => { e.stopPropagation(); onToggleRecord(); }}
                 className={`${base} ${recordEnabled
-                    ? 'bg-[#ff4d4d]/25 border-[#ff4d4d] text-[#ff4d4d] shadow-[0_0_8px_rgba(255,77,77,0.35)]'
-                    : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text'}`}
+                    ? 'bg-gradient-to-b from-[#e53939] to-[#b32424] border-[#ff6666] text-white shadow-[0_0_8px_rgba(229,57,57,0.7)]'
+                    : 'bg-gradient-to-b from-[#2b2c2f] to-[#1f2022] border-[#383a3d] text-[#8e9094] hover:text-[#e1e2e4] hover:border-[#4d4f54]'}`}
             >R</button>
+            {/* Logic Pro Input Monitor Button */}
             <button
                 type="button"
                 disabled={disabled}
@@ -262,8 +264,8 @@ export function RecordMonitorButtons({ recordEnabled, inputMonitoring, disabled,
                 data-input-monitor
                 onClick={(e) => { e.stopPropagation(); onToggleMonitor(); }}
                 className={`${base} ${inputMonitoring
-                    ? 'bg-accent-cyan/25 border-accent-cyan text-accent-cyan shadow-[0_0_8px_var(--accent-cyan-glow)]'
-                    : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text'}`}
+                    ? 'bg-gradient-to-b from-[#ff9500] to-[#c77400] border-[#ffaa33] text-[#1f1200] shadow-[0_0_8px_rgba(255,149,0,0.7)]'
+                    : 'bg-gradient-to-b from-[#2b2c2f] to-[#1f2022] border-[#383a3d] text-[#8e9094] hover:text-[#e1e2e4] hover:border-[#4d4f54]'}`}
             >I</button>
         </div>
     );

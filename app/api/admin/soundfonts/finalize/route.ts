@@ -2,10 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-service-role-key';
+  return createClient(url, key);
+}
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Missing path, name, or category' }, { status: 400 });
   }
 
+  const supabaseAdmin = getSupabaseAdmin();
   const { data: pub } = supabaseAdmin.storage.from('soundfonts').getPublicUrl(path);
 
   const item = await prisma.soundFontLibraryItem.create({

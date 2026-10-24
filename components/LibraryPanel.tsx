@@ -211,13 +211,13 @@ useEffect(() => {
     }, [showSfPresets, currentSfItem, sfPresets, selectedCategory])
 
     return (
-        <div className="w-[320px] h-full bg-studio-panel border-r border-[var(--accent-cyan)]/40 flex flex-col shrink-0 z-50 overflow-hidden shadow-2xl select-none text-studio-text">
+        <div className="w-[300px] h-full bg-[#1e1f21] border-r border-[#161718] flex flex-col shrink-0 z-50 overflow-hidden shadow-2xl select-none text-white/80">
 
             {/* 1. Header Area */}
-            <div className="pt-2 px-4 flex flex-col items-center gap-1 shrink-0 pb-4">
+            <div className="pt-2 px-3 flex flex-col items-center gap-1 shrink-0 pb-3 bg-[#242528] border-b border-[#18191a]">
                 <div className="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
-                    <span className="text-[12px] font-medium opacity-80">Library</span>
-                    <span className="text-[12px] font-bold">All Sounds</span>
+                    <span className="text-[12px] font-bold text-white/60">Library:</span>
+                    <span className="text-[12px] font-bold text-white">All Sounds</span>
                     <div className="flex flex-col -gap-1">
                         <ChevronUp className="w-2.5 h-2.5 opacity-50" />
                         <ChevronDown className="w-2.5 h-2.5 opacity-50 -mt-1" />
@@ -225,14 +225,11 @@ useEffect(() => {
                 </div>
 
                 {/* Track Icon Visual */}
-                <div className="w-full aspect-video flex flex-col items-center justify-center gap-3 py-4">
-                    <div className="w-24 h-24 border-[3px] border-[#63ed63] rounded-xl flex flex-col items-center justify-center relative shadow-[0_0_30px_rgba(99,237,99,0.3)] bg-gradient-to-b from-[#63ed63]/10 to-transparent">
-                        <div className="w-16 h-12 flex flex-col items-center justify-center text-[#63ed63]">
-                            <Music className="w-12 h-12" />
-                        </div>
-                        <div className="absolute -bottom-1 w-12 h-1 bg-[#63ed63] rounded-full blur-[2px] opacity-50"></div>
+                <div className="w-full flex flex-col items-center justify-center gap-2 py-2">
+                    <div className="w-16 h-16 border border-white/20 rounded-md flex flex-col items-center justify-center relative bg-gradient-to-b from-white/10 to-transparent shadow-inner">
+                        <Music className="w-8 h-8 text-[#2ca05a]" />
                     </div>
-                    <span className="text-[14px] font-black text-white tracking-tight drop-shadow-lg uppercase">
+                    <span className="text-[12px] font-bold text-white tracking-tight uppercase">
                         {librarySelectedPresetId ? librarySelectedPresetId.split('-').join(' ') : 'Analog Deep Bass'}
                     </span>
                 </div>
@@ -240,15 +237,15 @@ useEffect(() => {
                 {/* Search Bar */}
                 <div className="w-full relative px-1">
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                        <Search className="w-3 h-3 text-studio-text-dim" />
-                        <ChevronDown className="w-2.5 h-2.5 text-studio-text-dim" />
+                        <Search className="w-3 h-3 text-white/40" />
+                        <ChevronDown className="w-2.5 h-2.5 text-white/40" />
                     </div>
                     <input
                         type="text"
                         placeholder="Search Sounds"
                         value={librarySearchQuery}
                         onChange={(e) => setLibrarySearchQuery(e.target.value)}
-                        className="w-full bg-black/40 border border-[var(--accent-cyan)]/40 rounded h-[26px] pl-10 pr-3 text-[11px] font-bold text-studio-text placeholder-studio-text-dim focus:outline-none focus:border-[var(--accent-cyan)] focus:shadow-[0_0_10px_var(--accent-cyan-glow)] transition-all shadow-inner"
+                        className="w-full bg-[#141517] border border-[#2b2c2f] rounded-[3px] h-[24px] pl-10 pr-3 text-[11px] font-medium text-white placeholder-white/40 focus:outline-none focus:border-[#2670b8] transition-all"
                     />
                 </div>
             </div>
@@ -256,9 +253,9 @@ useEffect(() => {
             {/* 2. Dual List Area */}
             <div className="flex-1 flex min-h-0 border-t border-black bg-studio-panel">
                 {/* Categories Column */}
-                <div className="w-[140px] h-full overflow-y-auto custom-scrollbar border-r border-black/50 bg-studio-panel">
+                <div className="w-[140px] h-full overflow-y-auto custom-scrollbar border-r border-[#161718] bg-[#1a1b1d]">
                     {loadingSoundFonts && (
-                        <div className="h-7 px-2 flex items-center text-studio-text-dim text-[10px]">Loading…</div>
+                        <div className="h-7 px-2 flex items-center text-white/40 text-[10px]">Loading…</div>
                     )}
                     {soundFontsError && (
                         <div className="h-7 px-2 flex items-center text-red-500 text-[10px]">Error</div>
@@ -266,27 +263,26 @@ useEffect(() => {
                     {!loadingSoundFonts && !soundFontsError && filteredCategories.map((cat, idx) => (
                         <div
                             key={cat.name}
-onClick={() => handleCategoryClick(cat)}
-                                            className={`h-7 px-2 flex items-center justify-between group cursor-pointer border-b border-black/10 transition-colors ${selectedCategory?.name === cat.name ? 'bg-[var(--accent-cyan)]/10 text-white' : 'hover:bg-white/[0.03]'}`}
+                            onClick={() => handleCategoryClick(cat)}
+                            className={`h-6.5 px-2.5 flex items-center justify-between group cursor-pointer border-b border-black/20 transition-colors ${selectedCategory?.name === cat.name ? 'bg-[#2a4563] text-white' : 'hover:bg-white/[0.04]'}`}
                         >
                             <div className="flex items-center gap-2 truncate">
-                                <span className="text-[10px] font-bold text-white/30 tabular-nums">{(idx + 1).toString().padStart(2, '0')}</span>
-                                <span className={`text-[11px] font-bold truncate ${selectedCategory?.name === cat.name ? 'text-[var(--accent-cyan)]' : 'text-studio-text-mid'}`}>
+                                <span className={`text-[11px] font-medium truncate ${selectedCategory?.name === cat.name ? 'text-white' : 'text-white/70'}`}>
                                     {cat.name}
                                 </span>
                             </div>
-                            <ChevronRight className={`w-3 h-3 ${selectedCategory?.name === cat.name ? 'text-[var(--accent-cyan)]' : 'text-studio-text-dim group-hover:text-studio-text-dim'}`} />
+                            <ChevronRight className={`w-3 h-3 ${selectedCategory?.name === cat.name ? 'text-white' : 'text-white/30'}`} />
                         </div>
                     ))}
                     {!loadingSoundFonts && !soundFontsError && filteredCategories.length === 0 && (
-                        <div className="text-studio-text text-[11px] text-center pt-4">No categories match your search.</div>
+                        <div className="text-white/40 text-[11px] text-center pt-4">No categories match your search.</div>
                     )}
                 </div>
 
                 {/* Patches Column */}
-                <div className="flex-1 h-full overflow-y-auto custom-scrollbar bg-studio-panel">
+                <div className="flex-1 h-full overflow-y-auto custom-scrollbar bg-[#161719]">
                     {loadingSoundFonts && (
-                        <div className="h-7 px-4 flex items-center text-studio-text-dim text-[11px]">Loading SoundFonts…</div>
+                        <div className="h-7 px-4 flex items-center text-white/40 text-[11px]">Loading SoundFonts…</div>
                     )}
                     {soundFontsError && (
                         <div className="h-7 px-4 flex items-center text-red-500 text-[11px]">Error: {soundFontsError}</div>
@@ -294,33 +290,33 @@ onClick={() => handleCategoryClick(cat)}
                     {!loadingSoundFonts && !soundFontsError && (
                         <>
                             {showSfPresets && loadingSfPresets && (
-                                <div className="h-7 px-4 flex items-center text-studio-text-dim text-[11px]">Loading presets…</div>
+                                <div className="h-7 px-4 flex items-center text-white/40 text-[11px]">Loading presets…</div>
                             )}
                             {presetsToShow.map((preset, idx) => (
                                 <div
                                     key={preset.id ?? preset.name ?? idx}
-onClick={() => {
-                                    if ('index' in preset) {
-                                        handleSfPresetSelect(preset as SfPresetWithId)
-                                    } else {
-                                        handlePresetSelect(preset as Preset)
-                                    }
-                                }}
-                                className={`h-7 px-4 flex items-center justify-between group cursor-pointer border-b border-black/10 transition-colors ${librarySelectedPresetId === preset.id ? 'bg-[var(--accent-cyan)]/15 text-white shadow-[inset_0_0_10px_var(--accent-cyan-glow)]' : 'hover:bg-white/[0.03]'}`}
+                                    onClick={() => {
+                                        if ('index' in preset) {
+                                            handleSfPresetSelect(preset as SfPresetWithId)
+                                        } else {
+                                            handlePresetSelect(preset as Preset)
+                                        }
+                                    }}
+                                    className={`h-6.5 px-3 flex items-center justify-between group cursor-pointer border-b border-black/20 transition-colors ${librarySelectedPresetId === preset.id ? 'bg-[#2a4563] text-white' : 'hover:bg-white/[0.04]'}`}
                                 >
-                                    <span className={`text-[11px] font-bold truncate ${librarySelectedPresetId === preset.id ? 'text-white' : 'text-studio-text-mid group-hover:text-studio-text'}`}>
+                                    <span className={`text-[11px] font-medium truncate ${librarySelectedPresetId === preset.id ? 'text-white' : 'text-white/80 group-hover:text-white'}`}>
                                         {preset.name}
                                     </span>
                                 </div>
                             ))}
                             {!showSfPresets && selectedCategory?.presets?.length === 0 && (
-                                <div className="text-studio-text text-[11px] text-center pt-8">No sounds in this category.</div>
+                                <div className="text-white/40 text-[11px] text-center pt-8">No sounds in this category.</div>
                             )}
                             {showSfPresets && !loadingSfPresets && sfPresets.length === 0 && (
-                                <div className="text-studio-text text-[11px] text-center pt-8">No presets found in this SoundFont.</div>
+                                <div className="text-white/40 text-[11px] text-center pt-8">No presets found in this SoundFont.</div>
                             )}
                             {!selectedCategory && !showSfPresets && (
-                                <div className="text-studio-text text-[11px] text-center pt-8">Select a category.</div>
+                                <div className="text-white/40 text-[11px] text-center pt-8">Select a category.</div>
                             )}
                         </>
                     )}
@@ -329,13 +325,13 @@ onClick={() => {
 
             {/* 2.5 Patch Merging Area */}
             {libraryPatchMerging && (
-                <div className="h-10 bg-studio-control border-t border-black flex items-center px-2 gap-1 animate-in slide-in-from-bottom-2 duration-200">
-                    <button onClick={() => toggleLibraryPatchMerging()} className="p-1 hover:text-white transition-colors"><X className="w-3 h-3" /></button>
+                <div className="h-9 bg-[#262729] border-t border-[#18191a] flex items-center px-2 gap-1 animate-in slide-in-from-bottom-2 duration-200">
+                    <button onClick={() => toggleLibraryPatchMerging()} className="p-1 hover:text-white transition-colors text-white/60"><X className="w-3 h-3" /></button>
                     {(['midiEffects', 'instruments', 'audioEffects', 'sends'] as const).map(opt => (
                         <button
-key={opt}
-                                        onClick={() => setLibraryMergingOption(opt, !libraryMergingOptions[opt])}
-                                        className={`flex-1 h-7 rounded text-[8px] font-black uppercase transition-all ${libraryMergingOptions[opt] ? 'bg-[var(--accent-cyan)] text-black shadow-lg' : 'bg-black/40 text-studio-text-dim hover:text-[var(--accent-cyan)]'}`}
+                            key={opt}
+                            onClick={() => setLibraryMergingOption(opt, !libraryMergingOptions[opt])}
+                            className={`flex-1 h-6 rounded-[2px] text-[8px] font-bold uppercase transition-all ${libraryMergingOptions[opt] ? 'bg-[#2670b8] text-white' : 'bg-black/30 text-white/50 hover:text-white'}`}
                         >
                             {opt.replace('Effects', ' FX')}
                         </button>
@@ -344,15 +340,14 @@ key={opt}
             )}
 
             {/* 3. Footer Area */}
-            <div className="h-[70px] bg-studio-raised border-t border-black flex flex-col shrink-0 px-3">
+            <div className="h-[60px] bg-[#242528] border-t border-[#18191a] flex flex-col shrink-0 px-3">
                 {/* Breadcrumbs */}
-                <div className="h-6 flex items-center gap-1.5 text-[9px] font-bold text-studio-text-dim overflow-hidden">
-                    <span className="hover:text-studio-text cursor-pointer">Legacy</span>
+                <div className="h-6 flex items-center gap-1.5 text-[9px] font-medium text-white/50 overflow-hidden">
+                    <span className="hover:text-white cursor-pointer">Factory</span>
                     <ChevronRight className="w-2 h-2 opacity-50" />
-                    <span className="hover:text-studio-text cursor-pointer">Logic</span>
+                    <span className="hover:text-white cursor-pointer">Logic</span>
                     <ChevronRight className="w-2 h-2 opacity-50" />
-                    <span className="text-studio-text-mid truncate">{selectedCategory?.name || 'Synthesizers'}</span>
-                    <ChevronRight className="w-2 h-2 opacity-30" />
+                    <span className="text-white/80 truncate">{selectedCategory?.name || 'Synthesizers'}</span>
                 </div>
 
                 {/* Footer Buttons */}
@@ -360,16 +355,16 @@ key={opt}
                     <div className="flex gap-1 items-center">
                         <div className="relative">
                             <button
-onClick={() => setShowActionsMenu(!showActionsMenu)}
-                                                className={`w-8 h-[24px] flex items-center justify-center border border-[var(--accent-cyan)]/40 rounded shadow-sm transition-all ${showActionsMenu ? 'bg-[var(--accent-cyan)] text-black' : 'bg-studio-sunken hover:bg-[var(--accent-cyan)]/10 hover:text-[var(--accent-cyan)]'}`}
+                                onClick={() => setShowActionsMenu(!showActionsMenu)}
+                                className={`w-8 h-[22px] flex items-center justify-center border border-white/10 rounded-[2px] transition-all ${showActionsMenu ? 'bg-white/20 text-white' : 'bg-[#1c1d1f] text-white/60 hover:text-white'}`}
                             >
                                 <MoreHorizontal className="w-3.5 h-3.5" />
                                 <ChevronDown className="w-2 h-2 ml-0.5 opacity-50" />
                             </button>
                             {showActionsMenu && (
-                                <div className="absolute bottom-full left-0 mb-2 w-52 bg-studio-control border border-white/10 rounded-lg shadow-2xl z-[100] py-1 overflow-hidden">
+                                <div className="absolute bottom-full left-0 mb-2 w-52 bg-[#252628] border border-[#38393c] rounded shadow-2xl z-[100] py-1 overflow-hidden">
                                     <button
-                                        className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-studio-text hover:bg-accent-cyan hover:text-white transition-colors flex items-center justify-between"
+                                        className="w-full px-3 py-1.5 text-left text-[11px] font-medium text-white hover:bg-[#35373a] transition-colors flex items-center justify-between"
                                         onClick={() => { toggleLibraryPatchMerging(!libraryPatchMerging); setShowActionsMenu(false); }}
                                     >
                                         {libraryPatchMerging ? 'Disable Patch Merging' : 'Enable Patch Merging'}

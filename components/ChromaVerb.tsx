@@ -152,32 +152,30 @@ export function ChromaVerb({ trackId, pluginId }: ReverbProps) {
     };
 
     return (
-        <div className="flex flex-col w-[940px] h-[680px] bg-[#0d0d0d] shadow-[0_50px_100px_rgba(0,0,0,1)] rounded-xl border border-white/5 font-sans overflow-hidden">
+        <div className="flex flex-col w-[940px] h-[660px] bg-[#1e2023] shadow-[0_40px_100px_rgba(0,0,0,0.95)] rounded-xl border border-[#3b3e44] font-sans overflow-hidden select-none">
+            {/* Logic Pro Native Effect Window Header Bar */}
+            <div className="h-10 bg-gradient-to-b from-[#3a3d42] to-[#27292d] px-4 flex items-center justify-between border-b border-[#18191b] shadow-sm">
+                <div className="flex items-center gap-2">
+                    <button
+                        title="Bypass ChromaVerb"
+                        className="w-7 h-7 rounded-[3px] border border-[#4caf50] bg-gradient-to-b from-[#2e7d32] to-[#1b5e20] text-white flex items-center justify-center shadow-[0_0_8px_rgba(76,175,80,0.6)]"
+                    >
+                        <Power className="w-3.5 h-3.5 fill-current" />
+                    </button>
+                    <div className="h-4 w-px bg-black/40 mx-1" />
+                    <span className="text-[12px] font-bold text-white/90 tracking-wide">ChromaVerb</span>
+                    <span className="text-[10px] font-semibold text-white/40 tracking-wider">[{track?.name ?? 'Track'}]</span>
+                </div>
 
-            {/* Top Toolbar */}
-            <div className="h-24 bg-gradient-to-b from-[#1a1a1a] to-[#0d0d0d] flex flex-col justify-end px-5 border-b border-white/5 pb-2">
-                <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 border border-white/20 rounded-full flex items-center justify-center text-sky-400 group cursor-pointer hover:border-sky-400">
-                            <Power className="w-6 h-6 group-hover:drop-shadow-[0_0_8px_cyan]" />
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">Aux 1</span>
-                            <div className="flex items-center gap-2 bg-[#222] border border-white/10 px-3 py-1.5 rounded cursor-pointer hover:bg-[#333]">
-                                <span className="text-[13px] font-bold text-zinc-300">Factory Default</span>
-                                <ChevronDown className="w-4 h-4 text-zinc-500" />
-                            </div>
-                        </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-white/40">Setting:</span>
+                    <div className="flex items-center h-6 rounded-[3px] border border-[#3b3e44] bg-[#141517] px-2 shadow-inner">
+                        <span className="px-1 text-[10px] font-bold tracking-tight text-white/90">Factory Default</span>
                     </div>
-                    <div className="flex gap-1">
-                        {['Compare', 'Copy', 'Paste', 'Undo', 'Redo'].map(b => (
-                            <button key={b} className="px-4 py-1.5 bg-[#222] border border-white/10 text-zinc-300 text-[11px] font-bold rounded shadow-xl active:bg-[#333] transition-all">{b}</button>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-[11px] text-zinc-500 font-bold uppercase tracking-widest">View: <span className="text-zinc-300">75%</span></span>
-                        <div className="w-10 h-10 border border-white/10 rounded flex items-center justify-center text-zinc-500"><RotateCcw className="w-5 h-5" /></div>
-                    </div>
+
+                    <button className="h-6 px-2.5 rounded-[3px] border border-[#3b3e44] bg-[#282a2e] text-[9px] font-bold text-white/70 hover:text-white shadow-sm">
+                        Compare
+                    </button>
                 </div>
             </div>
 

@@ -197,12 +197,11 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
          * edge of the screen. The border itself still goes on small screens,
          * where 5px and a bloom are a tenth of a landscape phone.
          */
-        <div className={`h-screen w-full bg-studio-void flex flex-col box-border ${compact ? "daw-safe-area" : ""
+        <div className={`h-screen w-full bg-[#1e1f21] flex flex-col box-border ${compact ? "daw-safe-area" : ""
             }`}>
             {compact && portrait && ready && <RotateToLandscape />}
 
-            <div className={`flex flex-col h-full w-full bg-studio-void overflow-hidden text-sm selection:bg-accent-cyan/30 box-border relative ${compact ? "" : "daw-shell"
-                }`}>
+            <div className={`flex flex-col h-full w-full bg-[#1e1f21] overflow-hidden text-sm selection:bg-white/20 box-border relative`}>
             {loadError && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80">
                     <div className="bg-studio-sunken border border-studio-line rounded-lg p-8 max-w-md text-center">
@@ -353,12 +352,12 @@ export default function ProjectStudio({ params }: { params: { projectId: string 
                 <div 
                     id="bottom-panel"
                     ref={bottomPanelRef}
-                    className="bg-studio-panel flex flex-col shrink-0 border-t border-studio-line overflow-hidden shadow-[0_-20px_50px_rgba(0,0,0,0.5)] z-30 relative"
+                    className="bg-[#202123] flex flex-col shrink-0 border-t border-[#18191a] overflow-hidden shadow-2xl z-30 relative"
                     style={{ height: `${bottomPanelHeight}px` }}
                 >
                     {/* Resize Handle */}
                     <div 
-                        className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-50 hover:bg-accent-cyan/50 transition-colors"
+                        className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-50 hover:bg-white/20 transition-colors"
                         onMouseDown={handleResizeMouseDown}
                         onDoubleClick={() => {
                             setBottomPanelHeight(320);

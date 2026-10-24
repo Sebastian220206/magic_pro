@@ -47,9 +47,8 @@ const TEMPO_MODES: TempoMode[] = ['automatic', 'standard', 'half-time', 'double-
  * Session-scoped on purpose: this is a clipboard, not a document. Putting it in
  * the store would persist a transient into every save file.
  */
-let settingsClipboard: Partial<DrummerSettings> | null = null
-let patternClipboard: ManualPattern | null = null
-let pageClipboard: Partial<Record<DrumPiece, boolean[]>> | null = null
+let patternClipboard: ManualPattern | null = null;
+let pageClipboard: Partial<Record<DrumPiece, boolean[]>> | null = null;
 
 export function MainTab({ settings, tracks, trackId, hasChords, apply }: {
     settings: DrummerSettings

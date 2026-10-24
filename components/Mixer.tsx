@@ -120,78 +120,70 @@ export function Mixer() {
     }
 
     return (
-        <div className="h-full flex flex-col bg-studio-panel select-none text-studio-text-mid border-t border-[var(--accent-cyan)]/50 shadow-[0_-10px_30px_var(--accent-cyan-glow),0_-10px_30px_rgba(0,0,0,0.3)]">
+        <div className="h-full flex flex-col bg-[#202123] select-none text-[#e1e2e4] border-t border-[#18191a] shadow-2xl">
             {/* 1. Mixer Command Header (High Fidelity Menu Bar) */}
-            {/* Height is a constant because the panel's minimum is derived
-                from it plus the rows; a Tailwind class here and a number in
-                `stripLayout` would drift apart. */}
             <div
                 style={{ height: MIXER_HEADER_HEIGHT }}
-                className="bg-studio-raised border-b border-[var(--accent-cyan)]/30 flex items-center px-4 justify-between shrink-0"
+                className="bg-[#2d2e30] border-b border-[#1b1c1e] flex items-center px-4 justify-between shrink-0"
             >
                 <div className="flex items-center gap-1">
                     <MixerMenus view={viewOptions} onView={patch => setViewOptions(v => ({ ...v, ...patch }))} />
 
-                    <div className="w-px h-5 bg-[var(--accent-cyan)]/30 mx-2"></div>
+                    <div className="w-px h-5 bg-white/10 mx-2"></div>
 
                     {/* Monitor path — mono-sum phase check and reference direct-out. */}
                     <MonitorControls />
 
-                    <div className="w-px h-5 bg-[var(--accent-cyan)]/30 mx-2"></div>
+                    <div className="w-px h-5 bg-white/10 mx-2"></div>
 
-                    <div className="flex bg-studio-void rounded-md border border-[var(--accent-cyan)]/50 p-0.5 h-7 shadow-inner">
+                    <div className="flex bg-[#1c1d1f] rounded-[4px] border border-white/10 p-0.5 h-6.5 shadow-inner">
                         <button
                             onClick={() => setMixerMode('single')}
-                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'single' ? 'text-[var(--accent-cyan)] bg-studio-control shadow-md border border-[var(--accent-cyan)]/50' : 'text-studio-text-dim hover:text-[var(--accent-cyan)]'}`}
+                            className={`px-3 h-full text-[10px] font-bold uppercase rounded-[3px] transition-all ${mixerMode === 'single' ? 'text-white bg-[#3c3d40] shadow-sm' : 'text-studio-text-dim hover:text-white'}`}
                         >Single</button>
                         <button
                             onClick={() => setMixerMode('tracks')}
-                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'tracks' ? 'text-[var(--accent-cyan)] bg-studio-control shadow-md border border-[var(--accent-cyan)]/50' : 'text-studio-text-dim hover:text-[var(--accent-cyan)]'}`}
+                            className={`px-3 h-full text-[10px] font-bold uppercase rounded-[3px] transition-all ${mixerMode === 'tracks' ? 'text-white bg-[#3c3d40] shadow-sm' : 'text-studio-text-dim hover:text-white'}`}
                         >Tracks</button>
                         <button
                             onClick={() => setMixerMode('all')}
-                            className={`px-3 h-full text-[10px] font-black uppercase rounded transition-all ${mixerMode === 'all' ? 'text-[var(--accent-cyan)] bg-studio-control shadow-md border border-[var(--accent-cyan)]/50' : 'text-studio-text-dim hover:text-[var(--accent-cyan)]'}`}
+                            className={`px-3 h-full text-[10px] font-bold uppercase rounded-[3px] transition-all ${mixerMode === 'all' ? 'text-white bg-[#3c3d40] shadow-sm' : 'text-studio-text-dim hover:text-white'}`}
                         >All</button>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center bg-studio-void rounded-md border border-[var(--accent-cyan)]/50 p-0.5 h-7">
+                    <div className="flex items-center bg-[#1c1d1f] rounded-[4px] border border-white/10 p-0.5 h-6.5">
                         {filterTypes.map(type => (
                             <button
                                 key={type}
                                 onClick={() => setTrackTypeFilter(type as any)}
-                                className={`px-2.5 h-full text-[9px] font-black uppercase rounded transition-all ${trackTypeFilter === type ? 'text-[var(--accent-cyan)] bg-studio-control' : 'text-studio-text-dim hover:text-[var(--accent-cyan)]'}`}
+                                className={`px-2 h-full text-[9px] font-bold uppercase rounded-[3px] transition-all ${trackTypeFilter === type ? 'text-white bg-[#3c3d40] shadow-sm' : 'text-studio-text-dim hover:text-white'}`}
                             >
                                 {type}
                             </button>
                         ))}
                     </div>
-                    <div className="w-px h-5 bg-[var(--accent-cyan)]/30 mx-1"></div>
+                    <div className="w-px h-5 bg-white/10 mx-1"></div>
                     <button
                         onClick={() => setShowTrackStacks(!showTrackStacks)}
-                        className={`p-1 rounded transition-all ${showTrackStacks ? 'bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)]' : 'text-studio-text-mid hover:text-[var(--accent-cyan)] hover:bg-[var(--accent-cyan)]/10'}`}
+                        className={`px-2 py-0.5 rounded-[3px] text-[10px] font-semibold border transition-all ${showTrackStacks ? 'bg-[#276eb8]/20 text-[#59a6ff] border-[#276eb8]/50' : 'bg-[#1c1d1f] border-white/10 text-studio-text-dim hover:text-white'}`}
                         title="Show/Hide track stacks"
                     >
                         {showTrackStacks ? 'Stacks On' : 'Stacks Off'}
                     </button>
-                    <button className="p-1 hover:bg-[var(--accent-cyan)]/10 rounded transition-all"><MoreHorizontal className="w-4 h-4 text-studio-text-dim hover:text-[var(--accent-cyan)]" /></button>
+                    <button className="p-1 hover:bg-white/10 rounded transition-all"><MoreHorizontal className="w-4 h-4 text-studio-text-dim hover:text-white" /></button>
                 </div>
             </div>
 
             {/* 2. Main Console View */}
-            <div className="flex-1 flex overflow-x-auto overflow-y-hidden custom-scrollbar-h relative">
+            <div className="flex-1 flex overflow-x-auto overflow-y-hidden custom-scrollbar-h relative bg-[#1c1d1f]">
 
                 {/* Dynamic Channel Strips */}
-                {/* Legend. Renders the same row spec as the strips, so each
-                    label sits at exactly the height of the slot it names —
-                    which is the only thing that makes a console layout
-                    readable. Sticky, so it stays put while the strips scroll
-                    sideways. */}
                 <div
                     style={{ width: LEGEND_WIDTH, display: viewOptions.showLegend ? undefined : 'none' }}
                     data-mixer-legend
-                    className="shrink-0 sticky left-0 z-30 flex flex-col bg-studio-panel border-r border-black shadow-[4px_0_15px_rgba(0,0,0,0.5)]"
+                    className="shrink-0 sticky left-0 z-30 flex flex-col bg-[#242528] border-r border-[#151618] shadow-[2px_0_10px_rgba(0,0,0,0.5)]"
                 >
                     {STRIP_ROWS.map((row: StripRow) => (
                         <div
@@ -681,21 +673,32 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                 onClick={(e) => { e.stopPropagation(); openOrInsert('eq'); }}
                 title={eqPlugin ? 'Open the channel EQ' : 'Add a channel EQ and open it'}
                 aria-label={eqPlugin ? 'Open channel EQ' : 'Add channel EQ'}
-                className={`h-full w-full rounded-[2px] bg-black/60 border overflow-hidden group/eq transition-colors ${eqPlugin ? 'border-white/10' : 'border-dashed border-white/10'} hover:border-accent-cyan/60`}
+                className={`h-full w-full rounded-[3px] bg-[#111315] border overflow-hidden group/eq transition-all relative ${eqPlugin
+                    ? 'border-[#2d3138] shadow-[inset_0_1px_3px_rgba(0,0,0,0.8)]'
+                    : 'border-dashed border-white/10 hover:border-[#80bbff]/60'}`}
             >
-                {/*
-                    The strip's own bands, not a fixed squiggle. This drew
-                    `M0,22 Q30,4 60,26 T100,17` on every strip whatever the EQ
-                    was set to — the same picture for a flat channel and a
-                    heavily shaped one.
-                */}
+                {/* Logic Pro EQ Grid Background */}
+                <div 
+                    className="absolute inset-0 opacity-15 pointer-events-none"
+                    style={{
+                        backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.15) 1px, transparent 1px)',
+                        backgroundSize: '20px 8px'
+                    }}
+                />
+                {/* Zero Reference Line */}
+                <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-white/10 pointer-events-none" />
+                
+                {/* Logic Pro EQ Response Curve */}
                 <svg viewBox="0 0 100 34" preserveAspectRatio="none"
-                    className={`w-full h-full transition-opacity ${eqPlugin ? 'opacity-70 group-hover/eq:opacity-100' : 'opacity-25 group-hover/eq:opacity-50'}`}>
+                    className={`w-full h-full relative z-10 transition-opacity ${eqPlugin ? 'opacity-90 group-hover/eq:opacity-100' : 'opacity-25 group-hover/eq:opacity-50'}`}>
                     <path
                         d={eqPlugin
                             ? eqThumbnailPath(eqBandsFromParams(eqPlugin.params as Record<string, number>), 100, 34)
                             : 'M0 17 L100 17'}
-                        fill="none" stroke={tint} strokeWidth="1.5" vectorEffect="non-scaling-stroke"
+                        fill="none" 
+                        stroke="#80bbff" 
+                        strokeWidth="1.6" 
+                        vectorEffect="non-scaling-stroke"
                     />
                 </svg>
             </button>
@@ -718,8 +721,8 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
             <div className="h-full flex items-center gap-0.5">
                 {!isMaster && track && <ChannelModeButton track={track} />}
                 <div
-                    className="h-full flex-1 min-w-0 rounded-[2px] border flex items-center justify-center px-1 text-[8px] font-black truncate"
-                    style={{ background: `${tint}22`, borderColor: `${tint}66`, color: tint }}
+                    className="h-full flex-1 min-w-0 rounded-[2px] border flex items-center justify-center px-1 text-[8px] font-black truncate shadow-inner"
+                    style={{ background: `${tint}20`, borderColor: `${tint}55`, color: tint }}
                     title={isMaster ? 'Summed output' : (track?.instrument || 'Input 1')}
                 >
                     {isMaster ? 'Sum' : (track?.instrument || 'In 1')}
@@ -738,11 +741,11 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                             if (targetId) setOpenPluginEditor({ trackId: targetId, pluginId: plugin.id });
                         }}
                         title={plugin.name}
-                        className={`h-[15px] shrink-0 rounded-[2px] flex items-center px-1.5 text-[8px] font-bold cursor-pointer truncate transition-all ${plugin.enabled
-                            ? 'bg-accent-cyan/80 text-black hover:bg-accent-cyan'
-                            : 'bg-studio-control/80 border border-studio-line text-studio-text-dim hover:text-studio-text'}`}
+                        className={`h-[15px] shrink-0 rounded-[2px] border flex items-center px-1.5 text-[8px] font-bold cursor-pointer truncate transition-all shadow-[0_1px_2px_rgba(0,0,0,0.5)] ${plugin.enabled
+                            ? 'bg-gradient-to-b from-[#1b5e7d] to-[#0d3b50] border-[#2998c7] text-[#7ce0ff] hover:brightness-110'
+                            : 'bg-[#181a1c] border-white/10 text-studio-text-dim hover:text-studio-text'}`}
                     >
-                        {plugin.name}
+                        <span className="truncate flex-1">{plugin.name}</span>
                     </div>
                 ))}
                 <PluginMenu
@@ -777,12 +780,38 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
 
         pan: (
             <div className="h-full flex flex-col items-center justify-center gap-0.5">
-                <div className="relative cursor-ns-resize" onMouseDown={beginPanDrag} title="Pan — Alt-click to centre, Shift-drag for fine">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-studio-sunken via-studio-raised to-studio-control border border-studio-line shadow-md ring-1 ring-black/50">
-                        <div
-                            className="absolute top-0.5 left-[11px] w-[2px] h-2 bg-studio-text-mid rounded-full origin-bottom"
-                            style={{ transform: `rotate(${initialPan * 45}deg)` }}
-                        />
+                <div 
+                    className="relative cursor-ns-resize group/pan select-none" 
+                    onMouseDown={beginPanDrag} 
+                    title="Pan — Alt-click to centre, Shift-drag for fine"
+                >
+                    {/* Logic Pro Brushed Metallic Pan Pot with Directional Arc */}
+                    <div className="w-7 h-7 rounded-full bg-[#1e2023] border border-[#3a3b3d] shadow-[0_2px_4px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.15)] flex items-center justify-center relative">
+                        {/* Background Guide Arc */}
+                        <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 28 28">
+                            <circle cx="14" cy="14" r="10.5" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" />
+                            {/* Directional Active Sweep */}
+                            {initialPan !== 0 && (
+                                <circle
+                                    cx="14"
+                                    cy="14"
+                                    r="10.5"
+                                    fill="none"
+                                    stroke="#52a9ff"
+                                    strokeWidth="1.8"
+                                    strokeDasharray={`${Math.abs(initialPan) * 33} 66`}
+                                    strokeDashoffset={initialPan < 0 ? 0 : -33}
+                                    strokeLinecap="round"
+                                />
+                            )}
+                        </svg>
+                        {/* Metallic Center Knob Cap with Indicator Notch */}
+                        <div 
+                            className="w-4.5 h-4.5 rounded-full bg-gradient-to-b from-[#4d4f53] via-[#353638] to-[#252628] border border-[#5a5c60] shadow-[0_1px_2px_rgba(0,0,0,0.6)] flex items-center justify-center relative transition-transform"
+                            style={{ transform: `rotate(${initialPan * 135}deg)` }}
+                        >
+                            <div className="absolute top-0.5 w-[1.5px] h-1.5 bg-[#ffffff] rounded-full shadow-[0_0_2px_#ffffff]" />
+                        </div>
                     </div>
                 </div>
                 <PanField pan={initialPan} onCommit={(value) => { applyPan(value); saveHistorySnapshot(); }} />
@@ -801,27 +830,41 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
         ),
 
         fader: (
-            <div className="h-full flex items-end justify-center gap-1 pb-1">
-                <div className="h-full w-1.5"><VerticalMeter analyzer={analyser} side="L" className="w-full h-full" /></div>
+            <div className="h-full flex items-end justify-center gap-1 pb-1 relative px-0.5">
+                {/* Left Level Meter (Stereo / Mono) */}
+                <div className="h-full w-2">
+                    <VerticalMeter analyzer={analyser} side="L" className="w-full h-full" />
+                </div>
 
-                <div className="h-full w-5 bg-black/50 rounded-sm border border-studio-line relative cursor-ns-resize">
-                    <div className="absolute inset-y-1 inset-x-1 flex flex-col justify-between opacity-10 pointer-events-none">
-                        {Array.from({ length: 12 }).map((_, i) => <div key={i} className="w-full h-px bg-white" />)}
-                    </div>
+                {/* Logic Pro Fader Track & High-Fidelity Metallic Fader Cap */}
+                <div className="h-full w-5.5 bg-[#121315] rounded-[2px] border border-[#2a2b2d] relative cursor-ns-resize shadow-[inset_0_0_6px_rgba(0,0,0,0.8)] flex justify-center">
+                    {/* Center Slot Guide */}
+                    <div className="absolute inset-y-1 w-[2px] bg-[#000000] rounded-full border-r border-white/5 pointer-events-none" />
+                    
+                    {/* Unity (0 dB) Guide Notch */}
+                    <div 
+                        className="absolute w-full h-[1px] bg-white/20 pointer-events-none"
+                        style={{ bottom: '70%' }}
+                        title="0 dB Unity Marker"
+                    />
+
+                    {/* Logic Pro Brushed Aluminum Fader Cap with Center Stripe */}
                     <div
                         ref={faderCapRef}
                         onMouseDown={beginFaderDrag}
-                        title="Volume — Alt-click for unity, Shift-drag for fine"
-                        className="absolute -left-0.5 w-6 h-3.5 bg-gradient-to-b from-studio-control to-studio-raised border border-studio-line-strong rounded-[2px] shadow-[0_3px_8px_rgba(0,0,0,0.8)] z-20 flex items-center justify-center"
+                        title="Volume — Alt-click for unity (0dB), Shift-drag for fine"
+                        className="absolute -left-0.5 w-6.5 h-4.5 bg-gradient-to-b from-[#d0d3d6] via-[#9da0a3] to-[#717376] border border-[#4a4c4f] rounded-[2px] shadow-[0_2px_6px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.6)] z-20 flex items-center justify-center cursor-ns-resize hover:brightness-105 transition-[filter]"
                     >
-                        <div className="w-[70%] h-px bg-white/25" />
+                        {/* Recessed Grip Indentations */}
+                        <div className="w-[82%] h-[1.5px] bg-[#1a1b1d] shadow-[0_1px_0_rgba(255,255,255,0.5)] rounded-full" />
                     </div>
                 </div>
 
-                {/* Stereo draws two columns; every other format is one signal
-                    and draws one, which is what Channel Mode is telling you. */}
+                {/* Right Level Meter (Stereo tracks & Master) */}
                 {(isMaster || (track?.channelMode ?? 'stereo') === 'stereo') && (
-                    <div className="h-full w-1.5"><VerticalMeter analyzer={analyser} side="R" className="w-full h-full" /></div>
+                    <div className="h-full w-2">
+                        <VerticalMeter analyzer={analyser} side="R" className="w-full h-full" />
+                    </div>
                 )}
             </div>
         ),
@@ -852,7 +895,8 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                 : null,
 
         muteSolo: (
-            <div className="h-full flex gap-0.5 px-1">
+            <div className="h-full flex gap-1 px-1">
+                {/* Logic Pro Mute Button - Authentic Amber Illumination */}
                 <button
                     id={track ? `mixer-mute-${track.id}` : 'mixer-mute-master'}
                     title="Mute - Cmd-click to switch every strip in the same state"
@@ -877,11 +921,12 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                         if (isMaster) audioEngine2.setMasterMuted(next);
                         else if (track) { if (next) audioEngine2.muteTrack(track.id); else audioEngine2.unmuteTrack(track.id); }
                     }}
-                    className={`flex-1 rounded-[2px] border text-[9px] font-black transition-all active:scale-95 ${initialMuted
-                        ? 'bg-[#ff4d4d]/25 border-[#ff4d4d] text-[#ff4d4d]'
-                        : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text'}`}
+                    className={`flex-1 rounded-[3px] border text-[10px] font-black transition-all active:scale-95 shadow-sm ${initialMuted
+                        ? 'bg-gradient-to-b from-[#e5a824] to-[#b37e12] border-[#ffd54f] text-[#1c1303] shadow-[0_0_8px_rgba(255,200,40,0.6)] font-bold'
+                        : 'bg-gradient-to-b from-[#2b2c2f] to-[#1f2022] border-[#383a3d] text-[#8e9094] hover:text-[#e1e2e4] hover:border-[#4d4f54]'}`}
                 >M</button>
 
+                {/* Logic Pro Solo Button - Authentic Solar Yellow Illumination / Master Dim */}
                 <button
                     id={track ? `mixer-solo-${track.id}` : 'mixer-solo-master'}
                     title={isMaster ? 'Dim' : 'Solo - Alt-click to solo only this strip, Ctrl-click for solo-safe'}
@@ -891,8 +936,6 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                     data-solo-safe={track?.soloSafe || undefined}
                     onClick={(e) => {
                         e.stopPropagation();
-                        // The output strip carries Dim where a track carries
-                        // Solo, exactly as in the reference console.
                         if (isMaster) {
                             const next = !dimmed;
                             setDimmed(next);
@@ -919,14 +962,14 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                         onUpdate({ soloed: next });
                         if (next) audioEngine2.soloTrack(track.id); else audioEngine2.unsoloTrack(track.id);
                     }}
-                    className={`relative flex-1 rounded-[2px] border text-[9px] font-black transition-all active:scale-95 ${(isMaster ? dimmed : track?.soloed)
-                        ? 'bg-[#ffc500]/25 border-[#ffc500] text-[#ffc500]'
-                        : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text'}`}
+                    className={`relative flex-1 rounded-[3px] border text-[10px] font-black transition-all active:scale-95 shadow-sm ${(isMaster ? dimmed : track?.soloed)
+                        ? 'bg-gradient-to-b from-[#ffd203] to-[#d4aa00] border-[#ffe566] text-[#221c00] shadow-[0_0_8px_rgba(255,210,3,0.7)] font-bold'
+                        : 'bg-gradient-to-b from-[#2b2c2f] to-[#1f2022] border-[#383a3d] text-[#8e9094] hover:text-[#e1e2e4] hover:border-[#4d4f54]'}`}
                 >
                     {isMaster ? 'D' : 'S'}
                     {track?.soloSafe && (
                         <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <span className="w-3 h-px bg-[#ff4d4d] rotate-[-45deg]" />
+                            <span className="w-3.5 h-px bg-[#ff4d4d] rotate-[-45deg] shadow-[0_0_2px_#ff4d4d]" />
                         </span>
                     )}
                 </button>
@@ -935,8 +978,12 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
 
         name: (
             <div
-                className="h-full flex items-center justify-between px-1 text-[8px] font-black uppercase truncate tracking-tight"
-                style={{ background: tint, color: '#04070b' }}
+                className="h-full flex items-center justify-between px-1.5 text-[8.5px] font-black uppercase truncate tracking-tight shadow-md border-t border-black/40"
+                style={{ 
+                    background: `linear-gradient(to bottom, ${tint}ee, ${tint}aa)`, 
+                    color: '#ffffff',
+                    textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+                }}
                 title={isMaster ? 'Master' : track?.name}
                 onDoubleClick={(e) => {
                     if (isMaster || !track) return;
@@ -946,7 +993,12 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
                 }}
                 data-track-name-field
             >
-                <span className="truncate flex-1">{isMaster ? 'Master' : (track?.name || 'Track')}</span>
+                {!isMaster && trackIndex !== undefined && (
+                    <span className="opacity-75 font-mono text-[7.5px] mr-1">
+                        {trackIndex + 1}
+                    </span>
+                )}
+                <span className="truncate flex-1 font-bold">{isMaster ? 'Stereo Out' : (track?.name || 'Track')}</span>
                 {track && (track.type === 'drummer' || track.instrument?.toLowerCase().includes('drum') || track.instrument?.toLowerCase().includes('trap')) && (
                     <button
                         onClick={(e) => {
@@ -975,9 +1027,11 @@ const MixerChannelStrip = memo(function MixerChannelStrip({
             <div
                 onClick={onSelect}
                 style={{ width: longFaders ? STRIP_WIDTH * 1.5 : STRIP_WIDTH }}
-                className={`h-full flex flex-col border-r border-black shrink-0 transition-colors relative group ${isSelected ? 'bg-accent-cyan/[0.06]' : 'bg-studio-panel/60 hover:bg-white/[0.02]'}`}
+                className={`h-full flex flex-col border-r border-[#151618] border-l border-white/[0.03] shrink-0 transition-colors relative group ${isSelected 
+                    ? 'bg-gradient-to-b from-[#242930] via-[#1d2126] to-[#171a1e] ring-1 ring-inset ring-[#2998c7]/50' 
+                    : 'bg-gradient-to-b from-[#252629] via-[#1e1f21] to-[#18191a] hover:from-[#292a2d] hover:via-[#212225] hover:to-[#1b1c1e]'}`}
             >
-                {isSelected && <div className="absolute inset-x-0 top-0 h-0.5 bg-accent-cyan z-10 shadow-[0_0_10px_var(--accent-cyan-glow)]" />}
+                {isSelected && <div className="absolute inset-x-0 top-0 h-1 bg-[#2998c7] z-20 shadow-[0_0_8px_rgba(41,152,199,0.8)]" />}
                 {STRIP_ROWS.map((row: StripRow) => (
                     <div
                         key={row.key}

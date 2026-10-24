@@ -148,12 +148,12 @@ export function TimelineRuler({ pixelsPerBeat, scrollLeft, scrollContainerRef }:
         const barStep = chooseBarStep(ppb);
         const minorSub = chooseMinorSubdivision(ppb);
 
-        // Dark DAW background
-        ctx.fillStyle = "#1a1a1a";
+        // Logic Pro matte graphite ruler background
+        ctx.fillStyle = "#202123";
         ctx.fillRect(0, 0, cssW, cssH);
 
         // Bottom separator
-        ctx.fillStyle = "#000";
+        ctx.fillStyle = "#141517";
         ctx.fillRect(0, cssH - 1, cssW, 1);
 
         // Visible beat range
@@ -211,20 +211,21 @@ export function TimelineRuler({ pixelsPerBeat, scrollLeft, scrollContainerRef }:
             const w  = x2 - x1;
             if (x2 >= 0 && x1 <= cssW) {
                 const ly = BAR_HEIGHT + BEAT_HEIGHT;
-                ctx.fillStyle = "rgba(234,179,8,0.85)";
+                ctx.fillStyle = "#bc6718";
                 ctx.fillRect(x1, ly, w, LOOP_HEIGHT);
 
                 const grad = ctx.createLinearGradient(0, ly, 0, ly + LOOP_HEIGHT);
-                grad.addColorStop(0, "rgba(255,255,255,0.18)");
-                grad.addColorStop(1, "rgba(0,0,0,0.18)");
+                grad.addColorStop(0, "rgba(255,255,255,0.25)");
+                grad.addColorStop(0.5, "rgba(255,255,255,0.05)");
+                grad.addColorStop(1, "rgba(0,0,0,0.3)");
                 ctx.fillStyle = grad;
                 ctx.fillRect(x1, ly, w, LOOP_HEIGHT);
 
-                ctx.fillStyle = "rgba(255,255,255,0.6)";
+                ctx.fillStyle = "rgba(255,255,255,0.8)";
                 ctx.fillRect(x1, ly, 1, LOOP_HEIGHT);
                 ctx.fillRect(x2 - 1, ly, 1, LOOP_HEIGHT);
 
-                ctx.fillStyle = "rgba(255,255,255,0.4)";
+                ctx.fillStyle = "rgba(255,255,255,0.6)";
                 ctx.fillRect(x1 + 1, ly + (LOOP_HEIGHT / 2) - 3, 1, 6);
                 ctx.fillRect(x2 - 2, ly + (LOOP_HEIGHT / 2) - 3, 1, 6);
             }

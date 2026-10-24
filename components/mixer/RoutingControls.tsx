@@ -129,15 +129,33 @@ export function SendsSlot({ track }: { track: Track | null }) {
                     onRemove={() => { if (send) removeTrackSend(track.id, send.busId) }}
                 >
                     <div
-                        className={`h-[15px] w-full rounded-[2px] border flex items-center px-1 gap-1 text-[8px] font-black uppercase ${send
-                            ? 'bg-accent-cyan/15 border-accent-cyan/40 text-accent-cyan'
-                            : 'bg-black/30 border-white/5 text-studio-text-dim hover:border-accent-cyan/30 hover:text-accent-cyan'}`}
+                        className={`h-[15px] w-full rounded-[2px] border flex items-center px-1 gap-1 text-[8px] font-black uppercase transition-all ${send
+                            ? 'bg-gradient-to-b from-[#1c324a] to-[#122030] border-[#3178c6] text-[#70b7ff] shadow-[0_1px_3px_rgba(0,0,0,0.5)]'
+                            : 'bg-black/30 border-white/10 text-studio-text-dim/60 hover:border-[#3178c6]/60 hover:text-white'}`}
                     >
-                        <span className="truncate flex-1 text-left">
+                        {send && (
+                            /* Logic Pro Circular Send Level Arc Indicator */
+                            <div className="relative w-2.5 h-2.5 shrink-0 flex items-center justify-center">
+                                <svg className="w-full h-full -rotate-90" viewBox="0 0 10 10">
+                                    <circle cx="5" cy="5" r="3.5" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.2" />
+                                    <circle
+                                        cx="5"
+                                        cy="5"
+                                        r="3.5"
+                                        fill="none"
+                                        stroke="#52a9ff"
+                                        strokeWidth="1.2"
+                                        strokeDasharray={`${(send.level ?? 0.25) * 22} 22`}
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                            </div>
+                        )}
+                        <span className="truncate flex-1 text-left tracking-tight">
                             {send ? busName(send.busId) : 'Send'}
                         </span>
                         {send && (
-                            <span className="tabular-nums shrink-0 opacity-70">
+                            <span className="tabular-nums shrink-0 font-mono text-[7px] text-[#80bfff]">
                                 {Math.round(send.level * 100)}
                             </span>
                         )}
@@ -156,13 +174,12 @@ export function OutputRouting({ track, isMaster }: { track: Track | null; isMast
     const label = isMaster
         ? 'Output'
         : (tracks.find(t => t.id === track?.outputBusId)?.name ?? 'Stereo Out')
-
     return (
         <div className="relative mb-1">
             <button
                 disabled={isMaster || !track}
                 onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
-                className="w-full h-6 bg-studio-raised border border-white/5 rounded-sm flex items-center px-2 justify-between text-[9px] font-black text-studio-text-mid shadow-sm hover:border-studio-line-strong disabled:hover:border-white/5 transition-colors"
+                className="w-full h-6 bg-[#202123] border border-white/10 rounded-[3px] flex items-center px-2 justify-between text-[9px] font-bold text-[#e1e2e4] shadow-sm hover:border-[#276eb8]/60 disabled:hover:border-white/10 transition-colors"
                 title={isMaster ? 'Master output' : 'Route this channel to a bus'}
             >
                 <span className="truncate uppercase">{label}</span>

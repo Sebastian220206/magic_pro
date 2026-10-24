@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { getSession } from '@/lib/auth';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-service-role-key';
+  return createClient(url, key);
+}
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -24,6 +25,7 @@ export async function POST(req: Request) {
 
   const path = `${Date.now()}-${fileName.replace(/\s+/g, '-')}`;
 
+  const supabaseAdmin = getSupabaseAdmin();
   const { data, error } = await supabaseAdmin.storage
     .from('soundfonts')
     .createSignedUploadUrl(path);

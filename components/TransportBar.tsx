@@ -317,15 +317,29 @@ export function TransportBar() {
 
     const renderTransportButton = (id: keyof typeof controlBarSettings.transportButtons, icon: LucideIcon, action?: () => void, active?: boolean, colorClass?: string) => {
         if (!controlBarSettings.transportButtons[id]) return null;
+        let activeClass = 'bg-[#323438] text-white/90 shadow-[inset_0_1px_2px_rgba(0,0,0,0.6)]';
+        let fillClass = 'fill-current';
+
+        if (id === 'play' && active) {
+            activeClass = 'bg-gradient-to-b from-[#2e7d32] to-[#1b5e20] text-white border-[#4caf50] shadow-[0_0_10px_rgba(76,175,80,0.6)]';
+            fillClass = 'fill-white';
+        } else if (id === 'record' && active) {
+            activeClass = 'bg-gradient-to-b from-[#e53935] to-[#b71c1c] text-white border-[#ef5350] shadow-[0_0_12px_rgba(229,57,53,0.7)]';
+            fillClass = 'fill-white';
+        } else if (active) {
+            activeClass = 'bg-gradient-to-b from-[#1976d2] to-[#0d47a1] text-white border-[#42a5f5] shadow-[0_0_8px_rgba(33,150,243,0.5)]';
+            fillClass = 'fill-white';
+        }
+
         return (
             <button
                 key={id}
                 onClick={action}
                 title={TRANSPORT_LABELS[id] ?? id}
                 aria-label={TRANSPORT_LABELS[id] ?? id}
-                className={`p-1.5 transition-all transform active:scale-90 ${active ? 'text-accent-cyan drop-shadow-[0_0_8px_rgba(34,165,233,0.8)]' : colorClass || 'text-studio-text-dim hover:text-white'}`}
+                className={`p-1.5 rounded-[3px] border border-transparent transition-all transform active:scale-95 flex items-center justify-center ${active ? activeClass : (colorClass || 'text-[#9fa3a9] hover:text-white hover:bg-white/5')}`}
             >
-                {React.createElement(icon, { className: `w-[18px] h-[18px] ${active ? 'fill-accent-cyan' : 'fill-current'}` })}
+                {React.createElement(icon, { className: `w-[17px] h-[17px] ${fillClass}` })}
             </button>
         );
     };
@@ -424,25 +438,25 @@ export function TransportBar() {
     // LCD Renderers
     const renderBeatsPos = (small = false) => (
         <div data-lcd-field="position" className={`flex flex-col items-center ${small ? 'min-w-[50px]' : 'min-w-[80px]'}`}>
-            {!small && <span className="text-[8px] font-black text-accent-cyan/40 uppercase tracking-widest leading-none mb-1">Position</span>}
-            <div className={`flex gap-2 items-baseline text-accent-cyan/90 font-mono tracking-tighter tabular-nums drop-shadow-[0_0_3px_rgba(14,165,233,0.3)] ${small ? 'gap-1 scale-90' : ''}`}>
-                <span data-lcd-value="bar" className={`${small ? 'text-[14px]' : 'text-[18px]'} font-black`}>{bar}</span>
-                <span data-lcd-value="beat" className={`${small ? 'text-[12px]' : 'text-[15px]'} font-black`}>{beat}</span>
-                <span data-lcd-value="div" className={`${small ? 'text-[10px]' : 'text-[13px]'} font-black`}>{div}</span>
-                <span data-lcd-value="tick" className={`${small ? 'text-[9px]' : 'text-[11px]'} font-black opacity-60`}>{tick}</span>
+            {!small && <span className="text-[7.5px] font-bold text-[#8b8e93] uppercase tracking-wider leading-none mb-1">Bar / Beat</span>}
+            <div className={`flex gap-1.5 items-baseline text-[#f0f1f2] font-mono tracking-tight tabular-nums ${small ? 'gap-1 scale-90' : ''}`}>
+                <span data-lcd-value="bar" className={`${small ? 'text-[14px]' : 'text-[17px]'} font-bold`}>{bar}</span>
+                <span data-lcd-value="beat" className={`${small ? 'text-[12px]' : 'text-[15px]'} font-semibold text-[#f0f1f2]/90`}>{beat}</span>
+                <span data-lcd-value="div" className={`${small ? 'text-[10px]' : 'text-[13px]'} font-medium text-[#f0f1f2]/80`}>{div}</span>
+                <span data-lcd-value="tick" className={`${small ? 'text-[9px]' : 'text-[11px]'} font-normal text-[#8b8e93]`}>{tick}</span>
             </div>
         </div>
     );
 
     const renderTimePos = (small = false) => (
         <div data-lcd-field="time" className={`flex flex-col items-center ${small ? 'min-w-[60px]' : 'min-w-[100px]'}`}>
-            {!small && <span className="text-[8px] font-black text-accent-cyan/40 uppercase tracking-widest leading-none mb-1">Time</span>}
-            <div className={`flex gap-1 items-baseline text-accent-cyan/90 font-mono tracking-tighter tabular-nums drop-shadow-[0_0_3px_rgba(14,165,233,0.3)] ${small ? 'scale-90' : ''}`}>
-                <span data-lcd-value="mins" className={`${small ? 'text-[14px]' : 'text-[20px]'} font-black`}>{mins}</span>
-                <span className="text-[12px] opacity-40">:</span>
-                <span data-lcd-value="secs" className={`${small ? 'text-[14px]' : 'text-[20px]'} font-black`}>{secs}</span>
-                <span className="text-[12px] opacity-40">.</span>
-                <span className={`${small ? 'text-[11px]' : 'text-[13px]'} font-black opacity-60`}>{ms}</span>
+            {!small && <span className="text-[7.5px] font-bold text-[#8b8e93] uppercase tracking-wider leading-none mb-1">Time</span>}
+            <div className={`flex gap-1 items-baseline text-[#f0f1f2] font-mono tracking-tight tabular-nums ${small ? 'scale-90' : ''}`}>
+                <span data-lcd-value="mins" className={`${small ? 'text-[14px]' : 'text-[18px]'} font-bold`}>{mins}</span>
+                <span className="text-[12px] text-[#8b8e93]">:</span>
+                <span data-lcd-value="secs" className={`${small ? 'text-[14px]' : 'text-[18px]'} font-bold`}>{secs}</span>
+                <span className="text-[12px] text-[#8b8e93]">.</span>
+                <span className={`${small ? 'text-[11px]' : 'text-[13px]'} font-normal text-[#8b8e93]`}>{ms}</span>
             </div>
         </div>
     );
@@ -630,17 +644,7 @@ export function TransportBar() {
 
     return (
         <div
-            /*
-             * `overflow-x-auto` with `justify-start` below the width where
-             * everything fits: this row holds more controls than a phone is
-             * wide, and it used to simply clip — the tempo display and the
-             * right-hand group ran off the edge with no way to reach them.
-             * Scrolling keeps every control reachable instead of hiding some.
-             *
-             * `daw-scrollbar-thin` keeps the scrollbar from stealing height
-             * from a 52px row.
-             */
-            className="h-[62px] bg-gradient-to-b from-studio-control to-studio-raised border-b border-black flex items-center px-4 gap-4 justify-start xl:justify-between overflow-x-auto overflow-y-hidden daw-scrollbar-thin shrink-0 z-[100] shadow-[0_4px_10px_rgba(0,0,0,0.5)] select-none"
+            className="h-[52px] bg-[#2d2e30] border-b border-[#1b1c1e] flex items-center px-3 gap-3 justify-start xl:justify-between overflow-x-auto overflow-y-hidden daw-scrollbar-thin shrink-0 z-[100] shadow-[0_2px_8px_rgba(0,0,0,0.5)] select-none"
             onContextMenu={onContextMenu}
         >
 
@@ -766,32 +770,32 @@ export function TransportBar() {
 
             {/* 2. Transport Center-Left (Logic Standard Layout) */}
             {controlBarSettings.showTransport && (
-                <div className="flex items-center gap-2 px-6 shrink-0">
-                    <div className="flex bg-black/40 rounded-sm border border-black/60 p-0.5">
+                <div className="flex items-center gap-1.5 px-4 shrink-0">
+                    <div className="flex bg-[#1e1f21] rounded-[4px] border border-[#3a3b3e] p-0.5 shadow-sm">
                         {renderTransportButton('goBeginning', SkipBack, goToBeginning)}
                         {renderTransportButton('rewind', SkipBack, () => movePlayhead(Math.max(0, playhead - 1)))}
                         {renderTransportButton('forward', SkipForward, () => movePlayhead(playhead + 1))}
                     </div>
 
-                    <div className="flex bg-black/40 rounded-sm border border-black/60 p-0.5 shadow-inner">
+                    <div className="flex bg-[#1e1f21] rounded-[4px] border border-[#3a3b3e] p-0.5 shadow-sm">
                         {renderTransportButton('stop', Square, stop)}
                         {renderTransportButton('play', Play, () => { if (!playing) play() }, playing)}
                     </div>
 
                     <button 
                         onClick={toggleRecording}
-                        className={`p-1.5 transition-all transform active:scale-90 ${recording ? 'text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]' : 'text-red-600/60 hover:text-red-500'}`}
+                        className={`p-1.5 rounded-[4px] transition-all transform active:scale-95 ${recording ? 'text-[#d32f2f] drop-shadow-[0_0_8px_rgba(211,47,47,0.8)]' : 'text-[#8b8e93] hover:text-[#d32f2f]'}`}
                         title="Record (R)"
                     >
-                        <Circle className={`w-[19px] h-[19px] ${recording ? 'fill-red-500' : 'fill-current'}`} />
+                        <Circle className={`w-[18px] h-[18px] ${recording ? 'fill-[#d32f2f]' : 'fill-current'}`} />
                     </button>
 
                     {/* Recording Modes Strip */}
                     {controlBarSettings.modes.autopunch && (
-                        <div className="flex items-center gap-1 ml-1 pl-1 border-l border-white/5">
+                        <div className="flex items-center gap-1 ml-1 pl-1 border-l border-white/10">
                             <button
                                 onClick={() => toggleAutopunch()}
-                                className={`h-6 px-1.5 border border-black/40 rounded-sm text-[8px] font-black transition-all ${autopunchEnabled ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-black/20 text-studio-text-dim hover:text-white'}`}
+                                className={`h-6 px-1.5 border border-black/40 rounded-[3px] text-[8px] font-black transition-all ${autopunchEnabled ? 'bg-[#d32f2f] text-white shadow-md' : 'bg-[#1e1f21] text-studio-text-dim hover:text-white'}`}
                                 title="Autopunch Mode"
                             >
                                 PUNCH
@@ -802,7 +806,7 @@ export function TransportBar() {
                     {controlBarSettings.transportButtons.skipCycle && (
                         <button
                             onClick={toggleSkipCycle}
-                            className={`p-1.5 border border-black/40 rounded-sm shadow-[inset_0_1px_rgba(255,255,255,0.05)] transition-all ${skipCycleEnabled ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]' : 'bg-black/20 text-studio-text-dim hover:text-white'}`}
+                            className={`p-1.5 border border-[#3a3b3e] rounded-[4px] transition-all ${skipCycleEnabled ? 'bg-[#276eb8]/30 text-[#4180c1] border-[#276eb8]' : 'bg-[#1e1f21] text-studio-text-dim hover:text-white'}`}
                             title="Skip Cycle"
                         >
                             <SkipCycleIcon className="w-[18px] h-[18px]" />
@@ -813,11 +817,11 @@ export function TransportBar() {
                         <button
                             onClick={toggleCycle}
                             onContextMenu={(e) => { e.preventDefault(); setShowCycleMenu(!showCycleMenu); }}
-                            className={`p-1.5 border border-black/40 rounded-sm shadow-[inset_0_1px_rgba(255,255,255,0.05)] transition-all relative ${cycleEnabled ? 'bg-yellow-500/30 text-yellow-500 border-yellow-500/40 drop-shadow-[0_0_8px_rgba(234,179,8,0.4)]' : 'bg-black/20 text-studio-text-dim hover:text-white'}`}
+                            className={`p-1.5 border rounded-[4px] transition-all relative ${cycleEnabled ? 'bg-[#bc6718] text-white border-[#e58529] shadow-sm' : 'bg-[#1e1f21] border-[#3a3b3e] text-studio-text-dim hover:text-white'}`}
                         >
                             <Repeat className="w-[18px] h-[18px]" />
                             {autoSetLocators !== 'off' && (
-                                <div className="absolute -top-1 -right-1 px-0.5 bg-yellow-500 text-black text-[7px] font-black rounded-[1px] leading-none py-0.5 border border-black/20">
+                                <div className="absolute -top-1 -right-1 px-0.5 bg-[#bc6718] text-white text-[7px] font-black rounded-[1px] leading-none py-0.5 border border-black/20">
                                     AUTO
                                 </div>
                             )}

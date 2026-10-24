@@ -67,34 +67,54 @@ export function EqKnob({
                 onMouseDown={begin}
                 title={title}
                 style={{ width: size, height: size }}
-                className={`relative ${disabled ? 'opacity-30 cursor-default' : 'cursor-ns-resize'}`}
+                className={`relative flex items-center justify-center ${disabled ? 'opacity-30 cursor-default' : 'cursor-ns-resize group/knob'}`}
             >
-                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                {/* SVG Gauge & Sweep Track */}
+                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="pointer-events-none absolute inset-0">
                     <circle
-                        cx={radius} cy={radius} r={radius - 3}
-                        fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3"
+                        cx={radius} cy={radius} r={radius - 2.5}
+                        fill="#121315" stroke="#2a2c30" strokeWidth="2.5"
+                    />
+                    {/* Background Arc Track */}
+                    <circle
+                        cx={radius} cy={radius} r={radius - 2.5}
+                        fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="2.5"
                         strokeDasharray={`${ARC} ${ARC * 2}`}
                         transform={`rotate(135 ${radius} ${radius})`}
                         strokeLinecap="round"
                     />
+                    {/* Active Glow Sweep Arc */}
                     <circle
-                        cx={radius} cy={radius} r={radius - 3}
-                        fill="none" stroke={color} strokeWidth="3"
+                        cx={radius} cy={radius} r={radius - 2.5}
+                        fill="none" stroke={color} strokeWidth="2.5"
                         strokeDasharray={`${ARC * fraction} ${ARC * 4}`}
                         transform={`rotate(135 ${radius} ${radius})`}
                         strokeLinecap="round"
-                    />
-                    <circle cx={radius} cy={radius} r={radius - 7} fill="#0b1119" stroke="rgba(255,255,255,0.06)" />
-                    <line
-                        x1={radius} y1={radius}
-                        x2={radius + Math.sin((angle * Math.PI) / 180) * (radius - 9)}
-                        y2={radius - Math.cos((angle * Math.PI) / 180) * (radius - 9)}
-                        stroke={color} strokeWidth="2" strokeLinecap="round"
+                        style={{ filter: `drop-shadow(0 0 3px ${color}88)` }}
                     />
                 </svg>
+
+                {/* Logic Pro Brushed Metallic Center Cap */}
+                <div
+                    className="rounded-full bg-gradient-to-b from-[#4d4f53] via-[#353638] to-[#252628] border border-[#5a5c60] shadow-[0_1px_3px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.25)] flex items-center justify-center relative pointer-events-none transition-transform"
+                    style={{
+                        width: Math.max(14, size - 10),
+                        height: Math.max(14, size - 10),
+                        transform: `rotate(${angle}deg)`
+                    }}
+                >
+                    {/* Pointer Indicator Line */}
+                    <div
+                        className="absolute top-0.5 w-[1.5px] rounded-full shadow-[0_0_2px_#ffffff]"
+                        style={{
+                            height: Math.max(4, (size - 10) * 0.35),
+                            backgroundColor: color || '#ffffff'
+                        }}
+                    />
+                </div>
             </div>
             {label && (
-                <span className="text-[7px] font-bold uppercase tracking-wide text-studio-text-dim">{label}</span>
+                <span className="text-[7.5px] font-bold uppercase tracking-wider text-studio-text-dim group-hover/knob:text-white transition-colors">{label}</span>
             )}
         </div>
     );

@@ -184,13 +184,20 @@ export const MixerFader = memo(function MixerFader({
         
         {/* Fader Handle */}
         <div
-          className={`absolute left-1/2 -translate-x-1/2 w-8 h-4 rounded 
-            ${disabled ? 'bg-gray-600' : 'bg-white shadow-lg'}
-            ${isDragging ? 'scale-110' : ''} transition-transform`}
-          style={{ bottom: `${faderPos * 100}%`, transform: `translateX(-50%) translateY(50%)` }}
+          className={`absolute left-1/2 -translate-x-1/2 w-9 h-5 rounded-[2px] border border-[#232427] shadow-[0_2px_5px_rgba(0,0,0,0.6)]
+            ${disabled ? 'opacity-40' : ''}
+            ${isDragging ? 'brightness-110 shadow-lg' : ''} transition-all`}
+          style={{ 
+            bottom: `${faderPos * 100}%`, 
+            transform: `translateX(-50%) translateY(50%)`,
+            background: 'linear-gradient(to bottom, #d6d7d9 0%, #b8babc 48%, #8e9093 52%, #abadaf 100%)'
+          }}
         >
+          {/* Subtle horizontal grip notches */}
+          <div className="absolute inset-x-1.5 top-1 h-px bg-white/40" />
+          <div className="absolute inset-x-1.5 bottom-1 h-px bg-black/30" />
           {/* Center line */}
-          <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-gray-800 -translate-x-1/2" />
+          <div className="absolute left-1/2 top-0 bottom-0 w-[1.5px] bg-[#1a1b1d] -translate-x-1/2 shadow-inner" />
         </div>
       </div>
       

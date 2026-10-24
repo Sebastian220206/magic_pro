@@ -203,7 +203,7 @@ export function addClipToTimeline(clip: RecordingClip): void {
 
   // Add to bufferCacheManager so engine and scheduler find it immediately
   try {
-    const { bufferCacheManager } = require('../audio/BufferCacheManager');
+    const { bufferCacheManager } = require('../audioEngine/bufferCache');
     if (bufferCacheManager) {
       bufferCacheManager.addBuffer(clip.id, clip.audioBuffer, trackClip.name);
     }

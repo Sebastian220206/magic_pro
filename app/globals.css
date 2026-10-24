@@ -3,71 +3,55 @@
 @tailwind utilities;
 
 :root {
-    --daw-bg: #1e1e1e;
-    --daw-panel: #2c2c2c;
-    --daw-header: #3a3a3a;
-    --daw-border: #1a1a1a;
-    --daw-surface: #454545;
-    --daw-primary: #fb00ff;
-    /* Logic pink */
-    --daw-accent: #59a6ff;
-    /* Logic blue */
-    --daw-text: #e0e0e0;
-    --daw-text-dim: #999;
-    /*
-     * Cyan futuristic accent - single source of truth.
-     *
-     * Held as space-separated channels, not a hex literal, because Tailwind's
-     * opacity modifier expands `bg-accent-cyan/80` to
-     * `rgb(var(--accent-cyan-rgb) / 0.8)`. With `34, 211, 238` the commas make
-     * that invalid, and an invalid colour paints nothing — which is why 184
-     * accent and studio classes carrying an opacity modifier were rendering
-     * transparent across the app. Insert chips in the mixer had no background.
-     */
-    --accent-cyan-rgb: 34 211 238;
-    --accent-cyan: rgb(var(--accent-cyan-rgb));
-    --accent-cyan-glow: rgb(var(--accent-cyan-rgb) / 0.35);
-    --accent-cyan-glow-strong: rgb(var(--accent-cyan-rgb) / 0.55);
+    --daw-bg: #1c1d1f;
+    --daw-panel: #262729;
+    --daw-header: #323336;
+    --daw-border: #18191a;
+    --daw-surface: #2c2d30;
+    --daw-primary: #e6912c;
+    /* Logic active amber */
+    --daw-accent: #276eb8;
+    /* Logic studio blue */
+    --daw-text: #e1e2e4;
+    --daw-text-dim: #8b8e93;
 
     /*
-     * Studio surfaces.
-     *
-     * The studio used a grey Logic-Pro scale — #1a1a1a panels, #444 borders —
-     * hard-coded across 26 components. These replace it with a near-black
-     * blue-tinted ground, so the cyan accent above reads as light rather than
-     * as just another colour. Every value is blue-shifted rather than neutral:
-     * a neutral grey next to cyan looks dirty.
-     *
-     * Deliberately separate from the --daw-* variables above, which are shared
-     * with /dashboard, /login and /p/[shareId] and must not move.
+     * Logic Pro Authentic Studio Tokens (extracted via REA from Logic Pro binary & assets)
      */
-    /* Channels, for the same reason as the accent above. */
-    --studio-void-rgb: 4 7 11;
-    --studio-panel-rgb: 13 20 29;
-    --studio-sunken-rgb: 8 13 20;
-    --studio-raised-rgb: 18 27 38;
-    --studio-control-rgb: 22 32 44;
-    --studio-text-rgb: 230 244 248;
-    --studio-text-mid-rgb: 163 186 205;
-    --studio-text-dim-rgb: 125 148 168;
+    --logic-blue: #276eb8;
+    --logic-blue-active: #4180c1;
+    --logic-orange-solo: #bc6718;
+    --logic-yellow-mute: #b58c2b;
+    --logic-red-record: #d32f2f;
+    --logic-green-play: #288c3d;
+    --logic-fader-cap: #abadae;
+    --logic-lcd-bg: #0c0d0e;
+    --logic-lcd-text: #f0f1f2;
+    --logic-lcd-amber: #e6912c;
+
+    --accent-cyan-rgb: 39 110 184;
+    --accent-cyan: #276eb8;
+    --accent-cyan-glow: rgba(39, 110, 184, 0.25);
+    --accent-cyan-glow-strong: rgba(39, 110, 184, 0.45);
+
+    /* Channels for studio surfaces: Logic Pro authentic matte graphite scale */
+    --studio-void-rgb: 26 27 29;
+    --studio-panel-rgb: 38 39 42;
+    --studio-sunken-rgb: 19 20 22;
+    --studio-raised-rgb: 46 47 51;
+    --studio-control-rgb: 56 57 62;
+    --studio-text-rgb: 232 234 237;
+    --studio-text-mid-rgb: 170 173 178;
+    --studio-text-dim-rgb: 122 125 130;
 
     --studio-void: rgb(var(--studio-void-rgb));
-    /* Page ground, behind everything. */
     --studio-panel: rgb(var(--studio-panel-rgb));
-    /* Standard panel fill. */
     --studio-sunken: rgb(var(--studio-sunken-rgb));
-    /* Wells, canvas beds, anything recessed. */
     --studio-raised: rgb(var(--studio-raised-rgb));
-    /* Headers and list rows, one step up from a panel. */
     --studio-control: rgb(var(--studio-control-rgb));
-    /* Buttons, inputs, anything you click. */
-    --studio-line: rgb(var(--accent-cyan-rgb) / 0.12);
-    /* Ordinary dividers. */
-    --studio-line-strong: rgb(var(--accent-cyan-rgb) / 0.22);
-    /* Panel edges and focus. */
+    --studio-line: rgba(255, 255, 255, 0.08);
+    --studio-line-strong: rgba(255, 255, 255, 0.16);
     --studio-text: rgb(var(--studio-text-rgb));
-    /* Secondary labels. Sits between text and text-dim so the three tiers the
-       old grey scale had (gray-300/400/500) survive the remap. */
     --studio-text-mid: rgb(var(--studio-text-mid-rgb));
     --studio-text-dim: rgb(var(--studio-text-dim-rgb));
 }
@@ -78,45 +62,29 @@
     }
     body {
         @apply bg-[--daw-bg] text-[--daw-text] antialiased select-none;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
     }
 }
 
 @layer components {
-    /* Cyan futuristic border/glow utilities */
-    /*
-     * The studio's neon frame.
-     *
-     * Sits flush against the viewport, so the bloom is thrown inward rather
-     * than out. An outward glow is drawn outside the border box and would be
-     * clipped by the screen edge, leaving a flat 5px line where the neon was —
-     * the frame used to be inset 16px, which is the only reason it read as lit.
-     */
+    /* Logic Pro Studio Hardware Shell & Panel Utilities */
     .daw-shell {
-        border: 5px solid var(--accent-cyan);
-        border-radius: 16px;
-        box-shadow:
-            0 0 0 2px var(--accent-cyan) inset,
-            inset 0 0 12px var(--accent-cyan-glow),
-            inset 0 0 28px var(--accent-cyan-glow);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
     }
 
     .daw-panel {
-        border: 5px solid var(--accent-cyan);
-        border-radius: 12px;
-        box-shadow: 
-            0 0 0 2px var(--accent-cyan) inset,
-            0 0 8px var(--accent-cyan-glow);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 4px;
+        background-color: var(--studio-panel);
     }
 
     .daw-divider {
-        border-color: var(--accent-cyan);
-        opacity: 0.4;
+        border-color: rgba(255, 255, 255, 0.08);
     }
 
     .daw-divider-strong {
-        border-color: var(--accent-cyan);
-        opacity: 1;
+        border-color: rgba(255, 255, 255, 0.16);
     }
 
     .daw-focus-ring {

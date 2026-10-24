@@ -58,134 +58,101 @@ export function MasteringPanel({ onStateChange, loudnessData, className = '' }: 
   const lufsToStr = (v: number) => !isFinite(v) ? '-∞' : v.toFixed(1)
 
   return (
-    <div className={`mastering-panel ${className}`}
+    <div className={`mastering-panel flex flex-col gap-3 text-studio-text select-none ${className}`}
       style={{
-        background: '#111',
-        border: '1px solid #333',
-        borderRadius: '8px',
-        padding: '12px',
-        width: '320px',
-        fontSize: '11px',
-        color: '#ccc',
-        fontFamily: 'monospace',
+        background: 'linear-gradient(180deg, #181a1d 0%, #111214 100%)',
+        border: '1px solid #2b2e33',
+        borderRadius: '6px',
+        padding: '14px',
+        width: '100%',
+        boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
       }}
     >
-      {/* Preset Section */}
-      <SectionHeader title="Mastering Chain" expanded={expandedSection === 'preset'} onToggle={() => toggleSection('preset')} />
-      {expandedSection === 'preset' && (
-        <div style={{ padding: '4px 0' }}>
-          <select
-            value={state.presetId !== 'custom' ? state.presetId : 'streaming'}
-            onChange={e => applyPreset(e.target.value)}
-            style={{
-              width: '100%',
-              background: '#222',
-              color: '#fff',
-              border: '1px solid #444',
-              borderRadius: '4px',
-              padding: '4px 8px',
-              fontSize: '11px',
-            }}
-          >
-            {presets.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+      {/* Logic Pro Character Profiles (Clean, Valve, Punch, Transparent) */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[9px] font-black uppercase tracking-wider text-[#8e9094]">Character</span>
+        <div className="grid grid-cols-4 gap-1 p-0.5 rounded-[4px] bg-[#0c0d0e] border border-white/5">
+          {[
+            { id: 'streaming', label: 'Clean' },
+            { id: 'club', label: 'Valve' },
+            { id: 'broadcast', label: 'Punch' },
+            { id: 'audiophile', label: 'Transparent' },
+          ].map(char => {
+            const active = (state.presetId === char.id) || (state.presetId === 'custom' && char.id === 'streaming');
+            return (
+              <button
+                key={char.id}
+                type="button"
+                onClick={() => applyPreset(char.id)}
+                className={`py-1.5 px-1 rounded-[3px] text-[10px] font-bold transition-all ${active
+                  ? 'bg-gradient-to-b from-[#2998c7] to-[#1a6687] text-white shadow-[0_1px_4px_rgba(41,152,199,0.5)]'
+                  : 'text-[#8e9094] hover:text-white hover:bg-white/5'}`}
+              >
+                {char.label}
+              </button>
+            );
+          })}
         </div>
-      )}
+      </div>
 
-      {/* EQ Section */}
-      <SectionHeader title="EQ (4-Band)" expanded={expandedSection === 'eq'} onToggle={() => toggleSection('eq')} />
-      {expandedSection === 'eq' && (
-        <div style={{ padding: '4px 0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <EQBand label="Low Shelf" freq={state.eq.lowShelfFreq} gain={state.eq.lowShelfGain}
-            onFreqChange={v => updateEQ({ lowShelfFreq: v })}
-            onGainChange={v => updateEQ({ lowShelfGain: v })}
-            freqMin={20} freqMax={500} />
-          <EQBand label="Low-Mid" freq={state.eq.lowMidFreq} gain={state.eq.lowMidGain} q={state.eq.lowMidQ}
-            onFreqChange={v => updateEQ({ lowMidFreq: v })}
-            onGainChange={v => updateEQ({ lowMidGain: v })}
-            freqMin={20} freqMax={2000} />
-          <EQBand label="High-Mid" freq={state.eq.highMidFreq} gain={state.eq.highMidGain} q={state.eq.highMidQ}
-            onFreqChange={v => updateEQ({ highMidFreq: v })}
-            onGainChange={v => updateEQ({ highMidGain: v })}
-            freqMin={500} freqMax={20000} />
-          <EQBand label="High Shelf" freq={state.eq.highShelfFreq} gain={state.eq.highShelfGain}
-            onFreqChange={v => updateEQ({ highShelfFreq: v })}
-            onGainChange={v => updateEQ({ highShelfGain: v })}
-            freqMin={1000} freqMax={20000} />
+      {/* Auto EQ & Spectral Shape Display */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-[#8e9094]">
+          <span>Auto EQ Spectral Balance</span>
+          <span className="text-[#52a9ff] font-mono lowercase">±2.5 dB curve</span>
         </div>
-      )}
+        <div className="h-16 w-full rounded-[4px] bg-[#0b0d0f] border border-[#1f2226] relative overflow-hidden flex items-center justify-center p-1">
+          <svg className="w-full h-full" viewBox="0 0 200 60" preserveAspectRatio="none">
+            <line x1="0" y1="30" x2="200" y2="30" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="3 3" />
+            <path
+              d="M0 32 Q50 25 100 28 T200 24"
+              fill="none"
+              stroke="#52a9ff"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+        </div>
+      </div>
 
-      {/* Multiband Compressor Section */}
-      <SectionHeader title="Multiband Compressor" expanded={expandedSection === 'mbcomp'} onToggle={() => toggleSection('mbcomp')} />
-      {expandedSection === 'mbcomp' && (
-        <div style={{ padding: '4px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <KnobRow label="Crossovers" v1={state.multiband.crossoverLow} v2={state.multiband.crossoverMid}
-            l1="Low" l2="Mid" unit="Hz"
-            onV1={v => updateMultiband({ crossoverLow: v })}
-            onV2={v => updateMultiband({ crossoverMid: v })} />
-          <BandRow label="Low" threshold={state.multiband.lowThreshold} ratio={state.multiband.lowRatio}
-            onThreshold={v => updateMultiband({ lowThreshold: v })}
-            onRatio={v => updateMultiband({ lowRatio: v })} />
-          <BandRow label="Mid" threshold={state.multiband.midThreshold} ratio={state.multiband.midRatio}
-            onThreshold={v => updateMultiband({ midThreshold: v })}
-            onRatio={v => updateMultiband({ midRatio: v })} />
-          <BandRow label="High" threshold={state.multiband.highThreshold} ratio={state.multiband.highRatio}
-            onThreshold={v => updateMultiband({ highThreshold: v })}
-            onRatio={v => updateMultiband({ highRatio: v })} />
-        </div>
-      )}
+      {/* EQ 4-Band Sliders */}
+      <div className="p-2.5 rounded-[4px] bg-[#141618] border border-white/5 flex flex-col gap-2">
+        <span className="text-[9px] font-black uppercase text-[#8e9094]">Fine EQ Adjustment</span>
+        <EQBand label="Low" freq={state.eq.lowShelfFreq} gain={state.eq.lowShelfGain}
+          onFreqChange={v => updateEQ({ lowShelfFreq: v })}
+          onGainChange={v => updateEQ({ lowShelfGain: v })}
+          freqMin={20} freqMax={500} />
+        <EQBand label="Low-Mid" freq={state.eq.lowMidFreq} gain={state.eq.lowMidGain} q={state.eq.lowMidQ}
+          onFreqChange={v => updateEQ({ lowMidFreq: v })}
+          onGainChange={v => updateEQ({ lowMidGain: v })}
+          freqMin={20} freqMax={2000} />
+        <EQBand label="High-Mid" freq={state.eq.highMidFreq} gain={state.eq.highMidGain} q={state.eq.highMidQ}
+          onFreqChange={v => updateEQ({ highMidFreq: v })}
+          onGainChange={v => updateEQ({ highMidGain: v })}
+          freqMin={500} freqMax={20000} />
+        <EQBand label="High" freq={state.eq.highShelfFreq} gain={state.eq.highShelfGain}
+          onFreqChange={v => updateEQ({ highShelfFreq: v })}
+          onGainChange={v => updateEQ({ highShelfGain: v })}
+          freqMin={1000} freqMax={20000} />
+      </div>
 
-      {/* Limiter Section */}
-      <SectionHeader title="Limiter" expanded={expandedSection === 'limiter'} onToggle={() => toggleSection('limiter')} />
-      {expandedSection === 'limiter' && (
-        <div style={{ padding: '4px 0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <SliderRow label="Threshold" value={state.limiter.threshold} min={-30} max={0} step={0.1} unit="dB"
-            onChange={v => updateLimiter({ threshold: v })} />
-          <SliderRow label="Attack" value={state.limiter.attack} min={0.001} max={0.05} step={0.001} unit="s"
-            onChange={v => updateLimiter({ attack: v })} />
-          <SliderRow label="Release" value={state.limiter.release} min={0.01} max={0.5} step={0.001} unit="s"
-            onChange={v => updateLimiter({ release: v })} />
-          <SliderRow label="Lookahead" value={state.limiter.lookahead} min={0} max={10} step={0.1} unit="ms"
-            onChange={v => updateLimiter({ lookahead: v })} />
-        </div>
-      )}
+      {/* Dynamics & True Peak Limiter */}
+      <div className="p-2.5 rounded-[4px] bg-[#141618] border border-white/5 flex flex-col gap-2">
+        <span className="text-[9px] font-black uppercase text-[#8e9094]">Dynamics & Limiter</span>
+        <SliderRow label="Threshold" value={state.limiter.threshold} min={-30} max={0} step={0.1} unit="dB"
+          onChange={v => updateLimiter({ threshold: v })} />
+        <SliderRow label="Release" value={state.limiter.release} min={0.01} max={0.5} step={0.001} unit="s"
+          onChange={v => updateLimiter({ release: v })} />
+      </div>
 
-      {/* Stereo Width & Loudness Target */}
-      <SectionHeader title="Master" expanded={expandedSection === 'master'} onToggle={() => toggleSection('master')} />
-      {expandedSection === 'master' && (
-        <div style={{ padding: '4px 0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <SliderRow label="Stereo Width" value={state.stereoWidth} min={0} max={2} step={0.01} unit="x"
-            onChange={v => { chain.setStereoWidth(v); updateState({ stereoWidth: v }) }} />
-          <SliderRow label="Target Loudness" value={state.loudnessTarget} min={-30} max={0} step={0.5} unit="LUFS"
-            onChange={v => { chain.setLoudnessTarget(v); updateState({ loudnessTarget: v }) }} />
-        </div>
-      )}
-
-      {/* Loudness Meter */}
-      <SectionHeader title="Loudness Meter" expanded={expandedSection === 'meter'} onToggle={() => toggleSection('meter')} />
-      {expandedSection === 'meter' && loudnessData && (
-        <div style={{ padding: '6px 0' }}>
-          <MeterRow label="Momentary" value={loudnessData.momentary} format={lufsToStr} unit="LUFS" />
-          <MeterRow label="Short Term" value={loudnessData.shortTerm} format={lufsToStr} unit="LUFS" />
-          <MeterRow label="Integrated" value={loudnessData.integrated} format={lufsToStr} unit="LUFS" />
-          <MeterRow label="True Peak L" value={loudnessData.truePeakLeft} format={dbToStr} unit="dB" />
-          <MeterRow label="True Peak R" value={loudnessData.truePeakRight} format={dbToStr} unit="dB" />
-          <MeterRow label="Loudness Range" value={loudnessData.loudnessRange} format={v => v.toFixed(1)} unit="LU" />
-          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-            <span style={{ color: loudnessData.clipLeft ? '#e94560' : '#666' }}>
-              {loudnessData.clipLeft ? 'CLIP L' : 'OK L'}
-            </span>
-            <span style={{ color: loudnessData.clipRight ? '#e94560' : '#666' }}>
-              {loudnessData.clipRight ? 'CLIP R' : 'OK R'}
-            </span>
-          </div>
-        </div>
-      )}
-      {expandedSection === 'meter' && !loudnessData && (
-        <div style={{ padding: '6px 0', color: '#666' }}>No meter data (connect via setMeterCallback)</div>
-      )}
+      {/* Spatial Spread & Loudness Target */}
+      <div className="p-2.5 rounded-[4px] bg-[#141618] border border-white/5 flex flex-col gap-2">
+        <span className="text-[9px] font-black uppercase text-[#8e9094]">Output & Target</span>
+        <SliderRow label="Spread (Width)" value={state.stereoWidth} min={0} max={2} step={0.01} unit="x"
+          onChange={v => { chain.setStereoWidth(v); updateState({ stereoWidth: v }); }} />
+        <SliderRow label="Target Loudness" value={state.loudnessTarget} min={-30} max={0} step={0.5} unit="LUFS"
+          onChange={v => { chain.setLoudnessTarget(v); updateState({ loudnessTarget: v }); }} />
+      </div>
     </div>
   )
 }

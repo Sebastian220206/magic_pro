@@ -41,8 +41,8 @@ export function Inspector() {
 
     if (!track) {
         return (
-            <div className="w-[280px] bg-studio-panel border-r border-[var(--accent-cyan)]/50 flex flex-col items-center justify-center shrink-0 z-40">
-                <span className="text-[10px] uppercase font-black tracking-widest text-studio-text-dim">No Track Selected</span>
+            <div className="w-[280px] bg-[#1e1f21] border-r border-[#161718] flex flex-col items-center justify-center shrink-0 z-40">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-white/40">No Track Selected</span>
             </div>
         )
     }
@@ -75,22 +75,22 @@ export function Inspector() {
     const articulation = (track as any).articulationSetId ? String((track as any).articulationSetId) : 'None'
 
     return (
-        <div className="w-[280px] bg-studio-panel border-r border-[var(--accent-cyan)]/50 flex flex-col shrink-0 select-none overflow-y-auto custom-scrollbar-v z-40">
+        <div className="w-[280px] bg-[#1e1f21] border-r border-[#161718] flex flex-col shrink-0 select-none overflow-y-auto custom-scrollbar-v z-40">
             {/* ============ 1. Region inspector ============ */}
-            <div className="flex flex-col border-b border-[var(--accent-cyan)]/30">
+            <div className="flex flex-col border-b border-[#161718]">
                 <button
                     onClick={() => setRegionOpen(!regionOpen)}
-                    className="h-9 px-3 flex items-center gap-2 bg-studio-raised/30 hover:bg-white/[0.03] transition-colors text-left w-full"
+                    className="h-8 px-3 flex items-center gap-2 bg-[#262729] hover:bg-[#2d2e30] border-b border-[#1b1c1e] transition-colors text-left w-full"
                 >
                     {regionOpen
-                        ? <ChevronDown className="w-3.5 h-3.5 text-studio-text-dim shrink-0" />
-                        : <ChevronRight className="w-3.5 h-3.5 text-studio-text-dim shrink-0" />}
-                    <span className="text-[11px] font-bold text-studio-text-mid">Region:</span>
-                    <span className="text-[11px] font-black text-white/90 truncate">{regionName}</span>
+                        ? <ChevronDown className="w-3.5 h-3.5 text-white/50 shrink-0" />
+                        : <ChevronRight className="w-3.5 h-3.5 text-white/50 shrink-0" />}
+                    <span className="text-[11px] font-bold text-white/60">Region:</span>
+                    <span className="text-[11px] font-bold text-white/90 truncate">{regionName}</span>
                 </button>
 
                 {regionOpen && (
-                    <div className="flex flex-col py-1 bg-studio-panel/50">
+                    <div className="flex flex-col py-1 bg-[#1a1b1d]">
                         <LogicCheckRow
                             label="Mute"
                             checked={!!clip?.muted}
@@ -117,7 +117,7 @@ export function Inspector() {
                             disabled={!clip}
                             onStep={(d) => handleClipUpdate('transpose', (clip?.transpose || 0) + d)}
                         />
-                        <div className="h-[18px] flex items-center justify-center text-[11px] text-studio-text-dim opacity-50 tracking-[6px]">--</div>
+                        <div className="h-[18px] flex items-center justify-center text-[11px] text-white/30 tracking-[6px]">--</div>
                         <LogicSelectRow
                             label="Pitch Source"
                             value={clip?.pitchSource || 'Off'}
@@ -125,7 +125,7 @@ export function Inspector() {
                             disabled={!clip}
                             onChange={(v) => handleClipUpdate('pitchSource', v)}
                         />
-                        <div className="h-[18px] flex items-center justify-center text-[11px] text-studio-text-dim opacity-50 tracking-[6px]">--</div>
+                        <div className="h-[18px] flex items-center justify-center text-[11px] text-white/30 tracking-[6px]">--</div>
                         <LogicStepperRow
                             label="Velocity Offset"
                             value={clip?.velocityOffset ? (clip.velocityOffset > 0 ? `+${clip.velocityOffset}` : `${clip.velocityOffset}`) : ''}
@@ -137,9 +137,9 @@ export function Inspector() {
                             className="h-6 pl-[26px] flex items-center gap-1 hover:bg-white/[0.02] text-left group"
                         >
                             {regionMore
-                                ? <ChevronDown className="w-3 h-3 text-studio-text-dim group-hover:text-studio-text-mid" />
-                                : <ChevronRight className="w-3 h-3 text-studio-text-dim group-hover:text-studio-text-mid" />}
-                            <span className="text-[11px] font-bold text-studio-text-dim group-hover:text-studio-text-mid">More</span>
+                                ? <ChevronDown className="w-3 h-3 text-white/40 group-hover:text-white/70" />
+                                : <ChevronRight className="w-3 h-3 text-white/40 group-hover:text-white/70" />}
+                            <span className="text-[11px] font-bold text-white/40 group-hover:text-white/70">More</span>
                         </button>
                         {regionMore && clip && (
                             <div className="border-t border-white/5 mt-1 pt-1">
@@ -159,27 +159,27 @@ export function Inspector() {
             </div>
 
             {/* ============ 2. Track inspector ============ */}
-            <div className="flex flex-col border-b border-[var(--accent-cyan)]/30">
+            <div className="flex flex-col border-b border-[#161718]">
                 <button
                     onClick={() => setTrackOpen(!trackOpen)}
-                    className="h-9 px-3 flex items-center gap-2 bg-studio-raised/30 hover:bg-white/[0.03] transition-colors text-left w-full"
+                    className="h-8 px-3 flex items-center gap-2 bg-[#262729] hover:bg-[#2d2e30] border-b border-[#1b1c1e] transition-colors text-left w-full"
                 >
                     {trackOpen
-                        ? <ChevronDown className="w-3.5 h-3.5 text-studio-text-dim shrink-0" />
-                        : <ChevronRight className="w-3.5 h-3.5 text-studio-text-dim shrink-0" />}
-                    <span className="text-[11px] font-bold text-studio-text-mid">Track:</span>
-                    <span className="text-[11px] font-black text-white/90 truncate">{trackName}</span>
+                        ? <ChevronDown className="w-3.5 h-3.5 text-white/50 shrink-0" />
+                        : <ChevronRight className="w-3.5 h-3.5 text-white/50 shrink-0" />}
+                    <span className="text-[11px] font-bold text-white/60">Track:</span>
+                    <span className="text-[11px] font-bold text-white/90 truncate">{trackName}</span>
                 </button>
 
                 {trackOpen && (
-                    <div className="flex flex-col py-2 bg-studio-panel/50">
+                    <div className="flex flex-col py-1.5 bg-[#1a1b1d]">
                         {/* Icon */}
-                        <div className="h-11 flex items-center group hover:bg-white/[0.02]">
-                            <div className="flex-1 text-right pr-2 text-[11px] font-bold text-studio-text-dim group-hover:text-studio-text-mid truncate">Icon:</div>
+                        <div className="h-10 flex items-center group hover:bg-white/[0.02]">
+                            <div className="flex-1 text-right pr-2 text-[11px] font-bold text-white/50 group-hover:text-white/80 truncate">Icon:</div>
                             <div className="w-[104px] flex items-center justify-start pl-1 shrink-0">
-                                <div className="border border-accent-cyan/40 rounded bg-black/40 flex items-center justify-center px-1 py-0.5 shadow-[0_0_8px_var(--accent-cyan-glow)]">
-                                    <svg viewBox="0 0 48 32" className="w-[40px] h-[26px]">
-                                        <g stroke="var(--accent-cyan)" strokeWidth="1.4" fill="none" opacity="0.9">
+                                <div className="border border-white/10 rounded-[3px] bg-black/40 flex items-center justify-center px-1.5 py-1 shadow-sm">
+                                    <svg viewBox="0 0 48 32" className="w-[36px] h-[22px]">
+                                        <g stroke="#2ca05a" strokeWidth="1.4" fill="none" opacity="0.9">
                                             <rect x="8" y="4" width="32" height="10" rx="1" />
                                             {Array.from({ length: 8 }).map((_, i) => (
                                                 <line key={i} x1={11 + i * 3.7} y1="4" x2={11 + i * 3.7} y2="9" />
@@ -264,7 +264,7 @@ export function Inspector() {
             </div>
 
             {/* ============ 3. Inspector channel strips ============ */}
-            <div className="flex-1 flex bg-studio-panel min-h-[420px]">
+            <div className="flex-1 flex bg-[#202123] border-t border-[#18191a] min-h-[420px]">
                 <LogicChannelStrip track={track} variant="track" />
                 <LogicChannelStrip track={null} variant="output" />
             </div>
@@ -422,34 +422,34 @@ const LogicChannelStrip = memo(function LogicChannelStrip({ track, variant }: { 
     const volumeDb = currentVolume <= 0.001 ? '-∞' : (20 * Math.log10(currentVolume)).toFixed(1)
 
     return (
-        <div className="flex-1 flex flex-col border-r border-[var(--accent-cyan)]/30 bg-studio-panel min-w-0">
+        <div className="flex-1 flex flex-col border-r border-[#161718] bg-[#202123] min-w-0">
             <div className="flex-1 flex flex-col px-[6px] pt-[6px] pb-1 min-h-0">
                 {/* setting / patch */}
-                <div className="h-6 bg-studio-raised rounded-sm border border-white/5 flex items-center justify-center px-1">
-                    <span className="text-[9px] font-black text-studio-text-mid uppercase tracking-tighter truncate leading-none">{topLabel}</span>
+                <div className="h-6 bg-[#28292c] rounded-[2px] border border-white/10 flex items-center justify-center px-1">
+                    <span className="text-[9px] font-bold text-white/70 uppercase tracking-tight truncate leading-none">{topLabel}</span>
                 </div>
 
                 {/* EQ thumbnail */}
-                <div className="h-[46px] mt-[5px] rounded-sm bg-black/40 border border-white/5 relative overflow-hidden group">
-                    <svg viewBox="0 0 100 40" className="w-full h-full opacity-60 group-hover:opacity-90 transition-opacity" preserveAspectRatio="none">
+                <div className="h-[42px] mt-[5px] rounded-[2px] bg-[#141517] border border-white/10 relative overflow-hidden group">
+                    <svg viewBox="0 0 100 40" className="w-full h-full opacity-80 group-hover:opacity-100 transition-opacity" preserveAspectRatio="none">
                         {isOutput
-                            ? <path d="M0,22 L100,22" fill="none" stroke="var(--accent-cyan)" strokeWidth="1.5" />
-                            : <path d="M0,12 C15,12 20,30 35,28 C50,26 55,18 70,20 L100,22" fill="none" stroke="var(--accent-cyan)" strokeWidth="1.5" />}
+                            ? <path d="M0,20 L100,20" fill="none" stroke="#288c3d" strokeWidth="1.5" />
+                            : <path d="M0,14 C15,14 20,28 35,26 C50,24 55,16 70,18 L100,20" fill="none" stroke="#288c3d" strokeWidth="1.5" />}
                     </svg>
                 </div>
 
                 {/* MIDI FX / link row */}
                 {!isOutput ? (
                     <div className="h-[18px] flex items-center justify-center">
-                        <span className="text-[9px] font-black text-studio-text-dim uppercase tracking-widest">MIDI FX</span>
+                        <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">MIDI FX</span>
                     </div>
                 ) : (
                     <div className="flex flex-col gap-[3px] mt-[5px]">
-                        <div className="h-[19px] rounded-sm bg-studio-raised border border-white/5 flex items-center justify-center">
-                            <Link2 className="w-3 h-3 text-studio-text-mid" />
+                        <div className="h-[19px] rounded-[2px] bg-[#28292c] border border-white/10 flex items-center justify-center">
+                            <Link2 className="w-3 h-3 text-white/50" />
                         </div>
-                        <div className="h-[19px] rounded-sm bg-studio-raised border border-white/5 flex items-center justify-center">
-                            <Link2 className="w-3 h-3 text-studio-text-mid" />
+                        <div className="h-[19px] rounded-[2px] bg-[#28292c] border border-white/10 flex items-center justify-center">
+                            <Link2 className="w-3 h-3 text-white/50" />
                         </div>
                     </div>
                 )}
@@ -467,9 +467,9 @@ const LogicChannelStrip = memo(function LogicChannelStrip({ track, variant }: { 
                             }
                         }}
                         title="Click to open synthesizer or choose an instrument for this track"
-                        className="h-[19px] mt-[3px] rounded-sm bg-accent-cyan/20 border border-accent-cyan/40 flex items-center justify-center px-1 hover:bg-accent-cyan/30 hover:shadow-[0_0_8px_var(--accent-cyan-glow)] transition-all"
+                        className="h-[20px] mt-[3px] rounded-[2px] bg-[#205530] border border-[#2ca05a]/60 flex items-center justify-center px-1 hover:bg-[#28663a] transition-all"
                     >
-                        <span className="text-[11px] font-black text-accent-cyan truncate leading-none">{instrumentLabel}</span>
+                        <span className="text-[10px] font-bold text-[#64e08c] truncate leading-none">{instrumentLabel}</span>
                     </button>
                 )}
 
@@ -481,9 +481,9 @@ const LogicChannelStrip = memo(function LogicChannelStrip({ track, variant }: { 
                                 <div
                                     key={p.id}
                                     onClick={() => track && setOpenPluginEditor({ trackId: track.id, pluginId: p.id })}
-                                    className={`h-[19px] rounded-sm border-t border-white/10 flex items-center px-1 cursor-pointer hover:brightness-110 transition-all shadow-sm ${p.enabled ? 'bg-accent-cyan text-white' : 'bg-studio-raised text-studio-text-dim opacity-60'}`}
+                                    className={`h-[19px] rounded-[2px] border flex items-center px-1.5 cursor-pointer hover:brightness-110 transition-all ${p.enabled ? 'bg-[#1b3552] border-[#2670b8] text-[#7ec2ff]' : 'bg-[#28292c] border-white/10 text-white/40'}`}
                                 >
-                                    <span className="text-[10px] font-black truncate leading-none">{p.name}</span>
+                                    <span className="text-[10px] font-bold truncate leading-none">{p.name}</span>
                                 </div>
                             ))}
                             {track && track.plugins.length < 5 && (
@@ -496,9 +496,9 @@ const LogicChannelStrip = memo(function LogicChannelStrip({ track, variant }: { 
                                 <div
                                     key={p.id}
                                     onClick={() => setOpenPluginEditor({ trackId: 'master', pluginId: p.id })}
-                                    className={`h-[19px] rounded-sm border-t border-white/10 flex items-center px-1 cursor-pointer hover:brightness-110 transition-all shadow-sm ${p.enabled !== false ? 'bg-accent-cyan text-white' : 'bg-studio-raised text-studio-text-dim opacity-60'}`}
+                                    className={`h-[19px] rounded-[2px] border flex items-center px-1.5 cursor-pointer hover:brightness-110 transition-all ${p.enabled !== false ? 'bg-[#1b3552] border-[#2670b8] text-[#7ec2ff]' : 'bg-[#28292c] border-white/10 text-white/40'}`}
                                 >
-                                    <span className="text-[10px] font-black truncate leading-none">{p.name || p.pluginId}</span>
+                                    <span className="text-[10px] font-bold truncate leading-none">{p.name || p.pluginId}</span>
                                 </div>
                             ))}
                             {(masterPlugins || []).length < 5 && (
@@ -513,10 +513,10 @@ const LogicChannelStrip = memo(function LogicChannelStrip({ track, variant }: { 
                 {/* Bus send */}
                 {!isOutput ? (
                     <div className="flex items-center gap-1 mt-2">
-                        <div className="flex-1 h-[19px] rounded-md bg-accent-cyan/20 border border-accent-cyan/20 flex items-center px-1.5">
-                            <span className="text-[9px] font-black text-accent-cyan uppercase leading-none">Bus 2</span>
+                        <div className="flex-1 h-[19px] rounded-[2px] bg-[#1a2d42] border border-[#276eb8]/60 flex items-center px-1.5">
+                            <span className="text-[9px] font-bold text-[#59a6ff] uppercase leading-none">Bus 2</span>
                         </div>
-                        <div className="w-[16px] h-[16px] rounded-full bg-gradient-to-b from-studio-raised to-studio-sunken border border-studio-line shadow" />
+                        <div className="w-[16px] h-[16px] rounded-full bg-[#2a2b2e] border border-white/20 shadow-inner" />
                     </div>
                 ) : (
                     <div className="h-[19px] mt-2" />
@@ -524,80 +524,138 @@ const LogicChannelStrip = memo(function LogicChannelStrip({ track, variant }: { 
 
                 {/* Output / mastering */}
                 {!isOutput ? (
-                    <div className="h-[19px] mt-[3px] rounded-sm bg-studio-raised border border-white/5 flex items-center px-1.5">
-                        <span className="text-[9px] font-black text-studio-text-mid uppercase truncate leading-none">Stereo Out</span>
+                    <div className="h-[19px] mt-[3px] rounded-[2px] bg-[#28292c] border border-white/10 flex items-center px-1.5">
+                        <span className="text-[9px] font-bold text-white/70 uppercase truncate leading-none">Stereo Out</span>
                     </div>
                 ) : (
                     <div className="h-[19px] mt-[3px]" />
                 )}
                 <div className="h-[18px] flex items-center justify-center">
-                    <span className="text-[10px] font-black text-studio-text-dim uppercase">{isOutput ? 'Mastering' : 'Group'}</span>
+                    <span className="text-[10px] font-bold text-white/40 uppercase">{isOutput ? 'Mastering' : 'Group'}</span>
                 </div>
                 {!isOutput && (
                     <div className="h-[16px] flex items-center justify-center">
-                        <span className="text-[10px] font-black text-studio-text-dim uppercase opacity-0">Group</span>
+                        <span className="text-[10px] font-bold text-white/40 uppercase opacity-0">Group</span>
                     </div>
                 )}
                 {isOutput && (
                     <div className="h-[18px] flex items-center justify-center">
-                        <span className="text-[10px] font-black text-studio-text-dim uppercase">Group</span>
+                        <span className="text-[10px] font-bold text-white/40 uppercase">Group</span>
                     </div>
                 )}
 
                 {/* Automation mode */}
-                <div className="h-[19px] rounded-sm bg-black/40 border border-white/5 flex items-center justify-center">
-                    <span className="text-[10px] font-black text-[#1ed760] uppercase leading-none">Read</span>
+                <div className="h-[19px] rounded-[2px] bg-black/40 border border-white/10 flex items-center justify-center">
+                    <span className="text-[10px] font-bold text-[#2ca05a] uppercase leading-none">Read</span>
                 </div>
 
-                {/* Pan knob */}
-                <div className="flex justify-center mt-2 group/knob">
-                    <div
-                        className="w-[38px] h-[38px] rounded-full cursor-ns-resize relative shadow-[0_2px_6px_rgba(0,0,0,0.6)] border border-[var(--accent-cyan)]/30 bg-gradient-to-tr from-studio-sunken via-studio-raised to-studio-control active:scale-95 transition-transform"
+                {/* Pan pot with Logic Pro cyan sweep arc */}
+                <div className="flex flex-col items-center justify-center mt-2 group/knob">
+                    <div 
+                        className="w-8 h-8 relative flex items-center justify-center cursor-ns-resize"
+                        title="Pan — Drag vertically to adjust, Alt-click for Center"
                         onMouseDown={(e) => {
+                            if (e.altKey) {
+                                handlePanChange(0)
+                                saveHistorySnapshot()
+                                return
+                            }
                             const startY = e.clientY
                             const startVal = currentPan
                             const onMove = (me: MouseEvent) => {
                                 const delta = (startY - me.clientY) / 100
                                 handlePanChange(startVal + delta)
                             }
-                            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+                            const onUp = () => {
+                                saveHistorySnapshot()
+                                window.removeEventListener('mousemove', onMove)
+                                window.removeEventListener('mouseup', onUp)
+                            }
                             window.addEventListener('mousemove', onMove)
                             window.addEventListener('mouseup', onUp)
                         }}
                     >
-                        <div className="absolute inset-0 flex items-start justify-center pt-[4px] pointer-events-none">
-                            <div className="w-[2px] h-[12px] bg-accent-cyan rounded-full shadow-[0_0_4px_var(--accent-cyan-glow)]" style={{ transform: `rotate(${currentPan * 135}deg)`, transformOrigin: '50% 15px' }} />
+                        {/* Outer Precision Track Gauge */}
+                        <svg className="w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 32 32">
+                            <circle
+                                cx="16" cy="16" r="12"
+                                fill="#1c1d1f"
+                                stroke="#35373a"
+                                strokeWidth="2.2"
+                            />
+                            {/* Directional Active Sweep Arc (Cyan) */}
+                            {currentPan !== 0 && (
+                                <circle
+                                    cx="16" cy="16" r="12"
+                                    fill="none"
+                                    stroke="#52a9ff"
+                                    strokeWidth="2.2"
+                                    strokeDasharray={`${Math.abs(currentPan) * 37.7} 75.4`}
+                                    strokeDashoffset={currentPan < 0 ? 0 : -37.7}
+                                    strokeLinecap="round"
+                                />
+                            )}
+                        </svg>
+                        {/* Precision Metallic Center Knob Cap with Indicator Notch */}
+                        <div 
+                            className="w-5 h-5 rounded-full bg-gradient-to-b from-[#4d4f53] via-[#353638] to-[#252628] border border-[#5a5c60] shadow-[0_1px_3px_rgba(0,0,0,0.7)] flex items-center justify-center relative transition-transform"
+                            style={{ transform: `rotate(${currentPan * 135}deg)` }}
+                        >
+                            <div className="absolute top-0.5 w-[1.5px] h-1.5 bg-[#ffffff] rounded-full shadow-[0_0_2px_#ffffff]" />
                         </div>
-                        <div className="absolute inset-[3px] rounded-full border border-white/5 pointer-events-none" />
+                    </div>
+                    <span className="text-[9px] font-bold text-white/60 tabular-nums mt-0.5">
+                        {currentPan === 0 ? 'C' : currentPan < 0 ? `L ${Math.round(Math.abs(currentPan) * 63)}` : `R ${Math.round(currentPan * 63)}`}
+                    </span>
+                </div>
+
+                {/* Value readouts */}
+                <div className="flex justify-center gap-1 mt-1.5">
+                    <div className="w-[42px] h-[18px] rounded-[2px] bg-[#141517] border border-[#2b2c2f] flex items-center justify-center shadow-inner">
+                        <span className="text-[10px] font-bold text-white/90 tabular-nums leading-none">{volumeDb}</span>
+                    </div>
+                    <div className="w-[28px] h-[18px] rounded-[2px] bg-[#141517] border border-[#2b2c2f] flex items-center justify-center shadow-inner">
+                        <span className="text-[9px] font-semibold text-white/40 leading-none">0.0</span>
                     </div>
                 </div>
 
-                {/* Value boxes */}
-                <div className="flex justify-center gap-1 mt-2">
-                    <div className="w-[38px] h-[18px] rounded-[2px] bg-studio-sunken border border-studio-line flex items-center justify-center">
-                        <span className="text-[10px] font-black text-studio-text tabular-nums leading-none">{volumeDb}</span>
+                {/* Fader + dual meters + scale */}
+                <div className="flex justify-center items-stretch gap-1 mt-2 relative">
+                    <div className="flex items-end pb-[2px] w-2">
+                        <VerticalMeter analyzer={analyzer} side="L" className="w-full h-full" />
                     </div>
-                    <div className="w-[24px] h-[18px] rounded-[2px] bg-studio-sunken border border-studio-line" />
-                </div>
-
-                {/* Fader + meters + scale */}
-                <div className="flex justify-center items-stretch gap-[3px] mt-2 relative">
-                    <div className="flex items-end pb-[2px]">
-                        <VerticalMeter analyzer={analyzer} side="L" />
-                    </div>
-                    <div className="h-[150px] w-[26px] bg-studio-sunken border border-studio-line/50 rounded-sm relative shadow-inner">
-                        <div className="absolute inset-y-[6px] left-1/2 w-[2px] -ml-[1px] bg-black/60" />
+                    {/* Logic Pro Fader Track */}
+                    <div className="h-[150px] w-6 bg-[#121315] border border-[#2a2b2d] rounded-[2px] relative cursor-ns-resize shadow-[inset_0_0_6px_rgba(0,0,0,0.85)] flex justify-center">
+                        {/* Center Slot Guide */}
+                        <div className="absolute inset-y-1 w-[2px] bg-[#000000] rounded-full border-r border-white/5 pointer-events-none" />
+                        {/* Unity (0 dB) Guide Notch */}
+                        <div
+                            className="absolute w-full h-[1px] bg-white/25 pointer-events-none"
+                            style={{ bottom: '70%' }}
+                            title="0 dB Unity Marker"
+                        />
+                        {/* Brushed Aluminum Fader Cap with Grip Stripe */}
                         <div
                             ref={faderCapRef}
-                            className="absolute left-[2px] right-[2px] h-[14px] cursor-ns-resize z-20 hover:brightness-125 transition-all"
-                            style={{ filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.6))' }}
+                            className="absolute -left-0.5 w-7 h-4.5 cursor-ns-resize z-20 hover:brightness-105 transition-[filter]"
+                            style={{
+                                bottom: `${Math.min(100, (currentVolume / 1.5) * 100)}%`,
+                                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.85))'
+                            }}
                             onMouseDown={(e) => {
+                                if (e.altKey) {
+                                    liveVolume(1.0)
+                                    commitVolume(1.0)
+                                    saveHistorySnapshot()
+                                    return
+                                }
                                 isDraggingRef.current = true
                                 const startY = e.clientY
                                 const startVol = currentVolume
                                 let lastVol = startVol
+                                const fine = e.shiftKey
                                 const onMove = (me: MouseEvent) => {
-                                    const delta = (startY - me.clientY) / 150
+                                    const delta = (startY - me.clientY) / (fine ? 600 : 150)
                                     const nv = Math.max(0, Math.min(1.5, startVol + delta))
                                     lastVol = nv
                                     liveVolume(nv)
@@ -616,30 +674,34 @@ const LogicChannelStrip = memo(function LogicChannelStrip({ track, variant }: { 
                                 window.addEventListener('mouseup', onUp)
                             }}
                         >
-                            <div className="w-full h-full rounded-[2px] bg-gradient-to-b from-studio-control via-studio-raised to-studio-sunken border border-studio-line-strong relative overflow-hidden">
-                                <div className="absolute top-1/2 left-0 right-0 h-px bg-white/30 shadow-[0_0_2px_rgba(255,255,255,0.5)]" />
+                            <div className="w-full h-full rounded-[2px] bg-gradient-to-b from-[#d0d3d6] via-[#9da0a3] to-[#717376] border border-[#4a4c4f] relative overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] flex items-center justify-center">
+                                <div className="w-[82%] h-[1.5px] bg-[#1a1b1d] shadow-[0_1px_0_rgba(255,255,255,0.5)] rounded-full" />
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-end pb-[2px]">
-                        <VerticalMeter analyzer={analyzer} side="R" />
+                    <div className="flex items-end pb-[2px] w-2">
+                        <VerticalMeter analyzer={analyzer} side="R" className="w-full h-full" />
                     </div>
-                    <div className="flex flex-col justify-between py-[2px] pl-[1px]">
+                    <div className="flex flex-col justify-between py-[2px] pl-0.5">
                         {FADER_SCALE.map(v => (
-                            <span key={v} className="text-[7px] leading-[1] text-studio-text-dim tabular-nums">{v}</span>
+                            <span key={v} className="text-[7px] leading-[1] text-white/35 tabular-nums">{v}</span>
                         ))}
                     </div>
                     {isOutput && (
-                        <div className="absolute -top-[2px] right-0 h-[16px] px-1.5 rounded bg-studio-raised border border-white/5 flex items-center">
-                            <span className="text-[9px] font-black text-studio-text-mid uppercase leading-none">Bnc</span>
+                        <div className="absolute -top-[2px] right-0 h-[16px] px-1.5 rounded-[2px] bg-[#28292c] border border-white/10 flex items-center hover:bg-white/10 cursor-pointer">
+                            <span className="text-[9px] font-bold text-white/70 uppercase leading-none">Bnc</span>
                         </div>
                     )}
                 </div>
 
-                {/* M / S */}
-                <div className="flex gap-1 mt-2">
+                {/* Mute and Solo with Logic Pro illuminated state */}
+                <div className="flex gap-1 mt-2 px-1">
                     <button
-                        className={`h-[19px] flex-1 rounded-sm border text-[10px] font-black transition-colors ${(isOutput ? settings.masterMuted : track?.muted) ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text-mid'}`}
+                        className={`h-5.5 flex-1 rounded-[3px] text-[10px] font-bold transition-all border flex items-center justify-center shadow-sm ${
+                            (isOutput ? settings.masterMuted : track?.muted)
+                                ? 'bg-gradient-to-b from-[#e5a824] to-[#b37812] text-black border-[#ffd54f] shadow-[0_0_8px_rgba(229,168,36,0.55)] font-black'
+                                : 'bg-gradient-to-b from-[#2e3034] to-[#202123] text-[#8b8e93] border-[#3e4045] hover:text-white hover:border-[#52555a]'
+                        }`}
                         onClick={() => {
                             if (isOutput) {
                                 updateProjectSettings({ masterMuted: !settings.masterMuted })
@@ -650,19 +712,30 @@ const LogicChannelStrip = memo(function LogicChannelStrip({ track, variant }: { 
                     >
                         M
                     </button>
-                    {!isOutput && (
+                    {!isOutput ? (
                         <button
-                            className={`h-[19px] flex-1 rounded-sm border text-[10px] font-black transition-colors ${track?.soloed ? 'bg-[#ffc500]/20 border-[#ffc500] text-[#ffc500]' : 'bg-studio-panel border-studio-line text-studio-text-dim hover:text-studio-text-mid'}`}
+                            className={`h-5.5 flex-1 rounded-[3px] text-[10px] font-bold transition-all border flex items-center justify-center shadow-sm ${
+                                track?.soloed
+                                    ? 'bg-gradient-to-b from-[#ffd203] to-[#d4a800] text-black border-[#fff066] shadow-[0_0_8px_rgba(255,210,3,0.55)] font-black'
+                                    : 'bg-gradient-to-b from-[#2e3034] to-[#202123] text-[#8b8e93] border-[#3e4045] hover:text-white hover:border-[#52555a]'
+                            }`}
                             onClick={() => track && updateTrack(track.id, { soloed: !track.soloed })}
                         >
                             S
+                        </button>
+                    ) : (
+                        <button
+                            className="h-5.5 flex-1 rounded-[3px] text-[9px] font-bold bg-[#28292c] border border-white/10 text-white/70 hover:text-white uppercase flex items-center justify-center"
+                            onClick={() => useProjectStore.getState().toggleExportDialog('all')}
+                        >
+                            Bnc
                         </button>
                     )}
                 </div>
             </div>
 
-            <div className="h-[22px] bg-studio-sunken border-t border-black flex items-center justify-center shrink-0">
-                <span className="text-[10px] font-black text-studio-text-dim uppercase truncate px-2 leading-none">{isOutput ? 'Output' : (track?.name || 'Deep Bass')}</span>
+            <div className="h-[22px] bg-[#1a1b1d] border-t border-[#141517] flex items-center justify-center shrink-0">
+                <span className="text-[10px] font-bold text-white/60 uppercase truncate px-2 leading-none">{isOutput ? 'Output' : (track?.name || 'Deep Bass')}</span>
             </div>
         </div>
     )

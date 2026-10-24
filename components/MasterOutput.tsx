@@ -141,21 +141,22 @@ export function LoudnessReadout({ target = 'Spotify' }: { target?: LoudnessTarge
     const reset = useCallback(() => audioEngine.resetLoudnessIntegration(), [])
 
     return (
-        <div className="flex items-center gap-3 px-2 py-1 bg-black/60 rounded border border-white/5 text-[10px] font-mono tabular-nums">
+        <div className="flex items-center gap-2.5 px-2.5 py-0.5 bg-[#0e1012] rounded-[3px] border border-[#23262a] text-[9.5px] font-mono tabular-nums shadow-inner select-none">
+            <span className="text-[8px] font-black uppercase text-[#52a9ff] tracking-wider border-r border-white/10 pr-2">EBU R128</span>
             <Stat label="M" value={formatLufs(data.momentary)} />
             <Stat label="S" value={formatLufs(data.shortTerm)} />
             <Stat label="I" value={formatLufs(data.integrated)} tone={overTarget ? 'bad' : 'good'} />
             <Stat label="LRA" value={data.loudnessRange.toFixed(1)} />
             <Stat label="TP" value={formatLufs(truePeak)} tone={overPeak ? 'bad' : 'good'} />
-            <span className="text-studio-text-dim">
-                {target} {targetLufs} LUFS
+            <span className="text-studio-text-dim text-[8px] opacity-75">
+                {target} ({targetLufs} LUFS)
             </span>
             <button
                 onClick={reset}
-                className="px-1.5 py-0.5 rounded text-studio-text-mid hover:text-white hover:bg-white/10 transition-colors"
+                className="px-1.5 py-0.5 rounded-[2px] bg-white/5 border border-white/10 text-[8px] font-bold text-studio-text-mid hover:text-white hover:bg-white/10 transition-colors"
                 title="Reset integrated loudness"
             >
-                Reset
+                RESET
             </button>
         </div>
     )

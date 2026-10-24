@@ -21,51 +21,35 @@ export function TapeDelay({ trackId, pluginId }: TapeDelayProps) {
     }
 
     return (
-        <div className="w-[940px] bg-[#1e2a35] rounded-lg overflow-hidden flex flex-col shadow-2xl border border-black/40 font-sans select-none text-white/90">
-            {/* Top Toolbar - Standard Magic Pro Style */}
-            <div className="h-10 bg-gradient-to-b from-[#4a4a4a] to-[#2a2a2a] border-b border-black flex items-center px-2 justify-between">
-                <div className="flex items-center gap-1.5">
-                    <button className="w-7 h-7 bg-black/40 rounded flex items-center justify-center border border-white/5 hover:bg-white/10 group shadow-inner">
-                        <Power className="w-3.5 h-3.5 text-sky-400 group-hover:text-white" fill="currentColor" />
+        <div className="w-[940px] bg-[#1e2023] rounded-xl overflow-hidden flex flex-col shadow-[0_40px_100px_rgba(0,0,0,0.95)] border border-[#3b3e44] font-sans select-none text-white/90">
+            {/* Logic Pro Native Effect Window Header Bar */}
+            <div className="h-10 bg-gradient-to-b from-[#3a3d42] to-[#27292d] px-4 flex items-center justify-between border-b border-[#18191b] shadow-sm">
+                <div className="flex items-center gap-2">
+                    <button
+                        title="Bypass Tape Delay"
+                        className="w-7 h-7 rounded-[3px] border border-[#4caf50] bg-gradient-to-b from-[#2e7d32] to-[#1b5e20] text-white flex items-center justify-center shadow-[0_0_8px_rgba(76,175,80,0.6)]"
+                    >
+                        <Power className="w-3.5 h-3.5 fill-current" />
                     </button>
-                    
-                    <div className="flex items-center bg-black/30 border border-white/5 rounded h-7 px-2 ml-1 cursor-pointer hover:bg-white/5">
-                        <span className="text-[11px] font-bold text-gray-300 tracking-tight">Factory Default</span>
-                        <ChevronDownSmall className="w-2.5 h-2.5 ml-2 text-gray-500" />
-                    </div>
+                    <div className="h-4 w-px bg-black/40 mx-1" />
+                    <span className="text-[12px] font-bold text-white/90 tracking-wide">Tape Delay</span>
+                    <span className="text-[10px] font-semibold text-white/40 tracking-wider">[{track?.name ?? 'Track'}]</span>
+                </div>
 
-                    <div className="flex ml-1">
-                        <button className="w-6 h-7 bg-black/20 border border-white/5 rounded-l flex items-center justify-center hover:bg-white/5 disabled:opacity-30">
+                <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-white/40">Setting:</span>
+                    <div className="flex items-center h-6 rounded-[3px] border border-[#3b3e44] bg-[#141517] px-2 shadow-inner">
+                        <button className="text-white/40 hover:text-white pr-1" title="Previous preset">
                             <ChevronLeft className="w-3 h-3" />
                         </button>
-                        <button className="w-6 h-7 bg-black/20 border-l-0 border border-white/5 rounded-r flex items-center justify-center hover:bg-white/5">
+                        <span className="px-1 text-[10px] font-bold tracking-tight text-white/90">Factory Default</span>
+                        <button className="text-white/40 hover:text-white pl-1" title="Next preset">
                             <ChevronRight className="w-3 h-3" />
                         </button>
                     </div>
 
-                    <div className="flex h-7 ml-2 bg-black/40 rounded overflow-hidden border border-white/5">
-                        <button className="px-2.5 text-[9px] font-black uppercase text-sky-400 border-r border-white/5 hover:bg-white/5 bg-sky-950/30">Compare</button>
-                        <button className="px-2.5 text-[9px] font-black uppercase text-gray-400 border-r border-white/5 hover:bg-white/5">Copy</button>
-                        <button className="px-2.5 text-[9px] font-black uppercase text-gray-400 hover:bg-white/5">Paste</button>
-                    </div>
-
-                    <div className="flex h-7 ml-2 bg-black/40 rounded overflow-hidden border border-white/5">
-                        <button className="px-2.5 text-[9px] font-black uppercase text-gray-400 border-r border-white/5 hover:bg-white/5">Undo</button>
-                        <button className="px-2.5 text-[9px] font-black uppercase text-gray-400 hover:bg-white/5">Redo</button>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <div className="flex items-center bg-black/40 border border-white/5 rounded h-7 px-2">
-                        <span className="text-[10px] text-gray-500 mr-2">View:</span>
-                        <span className="text-[10px] font-bold text-gray-300">88%</span>
-                        <div className="flex flex-col ml-1.5 gap-0.5">
-                            <ChevronUpTiny className="w-1.5 h-1.5 text-gray-500" />
-                            <ChevronDownTiny className="w-1.5 h-1.5 text-gray-500" />
-                        </div>
-                    </div>
-                    <button className="w-7 h-7 bg-black/40 rounded border border-white/5 flex items-center justify-center hover:bg-white/5">
-                        <Link2 className="w-3.5 h-3.5 text-gray-500" />
+                    <button className="h-6 px-2.5 rounded-[3px] border border-[#3b3e44] bg-[#282a2e] text-[9px] font-bold text-white/70 hover:text-white shadow-sm">
+                        Compare
                     </button>
                 </div>
             </div>

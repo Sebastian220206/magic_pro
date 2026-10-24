@@ -445,9 +445,9 @@ export const Clip = memo(function Clip({
         ref={clipRef}
         className={`
           absolute cursor-move select-none overflow-hidden
-          ${isSelected ? 'ring-2 ring-white ring-opacity-80' : ''}
-          ${isDragging ? 'opacity-80 z-50' : 'z-10'}
-          ${clip.muted ? 'opacity-50' : ''}
+          ${isSelected ? 'ring-2 ring-white shadow-lg' : 'border border-black/30'}
+          ${isDragging ? 'opacity-90 z-50 shadow-2xl' : 'z-10'}
+          ${clip.muted ? 'opacity-40 grayscale' : ''}
         `}
         style={{
           left: displayX,
@@ -455,8 +455,8 @@ export const Clip = memo(function Clip({
           width: displayWidth,
           height: trackHeight,
           backgroundColor: clipColor,
-          borderRadius: 4,
-          boxShadow: isDragging ? '0 4px 12px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.2)',
+          borderRadius: 3,
+          boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.5)' : '0 1px 3px rgba(0,0,0,0.3)',
         }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -466,6 +466,15 @@ export const Clip = memo(function Clip({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
+        {/* Logic Pro Top Title Bar on Region */}
+        <div className="absolute top-0 inset-x-0 h-4.5 bg-black/25 border-b border-black/20 flex items-center px-1.5 pointer-events-none z-10">
+          <span 
+            className="text-[10px] font-bold text-white truncate tracking-tight"
+            style={{ textShadow: '0 1px 1px rgba(0,0,0,0.8)' }}
+          >
+            {clip.name}
+          </span>
+        </div>
         {/* Waveform visualization */}
         <svg
           className="absolute inset-0 pointer-events-none"
@@ -588,14 +597,6 @@ export const Clip = memo(function Clip({
             )}
           </>
         )}
-
-        {/* Clip name */}
-        <div 
-          className="absolute top-1 left-1.5 right-1.5 text-xs font-medium text-white truncate pointer-events-none"
-          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}
-        >
-          {clip.name}
-        </div>
 
         {/* Multi-selection indicator */}
         {isMultiSelected && !isSelected && (

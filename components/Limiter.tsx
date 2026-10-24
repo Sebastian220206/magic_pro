@@ -160,66 +160,47 @@ export function Limiter({ trackId, pluginId }: { trackId: string; pluginId: stri
     return (
         <div
             data-limiter-editor
-            className="w-[720px] max-w-[calc(100vw-1rem)] rounded-xl border border-accent-cyan/25 bg-gradient-to-b from-[#16324a] to-[#0d1c2b] shadow-[0_30px_80px_rgba(0,0,0,0.85)] overflow-hidden"
+            className="w-[740px] max-w-[calc(100vw-1rem)] rounded-xl border border-[#3b3e44] bg-[#1e2023] shadow-[0_30px_90px_rgba(0,0,0,0.95)] overflow-hidden font-sans select-none"
         >
-            {/* Header */}
-            <div className="px-3 py-2 flex items-center gap-2 border-b border-black/30 bg-black/20">
-                <button
-                    data-limiter-power
-                    onClick={() => edit({ bypass: !state.bypass })}
-                    title={state.bypass ? 'Bypassed — click to engage' : 'Engaged — click to bypass'}
-                    className={`w-8 h-8 rounded-full grid place-items-center border transition-colors ${state.bypass
-                        ? 'border-studio-line text-studio-text-dim bg-black/40'
-                        : 'border-accent-cyan text-accent-cyan bg-accent-cyan/15 shadow-[0_0_12px_rgba(34,211,238,0.35)]'}`}
-                >
-                    <Power className="w-4 h-4" />
-                </button>
-
-                <select
-                    className="h-7 min-w-[170px] rounded bg-black/50 border border-studio-line-strong px-2 text-[11px] text-studio-text outline-none"
-                    defaultValue="user"
-                >
-                    <option value="user">User Default</option>
-                </select>
-
-                <div className="flex gap-0.5">
-                    <button className="h-6 w-6 grid place-items-center rounded bg-black/40 border border-studio-line text-[10px] text-studio-text-dim hover:text-studio-text">‹</button>
-                    <button className="h-6 w-6 grid place-items-center rounded bg-black/40 border border-studio-line text-[10px] text-studio-text-dim hover:text-studio-text">›</button>
+            {/* Logic Pro Native Effect Window Header Bar */}
+            <div className="h-10 bg-gradient-to-b from-[#3a3d42] to-[#27292d] px-4 flex items-center justify-between border-b border-[#18191b] shadow-sm">
+                <div className="flex items-center gap-2">
+                    <button
+                        data-limiter-power
+                        onClick={() => edit({ bypass: !state.bypass })}
+                        title={state.bypass ? 'Bypassed — click to engage' : 'Engaged — click to bypass'}
+                        className={`w-7 h-7 rounded-[3px] border flex items-center justify-center transition-all ${
+                            !state.bypass
+                                ? 'bg-gradient-to-b from-[#2e7d32] to-[#1b5e20] border-[#4caf50] text-white shadow-[0_0_8px_rgba(76,175,80,0.6)]'
+                                : 'bg-[#1e2023] border-[#3b3e44] text-[#8b8e93] hover:text-white'
+                        }`}
+                    >
+                        <Power className="w-3.5 h-3.5 fill-current" />
+                    </button>
+                    <div className="h-4 w-px bg-black/40 mx-1" />
+                    <span className="text-[12px] font-bold text-white/90 tracking-wide">Limiter</span>
+                    <span className="text-[10px] font-semibold text-white/40 tracking-wider">[{track?.name ?? 'Track'}]</span>
                 </div>
 
-                <button
-                    data-limiter-compare
-                    onClick={toggleCompare}
-                    title="Swap between these settings and the ones held"
-                    className={`h-6 px-3 rounded text-[10px] font-bold border transition-colors ${comparing
-                        ? 'bg-accent-cyan/20 border-accent-cyan text-accent-cyan'
-                        : 'bg-black/40 border-studio-line-strong text-accent-cyan/80 hover:text-accent-cyan'}`}
-                >
-                    Compare
-                </button>
+                <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-white/40">Setting:</span>
+                    <div className="flex items-center h-6 rounded-[3px] border border-[#3b3e44] bg-[#141517] px-2 shadow-inner">
+                        <span className="px-1 text-[10px] font-bold tracking-tight text-white/90">User Default</span>
+                    </div>
 
-                {/* Dimmed with the reason: a plugin clipboard would have to
-                    live in the store beside the channel-strip one, and does
-                    not. Undo/Redo is the project's, reached from the menu. */}
-                {['Copy', 'Paste'].map(label => (
-                    <span
-                        key={label}
-                        title="Copying a plugin's settings is not built yet"
-                        className="h-6 px-3 grid place-items-center rounded bg-black/30 border border-studio-line text-[10px] font-bold text-studio-text-dim opacity-40"
+                    <button
+                        data-limiter-compare
+                        onClick={toggleCompare}
+                        title="Swap between these settings and the ones held"
+                        className={`h-6 px-2.5 rounded-[3px] text-[9px] font-bold border transition-colors shadow-sm ${
+                            comparing
+                                ? 'bg-accent-cyan/20 border-accent-cyan text-accent-cyan'
+                                : 'bg-[#282a2e] border-[#3b3e44] text-white/70 hover:text-white'
+                        }`}
                     >
-                        {label}
-                    </span>
-                ))}
-                <span className="h-6 px-2 grid place-items-center rounded bg-black/30 border border-studio-line text-studio-text-dim opacity-40" title="Use the project's undo">
-                    <Undo2 className="w-3 h-3" />
-                </span>
-                <span className="h-6 px-2 grid place-items-center rounded bg-black/30 border border-studio-line text-studio-text-dim opacity-40" title="Use the project's redo">
-                    <Redo2 className="w-3 h-3" />
-                </span>
-
-                <span className="ml-auto mr-7 text-[9px] font-bold uppercase tracking-wider text-studio-text-dim">
-                    {track?.name ?? 'Track'}
-                </span>
+                        Compare
+                    </button>
+                </div>
             </div>
 
             <div className="flex">

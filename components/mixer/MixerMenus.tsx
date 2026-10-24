@@ -101,14 +101,14 @@ function Dropdown({ label, items, testId }: { label: string; items: MenuItem[]; 
                 aria-haspopup="menu"
                 aria-expanded={open}
                 onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
-                className={`flex items-center gap-1.5 rounded px-2.5 h-7 border transition-all group ${open
-                    ? 'bg-studio-control border-[var(--accent-cyan)] shadow-[0_0_8px_var(--accent-cyan-glow)]'
-                    : 'bg-studio-void border-[var(--accent-cyan)]/40 hover:border-[var(--accent-cyan)]'}`}
+                className={`flex items-center gap-1.5 rounded-[3px] px-2.5 h-6.5 border transition-all group ${open
+                    ? 'bg-[#3c3d40] border-white/20 text-white'
+                    : 'bg-[#1c1d1f] border-white/10 hover:bg-[#28292c] text-white/70 hover:text-white'}`}
             >
-                <span className={`text-[10px] font-black uppercase tracking-tighter ${open ? 'text-[var(--accent-cyan)]' : 'text-studio-text-mid group-hover:text-[var(--accent-cyan)]'}`}>
+                <span className="text-[10px] font-bold uppercase tracking-tight">
                     {label}
                 </span>
-                <ChevronDown className="w-3 h-3 text-studio-text-dim" />
+                <ChevronDown className="w-3 h-3 text-white/40 group-hover:text-white/70" />
             </button>
 
             {open && pos && typeof document !== 'undefined' && createPortal(

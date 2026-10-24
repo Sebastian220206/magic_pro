@@ -97,22 +97,23 @@ export const FADER_SCALE = [0, 3, 6, 9, 12, 15, 18, 21, 24, 30, 35, 40, 50, 60] 
  * VCA violet.
  */
 export function stripTint(type: string | undefined, isMaster?: boolean, isVca?: boolean): string {
-    if (isVca || isMaster) return '#a78bfa';
+    if (isVca) return '#4080c0';
+    if (isMaster) return '#808080';
     switch (type) {
         case 'software-instrument':
         case 'midi':
         case 'drummer':
         case 'external-midi':
-            return '#4ade80';
+            return '#2ca05a'; // Logic Pro Instrument Green
         case 'audio':
-            return '#38bdf8';
+            return '#2670b8'; // Logic Pro Audio Blue
         case 'bus':
         case 'folder':
-            return '#fbbf24';
+            return '#c07820'; // Logic Pro Aux/Bus Amber
         case 'output':
-            return '#ec4899';
+            return '#b03045'; // Logic Pro Output Crimson
         default:
-            return '#94a3b8';
+            return '#5a5c60';
     }
 }
 

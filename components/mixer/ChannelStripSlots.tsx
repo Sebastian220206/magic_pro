@@ -169,11 +169,15 @@ export function AutomationModeButton({ track }: { track: Track }) {
                 title="Automation mode"
                 aria-label="Automation mode"
                 onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
-                className={`h-full w-full rounded-[2px] border text-[8px] font-black uppercase transition-colors ${mode === 'off'
-                    ? 'bg-black/60 border-studio-line text-studio-text-dim'
-                    : isWriteMode(mode)
-                        ? 'bg-red-950/60 border-red-500/50 text-red-400 hover:border-red-400'
-                        : 'bg-black/60 border-accent-cyan/30 text-[#63ed63] hover:border-accent-cyan'}`}
+                className={`h-full w-full rounded-[2px] border text-[8px] font-black uppercase transition-all shadow-sm ${mode === 'off'
+                    ? 'bg-[#181a1c] border-white/10 text-studio-text-dim'
+                    : mode === 'read'
+                        ? 'bg-gradient-to-b from-[#1b4324] to-[#122e18] border-[#4cd964] text-[#76f08c]'
+                        : mode === 'touch'
+                            ? 'bg-gradient-to-b from-[#4d420f] to-[#362e08] border-[#ffd203] text-[#ffe666]'
+                            : mode === 'latch'
+                                ? 'bg-gradient-to-b from-[#4d2f0f] to-[#362008] border-[#ff9500] text-[#ffb84d]'
+                                : 'bg-gradient-to-b from-[#4d1616] to-[#330d0d] border-[#e53939] text-[#ff8080]'}`}
             >
                 {current.label}
             </button>
@@ -284,12 +288,12 @@ export function TrackNameField({ track, index, isMaster, isSelected }: {
             className={`h-8 border-t border-black flex items-center px-2 gap-1.5 shrink-0 relative ${isSelected ? 'bg-accent-cyan/20' : 'bg-studio-sunken'}`}
             data-track-name-field
         >
-            {isSelected && <div className="absolute top-0 left-0 right-0 h-0.5 bg-accent-cyan shadow-[0_0_10px_rgba(14,165,233,0.8)]" />}
+            {isSelected && <div className="absolute top-0 left-0 right-0 h-0.5 bg-white/80 shadow-sm" />}
 
             {/* The track's own colour, so a strip can be found by eye. */}
             <span
                 className="w-1 h-4 rounded-full shrink-0"
-                style={{ background: isMaster ? 'var(--accent-cyan)' : (track?.color ?? '#888') }}
+                style={{ background: isMaster ? '#b03045' : (track?.color ?? '#888') }}
             />
             <span className="text-[9px] leading-none shrink-0" aria-hidden>
                 {isMaster ? '🔊' : (TYPE_GLYPH[track?.type ?? 'audio'] ?? '🎚')}
